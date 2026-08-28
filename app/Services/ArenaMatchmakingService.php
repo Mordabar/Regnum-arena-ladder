@@ -109,6 +109,8 @@ class ArenaMatchmakingService
         $enabledModes = ArenaMode::enabled();
 
         if ($enabledModes === []) {
+            Log::warning('ArenaMatchmakingService: no hay modalidades activas, no se procesa la cola.');
+
             return 0;
         }
 
@@ -144,7 +146,10 @@ class ArenaMatchmakingService
         foreach ($randomWaitingQueues->groupBy('arena_mode') as $arenaMode => $modeQueues) {
             foreach ($modeQueues->groupBy(fn (Queue $queue) => $queue->player->realm) as $realm => $queues) {
                 $candidateTeams = $candidateTeams->merge(
-                    $this->buildRealmTeams((string) $arenaMode, (string) $realm, $queues)
+                    // resolve() canoniza: la clave del groupBy es el valor crudo
+                    // de la BD y los equipos premade se etiquetan normalizados.
+                    // Si no coincidieran, random y premade no se emparejarian.
+                    $this->buildRealmTeams(ArenaMode::resolve((string) $arenaMode), (string) $realm, $queues)
                 );
             }
         }
@@ -484,7 +489,7 @@ class ArenaMatchmakingService
      */
     private function combinationIndexes(int $itemCount, int $pickCount, int $start = 0, array $prefix = []): \Generator
     {
-        if ($pickCount === 0) {
+        if ($pickCount <= 0) {
             yield $prefix;
 
             return;
@@ -1049,6 +1054,7 @@ class ArenaMatchmakingService
             ->get()
             ->map(function (ArenaMatch $match) {
                 return [
+                    'arena_mode' => ArenaMode::resolve($match->arena_mode),
                     'team_a_ids' => $match->getTeamPlayerIds('team_a'),
                     'team_b_ids' => $match->getTeamPlayerIds('team_b'),
                 ];
@@ -1204,27 +1210,43 @@ class ArenaMatchmakingService
 
     private function calculateRepeatOverlapPenalty(array $teamA, array $teamB, Collection $recentMatchSnapshots): int
     {
+        $arenaMode = ArenaMode::resolve($teamA['arena_mode'] ?? null);
+        $teamSize = ArenaMode::teamSize($arenaMode);
         $teamAIds = $teamA['entries']->map(fn (Queue $queue) => (int) $queue->player->id)->all();
         $teamBIds = $teamB['entries']->map(fn (Queue $queue) => (int) $queue->player->id)->all();
 
-        return $recentMatchSnapshots->reduce(function (int $carry, array $snapshot) use ($teamAIds, $teamBIds) {
+        return $recentMatchSnapshots->reduce(function (int $carry, array $snapshot) use ($arenaMode, $teamSize, $teamAIds, $teamBIds) {
+            // Solo se compara contra partidas de la misma modalidad: el
+            // solapamiento de un 3v3 no es equiparable al de un 2v2, porque
+            // "cuantos jugadores se repiten" significa cosas distintas.
+            if (($snapshot['arena_mode'] ?? ArenaMode::FALLBACK) !== $arenaMode) {
+                return $carry;
+            }
+
             $forwardPenalty = $this->calculateOverlapPenalty(
                 $this->countPlayerOverlap($teamAIds, $snapshot['team_a_ids']),
-                $this->countPlayerOverlap($teamBIds, $snapshot['team_b_ids'])
+                $this->countPlayerOverlap($teamBIds, $snapshot['team_b_ids']),
+                $teamSize
             );
 
             $reversePenalty = $this->calculateOverlapPenalty(
                 $this->countPlayerOverlap($teamAIds, $snapshot['team_b_ids']),
-                $this->countPlayerOverlap($teamBIds, $snapshot['team_a_ids'])
+                $this->countPlayerOverlap($teamBIds, $snapshot['team_a_ids']),
+                $teamSize
             );
 
             return max($carry, $forwardPenalty, $reversePenalty);
         }, 0);
     }
 
-    private function calculateOverlapPenalty(int $teamAOverlap, int $teamBOverlap): int
+    /**
+     * El umbral alto es "se repite el equipo completo", asi que depende del
+     * tamaño: 2 en 2v2 (identico al comportamiento anterior) y 3 en 3v3. Con un
+     * 2 fijo, en 3v3 un solapamiento parcial de 2 de 3 se penalizaba al maximo.
+     */
+    private function calculateOverlapPenalty(int $teamAOverlap, int $teamBOverlap, int $teamSize = 2): int
     {
-        if ($teamAOverlap >= 2 && $teamBOverlap >= 2) {
+        if ($teamAOverlap >= $teamSize && $teamBOverlap >= $teamSize) {
             return self::HIGH_OVERLAP_PAIRING_PENALTY;
         }
 

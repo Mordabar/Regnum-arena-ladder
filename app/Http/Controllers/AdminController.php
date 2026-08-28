@@ -536,9 +536,14 @@ class AdminController extends Controller
 
         // Las partys no se disuelven: vuelven al estado previo a la cola, igual
         // que cuando expira su busqueda. Si se reactiva la modalidad, siguen ahi.
+        // Se excluyen las que ya entraron a un match: ese match sigue vivo y la
+        // party debe seguir reflejandolo hasta que se resuelva.
         Party::query()
             ->where('arena_mode', $mode)
             ->where('status', 'queued')
+            ->whereDoesntHave('members.player.queues', function ($query) {
+                $query->whereIn('status', ['matched', 'accepted']);
+            })
             ->get()
             ->each(function (Party $party) {
                 $acceptedCount = (int) $party->members()->where('is_accepted_invite', true)->count();

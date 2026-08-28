@@ -52,9 +52,9 @@ class Queue extends Model
         // Red de seguridad: una cola sin modalidad explicita entra a la que
         // este activa por defecto, nunca queda en null.
         static::creating(function (Queue $queue) {
-            if (ArenaMode::normalize($queue->arena_mode) === null) {
-                $queue->arena_mode = ArenaMode::default();
-            }
+            // resolve() ademas canoniza (' 3V3 ' -> '3v3'): guardar el
+            // valor crudo romperia las comparaciones por modalidad.
+            $queue->arena_mode = ArenaMode::resolve($queue->arena_mode);
         });
     }
 

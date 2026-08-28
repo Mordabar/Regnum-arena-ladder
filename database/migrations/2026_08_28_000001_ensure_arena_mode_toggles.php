@@ -60,21 +60,49 @@ return new class extends Migration
                         $column->after($after);
                     }
                 });
+
+                // Los mismos indices que crea 2026_07_06_000001_add_arena_modes.
+                // Solo se agregan cuando esta migracion creo la columna, para no
+                // chocar con los que aquella ya dejo puestos.
+                Schema::table($table, function (Blueprint $blueprint) use ($table) {
+                    match ($table) {
+                        'queues' => $blueprint->index(['arena_mode', 'status', 'queue_type'], 'queues_mode_status_type_index'),
+                        'matches' => $blueprint->index(['arena_mode', 'status', 'completed_at'], 'matches_mode_status_completed_index'),
+                        'parties' => $blueprint->index(['arena_mode', 'status'], 'parties_mode_status_index'),
+                        default => null,
+                    };
+                });
             }
 
-            // Filas previas al soporte multimodal: todo lo jugado hasta ahora fue 2v2.
-            DB::table($table)->whereNull('arena_mode')->update(['arena_mode' => '2v2']);
+            // Filas previas al soporte multimodal: todo lo jugado hasta ahora fue
+            // 2v2. Se cubre tambien la cadena vacia, que no la atrapa whereNull.
+            DB::table($table)
+                ->where(function ($query) {
+                    $query->whereNull('arena_mode')->orWhere('arena_mode', '');
+                })
+                ->update(['arena_mode' => '2v2']);
         }
 
         if (!Schema::hasTable('app_settings')) {
             return;
         }
 
-        // 2v2 queda encendido (es lo que corre hoy) y 3v3 apagado: activar una
-        // modalidad nueva debe ser una decision explicita del admin, no un
-        // efecto secundario del deploy.
-        $this->ensureSetting('mode_2v2_enabled', '1');
-        $this->ensureSetting('mode_3v3_enabled', '0');
+        // Se FUERZA el valor (no basta con insertar si falta): la migracion
+        // 2026_07_06_000001 pudo dejar mode_3v3_enabled='1' y, si la siguiente
+        // no llego a correr, un simple "insertar si no existe" encenderia 3v3
+        // sola en el deploy.
+        foreach ($this->resolveInitialModeStates() as $mode => $enabled) {
+            DB::table('app_settings')->updateOrInsert(
+                ['key' => 'mode_' . $mode . '_enabled'],
+                [
+                    'group' => 'modes',
+                    'value' => $enabled ? '1' : '0',
+                    'type' => 'boolean',
+                    'is_public' => true,
+                    'updated_at' => now(),
+                ]
+            );
+        }
 
         DB::table('app_settings')
             ->where('key', 'home_tagline')
@@ -89,33 +117,60 @@ return new class extends Migration
 
     public function down(): void
     {
-        if (Schema::hasTable('app_settings')) {
-            DB::table('app_settings')
-                ->whereIn('key', ['mode_2v2_enabled', 'mode_3v3_enabled'])
-                ->delete();
-        }
-
-        // arena_mode no se elimina: 2026_07_06_000001_add_arena_modes es su
-        // dueño original y revertirla aqui borraria el modo de partidas ya
-        // jugadas en 3v3.
+        // A proposito no se borran mode_*_enabled ni la columna arena_mode:
+        // ambas son propiedad de 2026_07_06_000001_add_arena_modes. Borrarlas
+        // aqui dejaria al sistema peor que antes de esta migracion (sin las
+        // claves que aquella creo, y perdiendo la modalidad de partidas ya
+        // jugadas). Esta migracion solo normaliza valores, y eso no se revierte.
     }
 
-    private function ensureSetting(string $key, string $value): void
+    /**
+     * Estado inicial de cada modalidad.
+     *
+     * Hasta ahora quien decidia esto era la temporada activa (arena_seasons.
+     * enabled_modes), asi que si existe se respeta lo que estaba corriendo en
+     * produccion. Sin temporada, queda 2v2 encendido y 3v3 apagado: estrenar
+     * una modalidad tiene que ser una decision explicita del admin, no un
+     * efecto secundario del deploy.
+     *
+     * @return array<string, bool>
+     */
+    private function resolveInitialModeStates(): array
     {
-        $exists = DB::table('app_settings')->where('key', $key)->exists();
+        $default = ['2v2' => true, '3v3' => false];
 
-        if ($exists) {
-            return;
+        if (!Schema::hasTable('arena_seasons')) {
+            return $default;
         }
 
-        DB::table('app_settings')->insert([
-            'group' => 'modes',
-            'key' => $key,
-            'value' => $value,
-            'type' => 'boolean',
-            'is_public' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $activeModes = DB::table('arena_seasons')
+            ->where('status', 'active')
+            ->orderByDesc('starts_at')
+            ->value('enabled_modes');
+
+        if ($activeModes === null) {
+            return $default;
+        }
+
+        $decoded = json_decode((string) $activeModes, true);
+
+        if (!is_array($decoded) || $decoded === []) {
+            return $default;
+        }
+
+        $normalized = array_map(
+            static fn ($mode) => strtolower(trim((string) $mode)),
+            $decoded
+        );
+
+        $states = [
+            '2v2' => in_array('2v2', $normalized, true),
+            '3v3' => in_array('3v3', $normalized, true),
+        ];
+
+        // Si la temporada no nombra ninguna modalidad conocida, no dejamos el
+        // sitio sin colas.
+        return ($states['2v2'] || $states['3v3']) ? $states : $default;
     }
+
 };

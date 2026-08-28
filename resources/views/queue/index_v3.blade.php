@@ -12,7 +12,14 @@
     $hasRoster = $players->isNotEmpty();
     $hasActiveState = (bool) ($currentQueue || $currentMatch);
     $modesAreOpen = !empty($enabledModes);
-    $canJoinQueue = $hasRoster && !$hasActiveState && $modesAreOpen;
+    // Ojo: $canJoinQueue NO depende de $modesAreOpen. Este bloque tambien
+    // contiene las invitaciones y el panel de party (con "Abandonar Party"), y
+    // con las modalidades apagadas el jugador igual tiene que poder salir.
+    // $modesAreOpen solo apaga los formularios de entrada a cola.
+    $canJoinQueue = $hasRoster && !$hasActiveState;
+    // La party puede ser de una modalidad que el admin apago despues de armarla.
+    $activePartyMode = $activeParty->arena_mode ?? null;
+    $activePartyModeIsOpen = $activeParty ? \App\Support\ArenaMode::isEnabled($activePartyMode) : false;
     // La cola activa se muestra con SU modalidad, no con la de la pestaña.
     $queueTypeLabel = $currentQueue
         ? trim((\App\Models\Queue::QUEUE_TYPES[$currentQueue->queue_type] ?? ucfirst($currentQueue->queue_type)) . ' ' . \App\Support\ArenaMode::label($currentQueue->arena_mode))
@@ -270,12 +277,17 @@
                         <div>
                             <h2 class="text-xl font-semibold text-white">Random {{ $arenaMode }}</h2>
                             <p class="mt-1 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                                Entras con un solo personaje. El sistema busca 1 aliado de tu reino.
+                                Entras con un solo personaje. El sistema busca {{ $teamSize - 1 }} aliado(s) de tu reino.
                             </p>
                         </div>
                         <span class="arena-chip text-[color:var(--arena-gold-soft)]">1 slot</span>
                     </div>
 
+                    @if(!$modesAreOpen)
+                        <p class="arena-card p-4 text-sm text-[color:var(--arena-muted)] arena-body-text">
+                            Las colas están cerradas por el momento.
+                        </p>
+                    @else
                     <form method="POST" action="{{ route('queue.join') }}" class="space-y-4">
                         @csrf
                         <input type="hidden" name="queue_type" value="random">
@@ -307,6 +319,7 @@
                             Entrar a Random {{ $arenaMode }}
                         </button>
                     </form>
+                    @endif
                 </div>
 
                 {{-- Premade tab --}}
@@ -315,7 +328,7 @@
                         <div>
                             <h2 class="text-xl font-semibold text-white">Premade / Party {{ $arenaMode }}</h2>
                             <p class="mt-1 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                                Forma tu escuadra con 1 aliado y lánzate a la arena.
+                                Forma tu escuadra con {{ $teamSize - 1 }} aliado(s) y lánzate a la arena.
                             </p>
                         </div>
                         <span class="arena-chip text-[color:var(--arena-ice)]">{{ $premadeDailyLimit }}/día</span>
@@ -324,8 +337,15 @@
                     @if(isset($activeParty) && $activeParty)
                         <div class="arena-card p-6 border border-[color:var(--arena-gold-soft)]/30">
                             <h3 class="text-xl font-bold text-white mb-2 flex items-center gap-2">
-                                ⚔️ Party Activa ({{ \App\Models\Player::REALMS[$activeParty->realm] ?? strtoupper($activeParty->realm) }})
+                                ⚔️ Party Activa {{ \App\Support\ArenaMode::label($activePartyMode) }}
+                                ({{ \App\Models\Player::REALMS[$activeParty->realm] ?? strtoupper($activeParty->realm) }})
                             </h3>
+                            @unless($activePartyModeIsOpen)
+                                <p class="mb-4 rounded-2xl border border-amber-700/40 bg-amber-900/20 px-4 py-3 text-sm text-amber-200 arena-body-text">
+                                    La modalidad {{ \App\Support\ArenaMode::label($activePartyMode) }} está apagada ahora mismo.
+                                    Esta party queda guardada y podrá buscar match cuando vuelva a activarse.
+                                </p>
+                            @endunless
                             <p class="text-sm text-[color:var(--arena-muted)] mb-5">
                                 Estado: 
                                 @if($activeParty->status === 'queued') <span class="text-emerald-400">Buscando oponente...</span>
@@ -366,10 +386,16 @@
                                 @endphp
                                 @if($isLeader)
                                     @if($activeParty->status === 'ready')
-                                        <form method="POST" action="{{ route('party.enqueue', $activeParty) }}" class="flex-1 w-full md:w-auto">
-                                            @csrf
-                                            <button class="arena-btn-safe w-full justify-center py-3">▶ Iniciar Búsqueda Matchmaking</button>
-                                        </form>
+                                        @if($activePartyModeIsOpen)
+                                            <form method="POST" action="{{ route('party.enqueue', $activeParty) }}" class="flex-1 w-full md:w-auto">
+                                                @csrf
+                                                <button class="arena-btn-safe w-full justify-center py-3">▶ Iniciar Búsqueda Matchmaking</button>
+                                            </form>
+                                        @else
+                                            <div class="flex-1 w-full text-sm text-[color:var(--arena-muted)] bg-black/20 p-3 rounded-lg border border-[color:var(--arena-line)] text-center">
+                                                Búsqueda no disponible mientras {{ \App\Support\ArenaMode::label($activePartyMode) }} esté apagada.
+                                            </div>
+                                        @endif
                                     @elseif($activeParty->status === 'forming')
                                         <div class="flex-1 w-full text-sm text-[color:var(--arena-sand)] bg-[color:var(--arena-gold-soft)]/10 p-3 rounded-lg border border-[color:var(--arena-gold-soft)]/20 text-center">
                                             Debes esperar a que tus amigos acepten la invitación.
@@ -382,6 +408,10 @@
                                 </form>
                             </div>
                         </div>
+                    @elseif(!$modesAreOpen)
+                        <p class="arena-card p-4 text-sm text-[color:var(--arena-muted)] arena-body-text">
+                            No se pueden armar partys mientras las colas estén cerradas.
+                        </p>
                     @else
                         <form method="POST" action="{{ route('party.create') }}" class="space-y-4" id="premadeForm">
                         @csrf
@@ -448,7 +478,8 @@
                         {{-- Summary --}}
                         <div class="arena-card p-4">
                             <p class="text-sm font-semibold text-white arena-body-text">Party en construcción</p>
-                            <div id="premadeSummary" class="mt-3 grid gap-3 md:grid-cols-2">
+                            {{-- Clases literales: Tailwind no compila nombres de clase generados dinamicamente. --}}
+                            <div id="premadeSummary" class="mt-3 grid gap-3 {{ $teamSize >= 3 ? 'md:grid-cols-3' : 'md:grid-cols-2' }}">
                                 @for($slot = 1; $slot <= $teamSize; $slot++)
                                     <div class="rounded-2xl border border-[color:var(--arena-line)] bg-black/10 px-4 py-3 text-sm text-[color:var(--arena-muted)]">
                                         Slot {{ $slot }} pendiente

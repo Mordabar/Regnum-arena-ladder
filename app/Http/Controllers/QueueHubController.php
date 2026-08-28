@@ -940,10 +940,16 @@ class QueueHubController extends Controller
             ]);
         }
 
+        $sandboxMode = ArenaMode::resolve($request->input('arena_mode'));
+
+        if (!ArenaMode::isEnabled($sandboxMode)) {
+            return back()->withErrors(['error' => 'La modalidad ' . $sandboxMode . ' no esta activa: la cola no se procesaria.']);
+        }
+
         Queue::create([
             'player_id' => $player->id,
             'queue_type' => 'random',
-            'arena_mode' => ArenaMode::resolve($request->input('arena_mode')),
+            'arena_mode' => $sandboxMode,
             'status' => 'waiting',
             'conjurer_role' => $this->assignSandboxConjurerRole($player),
             'estimated_mmr' => $player->mmr ?? 800,
@@ -965,6 +971,10 @@ class QueueHubController extends Controller
         ]);
 
         $arenaMode = ArenaMode::resolve($validated['arena_mode'] ?? null);
+
+        if (!ArenaMode::isEnabled($arenaMode)) {
+            return back()->withErrors(['error' => 'La modalidad ' . $arenaMode . ' no esta activa: los bots quedarian esperando sin emparejar.']);
+        }
 
         $players = $testingLabService->testPlayersQuery()
             ->where('realm', $validated['realm'])
@@ -1135,6 +1145,11 @@ class QueueHubController extends Controller
         // La party se completa con el personaje real mas los bots que falten
         // segun la modalidad: 1 bot en 2v2, 2 bots en 3v3.
         $arenaMode = ArenaMode::resolve($request->input('arena_mode'));
+
+        if (!ArenaMode::isEnabled($arenaMode)) {
+            return back()->withErrors(['error' => 'La modalidad ' . $arenaMode . ' no esta activa.']);
+        }
+
         $requiredBots = ArenaMode::teamSize($arenaMode) - 1;
 
         $bots = Player::query()
@@ -1163,13 +1178,28 @@ class QueueHubController extends Controller
             'arena_mode' => $arenaMode,
         ]);
 
+        // Con 2 bots (3v3) los roles se sortean por separado y podrian salir dos
+        // conjuradores soporte, algo que la party real no permite. El primer
+        // soporte se acepta y el resto pasa a ofensivo.
+        $supportTaken = false;
+
         foreach ($bots as $index => $bot) {
+            $role = $this->assignSandboxConjurerRole($bot);
+
+            if ($role === 'support') {
+                if ($supportTaken) {
+                    $role = 'offensive';
+                } else {
+                    $supportTaken = true;
+                }
+            }
+
             PartyMember::create([
                 'party_id' => $party->id,
                 'player_id' => $bot->id,
                 'is_accepted_invite' => true,
                 'is_leader' => $index === 0,
-                'conjurer_role' => $this->assignSandboxConjurerRole($bot),
+                'conjurer_role' => $role,
             ]);
         }
 

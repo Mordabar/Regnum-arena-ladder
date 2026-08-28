@@ -159,7 +159,19 @@
                                             <option value="support">Soporte</option>
                                         </select>
                                     @endif
-                                    <button type="submit" class="arena-btn-secondary px-3 py-1.5 text-xs">Encolar</button>
+                                    {{-- Solo se ofrecen las modalidades encendidas: encolar en una apagada
+                                         dejaria al jugador esperando un match que nunca llega. --}}
+                                    @php($adminEnabledModes = \App\Support\ArenaMode::enabled())
+                                    @if(count($adminEnabledModes) > 1)
+                                        <select name="arena_mode" class="arena-select text-xs py-1.5 min-w-[80px]">
+                                            @foreach($adminEnabledModes as $adminMode)
+                                                <option value="{{ $adminMode }}">{{ $adminMode }}</option>
+                                            @endforeach
+                                        </select>
+                                    @elseif(count($adminEnabledModes) === 1)
+                                        <input type="hidden" name="arena_mode" value="{{ $adminEnabledModes[0] }}">
+                                    @endif
+                                    <button type="submit" class="arena-btn-secondary px-3 py-1.5 text-xs" @disabled(empty($adminEnabledModes))>Encolar</button>
                                 </form>
                             @endif
                             <form method="POST" action="{{ route('admin.players.update', $player) }}">

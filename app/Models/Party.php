@@ -23,9 +23,9 @@ class Party extends Model
     protected static function booted(): void
     {
         static::creating(function (Party $party) {
-            if (ArenaMode::normalize($party->arena_mode) === null) {
-                $party->arena_mode = ArenaMode::default();
-            }
+            // resolve() ademas canoniza (' 3V3 ' -> '3v3'): guardar el
+            // valor crudo romperia las comparaciones por modalidad.
+            $party->arena_mode = ArenaMode::resolve($party->arena_mode);
         });
     }
 

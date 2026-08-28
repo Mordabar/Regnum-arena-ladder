@@ -109,8 +109,8 @@
                     <label class="block">
                         <span class="mb-2 block text-sm text-[color:var(--arena-text)]">Modalidad</span>
                         <select name="arena_mode" class="arena-select">
-                            @foreach(\App\Support\ArenaMode::all() as $sandboxMode)
-                                <option value="{{ $sandboxMode }}" @selected($sandboxMode === \App\Support\ArenaMode::default())>{{ $sandboxMode }}</option>
+                            @foreach(\App\Support\ArenaMode::enabled() as $sandboxMode)
+                                <option value="{{ $sandboxMode }}">{{ $sandboxMode }}</option>
                             @endforeach
                         </select>
                     </label>
@@ -122,9 +122,12 @@
                 </form>
             </div>
             <p class="mt-3 text-sm text-[color:var(--arena-muted)]">
-                @php($sandboxTeamSize = \App\Support\ArenaMode::teamSize(\App\Support\ArenaMode::default()))
-                Para testear un match {{ \App\Support\ArenaMode::default() }} de tu personaje normalmente necesitas
-                {{ $sandboxTeamSize - 1 }} bot(s) de tu reino y {{ $sandboxTeamSize }} bots del reino rival, en 2 pasos separados.
+                Para testear un match de tu personaje necesitas, segun la modalidad que elijas arriba:
+                @foreach(\App\Support\ArenaMode::enabled() as $sandboxMode)
+                    @php($sandboxTeamSize = \App\Support\ArenaMode::teamSize($sandboxMode))
+                    <strong class="text-white">{{ $sandboxMode }}</strong>: {{ $sandboxTeamSize - 1 }} bot(s) de tu reino y {{ $sandboxTeamSize }} del reino rival@if(!$loop->last); @else.@endif
+                @endforeach
+                Se hace en 2 pasos separados.
             </p>
             <div class="mt-5 flex flex-wrap gap-3">
                 <form method="POST" action="{{ route('admin.testing.process') }}">
@@ -148,8 +151,8 @@
                 <form method="POST" action="{{ route('admin.testing.invite-me') }}" class="flex items-center gap-2">
                     @csrf
                     <select name="arena_mode" class="arena-select w-auto">
-                        @foreach(\App\Support\ArenaMode::all() as $sandboxMode)
-                            <option value="{{ $sandboxMode }}" @selected($sandboxMode === \App\Support\ArenaMode::default())>{{ $sandboxMode }}</option>
+                        @foreach(\App\Support\ArenaMode::enabled() as $sandboxMode)
+                            <option value="{{ $sandboxMode }}">{{ $sandboxMode }}</option>
                         @endforeach
                     </select>
                     <button type="submit" class="arena-btn-ghost text-purple-400 hover:text-purple-300">
@@ -209,7 +212,11 @@
                                             <form method="POST" action="{{ route('admin.testing.toggle-bot') }}">
                                                 @csrf
                                                 <input type="hidden" name="player_id" value="{{ $botPlayer->id }}">
-                                                <input type="hidden" name="arena_mode" value="{{ \App\Support\ArenaMode::default() }}">
+                                                <select name="arena_mode" class="arena-select text-xs py-1 w-auto">
+                                                    @foreach(\App\Support\ArenaMode::enabled() as $sandboxMode)
+                                                        <option value="{{ $sandboxMode }}">{{ $sandboxMode }}</option>
+                                                    @endforeach
+                                                </select>
                                                 <button type="submit" class="{{ $botQueue && $botQueue->status === 'waiting' && !$botQueue->match_id ? 'arena-btn-ghost' : 'arena-btn-secondary' }} text-sm">
                                                     {{ $botQueue && $botQueue->status === 'waiting' && !$botQueue->match_id ? 'Sacar' : 'Encolar' }}
                                                 </button>
