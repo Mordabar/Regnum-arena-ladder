@@ -31,7 +31,7 @@
             </div>
 
             <div class="grid min-w-[240px] gap-3 sm:grid-cols-2">
-                <a href="{{ route('queue.index') }}" class="arena-btn text-center">
+                <a href="{{ route('queue.index', ['mode' => \App\Support\ArenaMode::default()]) }}" class="arena-btn text-center">
                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
                     Buscar combate
                 </a>
@@ -58,7 +58,7 @@
         <article class="arena-card arena-animate-in arena-stagger-3 p-5">
             <p class="arena-kicker">Formato</p>
             <div class="mt-2 flex items-center gap-2">
-                <p class="text-3xl font-semibold text-white">2v2</p>
+                <p class="text-3xl font-semibold text-white">{{ implode(' · ', \App\Support\ArenaMode::enabled()) ?: '—' }}</p>
                 <div class="flex items-center gap-1">
                     <x-arena-realm-icon realm="ignis" size="xs" />
                     <x-arena-realm-icon realm="alsius" size="xs" />
@@ -109,7 +109,7 @@
                                 </div>
 
                                 @if($player->is_active)
-                                    <a href="{{ route('queue.index') }}" class="arena-btn px-4 py-2 text-sm">
+                                    <a href="{{ route('queue.index', ['mode' => \App\Support\ArenaMode::default()]) }}" class="arena-btn px-4 py-2 text-sm">
                                         <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
                                         Pelear
                                     </a>

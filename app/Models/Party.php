@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\ArenaMode;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -10,14 +11,23 @@ class Party extends Model
 {
     use HasFactory, HasUuids;
 
-    public const TEAM_SIZE = 2;
     public const ACTIVE_STATUSES = ['forming', 'ready', 'queued'];
 
     protected $fillable = [
         'leader_player_id',
         'status',
         'realm',
+        'arena_mode',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Party $party) {
+            if (ArenaMode::normalize($party->arena_mode) === null) {
+                $party->arena_mode = ArenaMode::default();
+            }
+        });
+    }
 
     public function leader()
     {
@@ -29,13 +39,26 @@ class Party extends Model
         return $this->hasMany(PartyMember::class, 'party_id');
     }
 
+    /**
+     * Cuantos integrantes necesita esta party segun su modalidad.
+     */
+    public function teamSize(): int
+    {
+        return ArenaMode::teamSize($this->arena_mode);
+    }
+
     public function isFull()
     {
-        return $this->members()->where('is_accepted_invite', true)->count() === self::TEAM_SIZE;
+        return $this->members()->where('is_accepted_invite', true)->count() === $this->teamSize();
     }
 
     public function areAllInvitesAccepted()
     {
         return $this->members()->where('is_accepted_invite', false)->doesntExist();
+    }
+
+    public function scopeForMode($query, ?string $mode)
+    {
+        return $query->where('arena_mode', ArenaMode::resolve($mode));
     }
 }

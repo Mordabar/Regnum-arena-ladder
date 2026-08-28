@@ -124,7 +124,7 @@ class ArenaMatchController extends Controller
         if ($match->isExpired()) {
             app(ArenaMatchmakingService::class)->cancelMatch($match, 'timeout', null, true);
 
-            return redirect()->route('queue.index')
+            return redirect()->route('queue.index', ['mode' => $match->arena_mode])
                 ->withErrors(['error' => 'El tiempo para aceptar este match expiró.']);
         }
 
@@ -180,7 +180,7 @@ class ArenaMatchController extends Controller
 
         app(ArenaMatchmakingService::class)->cancelMatch($match, 'player_rejected', $player->id, true);
 
-        return redirect()->route('queue.index')
+        return redirect()->route('queue.index', ['mode' => $match->arena_mode])
             ->with('warning', 'Match rechazado. Los demás jugadores fueron reencolados.');
     }
 

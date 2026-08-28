@@ -96,7 +96,7 @@ class ArenaMaintenanceService
                 ->count();
 
             $party->update([
-                'status' => $acceptedCount >= Party::TEAM_SIZE ? 'ready' : 'forming',
+                'status' => $acceptedCount >= $party->teamSize() ? 'ready' : 'forming',
             ]);
         }
 

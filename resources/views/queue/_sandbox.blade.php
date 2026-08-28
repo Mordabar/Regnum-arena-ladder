@@ -106,6 +106,14 @@
                         <span class="mb-2 block text-sm text-[color:var(--arena-text)]">Cantidad</span>
                         <input type="number" name="count" min="1" max="60" value="2" class="arena-field">
                     </label>
+                    <label class="block">
+                        <span class="mb-2 block text-sm text-[color:var(--arena-text)]">Modalidad</span>
+                        <select name="arena_mode" class="arena-select">
+                            @foreach(\App\Support\ArenaMode::all() as $sandboxMode)
+                                <option value="{{ $sandboxMode }}" @selected($sandboxMode === \App\Support\ArenaMode::default())>{{ $sandboxMode }}</option>
+                            @endforeach
+                        </select>
+                    </label>
                     <div class="flex items-end">
                         <button type="submit" class="arena-btn-secondary w-full">
                             Encolar por reino
@@ -114,7 +122,9 @@
                 </form>
             </div>
             <p class="mt-3 text-sm text-[color:var(--arena-muted)]">
-                Para testear un match 2v2 de tu personaje normalmente necesitas 1 bot de tu reino y 2 bots del reino rival, en 2 pasos separados.
+                @php($sandboxTeamSize = \App\Support\ArenaMode::teamSize(\App\Support\ArenaMode::default()))
+                Para testear un match {{ \App\Support\ArenaMode::default() }} de tu personaje normalmente necesitas
+                {{ $sandboxTeamSize - 1 }} bot(s) de tu reino y {{ $sandboxTeamSize }} bots del reino rival, en 2 pasos separados.
             </p>
             <div class="mt-5 flex flex-wrap gap-3">
                 <form method="POST" action="{{ route('admin.testing.process') }}">
@@ -135,8 +145,13 @@
                         Aceptar Invitaciones Party
                     </button>
                 </form>
-                <form method="POST" action="{{ route('admin.testing.invite-me') }}">
+                <form method="POST" action="{{ route('admin.testing.invite-me') }}" class="flex items-center gap-2">
                     @csrf
+                    <select name="arena_mode" class="arena-select w-auto">
+                        @foreach(\App\Support\ArenaMode::all() as $sandboxMode)
+                            <option value="{{ $sandboxMode }}" @selected($sandboxMode === \App\Support\ArenaMode::default())>{{ $sandboxMode }}</option>
+                        @endforeach
+                    </select>
                     <button type="submit" class="arena-btn-ghost text-purple-400 hover:text-purple-300">
                         Hacer que un bot me invite
                     </button>
@@ -194,6 +209,7 @@
                                             <form method="POST" action="{{ route('admin.testing.toggle-bot') }}">
                                                 @csrf
                                                 <input type="hidden" name="player_id" value="{{ $botPlayer->id }}">
+                                                <input type="hidden" name="arena_mode" value="{{ \App\Support\ArenaMode::default() }}">
                                                 <button type="submit" class="{{ $botQueue && $botQueue->status === 'waiting' && !$botQueue->match_id ? 'arena-btn-ghost' : 'arena-btn-secondary' }} text-sm">
                                                     {{ $botQueue && $botQueue->status === 'waiting' && !$botQueue->match_id ? 'Sacar' : 'Encolar' }}
                                                 </button>

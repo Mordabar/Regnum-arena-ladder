@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'Regnum Arena Ladder')</title>
-    <meta name="description" content="Regnum Arena Ladder — Conquest PvP 2v2. Emparejamiento por reino y subclase, ranking automático PL/MMR, anonimato rival.">
+    <meta name="description" content="Regnum Arena Ladder — Conquest PvP por reino y subclase, ranking automático PL/MMR, anonimato rival.">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

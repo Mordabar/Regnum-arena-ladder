@@ -21,6 +21,43 @@
             <form method="POST" action="{{ route('admin.settings.update') }}" class="mt-5 space-y-5">
                 @csrf
 
+                {{-- Modalidades de arena --}}
+                <details class="arena-card group" open>
+                    <summary class="cursor-pointer px-5 py-4 flex items-center justify-between">
+                        <h3 class="font-semibold text-white arena-body-text">⚔️ Modalidades activas</h3>
+                        <svg class="h-4 w-4 text-[color:var(--arena-muted)] transition-transform group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+                    </summary>
+                    <div class="px-5 pb-5 space-y-4">
+                        <p class="text-sm text-[color:var(--arena-muted)] arena-body-text">
+                            Cada modalidad se enciende o apaga por separado y pueden convivir. El ladder es uno solo:
+                            un match de 2v2 y uno de 3v3 suman los mismos PL y MMR a la misma tabla.
+                        </p>
+
+                        @foreach(['2v2' => ['Arena 2v2', 'Equipos de 2 jugadores'], '3v3' => ['Arena 3v3', 'Equipos de 3 jugadores']] as $modeKey => $modeInfo)
+                            <label class="flex items-center justify-between gap-4 rounded-2xl border border-[color:var(--arena-line)] bg-black/20 px-4 py-3 cursor-pointer">
+                                <span>
+                                    <span class="block font-semibold text-white">{{ $modeInfo[0] }}</span>
+                                    <span class="mt-1 block text-xs text-[color:var(--arena-muted)] arena-body-text">{{ $modeInfo[1] }}</span>
+                                </span>
+                                {{-- El hidden garantiza que un checkbox destildado llegue como 0 --}}
+                                <input type="hidden" name="mode_{{ $modeKey }}_enabled" value="0">
+                                <input type="checkbox"
+                                       name="mode_{{ $modeKey }}_enabled"
+                                       value="1"
+                                       class="h-5 w-5 accent-amber-500"
+                                       @checked($settings['mode_' . $modeKey . '_enabled'])>
+                            </label>
+                        @endforeach
+
+                        @if(!$settings['mode_2v2_enabled'] && !$settings['mode_3v3_enabled'])
+                            <p class="rounded-2xl border border-amber-700/40 bg-amber-900/20 px-4 py-3 text-sm text-amber-200 arena-body-text">
+                                ⚠️ Con las dos modalidades apagadas nadie puede entrar a cola. Los matches ya en curso
+                                siguen su flujo normal hasta reportarse.
+                            </p>
+                        @endif
+                    </div>
+                </details>
+
                 {{-- Branding --}}
                 <details class="arena-card group" open>
                     <summary class="cursor-pointer px-5 py-4 flex items-center justify-between">

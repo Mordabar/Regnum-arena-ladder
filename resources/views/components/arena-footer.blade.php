@@ -4,7 +4,7 @@
             <div>
                 <x-arena-brand compact />
                 <p class="mt-4 max-w-xs text-sm text-[color:var(--arena-muted)]">
-                    Sistema competitivo 2v2 por reino y subclase con ranking automático, anonimato rival y scoring justo.
+                    Sistema competitivo por reino y subclase con ranking automático, anonimato rival y scoring justo.
                 </p>
             </div>
             <div>

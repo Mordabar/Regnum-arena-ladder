@@ -10,5 +10,11 @@
 /storage/framework/cache/*
 /storage/framework/sessions/*
 /storage/framework/views/*
+/storage/framework/testing/*
 /storage/logs/*
 /public/storage
+
+# Artefactos generados al correr la suite de tests
+/.phpunit.cache
+/.phpunit.result.cache
+/storage/app/arena-reports/match-reports/testing/

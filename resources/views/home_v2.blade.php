@@ -1,6 +1,6 @@
 @extends('layouts.arena')
 
-@section('title', 'Regnum Arena Ladder — Conquest PvP 2v2')
+@section('title', 'Regnum Arena Ladder — Conquest PvP')
 
 @section('content')
 <div class="mx-auto max-w-7xl px-4 py-10">
@@ -25,10 +25,10 @@
                     {{ \App\Models\AppSetting::getValue('season_name', 'Alpha Season') }}
                 </h1>
                 <p class="mt-4 max-w-2xl text-lg text-[color:var(--arena-sand)] arena-body-text">
-                    {{ \App\Models\AppSetting::getValue('home_tagline', 'Conquest PvP 2v2 por reino y subclase') }}
+                    {{ \App\Models\AppSetting::getValue('home_tagline', 'Conquest PvP por reino y subclase') }}
                 </p>
                 <p class="mt-3 max-w-2xl text-[color:var(--arena-muted)] arena-body-text">
-                    {{ \App\Models\AppSetting::getValue('rules_excerpt', 'Random y premade 2v2, anonimato rival, reporte con 2 capturas y ladder automático por PL/MMR.') }}
+                    {{ \App\Models\AppSetting::getValue('rules_excerpt', 'Random y premade, anonimato rival, reporte con capturas y ladder automático por PL/MMR.') }}
                 </p>
 
                 <div class="mt-8 flex flex-wrap gap-3">

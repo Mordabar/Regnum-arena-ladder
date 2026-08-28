@@ -6,6 +6,7 @@ use App\Models\AppSetting;
 use App\Models\ArenaMatch;
 use App\Models\Player;
 use App\Models\Queue;
+use App\Support\ArenaMode;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -14,7 +15,6 @@ use Illuminate\Support\Str;
 
 class ArenaMatchmakingService
 {
-    private const TEAM_SIZE = 2;
     private const PREMADE_DAILY_LIMIT = 3;
     private const REPEAT_PAIR_WINDOW_HOURS = 24;
     private const EXACT_REPEAT_PAIRING_PENALTY = 10000;
@@ -48,6 +48,7 @@ class ArenaMatchmakingService
             'match_code',
             'report_token',
             'queue_mode',
+            'arena_mode',
             'team_a_realm',
             'team_b_realm',
             'team_a',
@@ -103,8 +104,17 @@ class ArenaMatchmakingService
             $this->expirePendingAcceptanceMatches(false);
         }
 
+        // Solo se procesan las modalidades encendidas. Si el admin apago todas,
+        // enabled() viene vacio y no se arma ningun equipo.
+        $enabledModes = ArenaMode::enabled();
+
+        if ($enabledModes === []) {
+            return 0;
+        }
+
         $randomWaitingQueues = Queue::query()
             ->where('queue_type', 'random')
+            ->whereIn('arena_mode', $enabledModes)
             ->where('status', 'waiting')
             ->whereNull('match_id')
             ->whereHas('player', function ($query) {
@@ -116,6 +126,7 @@ class ArenaMatchmakingService
 
         $premadeWaitingQueues = Queue::query()
             ->where('queue_type', 'premade')
+            ->whereIn('arena_mode', $enabledModes)
             ->where('status', 'waiting')
             ->whereNull('match_id')
             ->whereNotNull('team_id')
@@ -128,10 +139,14 @@ class ArenaMatchmakingService
 
         $candidateTeams = collect();
 
-        foreach ($randomWaitingQueues->groupBy(fn (Queue $queue) => $queue->player->realm) as $realm => $queues) {
-            $candidateTeams = $candidateTeams->merge(
-                $this->buildRealmTeams((string) $realm, $queues)
-            );
+        // Se agrupa primero por modalidad y despues por reino: un equipo nunca
+        // puede mezclar jugadores de colas 2v2 y 3v3.
+        foreach ($randomWaitingQueues->groupBy('arena_mode') as $arenaMode => $modeQueues) {
+            foreach ($modeQueues->groupBy(fn (Queue $queue) => $queue->player->realm) as $realm => $queues) {
+                $candidateTeams = $candidateTeams->merge(
+                    $this->buildRealmTeams((string) $arenaMode, (string) $realm, $queues)
+                );
+            }
         }
 
         $candidateTeams = $candidateTeams->merge(
@@ -201,13 +216,15 @@ class ArenaMatchmakingService
         return $expiredMatches->count();
     }
 
-    public function countPartyMatchesTodayForPlayers(iterable $playerIds): int
+    public function countPartyMatchesTodayForPlayers(iterable $playerIds, ?string $arenaMode = null): int
     {
+        $arenaMode = ArenaMode::resolve($arenaMode);
+
         $players = Player::query()
             ->whereIn('id', collect($playerIds)->map(fn ($id) => (int) $id)->all())
             ->get();
 
-        if ($players->count() !== self::TEAM_SIZE) {
+        if ($players->count() !== ArenaMode::teamSize($arenaMode)) {
             return 0;
         }
 
@@ -328,23 +345,26 @@ class ArenaMatchmakingService
         }
     }
 
-    private function buildRealmTeams(string $realm, Collection $queues): Collection
+    private function buildRealmTeams(string $arenaMode, string $realm, Collection $queues): Collection
     {
+        $teamSize = ArenaMode::teamSize($arenaMode);
+
         $available = $queues
             ->sortBy(fn (Queue $queue) => $queue->estimated_mmr ?? $queue->player->mmr ?? 800)
             ->values();
 
         $teams = collect();
 
-        while ($available->count() >= self::TEAM_SIZE) {
-            $teamEntries = $this->findBestRealmTeam($available);
+        while ($available->count() >= $teamSize) {
+            $teamEntries = $this->findBestRealmTeam($available, $teamSize);
 
-            if ($teamEntries->count() !== self::TEAM_SIZE) {
+            if ($teamEntries->count() !== $teamSize) {
                 break;
             }
 
             $teams->push([
                 'team_id' => (string) Str::uuid(),
+                'arena_mode' => $arenaMode,
                 'realm' => $realm,
                 'queue_type' => 'random',
                 'party_signature' => null,
@@ -366,9 +386,15 @@ class ArenaMatchmakingService
     private function buildPremadeTeams(Collection $queues): Collection
     {
         return $queues
-            ->groupBy('team_id')
-            ->map(function (Collection $teamEntries, string $teamId) {
-                if ($teamEntries->count() !== self::TEAM_SIZE) {
+            // La clave incluye la modalidad para que un mismo team_id no pueda
+            // arrastrar entradas de 2v2 y 3v3 al mismo equipo.
+            ->groupBy(fn (Queue $queue) => $queue->arena_mode . '|' . $queue->team_id)
+            ->map(function (Collection $teamEntries, string $groupKey) {
+                $arenaMode = ArenaMode::resolve($teamEntries->first()->arena_mode);
+                $teamSize = ArenaMode::teamSize($arenaMode);
+                $teamId = str_contains($groupKey, '|') ? explode('|', $groupKey, 2)[1] : $groupKey;
+
+                if ($teamEntries->count() !== $teamSize) {
                     return null;
                 }
 
@@ -377,7 +403,7 @@ class ArenaMatchmakingService
                     return null;
                 }
 
-                if ($teamEntries->map(fn (Queue $queue) => (int) $queue->player->user_id)->unique()->count() !== self::TEAM_SIZE) {
+                if ($teamEntries->map(fn (Queue $queue) => (int) $queue->player->user_id)->unique()->count() !== $teamSize) {
                     return null;
                 }
 
@@ -393,6 +419,7 @@ class ArenaMatchmakingService
 
                 return [
                     'team_id' => $teamId,
+                    'arena_mode' => $arenaMode,
                     'realm' => (string) $realms->first(),
                     'queue_type' => 'premade',
                     'party_signature' => $partySignature,
@@ -407,11 +434,11 @@ class ArenaMatchmakingService
             ->values();
     }
 
-    private function findBestRealmTeam(Collection $available): Collection
+    private function findBestRealmTeam(Collection $available, int $teamSize): Collection
     {
         $count = $available->count();
 
-        if ($count < self::TEAM_SIZE) {
+        if ($count < $teamSize) {
             return collect();
         }
 
@@ -420,32 +447,52 @@ class ArenaMatchmakingService
         $bestSpread = null;
         $bestScore = null;
 
-        for ($i = 0; $i < $windowSize - 1; $i++) {
-            for ($j = $i + 1; $j < $windowSize; $j++) {
-                $team = collect([$available[$i], $available[$j]]);
+        // Se evalua cada combinacion posible dentro de la ventana de busqueda.
+        // Con TEAM_SEARCH_WINDOW = 10 son 45 combinaciones en 2v2 y 120 en 3v3.
+        foreach ($this->combinationIndexes($windowSize, $teamSize) as $indexes) {
+            $team = collect($indexes)->map(fn (int $index) => $available[$index]);
 
-                $evaluation = $this->evaluateQueueTeam($team);
-                if ($evaluation === null) {
-                    continue;
-                }
+            $evaluation = $this->evaluateQueueTeam($team);
+            if ($evaluation === null) {
+                continue;
+            }
 
-                $mmrs = $team->map(fn (Queue $queue) => $queue->estimated_mmr ?? $queue->player->mmr ?? 800);
-                $spread = $mmrs->max() - $mmrs->min();
-                $score = $spread + $evaluation['composition_penalty'];
+            $mmrs = $team->map(fn (Queue $queue) => $queue->estimated_mmr ?? $queue->player->mmr ?? 800);
+            $spread = $mmrs->max() - $mmrs->min();
+            $score = $spread + $evaluation['composition_penalty'];
 
-                if (
-                    $bestTeam === null
-                    || $score < $bestScore
-                    || ($score === $bestScore && $spread < $bestSpread)
-                ) {
-                    $bestTeam = $team;
-                    $bestSpread = $spread;
-                    $bestScore = $score;
-                }
+            if (
+                $bestTeam === null
+                || $score < $bestScore
+                || ($score === $bestScore && $spread < $bestSpread)
+            ) {
+                $bestTeam = $team;
+                $bestSpread = $spread;
+                $bestScore = $score;
             }
         }
 
         return $bestTeam ?? collect();
+    }
+
+    /**
+     * Combinaciones de $pickCount indices distintos tomados de [0, $itemCount),
+     * en orden ascendente. Generaliza los bucles anidados que antes asumian
+     * equipos de 2.
+     *
+     * @return \Generator<int, list<int>>
+     */
+    private function combinationIndexes(int $itemCount, int $pickCount, int $start = 0, array $prefix = []): \Generator
+    {
+        if ($pickCount === 0) {
+            yield $prefix;
+
+            return;
+        }
+
+        for ($index = $start; $index <= $itemCount - $pickCount; $index++) {
+            yield from $this->combinationIndexes($itemCount, $pickCount - 1, $index + 1, [...$prefix, $index]);
+        }
     }
 
     private function buildMatchPairings(Collection $candidateTeams): array
@@ -462,6 +509,11 @@ class ArenaMatchmakingService
                 for ($j = $i + 1; $j < $available->count(); $j++) {
                     $teamA = $available[$i];
                     $teamB = $available[$j];
+
+                    // Nunca se enfrenta un equipo de 2v2 contra uno de 3v3.
+                    if ($teamA['arena_mode'] !== $teamB['arena_mode']) {
+                        continue;
+                    }
 
                     if ($teamA['realm'] === $teamB['realm']) {
                         continue;
@@ -537,6 +589,11 @@ class ArenaMatchmakingService
             throw new \RuntimeException('One or more queue entries are no longer available for matchmaking.');
         }
 
+        $arenaMode = ArenaMode::resolve($teamA['arena_mode'] ?? null);
+
+        // El limite diario no necesita filtrarse por modalidad: la firma de
+        // party es la lista de user_ids, asi que una dupla ("7-12") y un trio
+        // ("7-12-19") nunca comparten firma.
         if (($teamA['queue_type'] ?? 'random') === 'premade' && $this->countPartyMatchesToday((string) ($teamA['party_signature'] ?? '')) >= $this->premadeDailyLimit()) {
             throw new \RuntimeException('Premade party A reached its daily limit.');
         }
@@ -551,6 +608,7 @@ class ArenaMatchmakingService
             'queue_mode' => ($teamA['queue_type'] ?? 'random') === 'premade' && ($teamB['queue_type'] ?? 'random') === 'premade'
                 ? 'premade'
                 : 'random',
+            'arena_mode' => $arenaMode,
             'team_a_realm' => $teamA['realm'],
             'team_b_realm' => $teamB['realm'],
             'team_a' => $teamAPayload,
@@ -1039,7 +1097,11 @@ class ArenaMatchmakingService
 
     private function evaluateQueueTeam(Collection $team): ?array
     {
-        if ($team->count() !== self::TEAM_SIZE) {
+        // Todas las entradas de un equipo comparten modalidad (se agrupa por
+        // arena_mode antes de llegar aqui), asi que la primera define el tamaño.
+        $teamSize = ArenaMode::teamSize($team->first()?->arena_mode);
+
+        if ($team->count() !== $teamSize) {
             return null;
         }
 
@@ -1055,7 +1117,9 @@ class ArenaMatchmakingService
                 $compositionPenalty += ($count - 1) * self::TEAM_DUPLICATE_SUBCLASS_PENALTY;
             }
 
-            if ($count === self::TEAM_SIZE && self::TEAM_SIZE >= 3) {
+            // Penalizacion extra solo tiene sentido a partir de 3: en 2v2 un
+            // equipo entero de la misma subclase ya lo cubre la regla anterior.
+            if ($count === $teamSize && $teamSize >= 3) {
                 $compositionPenalty += self::TEAM_TRIPLE_SUBCLASS_PENALTY;
             }
         }

@@ -3,7 +3,7 @@
 @php
     $_queuePageTitle = $currentMatch
         ? ($currentMatch->status === 'pending_acceptance' ? 'Match Pendiente — Acepta Ahora' : 'Match Activo')
-        : ($currentQueue ? 'Buscando Match…' : 'Arena 2v2');
+        : ($currentQueue ? 'Buscando Match…' : 'Arena ' . $arenaMode);
 @endphp
 @section('title', $_queuePageTitle . ' — Regnum Arena Ladder')
 
@@ -11,8 +11,14 @@
 @php
     $hasRoster = $players->isNotEmpty();
     $hasActiveState = (bool) ($currentQueue || $currentMatch);
-    $canJoinQueue = $hasRoster && !$hasActiveState;
-    $queueTypeLabel = $currentQueue ? (\App\Models\Queue::QUEUE_TYPES[$currentQueue->queue_type] ?? ucfirst($currentQueue->queue_type)) : null;
+    $modesAreOpen = !empty($enabledModes);
+    $canJoinQueue = $hasRoster && !$hasActiveState && $modesAreOpen;
+    // La cola activa se muestra con SU modalidad, no con la de la pestaña.
+    $queueTypeLabel = $currentQueue
+        ? trim((\App\Models\Queue::QUEUE_TYPES[$currentQueue->queue_type] ?? ucfirst($currentQueue->queue_type)) . ' ' . \App\Support\ArenaMode::label($currentQueue->arena_mode))
+        : null;
+    // Slots de premade: el 1 es el lider, del 2 en adelante son compañeros.
+    $premadeSlots = range(2, $teamSize);
     $queueReportPendingConfirmation = $currentMatch?->report && $currentMatch->report->status === 'pending_confirmation';
     
     // Always poll if the user has characters, so they can receive party invites in real-time.
@@ -51,10 +57,32 @@
                         </span>
                     @endif
                 </div>
-                <h1 class="mt-3 text-4xl font-bold text-[color:var(--arena-gold-soft)] md:text-5xl">Arena 2v2</h1>
+                <h1 class="mt-3 text-4xl font-bold text-[color:var(--arena-gold-soft)] md:text-5xl">Arena {{ $arenaMode }}</h1>
                 <p class="mt-3 max-w-3xl text-[color:var(--arena-sand)] arena-body-text">
-                    Elige cómo entrar: solo a random o arma tu party premade.
+                    Elige cómo entrar: solo a random o arma tu party premade de {{ $teamSize }}.
                 </p>
+
+                @if(count($enabledModes) > 1)
+                    {{-- Selector de modalidad: solo aparece si hay mas de una activa. --}}
+                    <div class="mt-4 inline-flex rounded-2xl border border-[color:var(--arena-line)] bg-black/20 p-1" role="tablist" aria-label="Modalidad de arena">
+                        @foreach($enabledModes as $mode)
+                            <a href="{{ route('queue.index', ['mode' => $mode]) }}"
+                               role="tab"
+                               aria-selected="{{ $mode === $arenaMode ? 'true' : 'false' }}"
+                               class="rounded-xl px-5 py-2 text-sm font-semibold transition-all {{ $mode === $arenaMode
+                                    ? 'bg-[linear-gradient(180deg,rgba(63,45,31,0.85),rgba(22,15,11,0.95))] text-[color:var(--arena-gold-soft)] shadow-[0_4px_16px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,215,134,0.12)]'
+                                    : 'text-[color:var(--arena-muted)] hover:text-[color:var(--arena-sand)] hover:bg-white/[0.04]' }}">
+                                {{ $mode }}
+                            </a>
+                        @endforeach
+                    </div>
+                @endif
+
+                @if(!$modesAreOpen)
+                    <p class="mt-4 rounded-2xl border border-amber-700/40 bg-amber-900/20 px-4 py-3 text-sm text-amber-200 arena-body-text">
+                        Las colas están cerradas por el momento. Vuelve más tarde.
+                    </p>
+                @endif
             </div>
             <div class="flex flex-wrap gap-3">
                 <a href="{{ route('matches.index') }}" class="arena-btn-secondary px-4 py-2">
@@ -84,7 +112,7 @@
                             <h2 class="mt-1 text-2xl font-semibold text-[color:var(--arena-gold-soft)]">Acepta tu match</h2>
                             <span id="queueMatchCountdown" class="mt-1 arena-chip text-xs bg-black/40 border border-red-500/30 text-red-300 px-2 py-1" data-expires="{{ $currentMatch->expires_at?->timestamp }}">--:--</span>
                         </div>
-                        <p class="mt-2 text-sm text-[color:var(--arena-muted)] arena-body-text">Los 4 jugadores deben confirmar. Entra al detalle y acepta.</p>
+                        <p class="mt-2 text-sm text-[color:var(--arena-muted)] arena-body-text">Los {{ \App\Support\ArenaMode::teamSize($currentMatch->arena_mode) * 2 }} jugadores deben confirmar. Entra al detalle y acepta.</p>
                         
                         <script>
                             function updateQueueMatchTimer() {
@@ -229,10 +257,10 @@
                 {{-- Tab bar --}}
                 <div class="mt-4 flex rounded-2xl border border-[color:var(--arena-line)] bg-[rgba(12,8,6,0.7)] p-1" role="tablist">
                     <button type="button" role="tab" aria-selected="true" aria-controls="tab-random" id="tabBtnRandom" class="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all bg-[linear-gradient(180deg,rgba(63,45,31,0.85),rgba(22,15,11,0.95))] text-[color:var(--arena-gold-soft)] shadow-[0_4px_16px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,215,134,0.12)]">
-                        ⚡ Random 2v2
+                        ⚡ Random {{ $arenaMode }}
                     </button>
                     <button type="button" role="tab" aria-selected="false" aria-controls="tab-premade" id="tabBtnPremade" class="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all text-[color:var(--arena-muted)] hover:text-[color:var(--arena-sand)] hover:bg-white/[0.04]">
-                        👥 Premade 2v2
+                        👥 Premade {{ $arenaMode }}
                     </button>
                 </div>
 
@@ -240,7 +268,7 @@
                 <div id="tab-random" role="tabpanel" class="mt-6" style="animation: arenaFadeIn 0.25s ease-out">
                     <div class="flex items-start justify-between gap-4 mb-4">
                         <div>
-                            <h2 class="text-xl font-semibold text-white">Random 2v2</h2>
+                            <h2 class="text-xl font-semibold text-white">Random {{ $arenaMode }}</h2>
                             <p class="mt-1 text-sm text-[color:var(--arena-muted)] arena-body-text">
                                 Entras con un solo personaje. El sistema busca 1 aliado de tu reino.
                             </p>
@@ -251,6 +279,7 @@
                     <form method="POST" action="{{ route('queue.join') }}" class="space-y-4">
                         @csrf
                         <input type="hidden" name="queue_type" value="random">
+                        <input type="hidden" name="arena_mode" value="{{ $arenaMode }}">
 
                         <label class="block">
                             <span class="mb-2 block text-sm font-medium text-[color:var(--arena-text)] arena-body-text">Personaje</span>
@@ -275,7 +304,7 @@
 
                         <button type="submit" class="arena-btn-safe w-full">
                             <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
-                            Entrar a Random 2v2
+                            Entrar a Random {{ $arenaMode }}
                         </button>
                     </form>
                 </div>
@@ -284,7 +313,7 @@
                 <div id="tab-premade" role="tabpanel" class="mt-6 hidden">
                     <div class="flex items-start justify-between gap-4 mb-4">
                         <div>
-                            <h2 class="text-xl font-semibold text-white">Premade / Party 2v2</h2>
+                            <h2 class="text-xl font-semibold text-white">Premade / Party {{ $arenaMode }}</h2>
                             <p class="mt-1 text-sm text-[color:var(--arena-muted)] arena-body-text">
                                 Forma tu escuadra con 1 aliado y lánzate a la arena.
                             </p>
@@ -357,6 +386,7 @@
                         <form method="POST" action="{{ route('party.create') }}" class="space-y-4" id="premadeForm">
                         @csrf
                         <input type="hidden" name="queue_type" value="premade">
+                        <input type="hidden" name="arena_mode" value="{{ $arenaMode }}">
 
                         {{-- Leader --}}
                         <div class="arena-card p-4">
@@ -392,8 +422,8 @@
                             </select>
                         </div>
 
-                        {{-- Slot 2 --}}
-                        @foreach([2] as $slot)
+                        {{-- Slots de compañeros (2 en 2v2, 2 y 3 en 3v3) --}}
+                        @foreach($premadeSlots as $slot)
                             <div class="arena-card p-4">
                                 <div class="flex items-start justify-between gap-3">
                                     <label for="premadeSearch{{ $slot }}" class="block text-sm font-medium text-[color:var(--arena-text)] arena-body-text">Slot {{ $slot }} — Compañero</label>
@@ -411,15 +441,15 @@
                                     <option value="offensive">Ofensivo</option>
                                     <option value="support">Soporte</option>
                                 </select>
-                                <p class="mt-2 text-xs text-[color:var(--arena-muted)] arena-body-text">La dupla no puede tener 2 conjuradores soporte.</p>
+                                <p class="mt-2 text-xs text-[color:var(--arena-muted)] arena-body-text">El equipo no puede tener 2 conjuradores soporte.</p>
                             </div>
                         @endforeach
 
                         {{-- Summary --}}
                         <div class="arena-card p-4">
-                            <p class="text-sm font-semibold text-white arena-body-text">Dupla en construcción</p>
+                            <p class="text-sm font-semibold text-white arena-body-text">Party en construcción</p>
                             <div id="premadeSummary" class="mt-3 grid gap-3 md:grid-cols-2">
-                                @for($slot = 1; $slot <= 2; $slot++)
+                                @for($slot = 1; $slot <= $teamSize; $slot++)
                                     <div class="rounded-2xl border border-[color:var(--arena-line)] bg-black/10 px-4 py-3 text-sm text-[color:var(--arena-muted)]">
                                         Slot {{ $slot }} pendiente
                                     </div>
@@ -482,7 +512,7 @@
                     <div class="px-5 pb-5">
                         <ul class="space-y-2 text-sm text-[color:var(--arena-muted)] arena-body-text">
                             <li>• <strong class="text-white">Random:</strong> 1 personaje, el sistema completa tu equipo.</li>
-                            <li>• <strong class="text-white">Premade:</strong> dupla exacta, mismo reino, 2 usuarios, {{ $premadeDailyLimit }}/día.</li>
+                            <li>• <strong class="text-white">Premade:</strong> {{ $teamSize }} exactos, mismo reino, {{ $teamSize }} usuarios, {{ $premadeDailyLimit }}/día.</li>
                             <li>• Si un random cruza vs premade, el random gana más o pierde menos.</li>
                             <li>• Solo un conjurador soporte por equipo.</li>
                         </ul>
@@ -577,7 +607,11 @@
         const endpoint = @json(route('queue.premade.candidates'));
         if (!leaderSelect || !hint || !summary || !submitButton) return;
 
-        const state = { members: { 2: null }, debounce: {} };
+        // Los slots de compañero salen del servidor: [2] en 2v2, [2,3] en 3v3.
+        const companionSlots = @json($premadeSlots);
+        const arenaModeLabel = @json($arenaMode);
+        const state = { members: {}, debounce: {} };
+        companionSlots.forEach(slot => { state.members[slot] = null; });
 
         const escapeHtml = (v) => String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 
@@ -591,13 +625,14 @@
         const getSelectedPlayerIds = (skip = null) => {
             const ids = [];
             if (leaderSelect.value) ids.push(Number(leaderSelect.value));
-            [2].forEach(s => { if (s !== skip) { const i = document.getElementById('partyMemberInput'+s); if (i && i.value) ids.push(Number(i.value)); } });
+            companionSlots.forEach(s => { if (s !== skip) { const i = document.getElementById('partyMemberInput'+s); if (i && i.value) ids.push(Number(i.value)); } });
             return ids;
         };
 
         const renderSummary = () => {
             const leader = getLeaderData();
-            const slots = { 1: leader, 2: state.members[2] };
+            const slots = { 1: leader };
+            companionSlots.forEach(slot => { slots[slot] = state.members[slot]; });
             summary.innerHTML = Object.keys(slots).map(k => {
                 const p = slots[k];
                 if (!p) return '<div class="rounded-2xl border border-[color:var(--arena-line)] bg-black/10 px-4 py-3 text-sm text-[color:var(--arena-muted)]">Slot '+k+' pendiente</div>';
@@ -607,7 +642,15 @@
 
         const updateRoleVisibility = () => {
             const leader = getLeaderData();
-            [{n:document.getElementById('premadeRoleDiv0'),s:document.getElementById('premadeLeaderRole'),p:leader},{n:document.getElementById('premadeRoleDiv1'),s:document.getElementById('premadeRole2'),p:state.members[2]}].forEach(c => {
+            const roleTargets = [{n:document.getElementById('premadeRoleDiv0'),s:document.getElementById('premadeLeaderRole'),p:leader}];
+            companionSlots.forEach(slot => {
+                roleTargets.push({
+                    n: document.getElementById('premadeRoleDiv'+(slot-1)),
+                    s: document.getElementById('premadeRole'+slot),
+                    p: state.members[slot],
+                });
+            });
+            roleTargets.forEach(c => {
                 if (!c.n || !c.s) return;
                 const is = !!(c.p && c.p.is_conjurer);
                 c.n.classList.toggle('hidden', !is);
@@ -616,9 +659,9 @@
         };
 
         const updateSubmitState = () => {
-            const ready = !!(leaderSelect.value && state.members[2]);
+            const ready = !!leaderSelect.value && companionSlots.every(slot => !!state.members[slot]);
             submitButton.disabled = !ready;
-            submitButton.textContent = ready ? 'Entrar a Premade 2v2' : 'Completa la dupla para entrar a Premade';
+            submitButton.textContent = ready ? ('Entrar a Premade ' + arenaModeLabel) : 'Completa el equipo para entrar a Premade';
         };
 
         const renderSelected = (slot) => {
@@ -677,7 +720,7 @@
 
         const syncLeader = () => {
             const leader = getLeaderData();
-            [2].forEach(slot => {
+            companionSlots.forEach(slot => {
                 clearMember(slot); clearResults(slot);
                 const i = document.getElementById('premadeSearch'+slot);
                 if (i) { i.disabled = !leader; i.placeholder = leader ? 'Busca compañero de '+leader.realm_label : 'Primero elige tu líder'; }
@@ -688,7 +731,7 @@
 
         leaderSelect.addEventListener('change', syncLeader);
 
-        [2].forEach(slot => {
+        companionSlots.forEach(slot => {
             const input = document.getElementById('premadeSearch'+slot);
             if (!input) return;
             input.addEventListener('focus', () => { if (!input.disabled) searchCandidates(slot, input.value.trim()); });
@@ -704,7 +747,7 @@
             if (cl) { clearMember(Number(cl.getAttribute('data-premade-clear'))); clearResults(Number(cl.getAttribute('data-premade-clear'))); return; }
             const pk = e.target.closest('[data-premade-pick]');
             if (pk) { chooseMember(Number(pk.getAttribute('data-premade-pick')), JSON.parse(decodeURIComponent(pk.getAttribute('data-player')))); return; }
-            [2].forEach(slot => {
+            companionSlots.forEach(slot => {
                 const r = document.getElementById('premadeResults'+slot);
                 const i = document.getElementById('premadeSearch'+slot);
                 if (r && !r.classList.contains('hidden') && !r.contains(e.target) && !i.contains(e.target)) clearResults(slot);

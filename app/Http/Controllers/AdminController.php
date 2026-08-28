@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AppSetting;
 use App\Models\ArenaMatch;
 use App\Models\MatchReport;
+use App\Models\Party;
 use App\Models\Player;
 use App\Models\Queue;
 use App\Models\User;
@@ -12,6 +13,7 @@ use App\Services\ArenaMatchResultService;
 use App\Services\ArenaMatchmakingService;
 use App\Services\PlayerCleanupService;
 use App\Services\LadderCacheService;
+use App\Support\ArenaMode;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -263,6 +265,7 @@ class AdminController extends Controller
         $validated = $request->validate([
             'action' => 'required|in:lock_12h,unlock_queue,toggle_active,enqueue_random,remove_from_queue',
             'conjurer_role' => 'nullable|in:support,offensive',
+            'arena_mode' => 'nullable|in:' . implode(',', ArenaMode::all()),
         ]);
         $resultService = app(ArenaMatchResultService::class);
         $matchmakingService = app(ArenaMatchmakingService::class);
@@ -317,9 +320,16 @@ class AdminController extends Controller
                     return back()->withErrors(['error' => 'Debes indicar el rol del conjurador antes de encolarlo.']);
                 }
 
+                $manualMode = ArenaMode::resolve($validated['arena_mode'] ?? null);
+
+                if (!ArenaMode::isEnabled($manualMode)) {
+                    return back()->withErrors(['error' => 'La modalidad ' . $manualMode . ' no esta activa.']);
+                }
+
                 Queue::query()->create([
                     'player_id' => $player->id,
                     'queue_type' => 'random',
+                    'arena_mode' => $manualMode,
                     'status' => 'waiting',
                     'conjurer_role' => $player->subclass === 'conjurer' ? $validated['conjurer_role'] : null,
                     'estimated_mmr' => $player->mmr ?? 800,
@@ -328,7 +338,7 @@ class AdminController extends Controller
                 ]);
 
                 $matchmakingService->processQueue();
-                $message = 'Jugador encolado manualmente en random.';
+                $message = 'Jugador encolado manualmente en random ' . $manualMode . '.';
                 break;
 
             case 'remove_from_queue':
@@ -391,8 +401,10 @@ class AdminController extends Controller
     {
         $settings = [
             'season_name' => AppSetting::getValue('season_name', 'Alpha Season'),
-            'home_tagline' => AppSetting::getValue('home_tagline', 'Conquest PvP 2v2 por reino y subclase'),
-            'rules_excerpt' => AppSetting::getValue('rules_excerpt', 'Random y premade 2v2, anonimato rival y ladder automatico.'),
+            'mode_2v2_enabled' => ArenaMode::isEnabled(ArenaMode::TWO_V_TWO),
+            'mode_3v3_enabled' => ArenaMode::isEnabled(ArenaMode::THREE_V_THREE),
+            'home_tagline' => AppSetting::getValue('home_tagline', 'Conquest PvP por reino y subclase'),
+            'rules_excerpt' => AppSetting::getValue('rules_excerpt', 'Random y premade, anonimato rival y ladder automatico.'),
             'support_contact' => AppSetting::getValue('support_contact', ''),
             'discord_invite_url' => AppSetting::getValue('discord_invite_url', ''),
             'discord_server_label' => AppSetting::getValue('discord_server_label', ''),
@@ -425,6 +437,8 @@ class AdminController extends Controller
     {
         $validated = $request->validate([
             'season_name' => 'required|string|max:120',
+            'mode_2v2_enabled' => 'nullable|boolean',
+            'mode_3v3_enabled' => 'nullable|boolean',
             'home_tagline' => 'required|string|max:180',
             'rules_excerpt' => 'required|string|max:500',
             'support_contact' => 'nullable|string|max:180',
@@ -443,6 +457,11 @@ class AdminController extends Controller
             'abandonment_trust_penalty' => 'required|integer|min:1|max:100',
             'support_infraction_trust_penalty' => 'required|integer|min:1|max:100',
             'penalty_max_lock_hours' => 'required|integer|min:1|max:336',
+        ]);
+
+        $this->applyArenaModeToggles([
+            ArenaMode::TWO_V_TWO => $request->boolean('mode_2v2_enabled'),
+            ArenaMode::THREE_V_THREE => $request->boolean('mode_3v3_enabled'),
         ]);
 
         AppSetting::setValue('season_name', $validated['season_name'], 'branding', 'string', true);
@@ -466,6 +485,68 @@ class AdminController extends Controller
         AppSetting::setValue('penalty_max_lock_hours', $validated['penalty_max_lock_hours'], 'runtime', 'integer', false);
 
         return back()->with('success', 'Configuracion guardada.');
+    }
+
+    /**
+     * Enciende o apaga cada modalidad de forma independiente.
+     *
+     * Apagar una modalidad no toca los matches ya en curso: esos siguen su
+     * flujo normal hasta reportarse. Solo se cierra la puerta a entradas
+     * nuevas y se libera a quien quedo esperando en esa cola.
+     *
+     * @param  array<string, bool>  $desiredStates
+     */
+    private function applyArenaModeToggles(array $desiredStates): void
+    {
+        foreach ($desiredStates as $mode => $shouldBeEnabled) {
+            $wasEnabled = ArenaMode::isEnabled($mode);
+
+            AppSetting::setValue(
+                ArenaMode::settingKey($mode),
+                $shouldBeEnabled ? '1' : '0',
+                'modes',
+                'boolean',
+                true
+            );
+
+            if ($wasEnabled && !$shouldBeEnabled) {
+                $this->releasePlayersWaitingInMode($mode);
+            }
+        }
+    }
+
+    /**
+     * Saca de la cola a quienes esperaban en una modalidad recien apagada, para
+     * que no queden colgados esperando un match que ya no va a llegar.
+     */
+    private function releasePlayersWaitingInMode(string $mode): void
+    {
+        // Solo colas en espera y sin match asignado: si ya tienen match, ese
+        // match sigue vivo y debe resolverse normalmente.
+        Queue::query()
+            ->where('arena_mode', $mode)
+            ->where('status', 'waiting')
+            ->whereNull('match_id')
+            ->update([
+                'status' => 'cancelled',
+                'team_id' => null,
+                'matched_at' => null,
+                'expires_at' => null,
+            ]);
+
+        // Las partys no se disuelven: vuelven al estado previo a la cola, igual
+        // que cuando expira su busqueda. Si se reactiva la modalidad, siguen ahi.
+        Party::query()
+            ->where('arena_mode', $mode)
+            ->where('status', 'queued')
+            ->get()
+            ->each(function (Party $party) {
+                $acceptedCount = (int) $party->members()->where('is_accepted_invite', true)->count();
+
+                $party->update([
+                    'status' => $acceptedCount >= $party->teamSize() ? 'ready' : 'forming',
+                ]);
+            });
     }
 
     public function zones()
