@@ -1,0 +1,888 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Propuesta Regnum Arena Ladder</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 20mm 16mm;
+        }
+
+        :root {
+            --ink: #1d2630;
+            --muted: #5d6977;
+            --line: #d8dee6;
+            --soft: #f5f7fa;
+            --brand: #8c2f22;
+            --brand-dark: #5d1d18;
+            --gold: #b5812a;
+            --blue: #233d63;
+            --green: #2f6d4f;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            background: #e9edf2;
+        }
+
+        body {
+            margin: 0 auto;
+            max-width: 980px;
+            min-height: 100vh;
+            background: #ffffff;
+            color: var(--ink);
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 14px;
+            line-height: 1.55;
+        }
+
+        main {
+            padding: 42px 52px 56px;
+        }
+
+        h1,
+        h2,
+        h3,
+        p {
+            margin-top: 0;
+        }
+
+        h1 {
+            color: #ffffff;
+            font-size: 34px;
+            line-height: 1.08;
+            margin-bottom: 12px;
+            letter-spacing: 0;
+        }
+
+        h2 {
+            color: var(--brand-dark);
+            font-size: 21px;
+            line-height: 1.25;
+            margin: 34px 0 12px;
+            padding-bottom: 7px;
+            border-bottom: 2px solid var(--line);
+        }
+
+        h3 {
+            color: var(--blue);
+            font-size: 16px;
+            margin: 22px 0 8px;
+        }
+
+        p {
+            margin-bottom: 11px;
+        }
+
+        ul,
+        ol {
+            margin-top: 6px;
+            margin-bottom: 12px;
+            padding-left: 22px;
+        }
+
+        li {
+            margin-bottom: 5px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 13px 0 18px;
+            font-size: 13px;
+        }
+
+        th,
+        td {
+            border: 1px solid var(--line);
+            padding: 8px 9px;
+            vertical-align: top;
+        }
+
+        th {
+            background: #eef2f6;
+            color: #263747;
+            text-align: left;
+            font-weight: 700;
+        }
+
+        .cover {
+            margin: -42px -52px 34px;
+            padding: 48px 52px 42px;
+            background: linear-gradient(135deg, var(--brand-dark), var(--brand) 56%, #2b3440);
+            color: #ffffff;
+        }
+
+        .cover .kicker {
+            display: inline-block;
+            margin-bottom: 14px;
+            padding: 5px 10px;
+            border: 1px solid rgba(255, 255, 255, 0.45);
+            color: #fff5dc;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .cover .subtitle {
+            max-width: 820px;
+            margin-bottom: 20px;
+            color: #f3e9dd;
+            font-size: 17px;
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px 20px;
+            max-width: 780px;
+            margin-top: 24px;
+            color: #f8f1e8;
+            font-size: 13px;
+        }
+
+        .meta-grid strong {
+            display: block;
+            color: #ffffff;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .note,
+        .callout,
+        .status-box {
+            border: 1px solid var(--line);
+            background: var(--soft);
+            padding: 14px 16px;
+            margin: 14px 0 18px;
+        }
+
+        .callout {
+            border-left: 5px solid var(--brand);
+            background: #fff8f4;
+        }
+
+        .status-box {
+            border-left: 5px solid var(--green);
+            background: #f3faf6;
+        }
+
+        .pill-list {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            padding: 0;
+            list-style: none;
+        }
+
+        .pill-list li {
+            margin: 0;
+            padding: 8px 10px;
+            border: 1px solid var(--line);
+            background: #fafbfc;
+            font-weight: 700;
+        }
+
+        .flow {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+            margin: 14px 0 20px;
+        }
+
+        .step {
+            border: 1px solid var(--line);
+            padding: 11px;
+            background: #fbfcfd;
+        }
+
+        .step strong {
+            display: block;
+            color: var(--brand-dark);
+            margin-bottom: 4px;
+        }
+
+        .small {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .page-break {
+            page-break-before: always;
+        }
+
+        .signature {
+            margin-top: 28px;
+            padding-top: 14px;
+            border-top: 1px solid var(--line);
+        }
+
+        @media print {
+            html,
+            body {
+                background: #ffffff;
+            }
+
+            body {
+                max-width: none;
+                font-size: 12px;
+            }
+
+            main {
+                padding: 0;
+            }
+
+            .cover {
+                margin: 0 0 26px;
+            }
+
+            h2 {
+                page-break-after: avoid;
+            }
+
+            table,
+            .note,
+            .callout,
+            .status-box,
+            .step {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <section class="cover">
+        <div class="kicker">Propuesta comunitaria y solicitud de apoyo con premios</div>
+        <h1>Regnum Arena Ladder</h1>
+        <p class="subtitle">
+            Liga PvP comunitaria por temporadas con ranking p&uacute;blico, matchmaking controlado, evidencias,
+            administraci&oacute;n de disputas y controles contra abuso.
+        </p>
+        <div class="meta-grid">
+            <div>
+                <strong>Destinatario</strong>
+                Equipo Regnum / Nimble Giant
+            </div>
+            <div>
+                <strong>Correo sugerido</strong>
+                regnum@nimblegiant.com
+            </div>
+            <div>
+                <strong>Documento preparado</strong>
+                1 de julio de 2026
+            </div>
+            <div>
+                <strong>Formato</strong>
+                HTML autocontenido para importar o copiar a Word
+            </div>
+        </div>
+    </section>
+
+    <section id="resumen">
+        <h2>1. Resumen Ejecutivo</h2>
+        <p>
+            Regnum Arena Ladder es una plataforma web para convertir combates PvP organizados por la comunidad en una
+            competencia verificable, medible y operable. El sistema permite que los jugadores inicien sesi&oacute;n con
+            Discord, registren sus personajes, entren en cola, reciban un enfrentamiento de la modalidad activa,
+            acepten el encuentro, reporten el resultado con capturas y actualicen un ladder p&uacute;blico con puntos
+            visibles de temporada.
+        </p>
+        <p>
+            La propuesta busca que el equipo de Regnum comprenda la magnitud del proyecto y, si lo considera posible,
+            apoye las temporadas con premios para los primeros puestos. Arena Ladder es una iniciativa comunitaria
+            completamente externa: no se conecta con el juego, no consulta servidores de Regnum, no extrae datos de
+            cuentas o partidas y no requiere acceso a sistemas internos de Nimble Giant Entertainment (NGE).
+            La validaci&oacute;n competitiva se realiza con evidencias aportadas por los participantes, confirmaci&oacute;n rival,
+            revisi&oacute;n administrativa y controles contra farming, colusi&oacute;n y manipulaci&oacute;n del ranking.
+        </p>
+        <div class="callout">
+            <strong>&Uacute;nica solicitud a NGE:</strong> aportar, de manera voluntaria, los premios que la empresa tenga
+            disponibles y verificar la lista final de ganadores del Ladder para coordinar su entrega. La operaci&oacute;n,
+            moderaci&oacute;n, seguridad y administraci&oacute;n de la competencia quedan a cargo del proyecto Arena Ladder.
+        </div>
+    </section>
+
+    <section id="objetivo">
+        <h2>2. Alcance Y Modalidades</h2>
+        <p>
+            Crear una liga PvP estable para Regnum Online donde la comunidad pueda competir durante temporadas con
+            reglas conocidas, partidas rastreables y resultados auditables. El proyecto busca aumentar la actividad
+            PvP, ordenar la participaci&oacute;n por reino y subclase, y ofrecer a los jugadores una meta competitiva
+            m&aacute;s all&aacute; de eventos aislados. La modalidad aplicable se define para cada temporada.
+        </p>
+        <h3>Modalidades Del Proyecto</h3>
+        <p>
+            Arena Ladder se desarrolla en dos versiones independientes: 2vs2 y 3vs3. Este documento profundiza en la
+            versi&oacute;n 2vs2, que es el alcance prioritario y el MVP actualmente analizado; la versi&oacute;n 3vs3 se encuentra
+            en desarrollo paralelo para ampliar el calendario competitivo.
+        </p>
+        <table>
+            <thead>
+            <tr>
+                <th>Modalidad</th>
+                <th>Uso previsto</th>
+                <th>Alcance</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>Arena Ladder 2vs2</td>
+                <td>Primera modalidad y foco de esta propuesta.</td>
+                <td>Temporadas por duplas con sus propias reglas, ranking y administraci&oacute;n.</td>
+            </tr>
+            <tr>
+                <td>Arena Ladder 3vs3</td>
+                <td>Segunda modalidad en desarrollo.</td>
+                <td>Temporadas por equipos de tres, adaptadas a su propio balance competitivo.</td>
+            </tr>
+            <tr>
+                <td>Rotaci&oacute;n estacional</td>
+                <td>Alternar temporadas 2vs2 y 3vs3.</td>
+                <td>Mantiene variedad sin duplicar formatos que ya existen dentro del ecosistema del juego.</td>
+            </tr>
+            </tbody>
+        </table>
+        <div class="callout">
+            <strong>Delimitaci&oacute;n:</strong> Arena Ladder no desarrollar&aacute; modalidades 4vs4vs4 ni 1vs1. El formato
+            4vs4vs4 ya est&aacute; representado por BZ y el 1vs1 por el evento The Hunt; por ello, el proyecto se concentra
+            exclusivamente en 2vs2 y 3vs3 como propuestas complementarias.
+        </div>
+    </section>
+
+    <section id="estado">
+        <h2>3. MVP Y Flujo Del Jugador</h2>
+        <div class="status-box">
+            <p>
+                El proyecto analizado ya contiene un MVP 2vs2 funcional construido en Laravel. Incluye rutas p&uacute;blicas,
+                panel admin, modelos de datos, servicios de matchmaking, scoring, mantenimiento, Discord y pruebas
+                automatizadas sobre flujos cr&iacute;ticos.
+            </p>
+        </div>
+        <ul class="pill-list">
+            <li>Login con Discord</li>
+            <li>Registro de personajes</li>
+            <li>Cola random 2vs2</li>
+            <li>Cola premade 2vs2</li>
+            <li>Matches entre reinos</li>
+            <li>Aceptaci&oacute;n de 4 jugadores</li>
+            <li>Asignaci&oacute;n de zona</li>
+            <li>Reporte con capturas</li>
+            <li>Confirmaci&oacute;n rival</li>
+            <li>Disputas admin</li>
+            <li>PL/MMR</li>
+            <li>Ladder p&uacute;blico</li>
+            <li>Panel admin</li>
+            <li>Sandbox de pruebas</li>
+            <li>Mantenimiento por cron</li>
+        </ul>
+
+        <h3 id="flujo">Flujo Competitivo</h3>
+        <div class="flow">
+            <div class="step">
+                <strong>1. Login</strong>
+                El jugador entra con Discord y queda asociado a una cuenta.
+            </div>
+            <div class="step">
+                <strong>2. Registro</strong>
+                Registra personaje, reino y subclase. El nombre es &uacute;nico por reino.
+            </div>
+            <div class="step">
+                <strong>3. Cola</strong>
+                Elige random o premade. Los conjuradores declaran rol support u offensive.
+            </div>
+            <div class="step">
+                <strong>4. Match</strong>
+                El sistema arma un encuentro 2vs2 contra otro reino, asigna zona y c&oacute;digo.
+            </div>
+            <div class="step">
+                <strong>5. Aceptaci&oacute;n</strong>
+                Los 4 jugadores aceptan en una ventana configurable, por defecto 5 minutos.
+            </div>
+            <div class="step">
+                <strong>6. Combate</strong>
+                Al aceptar todos, inicia ventana de cacer&iacute;a, por defecto 30 minutos.
+            </div>
+            <div class="step">
+                <strong>7. Reporte</strong>
+                Un equipo reporta ganador y adjunta evidencia de combate.
+            </div>
+            <div class="step">
+                <strong>8. Ladder</strong>
+                El rival confirma o rechaza. Si confirma, se actualiza PL/MMR.
+            </div>
+        </div>
+
+        <p>
+            Discord se utiliza para autenticaci&oacute;n y avisos; las decisiones quedan registradas en la web. Antes de la
+            resoluci&oacute;n se ocultan los nombres rivales para reducir persecuci&oacute;n dirigida o acuerdos externos.
+        </p>
+    </section>
+
+    <section id="reglas">
+        <h2>4. Reglas Y Ranking De La Modalidad 2vs2</h2>
+        <table>
+            <thead>
+            <tr>
+                <th>Regla</th>
+                <th>Detalle</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>Formato</td>
+                <td>Partidas 2vs2. Cada equipo tiene exactamente 2 jugadores del mismo reino.</td>
+            </tr>
+            <tr>
+                <td>Reinos</td>
+                <td>El match siempre enfrenta dos reinos distintos. No es una pelea libre de tres reinos.</td>
+            </tr>
+            <tr>
+                <td>Modos</td>
+                <td>Random 2vs2 y premade 2vs2. Tambi&eacute;n puede existir cruce random vs premade.</td>
+            </tr>
+            <tr>
+                <td>Conjuradores</td>
+                <td>Un equipo puede tener m&aacute;ximo 1 conjurador support. Un segundo conjurador solo es v&aacute;lido si declara rol offensive.</td>
+            </tr>
+            <tr>
+                <td>Aceptaci&oacute;n</td>
+                <td>Los 4 jugadores deben aceptar. Si alguien rechaza o expira el tiempo, el match se cancela.</td>
+            </tr>
+            <tr>
+                <td>Ventana de combate</td>
+                <td>La ventana base es de 30 minutos desde la aceptaci&oacute;n total.</td>
+            </tr>
+            <tr>
+                <td>Reporte</td>
+                <td>El reporte requiere evidencia visual y queda pendiente de confirmaci&oacute;n rival.</td>
+            </tr>
+            <tr>
+                <td>Disputa</td>
+                <td>Si el rival rechaza o vence la confirmaci&oacute;n, el match pasa a revisi&oacute;n admin.</td>
+            </tr>
+            <tr>
+                <td>Interrupci&oacute;n externa</td>
+                <td>Puede resolverse como void para no alterar el ladder.</td>
+            </tr>
+            <tr>
+                <td>Infracci&oacute;n de rol</td>
+                <td>Declarar falsamente rol de conjurador puede producir derrota, void o sanci&oacute;n seg&uacute;n revisi&oacute;n.</td>
+            </tr>
+            </tbody>
+        </table>
+        <h3 id="ranking">Ranking, PL Y MMR</h3>
+        <p>
+            El sistema usa dos valores: PL como puntuaci&oacute;n p&uacute;blica de temporada y MMR como valor interno para
+            estimar fuerza de los jugadores. Esto permite que la tabla p&uacute;blica sea entendible, mientras el sistema
+            conserva un criterio t&eacute;cnico para emparejar y ajustar resultados.
+        </p>
+
+        <table>
+            <thead>
+            <tr>
+                <th>Elemento</th>
+                <th>Funcionamiento</th>
+                <th>Motivo</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>PL p&uacute;blico</td>
+                <td>Base conceptual de +3 al ganador y -2 al perdedor en partidas parejas, con ajustes.</td>
+                <td>Da una tabla clara para temporada y premios.</td>
+            </tr>
+            <tr>
+                <td>MMR oculto</td>
+                <td>Se actualiza con una l&oacute;gica tipo rating y K factor interno.</td>
+                <td>Mejora matchmaking sin exponer todo el criterio a manipulaci&oacute;n.</td>
+            </tr>
+            <tr>
+                <td>Underdog/favorito</td>
+                <td>Ganar contra rivales m&aacute;s fuertes premia m&aacute;s; ganar siendo claro favorito premia menos.</td>
+                <td>Reduce farming contra equipos m&aacute;s d&eacute;biles.</td>
+            </tr>
+            <tr>
+                <td>Caps</td>
+                <td>Ganancia PL limitada hasta +8 y p&eacute;rdida limitada hasta -10.</td>
+                <td>Evita saltos extremos en una sola partida.</td>
+            </tr>
+            <tr>
+                <td>Random vs premade</td>
+                <td>Random recibe bonificaci&oacute;n si vence premade; premade tiene ganancia reducida si vence random.</td>
+                <td>Compensa la ventaja de coordinaci&oacute;n de una dupla premade.</td>
+            </tr>
+            <tr>
+                <td>Repetici&oacute;n</td>
+                <td>Repetir mismos equipos en 24 horas reduce valor de puntos.</td>
+                <td>Mitiga farming por acuerdos de duplas.</td>
+            </tr>
+            <tr>
+                <td>Ganancia diaria</td>
+                <td>El sistema reduce ganancias cuando un jugador acumula demasiado PL positivo en el d&iacute;a.</td>
+                <td>Frena abuso por volumen intensivo o farming r&aacute;pido.</td>
+            </tr>
+            </tbody>
+        </table>
+
+        <p>
+            El orden del ladder se basa en PL, luego MMR, luego victorias y finalmente un desempate estable. Tambi&eacute;n
+            existen vistas por reino y perfil/historial de jugador.
+        </p>
+    </section>
+
+    <section id="admin" class="page-break">
+        <h2>5. Panel Administrativo</h2>
+        <p>
+            El panel admin es el centro de operaci&oacute;n de la temporada. Permite que la organizaci&oacute;n revise actividad,
+            resuelva casos sensibles, aplique sanciones, ajuste par&aacute;metros de competencia y mantenga la temporada
+            sin depender de ediciones directas en base de datos.
+        </p>
+        <div class="callout">
+            <strong>Responsabilidad operativa:</strong> Arena Ladder administra la temporada sin intervenci&oacute;n de NGE.
+            Una persona puede operar el panel completo y, como evoluci&oacute;n prevista, un bot de IA podr&aacute; priorizar casos,
+            resumir evidencias y ejecutar tareas autorizadas mediante una cuenta limitada, auditable y revocable.
+        </div>
+
+        <h3>Capacidades Del Admin</h3>
+        <table>
+            <thead>
+            <tr>
+                <th>&Aacute;rea</th>
+                <th>Funciones</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>Dashboard y moderaci&oacute;n</td>
+                <td>Estad&iacute;sticas de actividad y bandeja priorizada de reportes, bloqueos y disputas.</td>
+            </tr>
+            <tr>
+                <td>Matches y arbitraje</td>
+                <td>B&uacute;squeda y revisi&oacute;n de partidas; confirmar, corregir, anular, disputar o cerrar por abandono.</td>
+            </tr>
+            <tr>
+                <td>Jugadores y sanciones</td>
+                <td>Gestionar participantes, colas, bloqueos, strikes, trust score e infracciones de rol.</td>
+            </tr>
+            <tr>
+                <td>Configuraci&oacute;n</td>
+                <td>Administrar temporada, zonas, tiempos, Discord, l&iacute;mites, puntuaci&oacute;n y sanciones.</td>
+            </tr>
+            <tr>
+                <td>Testing lab</td>
+                <td>Roster de pruebas, bots por reino, generaci&oacute;n de colas, aceptaci&oacute;n y resoluci&oacute;n sobre tablas reales.</td>
+            </tr>
+            </tbody>
+        </table>
+
+    </section>
+
+    <section id="arquitectura">
+        <h2>6. Arquitectura, Seguridad Y Datos</h2>
+        <p>
+            La arquitectura est&aacute; construida como una aplicaci&oacute;n web Laravel con vistas Blade, frontend Vite/Tailwind,
+            base de datos SQL, almacenamiento privado para evidencias y servicios internos separados por responsabilidad.
+        </p>
+        <div class="callout">
+            <strong>Frontera t&eacute;cnica:</strong> la arquitectura funciona como un sistema web aut&oacute;nomo. Su &uacute;nica
+            integraci&oacute;n externa operativa es Discord para autenticaci&oacute;n y avisos; no existe conexi&oacute;n, API, lectura,
+            escritura, consulta ni intercambio de datos con Regnum Online o con infraestructura de NGE.
+        </div>
+
+        <table>
+            <thead>
+            <tr>
+                <th>Capa</th>
+                <th>Componentes</th>
+                <th>Responsabilidad</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>Cliente web</td>
+                <td>Navegador, vistas Blade, CSS, polling de estado.</td>
+                <td>Lobby, cola, match, reportes, ladder y panel admin.</td>
+            </tr>
+            <tr>
+                <td>Aplicaci&oacute;n</td>
+                <td>Laravel 11, PHP 8.1+, controllers, middleware, servicios.</td>
+                <td>Reglas de negocio, seguridad, validaci&oacute;n y persistencia.</td>
+            </tr>
+            <tr>
+                <td>Dominio competitivo</td>
+                <td>MatchmakingService, MatchResultService, LadderScoringService.</td>
+                <td>Crear matches, aceptar, resolver, puntuar, sancionar y actualizar ranking.</td>
+            </tr>
+            <tr>
+                <td>Datos</td>
+                <td>users, players, queues, parties, matches, match_reports, match_results, app_settings, admin_accounts.</td>
+                <td>Fuente de verdad para identidad, participaci&oacute;n, evidencias y ranking.</td>
+            </tr>
+            <tr>
+                <td>Storage</td>
+                <td>Disco dedicado arena_reports y disco public.</td>
+                <td>Guardar capturas de reporte fuera del flujo p&uacute;blico directo.</td>
+            </tr>
+            <tr>
+                <td>Discord</td>
+                <td>OAuth y bot por API oficial de Discord.</td>
+                <td>Login, notificaci&oacute;n de match, estados y avisos.</td>
+            </tr>
+            <tr>
+                <td>Scheduler</td>
+                <td>ladder:tick cada minuto y daily maintenance.</td>
+                <td>Evitar estados vencidos, limpiar colas y mantener sanciones.</td>
+            </tr>
+            </tbody>
+        </table>
+
+        <h3 id="seguridad">Seguridad T&eacute;cnica</h3>
+        <p>
+            La seguridad del sistema est&aacute; basada en autenticaci&oacute;n por Discord, sesiones de Laravel, validaciones
+            estrictas de formularios, middleware de acceso, almacenamiento controlado de evidencias y operaciones
+            cr&iacute;ticas en transacciones de base de datos.
+        </p>
+
+        <table>
+            <thead>
+            <tr>
+                <th>Riesgo</th>
+                <th>Control actual</th>
+                <th>Recomendaci&oacute;n para temporada con premios</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>Acceso no autorizado</td>
+                <td>Rutas protegidas por login, sesiones y middleware admin separado.</td>
+                <td>Habilitar HTTPS, cookies seguras y revisar dominios permitidos.</td>
+            </tr>
+            <tr>
+                <td>Fuerza bruta admin</td>
+                <td>Rate limit de login admin: 5 intentos por ventana de 300 segundos.</td>
+                <td>Agregar 2FA para cuentas de arbitraje antes de una temporada con premios.</td>
+            </tr>
+            <tr>
+                <td>Filtraci&oacute;n de secretos</td>
+                <td>Tokens de Discord y rutas admin desde variables de entorno.</td>
+                <td>Rotaci&oacute;n de credenciales, backups cifrados y menor privilegio.</td>
+            </tr>
+            <tr>
+                <td>Manipulaci&oacute;n de inputs</td>
+                <td>Validaci&oacute;n de datos en controllers: IDs, estados, subclases, archivos, tama&ntilde;os y formatos.</td>
+                <td>Activar logs de auditor&iacute;a para cambios admin y reportes sensibles.</td>
+            </tr>
+            <tr>
+                <td>Condiciones de carrera</td>
+                <td>Transacciones y lockForUpdate en creaci&oacute;n de matches.</td>
+                <td>Monitorear cron y errores de base de datos durante eventos de alto tr&aacute;fico.</td>
+            </tr>
+            <tr>
+                <td>Exposici&oacute;n de evidencias</td>
+                <td>Acceso a capturas limitado a participantes del match o usuarios admin.</td>
+                <td>Definir retenci&oacute;n de evidencias y pol&iacute;tica de borrado post-temporada.</td>
+            </tr>
+            <tr>
+                <td>Estados colgados</td>
+                <td>Scheduler y middleware de mantenimiento vencen colas, aceptaciones y reportes.</td>
+                <td>Alertas autom&aacute;ticas si el scheduler deja de ejecutarse.</td>
+            </tr>
+            </tbody>
+        </table>
+
+        <h3>Datos Y Privacidad</h3>
+        <p>
+            La plataforma conserva ID de Discord, personajes, historial competitivo, capturas y notas de moderaci&oacute;n;
+            no almacena contrase&ntilde;as de jugadores porque el acceso utiliza Discord OAuth.
+        </p>
+        <ul>
+            <li>Las evidencias son privadas para participantes y administradores autorizados.</li>
+            <li>HTTPS, secretos en variables de entorno, backups y una pol&iacute;tica de retenci&oacute;n son obligatorios en producci&oacute;n.</li>
+            <li>NGE recibe solo la lista final y los datos m&iacute;nimos necesarios para entregar premios.</li>
+        </ul>
+    </section>
+
+    <section id="anti-trampa">
+        <h2>7. Integridad Competitiva</h2>
+        <p>
+            El sistema se enfoca en proteger la integridad de la competencia alrededor del juego: reportes falsos,
+            colusi&oacute;n, farming de puntos, abandono, abuso de premade, identidad duplicada, manipulaci&oacute;n de roles y
+            disputas. Estos controles se aplican exclusivamente a la participaci&oacute;n en Arena Ladder y a la informaci&oacute;n
+            que los propios jugadores registran en la plataforma.
+        </p>
+
+        <div class="callout">
+            <strong>Alcance anti-trampa:</strong> Arena Ladder no inspecciona el cliente del juego ni intenta detectar
+            software, macros o modificaciones internas. Ante una denuncia, la administraci&oacute;n solo eval&uacute;a la evidencia
+            aportada dentro de la competencia y puede anular, sancionar o excluir conforme a sus reglas. No se solicita
+            a NGE acceso t&eacute;cnico, logs, telemetr&iacute;a ni investigaci&oacute;n de partidas para operar el Ladder.
+        </div>
+
+        <h3>Controles Principales</h3>
+        <table>
+            <thead>
+            <tr>
+                <th>Vector de abuso</th>
+                <th>Medida del sistema</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>Farming contra conocidos</td>
+                <td>Penalizaci&oacute;n de emparejamientos repetidos, reducci&oacute;n de valor por rematch y l&iacute;mite diario de premade exacta.</td>
+            </tr>
+            <tr>
+                <td>Reporte falso</td>
+                <td>Capturas obligatorias, confirmaci&oacute;n rival y disputa si existe desacuerdo o vence el plazo.</td>
+            </tr>
+            <tr>
+                <td>Incumplimiento o abandono</td>
+                <td>Walkover, anulaci&oacute;n, bloqueo de cola, strikes y reducci&oacute;n de trust score seg&uacute;n el caso.</td>
+            </tr>
+            <tr>
+                <td>Manipulaci&oacute;n operativa</td>
+                <td>Validaci&oacute;n de composiciones y estados, zonas asignadas por el sistema y auditor&iacute;a del scoring.</td>
+            </tr>
+            </tbody>
+        </table>
+
+        <p>
+            Cada match conserva reportes, resultado, notas y contexto de puntuaci&oacute;n. El Ladder solo cambia tras una
+            resoluci&oacute;n v&aacute;lida; los casos no comprobables se disputan, anulan o mantienen seg&uacute;n reglas publicadas.
+        </p>
+    </section>
+
+    <section id="premios" class="page-break">
+        <h2>8. Premios Y &Uacute;nica Solicitud A NGE</h2>
+        <p>
+            El apoyo con premios debe estar protegido por reglas de cierre de temporada. La administraci&oacute;n congela el
+            ranking y resuelve disputas antes de remitir a NGE la lista final de ganadores. NGE solo verifica esa lista
+            para coordinar la entrega de los premios que haya decidido aportar.
+        </p>
+
+        <h3>Propuesta De Elegibilidad</h3>
+        <table>
+            <thead>
+            <tr>
+                <th>Criterio</th>
+                <th>Propuesta</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>Cierre v&aacute;lido</td>
+                <td>Solo cuentan matches resueltos; todas las disputas que afecten el top deben estar cerradas.</td>
+            </tr>
+            <tr>
+                <td>Identidad y conducta</td>
+                <td>El personaje debe corresponder al registro; sanciones graves o abuso confirmado pueden excluirlo.</td>
+            </tr>
+            <tr>
+                <td>Empates</td>
+                <td>Desempate por PL, MMR, victorias y criterio estable definido por el sistema.</td>
+            </tr>
+            </tbody>
+        </table>
+
+        <div class="callout">
+            <strong>Solicitud:</strong> cualquier premio que NGE pueda aportar, sin exigir cantidad, valor o tipo, y la
+            verificaci&oacute;n de la lista final de ganadores para coordinar su entrega.
+        </div>
+        <p>
+            No se solicita acceso a APIs, servidores, bases de datos, logs, herramientas anti-cheat, cuentas internas ni
+            personal de moderaci&oacute;n. Tampoco se pide a NGE administrar la temporada: esa responsabilidad permanece de
+            principio a fin en Arena Ladder.
+        </p>
+    </section>
+
+    <section id="operacion">
+        <h2>9. Plan De Temporada, Roadmap Y Calidad</h2>
+        <table>
+            <thead>
+            <tr>
+                <th>Momento</th>
+                <th>Acciones</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>Preparaci&oacute;n y alpha</td>
+                <td>Configurar infraestructura y reglas; probar colas, reportes, disputas, sanciones y estabilidad con jugadores controlados.</td>
+            </tr>
+            <tr>
+                <td>Lanzamiento y temporada</td>
+                <td>Publicar reglas, abrir registro y supervisar actividad, disputas, soporte y posiciones principales.</td>
+            </tr>
+            <tr>
+                <td>Cierre y premios</td>
+                <td>Congelar el Ladder, resolver pendientes, enviar la lista final y coordinar con NGE la verificaci&oacute;n y entrega.</td>
+            </tr>
+            </tbody>
+        </table>
+        <h3 id="roadmap">Roadmap Propuesto</h3>
+        <table>
+            <thead>
+            <tr>
+                <th>Fase</th>
+                <th>Objetivo</th>
+                <th>Entregables</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>MVP 2vs2</td>
+                <td>Base funcional actualmente desarrollada.</td>
+                <td>Login, colas, matches, reportes, ladder, admin y mantenimiento.</td>
+            </tr>
+            <tr>
+                <td>Alpha y primera temporada</td>
+                <td>Probar con la comunidad y operar con posibles premios.</td>
+                <td>Ajustes finales, calendario, cierre auditado y lista de ganadores.</td>
+            </tr>
+            <tr>
+                <td>Modalidad 3vs3</td>
+                <td>Completar y probar la segunda versi&oacute;n de Arena Ladder.</td>
+                <td>Reglas 3vs3, matchmaking, ranking, panel admin y pruebas espec&iacute;ficas.</td>
+            </tr>
+            <tr>
+                <td>Rotaci&oacute;n y automatizaci&oacute;n</td>
+                <td>Alternar temporadas 2vs2 y 3vs3 sin replicar BZ o The Hunt.</td>
+                <td>Calendario por modalidad, ranking hist&oacute;rico, asistencia de IA y mejoras UX.</td>
+            </tr>
+            </tbody>
+        </table>
+        <h3>Base De Pruebas Automatizadas</h3>
+        <p>
+            El proyecto incluye pruebas de regresi&oacute;n para ranking, scoring, colas, premades, anti-farm, evidencias,
+            permisos, sanciones, limpieza de estados y correcciones administrativas. Esto protege las reglas centrales
+            al ajustar cada temporada.
+        </p>
+    </section>
+
+    <section id="cierre">
+        <h2>10. Cierre</h2>
+        <p>
+            Regnum Arena Ladder ya cuenta, a partir de su MVP 2vs2, con una base t&eacute;cnica suficiente para organizar una
+            temporada comunitaria seria y alternar posteriormente con 3vs3, manteniendo administraci&oacute;n, seguridad e
+            integridad competitiva dentro de una plataforma externa y auditable.
+        </p>
+
+        <div class="signature">
+            <p><strong>Preparado por:</strong> Proyecto Regnum Arena Ladder (versiones 2vs2 y 3vs3)</p>
+            <p><strong>Contacto operativo:</strong> pendiente de completar antes del env&iacute;o final.</p>
+            <p class="small">
+                Este documento evita depender de enlaces externos para su lectura. El detalle t&eacute;cnico se basa en el
+                estado actual del MVP 2vs2 del proyecto Regnum Arena Ladder.
+            </p>
+        </div>
+    </section>
+</main>
+</body>
+</html>

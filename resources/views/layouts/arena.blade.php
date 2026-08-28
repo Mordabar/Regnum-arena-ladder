@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@yield('title', 'Regnum Arena Ladder')</title>
+    <meta name="description" content="Regnum Arena Ladder — Conquest PvP 2v2. Emparejamiento por reino y subclase, ranking automático PL/MMR, anonimato rival.">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Spectral:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+
+        /* ── Design tokens ── */
+        :root {
+            --arena-night: #0f0b08;
+            --arena-earth: #1b130f;
+            --arena-panel: rgba(24, 17, 13, 0.86);
+            --arena-panel-strong: rgba(18, 12, 9, 0.94);
+            --arena-line: rgba(222, 185, 99, 0.18);
+            --arena-line-strong: rgba(232, 200, 122, 0.34);
+            --arena-gold: #d8b15c;
+            --arena-gold-soft: #f4deb1;
+            --arena-ember: #d6772e;
+            --arena-sand: #dcc49b;
+            --arena-ice: #79b5d6;
+            --arena-forest: #8eb34a;
+            --arena-fire: #d3642f;
+            --arena-text: #f3ebda;
+            --arena-muted: #b4a387;
+            --arena-shadow: 0 18px 45px rgba(0, 0, 0, 0.34);
+        }
+
+        /* ── Base ── */
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: "Spectral", Georgia, serif;
+            color: var(--arena-text);
+            background:
+                radial-gradient(circle at 20% 8%, rgba(121, 181, 214, 0.18), transparent 24%),
+                radial-gradient(circle at 76% 10%, rgba(142, 179, 74, 0.18), transparent 24%),
+                radial-gradient(circle at 50% 82%, rgba(211, 100, 47, 0.2), transparent 26%),
+                linear-gradient(180deg, rgba(72, 48, 27, 0.28), rgba(9, 7, 6, 0.86)),
+                linear-gradient(135deg, #17110d 0%, #221711 46%, #110d0a 100%);
+            min-height: 100vh;
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0.10;
+            background-image:
+                linear-gradient(rgba(255, 236, 195, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 236, 195, 0.08) 1px, transparent 1px);
+            background-size: 24px 24px;
+            mask-image: radial-gradient(circle at center, black, transparent 78%);
+        }
+
+        /* ── Typography ── */
+        h1, h2, h3, h4, h5, h6,
+        .arena-heading,
+        .arena-kicker,
+        .arena-brand-type {
+            font-family: "Cinzel", Georgia, serif;
+        }
+
+        .arena-body-text {
+            font-family: "Inter", sans-serif;
+        }
+
+        /* ── Shell ── */
+        .arena-shell {
+            position: relative;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .arena-shell::after {
+            content: "";
+            position: fixed;
+            inset: auto 8% 4% 8%;
+            height: 160px;
+            pointer-events: none;
+            opacity: 0.22;
+            background:
+                radial-gradient(circle at center, rgba(246, 199, 94, 0.14), transparent 56%),
+                linear-gradient(90deg, transparent, rgba(246, 199, 94, 0.18), transparent);
+            filter: blur(36px);
+        }
+
+        /* ── Navbar ── */
+        .arena-navbar {
+            background:
+                linear-gradient(180deg, rgba(48, 35, 25, 0.96), rgba(20, 14, 11, 0.94)),
+                linear-gradient(90deg, rgba(121, 181, 214, 0.12), transparent 24%, transparent 76%, rgba(211, 100, 47, 0.12));
+            border-bottom: 1px solid var(--arena-line-strong);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.22);
+            backdrop-filter: blur(14px);
+        }
+
+        /* ── Panels ── */
+        .arena-panel {
+            border: 1px solid var(--arena-line);
+            background:
+                linear-gradient(180deg, rgba(55, 39, 28, 0.56), rgba(18, 12, 9, 0.88)),
+                radial-gradient(circle at top right, rgba(255, 210, 135, 0.07), transparent 26%);
+            box-shadow: var(--arena-shadow);
+            border-radius: 1.75rem;
+        }
+
+        .arena-panel-strong {
+            border: 1px solid var(--arena-line-strong);
+            background:
+                linear-gradient(180deg, rgba(63, 45, 31, 0.76), rgba(17, 12, 9, 0.94)),
+                radial-gradient(circle at top left, rgba(255, 215, 134, 0.11), transparent 28%);
+            box-shadow: var(--arena-shadow);
+            border-radius: 2rem;
+        }
+
+        .arena-card {
+            border: 1px solid rgba(214, 177, 92, 0.14);
+            background: linear-gradient(180deg, rgba(28, 20, 15, 0.94), rgba(17, 12, 9, 0.92));
+            border-radius: 1.35rem;
+            transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .arena-card-interactive:hover {
+            border-color: rgba(214, 177, 92, 0.28);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+        }
+
+        /* ── Realm-themed card borders ── */
+        .arena-card-ignis { border-color: rgba(211, 100, 47, 0.25); }
+        .arena-card-ignis:hover { border-color: rgba(211, 100, 47, 0.45); box-shadow: 0 8px 30px rgba(211, 100, 47, 0.12); }
+        .arena-card-alsius { border-color: rgba(121, 181, 214, 0.25); }
+        .arena-card-alsius:hover { border-color: rgba(121, 181, 214, 0.45); box-shadow: 0 8px 30px rgba(121, 181, 214, 0.12); }
+        .arena-card-syrtis { border-color: rgba(142, 179, 74, 0.25); }
+        .arena-card-syrtis:hover { border-color: rgba(142, 179, 74, 0.45); box-shadow: 0 8px 30px rgba(142, 179, 74, 0.12); }
+
+        /* ── Labels ── */
+        .arena-kicker {
+            text-transform: uppercase;
+            letter-spacing: 0.34em;
+            color: var(--arena-gold);
+            font-size: 0.72rem;
+        }
+
+        .arena-text-muted {
+            color: var(--arena-muted);
+        }
+
+        .arena-chip {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            border: 1px solid rgba(218, 177, 91, 0.18);
+            background: rgba(16, 12, 9, 0.72);
+            padding: 0.45rem 0.8rem;
+            font-size: 0.72rem;
+            letter-spacing: 0.08em;
+            color: var(--arena-sand);
+        }
+
+        /* ── Buttons ── */
+        .arena-btn,
+        .arena-btn-secondary,
+        .arena-btn-ghost,
+        .arena-btn-warning,
+        .arena-btn-danger,
+        .arena-btn-danger-ghost,
+        .arena-btn-safe {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            border-radius: 999px;
+            padding: 0.85rem 1.2rem;
+            font-weight: 700;
+            font-family: "Inter", sans-serif;
+            font-size: 0.875rem;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease, background 0.18s ease, opacity 0.18s ease;
+            cursor: pointer;
+            border: none;
+            text-decoration: none;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .arena-btn:hover,
+        .arena-btn-secondary:hover,
+        .arena-btn-ghost:hover,
+        .arena-btn-warning:hover,
+        .arena-btn-danger:hover,
+        .arena-btn-danger-ghost:hover,
+        .arena-btn-safe:hover {
+            transform: translateY(-1px);
+        }
+
+        .arena-btn:active, .arena-btn-secondary:active, .arena-btn-ghost:active,
+        .arena-btn-warning:active, .arena-btn-danger:active, .arena-btn-safe:active {
+            transform: translateY(0);
+        }
+
+        .arena-btn:disabled, .arena-btn-secondary:disabled, .arena-btn-ghost:disabled,
+        .arena-btn-warning:disabled, .arena-btn-danger:disabled, .arena-btn-safe:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .arena-btn {
+            color: #28190a;
+            background: linear-gradient(180deg, #f3d888, #c99534 62%, #8a5f17);
+            box-shadow: 0 12px 30px rgba(138, 95, 23, 0.3);
+        }
+
+        .arena-btn-secondary {
+            color: var(--arena-text);
+            background:
+                linear-gradient(180deg, rgba(63, 112, 133, 0.92), rgba(27, 59, 74, 0.96)),
+                linear-gradient(180deg, rgba(255,255,255,0.06), transparent);
+            box-shadow: 0 12px 28px rgba(15, 42, 56, 0.3);
+        }
+
+        .arena-btn-safe {
+            color: #09150c;
+            background: linear-gradient(180deg, #8fe0a8, #2f8b57 62%, #185638);
+            box-shadow: 0 12px 30px rgba(18, 70, 41, 0.24);
+        }
+
+        .arena-btn-warning {
+            color: #28190a;
+            background: linear-gradient(180deg, #f1c97c, #cb8731 62%, #8b5115);
+            box-shadow: 0 12px 30px rgba(117, 70, 18, 0.28);
+        }
+
+        .arena-btn-danger {
+            color: #fff1ed;
+            background: linear-gradient(180deg, #d56363, #9f2f2f 62%, #5c1717);
+            box-shadow: 0 12px 30px rgba(92, 23, 23, 0.28);
+        }
+
+        .arena-btn-ghost {
+            color: var(--arena-sand);
+            background: rgba(17, 12, 9, 0.7);
+            border: 1px solid rgba(217, 177, 92, 0.18);
+        }
+
+        .arena-btn-danger-ghost {
+            color: #ffb4b4;
+            background: rgba(48, 14, 14, 0.76);
+            border: 1px solid rgba(200, 82, 82, 0.28);
+        }
+
+        /* ── Loading state for buttons ── */
+        .arena-btn-loading {
+            pointer-events: none;
+            opacity: 0.7;
+        }
+        .arena-btn-loading::after {
+            content: "";
+            display: inline-block;
+            width: 1em;
+            height: 1em;
+            border: 2px solid currentColor;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: arenaSpinner 0.6s linear infinite;
+            margin-left: 0.5em;
+        }
+
+        /* ── Nav links ── */
+        .arena-nav-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            border-radius: 999px;
+            padding: 0.6rem 0.95rem;
+            font-family: "Inter", sans-serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #e8d8bd;
+            transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+        }
+
+        .arena-nav-link:hover {
+            background: rgba(221, 180, 87, 0.12);
+            color: #fff4de;
+            transform: translateY(-1px);
+        }
+
+        .arena-nav-link-active {
+            background: rgba(221, 180, 87, 0.16);
+            color: var(--arena-gold-soft);
+            box-shadow: inset 0 0 0 1px rgba(221, 180, 87, 0.18);
+        }
+
+        /* ── Badge dot for notifications ── */
+        .arena-badge-dot {
+            position: absolute;
+            top: 0.35rem;
+            right: 0.35rem;
+            width: 0.5rem;
+            height: 0.5rem;
+            border-radius: 50%;
+            background: #d3642f;
+            box-shadow: 0 0 8px rgba(211, 100, 47, 0.6);
+            animation: arenaPulse 2s ease-in-out infinite;
+        }
+
+        /* ── Forms ── */
+        .arena-field,
+        .arena-select,
+        .arena-textarea {
+            width: 100%;
+            border-radius: 1.1rem;
+            border: 1px solid rgba(217, 177, 92, 0.16);
+            background: rgba(15, 10, 8, 0.88);
+            color: var(--arena-text);
+            padding: 0.9rem 1rem;
+            font-family: "Inter", sans-serif;
+            font-size: 0.9rem;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .arena-field:focus,
+        .arena-select:focus,
+        .arena-textarea:focus {
+            outline: none;
+            border-color: rgba(216, 177, 92, 0.4);
+            box-shadow: 0 0 0 3px rgba(216, 177, 92, 0.1);
+        }
+
+        .arena-field::placeholder,
+        .arena-textarea::placeholder {
+            color: #8f816d;
+        }
+
+        /* ── Tables ── */
+        .arena-table thead {
+            color: #c8b38a;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            font-size: 0.72rem;
+            font-family: "Inter", sans-serif;
+        }
+
+        .arena-table tbody tr {
+            border-top: 1px solid rgba(217, 177, 92, 0.08);
+            transition: background 0.15s ease;
+        }
+
+        .arena-table tbody tr:hover {
+            background: rgba(255, 215, 134, 0.04);
+        }
+
+        /* ── Scrollbar ── */
+        .arena-scroll::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        .arena-scroll::-webkit-scrollbar-thumb {
+            background: rgba(217, 177, 92, 0.24);
+            border-radius: 999px;
+        }
+
+        /* ── Pagination ── */
+        .pagination [aria-current="page"] span,
+        .pagination .active span {
+            background: linear-gradient(180deg, #e7c975, #b9832a);
+            color: #211408;
+            border-color: transparent;
+        }
+
+        /* ── Realm text ── */
+        .realm-ignis { color: var(--arena-fire); }
+        .realm-syrtis { color: var(--arena-forest); }
+        .realm-alsius { color: var(--arena-ice); }
+
+        /* ── Status badges ── */
+        .arena-status-pending { background: rgba(216, 177, 92, 0.15); color: #f4deb1; border: 1px solid rgba(216, 177, 92, 0.25); }
+        .arena-status-active { background: rgba(46, 160, 67, 0.15); color: #8fe0a8; border: 1px solid rgba(46, 160, 67, 0.25); }
+        .arena-status-completed { background: rgba(121, 181, 214, 0.15); color: #a8d4ea; border: 1px solid rgba(121, 181, 214, 0.25); }
+        .arena-status-disputed { background: rgba(211, 100, 47, 0.15); color: #f4a261; border: 1px solid rgba(211, 100, 47, 0.25); }
+        .arena-status-void { background: rgba(180, 163, 135, 0.1); color: #b4a387; border: 1px solid rgba(180, 163, 135, 0.2); }
+
+        /* ── Mobile menu ── */
+        .arena-mobile-menu {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            display: none;
+        }
+        .arena-mobile-menu.is-open { display: flex; }
+        .arena-mobile-menu-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(6px);
+        }
+        .arena-mobile-menu-panel {
+            position: relative;
+            margin-left: auto;
+            width: 100%;
+            max-width: 320px;
+            background:
+                linear-gradient(180deg, rgba(38, 27, 20, 0.99), rgba(12, 8, 6, 0.99));
+            border-left: 1px solid var(--arena-line-strong);
+            overflow-y: auto;
+            animation: arenaSlideIn 0.25s ease-out;
+        }
+
+        /* ── Toast styles ── */
+        .arena-toast-success { border-color: rgba(46, 160, 67, 0.3); background: rgba(10, 35, 18, 0.92); }
+        .arena-toast-success .arena-toast-message { color: #8fe0a8; }
+        .arena-toast-warning { border-color: rgba(211, 162, 47, 0.3); background: rgba(40, 28, 10, 0.92); }
+        .arena-toast-warning .arena-toast-message { color: #f4deb1; }
+        .arena-toast-error { border-color: rgba(200, 82, 82, 0.3); background: rgba(40, 12, 12, 0.92); }
+        .arena-toast-error .arena-toast-message { color: #ffb4b4; }
+        .arena-toast-info { border-color: rgba(121, 181, 214, 0.3); background: rgba(12, 28, 40, 0.92); }
+        .arena-toast-info .arena-toast-message { color: #a8d4ea; }
+
+        /* ── Medal top positions ── */
+        .arena-medal-1 { color: #ffd700; text-shadow: 0 0 8px rgba(255, 215, 0, 0.5); }
+        .arena-medal-2 { color: #c0c0c0; text-shadow: 0 0 6px rgba(192, 192, 192, 0.4); }
+        .arena-medal-3 { color: #cd7f32; text-shadow: 0 0 6px rgba(205, 127, 50, 0.4); }
+
+        /* ── Animations ── */
+        @keyframes arenaFadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes arenaFadeInUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes arenaSlideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+        @keyframes arenaModalIn {
+            from { opacity: 0; transform: scale(0.96) translateY(8px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes arenaToastIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes arenaSpinner {
+            to { transform: rotate(360deg); }
+        }
+        @keyframes arenaPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.3); }
+        }
+
+        .arena-animate-in {
+            animation: arenaFadeInUp 0.4s ease-out both;
+        }
+        .arena-stagger-1 { animation-delay: 0.05s; }
+        .arena-stagger-2 { animation-delay: 0.1s; }
+        .arena-stagger-3 { animation-delay: 0.15s; }
+        .arena-stagger-4 { animation-delay: 0.2s; }
+        .arena-stagger-5 { animation-delay: 0.25s; }
+        .arena-stagger-6 { animation-delay: 0.3s; }
+    </style>
+    @stack('arena-map-styles')
+</head>
+@php
+    $arenaAdminSessionActive = session('arena_admin.authenticated') === true;
+    $arenaAdminDisplayName = session('arena_admin.display_name', 'admin');
+@endphp
+<body class="arena-shell min-h-screen">
+    {{-- ── NAVBAR ── --}}
+    <nav class="arena-navbar sticky top-0 z-40">
+        <div class="mx-auto max-w-7xl px-4 py-3">
+            <div class="flex items-center justify-between gap-4">
+                <a href="{{ route('home') }}" class="shrink-0">
+                    <x-arena-brand compact />
+                </a>
+
+                {{-- Desktop nav --}}
+                <div class="hidden items-center gap-2 md:flex">
+                    @if(request()->routeIs('admin.*') && $arenaAdminSessionActive)
+                        {{-- Contexto Administrativo --}}
+                        <a href="{{ route('admin.dashboard') }}" class="arena-nav-link {{ request()->routeIs('admin.dashboard') ? 'arena-nav-link-active' : '' }}">Dashboard</a>
+                        <a href="{{ route('admin.inbox') }}" class="arena-nav-link {{ request()->routeIs('admin.inbox') ? 'arena-nav-link-active' : '' }}">Inbox</a>
+                        <a href="{{ route('admin.matches.index') }}" class="arena-nav-link {{ request()->routeIs('admin.matches.*') ? 'arena-nav-link-active' : '' }}">Matches</a>
+                        <a href="{{ route('admin.players.index') }}" class="arena-nav-link {{ request()->routeIs('admin.players.*') ? 'arena-nav-link-active' : '' }}">Jugadores</a>
+                        <a href="{{ route('admin.zones') }}" class="arena-nav-link {{ request()->routeIs('admin.zones') ? 'arena-nav-link-active' : '' }}">Zonas</a>
+                        <a href="{{ route('admin.settings') }}" class="arena-nav-link {{ request()->routeIs('admin.settings') ? 'arena-nav-link-active' : '' }}">Config</a>
+                        
+                        <div class="mx-1 h-6 w-px bg-[color:var(--arena-line-strong)]"></div>
+                        <a href="{{ route('home') }}" class="arena-nav-link text-xs text-[color:var(--arena-muted)] hover:text-white">Cambiar al Juego</a>
+                        <button type="button" class="arena-btn-ghost px-3 py-1.5 text-xs" data-arena-alert-toggle>
+                            <span class="inline-block h-2 w-2 rounded-full bg-emerald-400" data-arena-alert-indicator></span>
+                            <span data-arena-alert-label>Alertas ON</span>
+                        </button>
+                        <span class="arena-chip hidden border-amber-500/30 bg-amber-950/30 text-amber-100 lg:inline-flex">🛡️ {{ $arenaAdminDisplayName }}</span>
+                        <form method="POST" action="{{ route('admin.logout') }}">
+                            @csrf
+                            <button type="submit" class="arena-btn-ghost px-3 py-1.5 text-xs">Cerrar Admin</button>
+                        </form>
+                    @else
+                        {{-- Contexto de Jugador (Juego) --}}
+                        <a href="{{ route('ladder.index') }}" class="arena-nav-link {{ request()->routeIs('ladder.*') ? 'arena-nav-link-active' : '' }}">
+                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a1 1 0 000 2c5.523 0 10 4.477 10 10a1 1 0 102 0C17 8.373 11.627 3 5 3z"/><path d="M4 9a1 1 0 011-1 7 7 0 017 7 1 1 0 11-2 0 5 5 0 00-5-5 1 1 0 01-1-1zM3 15a2 2 0 114 0 2 2 0 01-4 0z"/></svg>
+                            Ladder
+                        </a>
+                        @auth
+                            <a href="{{ route('lobby') }}" class="arena-nav-link {{ request()->routeIs('lobby') ? 'arena-nav-link-active' : '' }}">
+                                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/></svg>
+                                Lobby
+                            </a>
+                            <a href="{{ route('queue.index') }}" class="arena-nav-link relative {{ request()->routeIs('queue.*') ? 'arena-nav-link-active' : '' }}">
+                                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
+                                Arena
+                            </a>
+                            <a href="{{ route('matches.index') }}" class="arena-nav-link {{ request()->routeIs('matches.*') ? 'arena-nav-link-active' : '' }}">
+                                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/></svg>
+                                Matches
+                            </a>
+                            <button type="button" class="arena-btn-ghost px-3 py-1.5 text-xs" data-arena-alert-toggle>
+                                <span class="inline-block h-2 w-2 rounded-full bg-emerald-400" data-arena-alert-indicator></span>
+                                <span data-arena-alert-label>Alertas ON</span>
+                            </button>
+                            <span class="arena-chip hidden lg:inline-flex">{{ auth()->user()->discord_username }}</span>
+                            <form method="POST" action="{{ route('logout') }}">
+                                @csrf
+                                <button type="submit" class="arena-btn-ghost px-3 py-1.5 text-xs">Salir</button>
+                            </form>
+                        @else
+                            <a href="{{ route('auth.discord') }}" class="arena-btn-secondary">
+                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
+                                Entrar con Discord
+                            </a>
+                        @endauth
+                        
+                        @if($arenaAdminSessionActive)
+                            <div class="mx-1 h-5 w-px bg-[color:var(--arena-line-strong)]"></div>
+                            <a href="{{ route('admin.dashboard') }}" class="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--arena-gold-soft)]/20 bg-black/40 px-3 py-1.5 text-[0.75rem] font-semibold text-[color:var(--arena-gold-soft)] transition hover:border-[color:var(--arena-gold-soft)]/40 hover:bg-white/10">
+                                <svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
+                                Admin Panel
+                            </a>
+                        @endif
+                    @endif
+                </div>
+
+                {{-- Mobile hamburger --}}
+                <button type="button" class="md:hidden rounded-xl border border-[color:var(--arena-line)] bg-[rgba(15,10,8,0.7)] p-2.5 text-[color:var(--arena-sand)] transition hover:bg-white/10" id="arenaMenuOpen" aria-label="Abrir menú">
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    {{-- ── MOBILE MENU DRAWER ── --}}
+    <div class="arena-mobile-menu" id="arenaMobileMenu">
+        <div class="arena-mobile-menu-backdrop" id="arenaMenuBackdrop"></div>
+        <div class="arena-mobile-menu-panel">
+            <div class="flex items-center justify-between border-b border-[color:var(--arena-line)] px-5 py-4">
+                <span class="font-['Cinzel'] text-sm font-semibold text-[color:var(--arena-gold-soft)]">Menú</span>
+                <button type="button" class="rounded-full p-2 text-[color:var(--arena-muted)] hover:text-white" id="arenaMenuClose" aria-label="Cerrar menú">
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+                </button>
+            </div>
+            <div class="space-y-1 px-4 py-4">
+                @if(request()->routeIs('admin.*') && $arenaAdminSessionActive)
+                    {{-- Mobile Admin Context --}}
+                    <div class="mb-3 px-3">
+                        <span class="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-[color:var(--arena-gold-soft)]">Modo Moderación</span>
+                    </div>
+                    <a href="{{ route('admin.dashboard') }}" class="arena-nav-link block w-full {{ request()->routeIs('admin.dashboard') ? 'arena-nav-link-active' : '' }}">Dashboard</a>
+                    <a href="{{ route('admin.inbox') }}" class="arena-nav-link block w-full {{ request()->routeIs('admin.inbox') ? 'arena-nav-link-active' : '' }}">Inbox</a>
+                    <a href="{{ route('admin.matches.index') }}" class="arena-nav-link block w-full {{ request()->routeIs('admin.matches.*') ? 'arena-nav-link-active' : '' }}">Matches</a>
+                    <a href="{{ route('admin.players.index') }}" class="arena-nav-link block w-full {{ request()->routeIs('admin.players.*') ? 'arena-nav-link-active' : '' }}">Jugadores</a>
+                    <a href="{{ route('admin.zones') }}" class="arena-nav-link block w-full {{ request()->routeIs('admin.zones') ? 'arena-nav-link-active' : '' }}">Zonas de Mapa</a>
+                    <a href="{{ route('admin.settings') }}" class="arena-nav-link block w-full {{ request()->routeIs('admin.settings') ? 'arena-nav-link-active' : '' }}">Configuración</a>
+                    <a href="{{ route('admin.testing') }}" class="arena-nav-link block w-full {{ request()->routeIs('admin.testing') ? 'arena-nav-link-active' : '' }}">Testing</a>
+                    <button type="button" class="arena-btn-ghost mt-3 w-full justify-center" data-arena-alert-toggle>
+                        <span class="inline-block h-2 w-2 rounded-full bg-emerald-400" data-arena-alert-indicator></span>
+                        <span data-arena-alert-label>Alertas ON</span>
+                    </button>
+                    
+                    <div class="my-4 border-t border-[color:var(--arena-line)]"></div>
+                    <a href="{{ route('home') }}" class="block text-center text-sm font-semibold text-[color:var(--arena-sand)] hover:text-white">Cambiar al juego</a>
+                    <form method="POST" action="{{ route('admin.logout') }}" class="mt-3">
+                        @csrf
+                        <button type="submit" class="arena-btn-danger-ghost w-full">Cerrar Sesión Admin</button>
+                    </form>
+                @else
+                    {{-- Mobile User Context --}}
+                    <a href="{{ route('ladder.index') }}" class="arena-nav-link block w-full {{ request()->routeIs('ladder.*') ? 'arena-nav-link-active' : '' }}">Ladder</a>
+                    @auth
+                        <a href="{{ route('lobby') }}" class="arena-nav-link block w-full {{ request()->routeIs('lobby') ? 'arena-nav-link-active' : '' }}">Lobby</a>
+                        <a href="{{ route('queue.index') }}" class="arena-nav-link block w-full {{ request()->routeIs('queue.*') ? 'arena-nav-link-active' : '' }}">Arena</a>
+                        <a href="{{ route('matches.index') }}" class="arena-nav-link block w-full {{ request()->routeIs('matches.*') ? 'arena-nav-link-active' : '' }}">Matches</a>
+                        <button type="button" class="arena-btn-ghost mt-3 w-full justify-center" data-arena-alert-toggle>
+                            <span class="inline-block h-2 w-2 rounded-full bg-emerald-400" data-arena-alert-indicator></span>
+                            <span data-arena-alert-label>Alertas ON</span>
+                        </button>
+                        
+                        <div class="my-4 border-t border-[color:var(--arena-line)]"></div>
+                        <div class="arena-chip mb-3 w-full justify-center">👤 {{ auth()->user()->discord_username }}</div>
+                        <form method="POST" action="{{ route('logout') }}">
+                            @csrf
+                            <button type="submit" class="arena-btn-ghost w-full">Salir</button>
+                        </form>
+                    @else
+                        <a href="{{ route('auth.discord') }}" class="arena-btn-secondary mt-3 w-full">Entrar con Discord</a>
+                    @endauth
+
+                    @if($arenaAdminSessionActive)
+                        <div class="my-4 border-t border-[color:var(--arena-line)]"></div>
+                        <div class="mb-2 px-3">
+                            <span class="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-[color:var(--arena-gold-soft)]">Staff Access</span>
+                        </div>
+                        <a href="{{ route('admin.dashboard') }}" class="arena-btn w-full justify-center">
+                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
+                            Panel Admin
+                        </a>
+                    @endif
+                @endif
+            </div>
+        </div>
+    </div>
+
+    {{-- ── MAIN CONTENT ── --}}
+    <main class="flex-1 pb-16 pt-4">
+        @if(session('success') || session('warning') || session('error') || $errors->any())
+            <div class="mx-auto max-w-7xl px-4 pt-6">
+                @if(session('success'))
+                    <div class="arena-animate-in mb-4 flex items-start gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-950/35 px-5 py-4 text-emerald-100 shadow-[0_10px_28px_rgba(12,55,38,0.18)]">
+                        <svg class="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                        <span>{{ session('success') }}</span>
+                    </div>
+                @endif
+                @if(session('warning'))
+                    <div class="arena-animate-in mb-4 flex items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-950/35 px-5 py-4 text-amber-100 shadow-[0_10px_28px_rgba(77,44,8,0.18)]">
+                        <svg class="mt-0.5 h-5 w-5 shrink-0 text-amber-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                        <span>{{ session('warning') }}</span>
+                    </div>
+                @endif
+                @if(session('error'))
+                    <div class="arena-animate-in mb-4 flex items-start gap-3 rounded-2xl border border-rose-500/30 bg-rose-950/35 px-5 py-4 text-rose-100 shadow-[0_10px_28px_rgba(74,22,22,0.18)]">
+                        <svg class="mt-0.5 h-5 w-5 shrink-0 text-rose-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+                        <span>{{ session('error') }}</span>
+                    </div>
+                @endif
+                @if($errors->any())
+                    <div class="arena-animate-in mb-4 flex items-start gap-3 rounded-2xl border border-rose-500/30 bg-rose-950/35 px-5 py-4 text-rose-100 shadow-[0_10px_28px_rgba(74,22,22,0.18)]">
+                        <svg class="mt-0.5 h-5 w-5 shrink-0 text-rose-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+                        <div>
+                            @foreach($errors->all() as $error)
+                                <p>{{ $error }}</p>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+            </div>
+        @endif
+
+        @yield('content')
+    </main>
+
+    {{-- ── FOOTER ── --}}
+    <x-arena-footer />
+
+    {{-- ── TOAST CONTAINER ── --}}
+    <x-arena-toast />
+
+    {{-- ── GLOBAL SCRIPTS ── --}}
+    <script>
+        /* ── Mobile menu ── */
+        (function() {
+            const menu = document.getElementById('arenaMobileMenu');
+            const openBtn = document.getElementById('arenaMenuOpen');
+            const closeBtn = document.getElementById('arenaMenuClose');
+            const backdrop = document.getElementById('arenaMenuBackdrop');
+            if (!menu || !openBtn) return;
+
+            const toggle = (open) => {
+                menu.classList.toggle('is-open', open);
+                document.body.style.overflow = open ? 'hidden' : '';
+            };
+
+            openBtn.addEventListener('click', () => toggle(true));
+            closeBtn?.addEventListener('click', () => toggle(false));
+            backdrop?.addEventListener('click', () => toggle(false));
+        })();
+
+        /* ── Modal system ── */
+        window.arenaModal = {
+            open(id) {
+                const el = document.getElementById(id);
+                if (el) { el.style.display = 'flex'; }
+            },
+            close(id) {
+                const el = document.getElementById(id);
+                if (el) { el.style.display = 'none'; }
+            }
+        };
+        document.addEventListener('click', (e) => {
+            const closer = e.target.closest('[data-modal-close]');
+            if (closer) {
+                arenaModal.close(closer.dataset.modalClose);
+            }
+            const opener = e.target.closest('[data-modal-open]');
+            if (opener) {
+                arenaModal.open(opener.dataset.modalOpen);
+            }
+        });
+
+        /* ── Toast system ── */
+        window.arenaToast = function(message, type = 'info', duration = 5000) {
+            const container = document.getElementById('arenaToastContainer');
+            const template = document.getElementById('arenaToastTemplate');
+            if (!container || !template) return;
+
+            const toast = template.content.cloneNode(true).firstElementChild;
+            toast.classList.add('arena-toast-' + type);
+            toast.querySelector('.arena-toast-message').textContent = message;
+
+            const icons = {
+                success: '<svg class="h-5 w-5 text-emerald-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>',
+                warning: '<svg class="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>',
+                error: '<svg class="h-5 w-5 text-rose-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>',
+                info: '<svg class="h-5 w-5 text-sky-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>',
+            };
+            toast.querySelector('.arena-toast-icon').innerHTML = icons[type] || icons.info;
+            container.appendChild(toast);
+
+            if (duration > 0) {
+                setTimeout(() => {
+                    toast.style.animation = 'arenaFadeIn 0.2s ease-out reverse forwards';
+                    setTimeout(() => toast.remove(), 200);
+                }, duration);
+            }
+        };
+
+        /* ── Button loading states ── */
+        /* ── Browser sound alerts ── */
+        (function() {
+            const enabledKey = 'arena:sound-alerts:enabled';
+            const dedupeKey = 'arena:sound-alerts:last-event';
+            const dedupeWindowMs = 4000;
+            const unlockEvents = ['pointerdown', 'touchstart', 'keydown'];
+            const safeGet = (key) => {
+                try {
+                    return localStorage.getItem(key);
+                } catch (_) {
+                    return null;
+                }
+            };
+            const safeSet = (key, value) => {
+                try {
+                    localStorage.setItem(key, value);
+                    return true;
+                } catch (_) {
+                    return false;
+                }
+            };
+
+            let enabled = safeGet(enabledKey) !== '0';
+            let audioContext = null;
+            let unlocked = false;
+            let unlockHintShown = false;
+
+            const patterns = {
+                match_found: {
+                    tones: [
+                        { freq: 784, duration: 0.11, delay: 0.00, type: 'triangle' },
+                        { freq: 988, duration: 0.12, delay: 0.15, type: 'triangle' },
+                        { freq: 1319, duration: 0.18, delay: 0.32, type: 'sine' },
+                    ],
+                    vibrate: [80, 40, 120],
+                },
+                party_invite: {
+                    tones: [
+                        { freq: 740, duration: 0.12, delay: 0.00, type: 'sine' },
+                        { freq: 1047, duration: 0.16, delay: 0.18, type: 'sine' },
+                    ],
+                    vibrate: [60, 30, 80],
+                },
+                party_ready: {
+                    tones: [
+                        { freq: 660, duration: 0.12, delay: 0.00, type: 'triangle' },
+                        { freq: 880, duration: 0.18, delay: 0.16, type: 'triangle' },
+                    ],
+                    vibrate: [70],
+                },
+                hunt_start: {
+                    tones: [
+                        { freq: 587, duration: 0.14, delay: 0.00, type: 'square' },
+                        { freq: 784, duration: 0.14, delay: 0.16, type: 'square' },
+                        { freq: 1047, duration: 0.24, delay: 0.34, type: 'triangle' },
+                    ],
+                    vibrate: [120, 50, 120],
+                },
+                report_submitted: {
+                    tones: [
+                        { freq: 698, duration: 0.11, delay: 0.00, type: 'sine' },
+                        { freq: 698, duration: 0.11, delay: 0.16, type: 'sine' },
+                    ],
+                    vibrate: [50, 25, 50],
+                },
+                report_confirmed: {
+                    tones: [
+                        { freq: 523, duration: 0.12, delay: 0.00, type: 'triangle' },
+                        { freq: 659, duration: 0.12, delay: 0.16, type: 'triangle' },
+                        { freq: 784, duration: 0.18, delay: 0.32, type: 'sine' },
+                    ],
+                    vibrate: [90, 40, 90],
+                },
+                generic: {
+                    tones: [
+                        { freq: 740, duration: 0.16, delay: 0.00, type: 'triangle' },
+                    ],
+                    vibrate: [60],
+                },
+            };
+
+            const alertButtons = () => Array.from(document.querySelectorAll('[data-arena-alert-toggle]'));
+
+            const getAudioContext = () => {
+                if (audioContext) {
+                    return audioContext;
+                }
+
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextClass) {
+                    return null;
+                }
+
+                audioContext = new AudioContextClass();
+                unlocked = audioContext.state === 'running';
+
+                return audioContext;
+            };
+
+            const updateButtons = () => {
+                alertButtons().forEach((button) => {
+                    const label = button.querySelector('[data-arena-alert-label]');
+                    const indicator = button.querySelector('[data-arena-alert-indicator]');
+                    const activeLabel = enabled ? (unlocked ? 'Alertas listas' : 'Activar sonido') : 'Alertas OFF';
+
+                    button.classList.toggle('border-emerald-500/30', enabled);
+                    button.classList.toggle('text-emerald-200', enabled);
+                    button.classList.toggle('border-rose-500/30', !enabled);
+                    button.classList.toggle('text-rose-200', !enabled);
+                    button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+
+                    if (label) {
+                        label.textContent = activeLabel;
+                    }
+
+                    if (indicator) {
+                        indicator.classList.toggle('bg-emerald-400', enabled && unlocked);
+                        indicator.classList.toggle('bg-amber-400', enabled && !unlocked);
+                        indicator.classList.toggle('bg-rose-400', !enabled);
+                    }
+                });
+            };
+
+            const unlock = async () => {
+                const context = getAudioContext();
+                if (!context) {
+                    return false;
+                }
+
+                try {
+                    if (context.state !== 'running') {
+                        await context.resume();
+                    }
+                } catch (_) {
+                    unlocked = false;
+                    updateButtons();
+                    return false;
+                }
+
+                unlocked = context.state === 'running';
+                updateButtons();
+                return unlocked;
+            };
+
+            const installUnlockListeners = () => {
+                const tryUnlock = async () => {
+                    const didUnlock = await unlock();
+                    if (didUnlock) {
+                        unlockEvents.forEach((eventName) => {
+                            document.removeEventListener(eventName, tryUnlock, true);
+                        });
+                    }
+                };
+
+                unlockEvents.forEach((eventName) => {
+                    document.addEventListener(eventName, tryUnlock, true);
+                });
+            };
+
+            const shouldEmit = (eventKey) => {
+                try {
+                    const raw = safeGet(dedupeKey);
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        if (parsed.key === eventKey && (Date.now() - parsed.timestamp) < dedupeWindowMs) {
+                            return false;
+                        }
+                    }
+
+                    safeSet(dedupeKey, JSON.stringify({
+                        key: eventKey,
+                        timestamp: Date.now(),
+                    }));
+                } catch (_) {
+                    return true;
+                }
+
+                return true;
+            };
+
+            const playPattern = (type) => {
+                const context = getAudioContext();
+                if (!context || !unlocked) {
+                    if (enabled && !unlockHintShown) {
+                        unlockHintShown = true;
+                        arenaToast('Haz un toque en la pagina para dejar listas las alertas sonoras.', 'info', 4500);
+                    }
+                    return false;
+                }
+
+                const pattern = patterns[type] || patterns.generic;
+                const baseTime = context.currentTime + 0.02;
+
+                pattern.tones.forEach((tone) => {
+                    const oscillator = context.createOscillator();
+                    const gainNode = context.createGain();
+                    const startAt = baseTime + (tone.delay ?? 0);
+                    const duration = tone.duration ?? 0.15;
+                    const endAt = startAt + duration;
+
+                    oscillator.type = tone.type ?? 'sine';
+                    oscillator.frequency.setValueAtTime(tone.freq ?? 660, startAt);
+                    gainNode.gain.setValueAtTime(0.0001, startAt);
+                    gainNode.gain.exponentialRampToValueAtTime(0.045, startAt + 0.02);
+                    gainNode.gain.exponentialRampToValueAtTime(0.0001, endAt);
+
+                    oscillator.connect(gainNode);
+                    gainNode.connect(context.destination);
+                    oscillator.start(startAt);
+                    oscillator.stop(endAt + 0.02);
+                });
+
+                if (navigator.vibrate && pattern.vibrate) {
+                    navigator.vibrate(pattern.vibrate);
+                }
+
+                return true;
+            };
+
+            const setEnabled = async (value, options = {}) => {
+                enabled = !!value;
+                safeSet(enabledKey, enabled ? '1' : '0');
+
+                if (enabled) {
+                    await unlock();
+                    if (!options.silent) {
+                        arenaToast(
+                            unlocked
+                                ? 'Alertas sonoras activadas.'
+                                : 'Alertas activadas. Haz un toque para dejar listo el sonido.',
+                            unlocked ? 'success' : 'info',
+                            4500
+                        );
+                    }
+                } else if (!options.silent) {
+                    arenaToast('Alertas sonoras desactivadas.', 'warning', 3500);
+                }
+
+                updateButtons();
+            };
+
+            const notify = (type, message, options = {}) => {
+                const eventKey = options.key || type;
+                if (!enabled || !shouldEmit(eventKey)) {
+                    return false;
+                }
+
+                playPattern(type);
+
+                if (message) {
+                    arenaToast(message, options.toastType || 'info', options.duration || 5500);
+                }
+
+                return true;
+            };
+
+            document.addEventListener('click', (event) => {
+                const toggle = event.target.closest('[data-arena-alert-toggle]');
+                if (!toggle) {
+                    return;
+                }
+
+                event.preventDefault();
+                if (enabled && !unlocked) {
+                    unlock().then((didUnlock) => {
+                        arenaToast(didUnlock ? 'Alertas sonoras listas.' : 'No pude activar el sonido todavia. Intenta con otro toque.', didUnlock ? 'success' : 'warning', 4000);
+                    });
+                    return;
+                }
+
+                setEnabled(!enabled);
+            });
+
+            window.ArenaSoundAlerts = {
+                notify,
+                unlock,
+                setEnabled,
+                toggle: () => setEnabled(!enabled),
+                isEnabled: () => enabled,
+                isUnlocked: () => unlocked,
+            };
+
+            installUnlockListeners();
+            updateButtons();
+        })();
+
+        document.addEventListener('submit', (e) => {
+            const form = e.target;
+            if (form.tagName !== 'FORM') return;
+            const btn = form.querySelector('button[type="submit"]');
+            if (btn && !btn.classList.contains('arena-btn-loading')) {
+                btn.classList.add('arena-btn-loading');
+                btn.disabled = true;
+            }
+        });
+
+        /* ── Reset loading state on back/forward navigation ── */
+        window.addEventListener('pageshow', (e) => {
+            if (e.persisted) {
+                document.querySelectorAll('.arena-btn-loading').forEach(btn => {
+                    btn.classList.remove('arena-btn-loading');
+                    btn.disabled = false;
+                });
+            }
+        });
+
+        /* ── Tab system ── */
+        document.addEventListener('click', (e) => {
+            const tab = e.target.closest('[data-arena-tab]');
+            if (!tab) return;
+
+            const group = tab.dataset.arenaTabGroup;
+            const key = tab.dataset.arenaTab;
+
+            document.querySelectorAll(`[data-arena-tab][data-arena-tab-group="${group}"]`).forEach(t => {
+                const isActive = t.dataset.arenaTab === key;
+                t.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                t.className = t.className
+                    .replace(/bg-\[linear-gradient[^\]]*\]/g, '')
+                    .replace(/text-\[color:var\(--arena-gold-soft\)\]/g, '')
+                    .replace(/shadow-\[[^\]]*\]/g, '')
+                    .replace(/text-\[color:var\(--arena-muted\)\]/g, '')
+                    .replace(/hover:text-\[color:var\(--arena-sand\)\]/g, '')
+                    .replace(/hover:bg-white\/\[0\.04\]/g, '')
+                    .replace(/\s+/g, ' ').trim();
+
+                if (isActive) {
+                    t.classList.add('bg-[linear-gradient(180deg,rgba(63,45,31,0.85),rgba(22,15,11,0.95))]', 'text-[color:var(--arena-gold-soft)]', 'shadow-[0_4px_16px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,215,134,0.12)]');
+                } else {
+                    t.classList.add('text-[color:var(--arena-muted)]', 'hover:text-[color:var(--arena-sand)]', 'hover:bg-white/[0.04]');
+                }
+            });
+
+            document.querySelectorAll(`[data-arena-tab-panel][data-arena-tab-group="${group}"]`).forEach(panel => {
+                const isActive = panel.dataset.arenaTabPanel === key;
+                panel.classList.toggle('hidden', !isActive);
+                if (isActive) {
+                    panel.style.animation = 'arenaFadeIn 0.25s ease-out';
+                }
+            });
+        });
+
+        /* ── Convert flash messages to toasts ── */
+        document.addEventListener('DOMContentLoaded', function() {
+            @if(session('success'))
+                arenaToast(@json(session('success')), 'success');
+            @endif
+            @if(session('warning'))
+                arenaToast(@json(session('warning')), 'warning');
+            @endif
+            @if(session('error'))
+                arenaToast(@json(session('error')), 'error');
+            @endif
+        });
+    </script>
+    @stack('arena-map-scripts')
+</body>
+</html>

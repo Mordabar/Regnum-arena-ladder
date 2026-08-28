@@ -1,0 +1,510 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\AppSetting;
+use App\Models\ArenaMatch;
+use App\Models\MatchReport;
+use App\Models\Player;
+use App\Models\Queue;
+use App\Models\User;
+use App\Services\ArenaMatchResultService;
+use App\Services\ArenaMatchmakingService;
+use App\Services\PlayerCleanupService;
+use App\Services\LadderCacheService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+
+class AdminController extends Controller
+{
+    public function dashboard()
+    {
+        $stats = [
+            'players' => Player::query()->count(),
+            'active_players' => Player::query()->where('is_active', true)->count(),
+            'locked_players' => Player::query()->whereNotNull('queue_locked_until')->where('queue_locked_until', '>', now())->count(),
+            'waiting_queues' => Queue::query()->where('status', 'waiting')->count(),
+            'pending_acceptance' => ArenaMatch::query()->where('status', 'pending_acceptance')->count(),
+            'pending_report_confirmation' => MatchReport::query()->where('status', 'pending_confirmation')->count(),
+            'in_progress' => ArenaMatch::query()->where('status', 'in_progress')->count(),
+            'disputed' => ArenaMatch::query()->where('status', 'disputed')->count(),
+            'completed' => ArenaMatch::query()->where('status', 'completed')->count(),
+        ];
+
+        $recentMatches = ArenaMatch::query()->latest('created_at')->take(8)->get();
+        $recentReports = MatchReport::query()->with(['match', 'reporter'])->latest('created_at')->take(8)->get();
+        $recentUsers = User::query()->latest('created_at')->take(8)->get();
+
+        return view('admin.dashboard', compact('stats', 'recentMatches', 'recentReports', 'recentUsers'));
+    }
+
+    public function matches(Request $request)
+    {
+        $query = ArenaMatch::query()->with(['report', 'results']);
+        $status = $request->filled('status') ? $request->string('status')->value() : null;
+        $search = trim((string) $request->input('q', ''));
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        if ($search !== '') {
+            $query->where(function ($builder) use ($search) {
+                $builder->where('match_code', 'like', '%' . $search . '%')
+                    ->orWhere('report_token', 'like', '%' . $search . '%')
+                    ->orWhere('team_a', 'like', '%' . $search . '%')
+                    ->orWhere('team_b', 'like', '%' . $search . '%')
+                    ->orWhereHas('report', function ($reportQuery) use ($search) {
+                        $reportQuery->where('status', 'like', '%' . $search . '%')
+                            ->orWhere('reporter_note', 'like', '%' . $search . '%')
+                            ->orWhere('rejection_note', 'like', '%' . $search . '%');
+                    });
+            });
+        }
+
+        $matches = $query->latest('created_at')->paginate(20)->withQueryString();
+
+        return view('admin.matches', compact('matches'));
+    }
+
+    public function moderationInbox()
+    {
+        $pendingConfirmations = MatchReport::query()
+            ->with(['match', 'reporter'])
+            ->where('status', 'pending_confirmation')
+            ->get()
+            ->sortBy(function (MatchReport $report) {
+                return $report->match?->expires_at?->timestamp ?? PHP_INT_MAX;
+            })
+            ->values();
+
+        $disputedMatches = ArenaMatch::query()
+            ->with(['report.reporter', 'results'])
+            ->where('status', 'disputed')
+            ->latest('updated_at')
+            ->get();
+
+        return view('admin.inbox', compact('pendingConfirmations', 'disputedMatches'));
+    }
+
+    public function showMatch(ArenaMatch $match)
+    {
+        $match->load(['report.reporter', 'report.confirmer', 'report.rejector', 'report.reviewer', 'results.player']);
+
+        return view('admin.match_show', compact('match'));
+    }
+
+    public function resolveMatch(Request $request, ArenaMatch $match, ArenaMatchResultService $resultService)
+    {
+        $validated = $request->validate([
+            'action' => 'required|in:force_complete,void,dispute,lock_player,abandonment_walkover,support_infraction',
+            'winner_team' => 'nullable|in:team_a,team_b,draw',
+            'player_id' => 'nullable|exists:players,id',
+            'note' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            switch ($validated['action']) {
+                case 'force_complete':
+                    $winnerTeam = $validated['winner_team']
+                        ?? $match->report?->claimed_winner_team
+                        ?? 'team_a';
+
+                    $resultService->forceComplete(
+                        $match,
+                        $winnerTeam,
+                        null,
+                        $validated['note'] ?? null
+                    );
+                    $message = 'Match cerrado manualmente y ladder actualizado.';
+                    break;
+
+                case 'void':
+                    $resultService->markVoid($match, null, $validated['note'] ?? null);
+                    $message = 'Match marcado como void.';
+                    break;
+
+                case 'dispute':
+                    $resultService->markDisputed($match, null, $validated['note'] ?? null);
+                    $message = 'Match enviado a disputa.';
+                    break;
+
+                case 'lock_player':
+                    if (empty($validated['player_id'])) {
+                        throw new \RuntimeException('Debes seleccionar un jugador.');
+                    }
+
+                    $player = Player::findOrFail((int) $validated['player_id']);
+                    $resultService->applyAbandonmentPenalty($player, $match, null, $validated['note'] ?? null);
+                    $message = 'Penalizacion aplicada al jugador.';
+                    break;
+
+                case 'abandonment_walkover':
+                    if (empty($validated['player_id'])) {
+                        throw new \RuntimeException('Debes seleccionar un jugador.');
+                    }
+
+                    $resultService->applyAbandonmentWalkover(
+                        $match,
+                        (int) $validated['player_id'],
+                        null,
+                        $validated['note'] ?? null
+                    );
+                    $message = 'Abandono procesado con derrota automatica para el infractor.';
+                    break;
+
+                case 'support_infraction':
+                    if (empty($validated['player_id'])) {
+                        throw new \RuntimeException('Debes seleccionar un jugador.');
+                    }
+
+                    $resultService->applySupportInfraction(
+                        $match,
+                        (int) $validated['player_id'],
+                        null,
+                        $validated['note'] ?? null
+                    );
+                    $message = 'Infraccion de conjurador soporte procesada.';
+                    break;
+
+                default:
+                    $message = 'Accion no realizada.';
+                    break;
+            }
+        } catch (\Throwable $e) {
+            return back()->withErrors(['error' => $e->getMessage()]);
+        }
+
+        return redirect()->route('admin.matches.show', $match)->with('success', $message);
+    }
+
+    public function players(Request $request)
+    {
+        $query = Player::query()->with([
+            'user',
+            'queues' => fn ($builder) => $builder
+                ->whereIn('status', ['waiting', 'matched', 'accepted'])
+                ->latest('joined_at'),
+        ]);
+        $realm = $request->filled('realm') ? $request->string('realm')->value() : null;
+        $status = $request->filled('status') ? $request->string('status')->value() : null;
+
+        if ($realm) {
+            $query->where('realm', $realm);
+        }
+
+        if ($status) {
+            if ($status === 'locked') {
+                $query->whereNotNull('queue_locked_until')->where('queue_locked_until', '>', now());
+            } elseif ($status === 'inactive') {
+                $query->where('is_active', false);
+            } elseif ($status === 'active') {
+                $query->where('is_active', true);
+            }
+        }
+
+        $players = $query
+            ->orderByDesc('pl_points')
+            ->orderByDesc('mmr')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('admin.players', compact('players'));
+    }
+
+    public function storePlayer(Request $request)
+    {
+        $validated = $request->validate([
+            'owner_label' => 'required|string|min:3|max:80',
+            'owner_email' => 'nullable|email|max:190',
+            'character_name' => 'required|string|min:3|max:25|regex:/^[a-zA-Z0-9_\\s-]+$/',
+            'subclass' => 'required|in:' . implode(',', array_keys(Player::SUBCLASSES)),
+            'realm' => 'required|in:' . implode(',', array_keys(Player::REALMS)),
+            'pl_points' => 'nullable|numeric|min:0|max:500',
+            'mmr' => 'nullable|integer|min:100|max:5000',
+        ]);
+
+        $alreadyExists = Player::query()
+            ->where('realm', $validated['realm'])
+            ->where('character_name', trim($validated['character_name']))
+            ->exists();
+
+        if ($alreadyExists) {
+            return back()->withErrors(['error' => 'Ya existe un personaje con ese nombre en el reino seleccionado.']);
+        }
+
+        $ownerLabel = trim($validated['owner_label']);
+        $user = User::query()->create([
+            'discord_id' => 'admin-managed-' . Str::uuid(),
+            'discord_username' => $ownerLabel,
+            'name' => $ownerLabel,
+            'email' => $validated['owner_email'] ?? null,
+            'is_admin' => false,
+        ]);
+
+        Player::query()->create([
+            'user_id' => $user->id,
+            'character_name' => trim($validated['character_name']),
+            'subclass' => $validated['subclass'],
+            'realm' => $validated['realm'],
+            'pl_points' => isset($validated['pl_points']) ? round((float) $validated['pl_points'], 1) : 0,
+            'mmr' => isset($validated['mmr']) ? (int) $validated['mmr'] : 800,
+            'trust_score' => 100,
+            'is_active' => true,
+        ]);
+
+        app(LadderCacheService::class)->forgetSummary();
+
+        return back()->with('success', 'Jugador creado manualmente desde el panel admin.');
+    }
+
+    public function updatePlayer(Request $request, Player $player)
+    {
+        $validated = $request->validate([
+            'action' => 'required|in:lock_12h,unlock_queue,toggle_active,enqueue_random,remove_from_queue',
+            'conjurer_role' => 'nullable|in:support,offensive',
+        ]);
+        $resultService = app(ArenaMatchResultService::class);
+        $matchmakingService = app(ArenaMatchmakingService::class);
+
+        $hasActiveQueueState = $player->queues()
+            ->whereIn('status', ['waiting', 'matched', 'accepted'])
+            ->exists();
+
+        switch ($validated['action']) {
+            case 'lock_12h':
+                if ($hasActiveQueueState) {
+                    return back()->withErrors([
+                        'error' => 'No puedes bloquear manualmente a un jugador con cola o match activo desde esta vista.',
+                    ]);
+                }
+
+                $resultService->applyManualQueueLock($player, 12);
+                $message = 'Jugador bloqueado por 12 horas.';
+                break;
+
+            case 'unlock_queue':
+                $resultService->clearQueueLock($player);
+                $message = 'Bloqueo de cola removido.';
+                break;
+
+            case 'toggle_active':
+                if ($player->is_active && $hasActiveQueueState) {
+                    return back()->withErrors([
+                        'error' => 'No puedes desactivar un personaje mientras tenga cola o match activo.',
+                    ]);
+                }
+
+                $player->update(['is_active' => !$player->is_active]);
+                app(LadderCacheService::class)->forgetSummary();
+                $message = 'Estado del personaje actualizado.';
+                break;
+
+            case 'enqueue_random':
+                if (!$player->is_active) {
+                    return back()->withErrors(['error' => 'No puedes encolar un personaje inactivo.']);
+                }
+
+                if ($player->isQueueLocked()) {
+                    return back()->withErrors(['error' => 'El personaje tiene bloqueo de cola activo.']);
+                }
+
+                if ($hasActiveQueueState) {
+                    return back()->withErrors(['error' => 'El personaje ya tiene cola o match activo.']);
+                }
+
+                if ($player->subclass === 'conjurer' && !in_array($validated['conjurer_role'] ?? null, ['support', 'offensive'], true)) {
+                    return back()->withErrors(['error' => 'Debes indicar el rol del conjurador antes de encolarlo.']);
+                }
+
+                Queue::query()->create([
+                    'player_id' => $player->id,
+                    'queue_type' => 'random',
+                    'status' => 'waiting',
+                    'conjurer_role' => $player->subclass === 'conjurer' ? $validated['conjurer_role'] : null,
+                    'estimated_mmr' => $player->mmr ?? 800,
+                    'joined_at' => now(),
+                    'expires_at' => now()->addMinutes(30),
+                ]);
+
+                $matchmakingService->processQueue();
+                $message = 'Jugador encolado manualmente en random.';
+                break;
+
+            case 'remove_from_queue':
+                Queue::query()
+                    ->where('player_id', $player->id)
+                    ->whereIn('status', ['waiting', 'matched', 'accepted'])
+                    ->update([
+                        'status' => 'cancelled',
+                        'team_id' => null,
+                        'match_id' => null,
+                        'matched_at' => null,
+                        'expires_at' => null,
+                    ]);
+                $message = 'El jugador fue retirado de la cola activa.';
+                break;
+
+            default:
+                $message = 'Sin cambios.';
+                break;
+        }
+
+        return back()->with('success', $message);
+    }
+
+    public function destroyPlayer(Player $player, PlayerCleanupService $playerCleanupService)
+    {
+        try {
+            $summary = $playerCleanupService->purgePlayer($player);
+        } catch (\Throwable $e) {
+            return back()->withErrors(['error' => $e->getMessage()]);
+        }
+
+        $message = 'Jugador eliminado del panel admin.';
+
+        if (($summary['matches_deleted'] ?? 0) > 0 || ($summary['results_deleted'] ?? 0) > 0 || ($summary['reports_deleted'] ?? 0) > 0) {
+            $message .= ' Se purgaron '
+                . ($summary['matches_deleted'] ?? 0) . ' matches, '
+                . ($summary['results_deleted'] ?? 0) . ' resultados y '
+                . ($summary['reports_deleted'] ?? 0) . ' reportes relacionados.';
+        }
+
+        return back()->with('success', $message);
+    }
+
+    public function processQueue(ArenaMatchmakingService $matchmakingService)
+    {
+        $created = $matchmakingService->processQueue();
+
+        return back()->with('success', 'Matchmaking manual ejecutado. Se crearon ' . $created . ' matches.');
+    }
+
+    public function expirePendingAcceptance(ArenaMatchmakingService $matchmakingService)
+    {
+        $expired = $matchmakingService->expirePendingAcceptanceMatches(true);
+
+        return back()->with('success', 'Se expiraron ' . $expired . ' matches pendientes de aceptacion.');
+    }
+
+    public function settings()
+    {
+        $settings = [
+            'season_name' => AppSetting::getValue('season_name', 'Alpha Season'),
+            'home_tagline' => AppSetting::getValue('home_tagline', 'Conquest PvP 2v2 por reino y subclase'),
+            'rules_excerpt' => AppSetting::getValue('rules_excerpt', 'Random y premade 2v2, anonimato rival y ladder automatico.'),
+            'support_contact' => AppSetting::getValue('support_contact', ''),
+            'discord_invite_url' => AppSetting::getValue('discord_invite_url', ''),
+            'discord_server_label' => AppSetting::getValue('discord_server_label', ''),
+            'accept_window_minutes' => AppSetting::getValue('accept_window_minutes', 5),
+            'hunt_window_minutes' => AppSetting::getValue('hunt_window_minutes', 30),
+            'report_confirmation_window_minutes' => AppSetting::getValue('report_confirmation_window_minutes', 15),
+            'premade_daily_limit' => AppSetting::getValue('premade_daily_limit', 3),
+            'random_vs_premade_pl_bonus_pct' => AppSetting::getValue('random_vs_premade_pl_bonus_pct', 25),
+            'random_vs_premade_mmr_bonus_pct' => AppSetting::getValue('random_vs_premade_mmr_bonus_pct', 18),
+            'premade_vs_random_pl_win_penalty_pct' => AppSetting::getValue('premade_vs_random_pl_win_penalty_pct', 20),
+            'premade_vs_random_mmr_win_penalty_pct' => AppSetting::getValue('premade_vs_random_mmr_win_penalty_pct', 14),
+            'abandonment_lock_hours' => AppSetting::getValue('abandonment_lock_hours', 12),
+            'support_infraction_lock_hours' => AppSetting::getValue('support_infraction_lock_hours', 24),
+            'abandonment_trust_penalty' => AppSetting::getValue('abandonment_trust_penalty', 15),
+            'support_infraction_trust_penalty' => AppSetting::getValue('support_infraction_trust_penalty', 25),
+            'penalty_max_lock_hours' => AppSetting::getValue('penalty_max_lock_hours', 96),
+        ];
+
+        $discordConfig = [
+            'bot_token_configured' => filled(config('services.discord.bot_token')),
+            'guild_id' => config('services.discord.guild_id'),
+            'alerts_channel_id' => config('services.discord.alerts_channel_id'),
+            'admin_ids' => config('services.discord.admin_ids', []),
+        ];
+
+        return view('admin.settings', compact('settings', 'discordConfig'));
+    }
+
+    public function updateSettings(Request $request)
+    {
+        $validated = $request->validate([
+            'season_name' => 'required|string|max:120',
+            'home_tagline' => 'required|string|max:180',
+            'rules_excerpt' => 'required|string|max:500',
+            'support_contact' => 'nullable|string|max:180',
+            'discord_invite_url' => 'nullable|url|max:255',
+            'discord_server_label' => 'nullable|string|max:120',
+            'accept_window_minutes' => 'required|integer|min:1|max:30',
+            'hunt_window_minutes' => 'required|integer|min:5|max:120',
+            'report_confirmation_window_minutes' => 'required|integer|min:1|max:60',
+            'premade_daily_limit' => 'required|integer|min:1|max:10',
+            'random_vs_premade_pl_bonus_pct' => 'required|numeric|min:0|max:50',
+            'random_vs_premade_mmr_bonus_pct' => 'required|numeric|min:0|max:50',
+            'premade_vs_random_pl_win_penalty_pct' => 'required|numeric|min:0|max:50',
+            'premade_vs_random_mmr_win_penalty_pct' => 'required|numeric|min:0|max:50',
+            'abandonment_lock_hours' => 'required|integer|min:1|max:168',
+            'support_infraction_lock_hours' => 'required|integer|min:1|max:168',
+            'abandonment_trust_penalty' => 'required|integer|min:1|max:100',
+            'support_infraction_trust_penalty' => 'required|integer|min:1|max:100',
+            'penalty_max_lock_hours' => 'required|integer|min:1|max:336',
+        ]);
+
+        AppSetting::setValue('season_name', $validated['season_name'], 'branding', 'string', true);
+        AppSetting::setValue('home_tagline', $validated['home_tagline'], 'branding', 'string', true);
+        AppSetting::setValue('rules_excerpt', $validated['rules_excerpt'], 'branding', 'string', true);
+        AppSetting::setValue('support_contact', $validated['support_contact'] ?? '', 'branding', 'string', true);
+        AppSetting::setValue('discord_invite_url', $validated['discord_invite_url'] ?? '', 'branding', 'string', true);
+        AppSetting::setValue('discord_server_label', $validated['discord_server_label'] ?? '', 'branding', 'string', true);
+        AppSetting::setValue('accept_window_minutes', $validated['accept_window_minutes'], 'runtime', 'integer', false);
+        AppSetting::setValue('hunt_window_minutes', $validated['hunt_window_minutes'], 'runtime', 'integer', false);
+        AppSetting::setValue('report_confirmation_window_minutes', $validated['report_confirmation_window_minutes'], 'runtime', 'integer', false);
+        AppSetting::setValue('premade_daily_limit', $validated['premade_daily_limit'], 'runtime', 'integer', false);
+        AppSetting::setValue('random_vs_premade_pl_bonus_pct', $validated['random_vs_premade_pl_bonus_pct'], 'runtime', 'float', false);
+        AppSetting::setValue('random_vs_premade_mmr_bonus_pct', $validated['random_vs_premade_mmr_bonus_pct'], 'runtime', 'float', false);
+        AppSetting::setValue('premade_vs_random_pl_win_penalty_pct', $validated['premade_vs_random_pl_win_penalty_pct'], 'runtime', 'float', false);
+        AppSetting::setValue('premade_vs_random_mmr_win_penalty_pct', $validated['premade_vs_random_mmr_win_penalty_pct'], 'runtime', 'float', false);
+        AppSetting::setValue('abandonment_lock_hours', $validated['abandonment_lock_hours'], 'runtime', 'integer', false);
+        AppSetting::setValue('support_infraction_lock_hours', $validated['support_infraction_lock_hours'], 'runtime', 'integer', false);
+        AppSetting::setValue('abandonment_trust_penalty', $validated['abandonment_trust_penalty'], 'runtime', 'integer', false);
+        AppSetting::setValue('support_infraction_trust_penalty', $validated['support_infraction_trust_penalty'], 'runtime', 'integer', false);
+        AppSetting::setValue('penalty_max_lock_hours', $validated['penalty_max_lock_hours'], 'runtime', 'integer', false);
+
+        return back()->with('success', 'Configuracion guardada.');
+    }
+
+    public function zones()
+    {
+        return view('admin.zones_editor');
+    }
+
+    public function saveZones(Request $request)
+    {
+        $validated = $request->validate([
+            'zones_json' => 'required|json',
+        ]);
+
+        $filepath = public_path('js/arena-zones.js');
+        
+        // Decode to ensure valid structure
+        $zonesData = json_decode($validated['zones_json'], true);
+        if (!$zonesData || !is_array($zonesData)) {
+            return back()->withErrors(['error' => 'Formato de zonas invalido.']);
+        }
+
+        // Validate basic expected format
+        foreach ($zonesData as $zone) {
+            if (!isset($zone['id']) || !isset($zone['key']) || !isset($zone['name'])) {
+                return back()->withErrors(['error' => 'El JSON debe contener id, key, name, coords.']);
+            }
+        }
+
+        // Keep a backup in storage
+        if (file_exists($filepath)) {
+            \Illuminate\Support\Facades\Storage::disk('local')->put('arena-zones-backup-' . date('Ymd-His') . '.json', file_get_contents($filepath));
+        }
+
+        // Create the valid JS file content
+        $jsContent = "window.ARENA_ZONES_CONFIG = " . json_encode($zonesData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . ";\n";
+
+        // Save directly to the public asset file
+        file_put_contents($filepath, $jsContent);
+
+        return back()->with('success', 'Zonas del mapa guardadas correctamente.');
+    }
+}

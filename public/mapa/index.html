@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Creador de Zonas - Regnum Arena</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --arena-gold: #D8B15C;
+            --arena-dark: #0c0806;
+            --arena-panel: #160f0b;
+            --arena-border: rgba(216, 177, 92, 0.3);
+        }
+        body { margin: 0; padding: 0; background-color: #000; font-family: 'Inter', sans-serif; overflow: hidden; }
+        #map { height: 100vh; width: 100vw; background-color: #050608; }
+
+        /* Popups */
+        .leaflet-popup-content-wrapper { background-color: var(--arena-panel); border: 1px solid var(--arena-border); color: #fff; border-radius: 8px; }
+        .leaflet-popup-tip { background-color: var(--arena-panel); border: 1px solid var(--arena-border); }
+        .zone-title { font-family: 'Cinzel', serif; color: var(--arena-gold); margin: 0 0 5px 0; }
+        .zone-badge { display: inline-block; background-color: rgba(239, 68, 68, 0.15); color: #fca5a5; padding: 2px 8px; border-radius: 99px; font-size: 10px; margin-bottom: 5px;}
+
+        /* Zona Editor Panel */
+        #editor-panel {
+            position: absolute; top: 20px; right: 20px; z-index: 1000;
+            background: rgba(12, 8, 6, 0.95); border: 1px solid var(--arena-gold);
+            padding: 20px; border-radius: 8px; color: white; width: 300px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8); backdrop-filter: blur(10px);
+        }
+        #editor-panel h3 { margin: 0 0 15px 0; font-family: 'Cinzel'; color: var(--arena-gold); font-size: 18px; text-align: center; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 12px; color: #aaa; margin-bottom: 5px; }
+        select { width: 100%; background: #000; color: white; border: 1px solid var(--arena-border); padding: 8px; border-radius: 4px; outline: none; }
+        
+        .arena-btn { background: rgba(216, 177, 92, 0.15); border: 1px solid var(--arena-gold); color: var(--arena-gold); padding: 10px; cursor: pointer; border-radius: 4px; font-family: 'Cinzel'; font-size: 12px; width: 100%; transition: 0.2s; font-weight: 600; }
+        .arena-btn:hover { background: var(--arena-gold); color: black; }
+        
+        .arena-btn-red { background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #ef4444; padding: 10px; cursor: pointer; border-radius: 4px; font-family: 'Cinzel'; font-size: 12px; width: 100%; font-weight: 600; margin-bottom: 10px;}
+        .arena-btn-red:hover { background: #ef4444; color: white; }
+
+        .arena-btn-green { background: rgba(34, 197, 94, 0.15); border: 1px solid #22c55e; color: #22c55e; padding: 10px; cursor: pointer; border-radius: 4px; font-family: 'Cinzel'; font-size: 12px; width: 100%; font-weight: 600; margin-bottom: 10px;}
+        .arena-btn-green:hover { background: #22c55e; color: white; }
+
+        #tracing-indicator { display: none; background: #ef4444; color: white; text-align: center; font-size: 12px; font-weight: bold; padding: 5px; border-radius: 4px; margin-bottom: 10px; animation: pulse 1s infinite alternate; }
+        @keyframes pulse { from { opacity: 0.7; } to { opacity: 1; } }
+        
+        #json-output { width: 100%; height: 80px; background: black; color: #a3a3a3; border: 1px solid #333; margin-top: 15px; font-family: monospace; font-size: 10px; padding: 5px; resize: none; box-sizing: border-box; }
+        
+        /* Etiquetas de Texto Permanentes en Zonas (Estilo Gold Arena) */
+        .zone-label-permanent { 
+            background: rgba(12, 8, 6, 0.85); 
+            border: 1px solid rgba(216, 177, 92, 0.5); 
+            border-radius: 4px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.9); 
+            color: var(--arena-gold); 
+            font-family: 'Cinzel', serif; 
+            font-weight: 700; 
+            text-align: center; 
+            transition: font-size 0.2s, padding 0.2s; 
+            letter-spacing: 1px;
+            backdrop-filter: blur(2px);
+        }
+        .leaflet-tooltip-left.zone-label-permanent::before, .leaflet-tooltip-right.zone-label-permanent::before, .leaflet-tooltip-top.zone-label-permanent::before, .leaflet-tooltip-bottom.zone-label-permanent::before { display: none; }
+
+        /* Escala dinámica del texto según el Zoom */
+        #map[data-zoom="-1"] .zone-label-permanent { font-size: 7px; padding: 2px 4px; }
+        #map[data-zoom="0"] .zone-label-permanent { font-size: 10px; padding: 3px 6px; }
+        #map[data-zoom="1"] .zone-label-permanent { font-size: 15px; padding: 4px 8px; }
+        #map[data-zoom="2"] .zone-label-permanent { font-size: 24px; padding: 6px 14px; }
+        #map[data-zoom="3"] .zone-label-permanent { font-size: 36px; padding: 10px 20px; }
+
+        .leaflet-interactive { transition: fill-opacity 0.2s, stroke-width 0.2s; }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <div id="editor-panel">
+        <h3>Editor de Zonas</h3>
+        <p style="font-size: 11px; color:#aaa; margin:0 0 15px 0; text-align:center;">Selecciona una zona, ponla en modo edición y haz clics en el mapa para delinearla.</p>
+        
+        <div id="tracing-indicator">MODO DIBUJO ACTIVO (Clickea el mapa)</div>
+
+        <div class="form-group">
+            <label>Zona a editar:</label>
+            <select id="zone-selector"></select>
+        </div>
+
+        <div id="action-buttons">
+            <button id="btn-draw" class="arena-btn-red">✏️ Redibujar Zona Seleccionada</button>
+            <button id="btn-export" class="arena-btn">📋 Copiar JSON (Exportar)</button>
+        </div>
+
+        <div id="trace-buttons" style="display: none;">
+            <button id="btn-finish" class="arena-btn-green">✅ Terminar Dibujo</button>
+            <button id="btn-cancel" class="arena-btn" style="margin-top:5px;">❌ Cancelar</button>
+        </div>
+
+        <textarea id="json-output" readonly placeholder="El JSON final saldrá aquí..." onclick="this.select()"></textarea>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <script>
+        const w = 1086, h = 1086;
+        const map = L.map('map', { crs: L.CRS.Simple, minZoom: -1, maxZoom: 3, zoomControl: false });
+        const bounds = [[0, 0], [h, w]];
+        L.imageOverlay('mapa-regnum-limpio.jpg', bounds).addTo(map);
+        map.fitBounds(bounds);
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        // DATA SINCRONIZADA CON LA APP LARAVEL
+        let zonesData = [
+            { id: 1, key: "frozen_bridge", name: "Zona 1 - Frozen Bridge", coords: [[912,390],[926,408],[934,419],[945,438],[945,453],[945,481],[939,514],[935,536],[902,598],[878,595],[871,579],[837,554],[823,540],[817,508],[819,484],[839,439],[853,410]] },
+            { id: 2, key: "emerald_pass", name: "Zona 2 - Emerald Pass", coords: [[865,641],[858,648],[852,652],[847,654],[839,655],[817,661],[813,672],[806,682],[800,682],[788,668],[771,638],[760,621],[754,610],[739,594],[742,574],[752,557],[756,547],[762,539],[772,536],[785,540],[801,548],[821,560]] },
+            { id: 3, key: "red_cliff_pass", name: "Zona 3 - Red Cliff Pass", coords: [[738,736],[717,726],[704,718],[679,708],[669,700],[658,712],[644,733],[637,747],[634,757],[620,763],[625,769],[633,774],[638,779]] },
+            { id: 4, key: "black_fort_shore", name: "Zona 4 - Black Fort Shore", coords: [[484,735],[500,737],[512,746],[543,805],[528,813],[528,838],[542,849],[552,859],[539,871],[521,876],[506,878],[489,880],[475,872],[463,856],[476,834],[484,795],[490,781],[492,767],[480,758],[467,758]] },
+            { id: 5, key: "merchant_coast", name: "Zona 5 - Merchant Coast", coords: [[485,730],[500,722],[496,693],[480,676],[463,660],[444,671],[429,663],[415,661],[409,669],[390,691],[378,704],[382,715],[386,738],[399,751],[415,766],[443,764],[457,770]] },
+            { id: 6, key: "crimson_canyon", name: "Zona 6 - Crimson Canyon", coords: [[660,685],[641,663],[632,654],[611,646],[594,647],[581,674],[565,692],[544,691],[537,719],[537,737],[543,742],[544,743],[555,746],[568,749],[579,751],[595,753]] },
+            { id: 7, key: "central_ruins", name: "Zona 7 - Central Ruins", coords: [[591,635],[565,661],[553,661],[531,666],[509,684],[495,676],[479,665],[475,658],[475,639],[479,627],[506,606],[513,602]] },
+            { id: 8, key: "etreng_outskirts", name: "Zona 8 - Etreng Outskirts", coords: [[440,484],[449,539],[439,592],[411,607],[372,617],[336,606],[327,600],[348,546],[348,522]] },
+            { id: 9, key: "obsidian_watch", name: "Zona 9 - Obsidian Watch", coords: [[309,598],[343,651],[289,663],[278,665],[278,680],[259,722],[218,714],[179,701],[174,678],[174,642],[190,586],[232,550]] },
+            { id: 10, key: "green_camp", name: "Zona 10 - Green Camp", coords: [[561,285],[551,285],[546,291],[540,300],[532,314],[525,326],[517,326],[506,349],[503,362],[519,392],[527,398],[556,389],[574,390],[583,387],[592,370]] },
+            { id: 11, key: "jagaros_crossroads", name: "Zona 11 - Jagaros Crossroads", coords: [[561,277],[550,248],[539,236],[519,214],[497,210],[487,242],[472,280],[446,301],[459,321],[483,333],[499,340]] },
+            { id: 12, key: "bridge_watch", name: "Zona 12 - Bridge Watch", coords: [[691,278],[680,281],[666,280],[651,280],[632,279],[582,282],[577,272],[561,254],[557,236],[575,222],[597,211],[604,204]] },
+            { id: 13, key: "aggersborg_bay", name: "Zona 13 - Aggersborg Bay", coords: [[667,329],[655,367],[650,400],[625,411],[602,399],[592,390],[593,371],[589,332],[581,296],[591,286],[606,285],[636,286]] },
+            { id: 14, key: "herth_gulf", name: "Zona 14 - Herth Gulf", coords: [[774,353],[793,391],[786,406],[778,443],[753,458],[728,441],[700,422],[696,397],[696,360],[707,337],[721,324]] }
+        ];
+
+        let drawnLayers = {}; // Guarda los polígonos dibujados para poder borrarlos
+        
+        // ESTADO DEL EDITOR
+        let isTracing = false;
+        let currentEditingId = null;
+        let tracePoints = [];
+        let tempPolyLine = null;
+
+        // ELEMENTOS UI
+        const selector = document.getElementById('zone-selector');
+        const btnDraw = document.getElementById('btn-draw');
+        const btnExport = document.getElementById('btn-export');
+        const actionGroup = document.getElementById('action-buttons');
+        const traceGroup = document.getElementById('trace-buttons');
+        const indicator = document.getElementById('tracing-indicator');
+        const output = document.getElementById('json-output');
+
+        function initMap() {
+            // Llenar selector
+            selector.innerHTML = '';
+            zonesData.forEach(z => {
+                let opt = document.createElement('option');
+                opt.value = z.id;
+                opt.textContent = z.name;
+                selector.appendChild(opt);
+            });
+
+            renderAllZones();
+            updateJSON();
+
+            // Configurar el sistema de escala de texto inicial y ante eventos de zoom
+            map.getContainer().setAttribute('data-zoom', map.getZoom());
+            map.on('zoomend', function() {
+                map.getContainer().setAttribute('data-zoom', map.getZoom());
+            });
+        }
+
+        function renderAllZones() {
+            // Limpiar polígonos viejos
+            Object.values(drawnLayers).forEach(layer => map.removeLayer(layer));
+            drawnLayers = {};
+
+            zonesData.forEach(zone => {
+                if (!zone.coords || zone.coords.length < 3) return;
+
+                let polygon = L.polygon(zone.coords, {
+                    color: 'rgba(216, 177, 92, 0.6)', weight: 2, fillColor: '#D8B15C', fillOpacity: 0.08,
+                    dashArray: '5 5'
+                }).addTo(map);
+
+                polygon.on('mouseover', function () { this.setStyle({ fillOpacity: 0.25, weight: 3, color: '#F9D87E' }); });
+                polygon.on('mouseout', function () { this.setStyle({ fillOpacity: 0.08, weight: 2, color: 'rgba(216, 177, 92, 0.6)' }); });
+
+                // Texto permanente con el nombre corto ("ZONA 1")
+                polygon.bindTooltip(zone.name.split(' - ')[0].toUpperCase(), {
+                    permanent: true,
+                    direction: 'center',
+                    className: 'zone-label-permanent'
+                });
+
+                polygon.bindPopup(`
+                    <div class="zone-badge">PvP Activo</div>
+                    <h4 class="zone-title">${zone.name}</h4>
+                    <span style="font-size:10px; color:#aaa">Key: ${zone.key}</span>
+                `);
+                
+                drawnLayers[zone.id] = polygon;
+            });
+        }
+
+        // EMPEZAR A DIBUJAR
+        btnDraw.addEventListener('click', () => {
+            currentEditingId = parseInt(selector.value);
+            isTracing = true;
+            tracePoints = [];
+            
+            // Ocultar zona actual mientras editamos
+            if(drawnLayers[currentEditingId]) {
+                map.removeLayer(drawnLayers[currentEditingId]);
+            }
+            
+            // Interfaz
+            actionGroup.style.display = 'none';
+            traceGroup.style.display = 'block';
+            indicator.style.display = 'block';
+            map.getContainer().style.cursor = 'crosshair';
+            selector.disabled = true;
+        });
+
+        // CAPTURAR CLICS
+        map.on('click', function(e) {
+            if(!isTracing) return;
+            // Redondeamos pixeles
+            const y = Math.round(e.latlng.lat);
+            const x = Math.round(e.latlng.lng);
+            tracePoints.push([y, x]);
+
+            if(tempPolyLine) map.removeLayer(tempPolyLine);
+            tempPolyLine = L.polygon(tracePoints, {color: '#facc15', weight: 3, dashArray: '5,5', fillOpacity: 0.3}).addTo(map);
+        });
+
+        // TERMINAR DIBUJO
+        document.getElementById('btn-finish').addEventListener('click', () => {
+            if(tracePoints.length < 3) {
+                alert("!Necesitas al menos 3 puntos para hacer un polígono válido!");
+                return;
+            }
+            
+            // Guardar en la data
+            let zoneIndex = zonesData.findIndex(z => z.id === currentEditingId);
+            zonesData[zoneIndex].coords = [...tracePoints];
+            
+            closeTracing();
+            renderAllZones();
+            updateJSON();
+        });
+
+        // CANCELAR DIBUJO
+        document.getElementById('btn-cancel').addEventListener('click', () => {
+            closeTracing();
+            renderAllZones();
+        });
+
+        function closeTracing() {
+            isTracing = false;
+            currentEditingId = null;
+            if(tempPolyLine) map.removeLayer(tempPolyLine);
+            tempPolyLine = null;
+            
+            actionGroup.style.display = 'block';
+            traceGroup.style.display = 'none';
+            indicator.style.display = 'none';
+            map.getContainer().style.cursor = 'grab';
+            selector.disabled = false;
+        }
+
+        function updateJSON() {
+            output.value = JSON.stringify(zonesData, null, 2);
+        }
+
+        btnExport.addEventListener('click', () => {
+            output.select();
+            document.execCommand('copy');
+            btnExport.innerText = "¡Copiado!";
+            setTimeout(() => btnExport.innerText = "📋 Copiar JSON (Exportar)", 2000);
+        });
+
+        // Iniciar
+        initMap();
+    </script>
+</body>
+</html>

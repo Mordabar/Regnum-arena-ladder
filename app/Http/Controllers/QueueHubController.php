@@ -1,0 +1,1457 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\ArenaMatch;
+use App\Models\Player;
+use App\Models\Queue;
+use App\Services\ArenaMatchResultService;
+use App\Services\ArenaMatchmakingService;
+use App\Services\TestingLabService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use App\Models\Party;
+use App\Models\PartyMember;
+
+class QueueHubController extends Controller
+{
+    private const PARTY_SIZE = 2;
+
+    public function index()
+    {
+        if (!Auth::check()) {
+            return redirect()->route('auth.discord');
+        }
+
+        $matchmakingService = app(ArenaMatchmakingService::class);
+
+        $user = Auth::user();
+        $players = $user->players()
+            ->where('is_active', true)
+            ->get();
+        $premadeDailyLimit = $matchmakingService->getPremadeDailyLimit();
+
+        $currentQueue = null;
+        $currentMatch = null;
+        $activeParty = null;
+        $pendingInvites = collect();
+
+        if ($players->isNotEmpty()) {
+            $playerIds = $players->pluck('id');
+
+            $currentQueue = Queue::query()
+                ->whereIn('status', ['waiting', 'matched', 'accepted'])
+                ->whereIn('player_id', $playerIds)
+                ->select('id', 'player_id', 'queue_type', 'joined_at', 'status', 'match_id', 'team_id', 'expires_at')
+                ->latest('joined_at')
+                ->first();
+
+            if ($currentQueue?->match_id) {
+                $currentMatch = ArenaMatch::find($currentQueue->match_id);
+            }
+
+            $partyMember = PartyMember::query()
+                ->whereIn('player_id', $playerIds)
+                ->whereHas('party', function($q) {
+                    $q->whereIn('status', Party::ACTIVE_STATUSES);
+                })
+                ->first();
+
+            if ($partyMember) {
+                if ($partyMember->is_accepted_invite) {
+                    $activeParty = Party::with('members.player.user')->find($partyMember->party_id);
+                }
+            }
+
+            $pendingInvites = PartyMember::query()
+                ->with('party.leader.user', 'player')
+                ->whereIn('player_id', $playerIds)
+                ->where('is_accepted_invite', false)
+                ->whereHas('party', function($q) {
+                    $q->where('status', 'forming');
+                })
+                ->get();
+        }
+
+        return view('queue.index_v3', compact(
+            'players',
+            'premadeDailyLimit',
+            'currentQueue',
+            'currentMatch',
+            'activeParty',
+            'pendingInvites'
+        ));
+    }
+
+    public function premadeCandidates(Request $request)
+    {
+        if (!Auth::check()) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'leader_player_id' => 'required|exists:players,id',
+            'query' => 'nullable|string|max:80',
+            'selected_player_ids' => 'nullable|array',
+            'selected_player_ids.*' => 'integer|exists:players,id',
+        ]);
+
+        $leader = Auth::user()->players()
+            ->where('is_active', true)
+            ->findOrFail((int) $validated['leader_player_id']);
+
+        $selectedIds = collect($validated['selected_player_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->push($leader->id)
+            ->unique()
+            ->values();
+
+        $selectedUserIds = Player::query()
+            ->whereIn('id', $selectedIds)
+            ->pluck('user_id');
+
+        $search = trim((string) ($validated['query'] ?? ''));
+
+        $query = Player::query()
+            ->with('user:id,discord_username')
+            ->where('is_active', true)
+            ->where('realm', $leader->realm)
+            ->whereNotIn('id', $selectedIds)
+            ->whereNotIn('user_id', $selectedUserIds)
+            ->where(function ($builder) {
+                $builder->whereNull('queue_locked_until')
+                    ->orWhere('queue_locked_until', '<=', now());
+            })
+            ->whereDoesntHave('queues', function ($builder) {
+                $builder->whereIn('status', ['waiting', 'matched', 'accepted']);
+            })
+            ->whereNotIn('id', function ($builder) {
+                $builder->select('player_id')
+                    ->from('party_members')
+                    ->whereIn('party_id', Party::query()
+                        ->select('id')
+                        ->whereIn('status', Party::ACTIVE_STATUSES)
+                    );
+            });
+
+        if ($search !== '') {
+            $query->where(function ($builder) use ($search) {
+                $builder->where('character_name', 'like', '%' . $search . '%')
+                    ->orWhereHas('user', function ($userQuery) use ($search) {
+                        $userQuery->where('discord_username', 'like', '%' . $search . '%');
+                    });
+            });
+        }
+
+        $players = $query
+            ->orderByDesc('mmr')
+            ->orderBy('character_name')
+            ->take(10)
+            ->get()
+            ->map(function (Player $player) {
+                return [
+                    'id' => $player->id,
+                    'character_name' => $player->character_name,
+                    'realm' => $player->realm,
+                    'realm_label' => Player::REALMS[$player->realm] ?? ucfirst($player->realm),
+                    'subclass' => $player->subclass,
+                    'subclass_label' => Player::SUBCLASSES[$player->subclass] ?? ucfirst($player->subclass),
+                    'user_id' => $player->user_id,
+                    'owner_label' => $player->user?->discord_username ?? 'Sin usuario',
+                    'mmr' => $player->mmr,
+                    'pl_points' => round((float) $player->pl_points, 1),
+                    'is_conjurer' => $player->subclass === 'conjurer',
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'leader_realm' => $leader->realm,
+            'leader_realm_label' => Player::REALMS[$leader->realm] ?? ucfirst($leader->realm),
+            'results' => $players,
+        ]);
+    }
+
+    public function sandbox(TestingLabService $testingLabService)
+    {
+        $this->ensureSandboxAccess();
+
+        $matchmakingService = app(ArenaMatchmakingService::class);
+
+        $sandbox = $this->buildSandboxData(collect(), $testingLabService, $matchmakingService);
+
+        return view('admin.sandbox', compact('sandbox'));
+    }
+
+    public function join(Request $request)
+    {
+        try {
+            $matchmakingService = app(ArenaMatchmakingService::class);
+
+            $request->validate([
+                'player_id' => 'required|integer|exists:players,id',
+                'queue_type' => 'required|in:random,premade',
+                'conjurer_role' => 'nullable|in:support,offensive',
+                'party_player_ids' => 'nullable|array|size:' . self::PARTY_SIZE,
+                'party_player_ids.*' => 'nullable|exists:players,id',
+                'party_conjurer_roles' => 'nullable|array|size:' . self::PARTY_SIZE,
+                'party_conjurer_roles.*' => 'nullable|in:support,offensive',
+            ]);
+
+            if (!$matchmakingService->isMatchesSchemaReady()) {
+                return back()->withErrors([
+                    'error' => 'La tabla matches en produccion no tiene aun el esquema MVP v1. Ejecuta la migracion de compatibilidad antes de usar la cola real.',
+                ]);
+            }
+
+            $existingQueue = Queue::query()
+                ->whereIn('player_id', Auth::user()->players()->pluck('id'))
+                ->whereIn('status', ['waiting', 'matched', 'accepted'])
+                ->first();
+
+            if ($existingQueue) {
+                return back()->withErrors(['error' => 'El usuario ya tiene una cola o match activo.']);
+            }
+
+            if ($request->queue_type === 'premade') {
+                return back()->withErrors(['error' => 'El emparejamiento premade ahora se maneja mediante Partys. Refresca la página.']);
+            }
+
+            $player = Player::findOrFail((int) $request->player_id);
+            $this->ensurePlayerCanQueueRandom($player);
+
+            $conjurerRole = $this->resolveConjurerRoleForPlayer($player, $request->conjurer_role);
+
+            Queue::create([
+                'player_id' => $player->id,
+                'queue_type' => 'random',
+                'status' => 'waiting',
+                'conjurer_role' => $conjurerRole,
+                'estimated_mmr' => $player->mmr ?? 800,
+                'joined_at' => now(),
+                'expires_at' => now()->addMinutes(30),
+            ]);
+
+            $matchmakingService->processQueue();
+
+            $playerQueue = Queue::query()
+                ->where('player_id', $player->id)
+                ->whereIn('status', ['waiting', 'matched', 'accepted'])
+                ->latest('id')
+                ->first();
+
+            if ($playerQueue?->match_id) {
+                return redirect()->route('queue.index')
+                    ->with('success', $player->character_name . ' entro a cola y ya tiene un match real.');
+            }
+
+            return back()->with('success', $player->character_name . ' se unio a la cola.');
+        } catch (\Throwable $e) {
+            Log::error('Arena queue join failed', [
+                'user_id' => Auth::id(),
+                'player_id' => $request->input('player_id'),
+                'queue_type' => $request->input('queue_type'),
+                'message' => $e->getMessage(),
+            ]);
+
+            $message = 'No se pudo crear o procesar la cola real.';
+            if (config('app.debug') || session('arena_admin.authenticated') === true || Auth::user()?->isAdmin()) {
+                $message .= ' Detalle: ' . $e->getMessage();
+            }
+
+            return back()->withErrors(['error' => $message]);
+        }
+    }
+
+    public function leave(Request $request)
+    {
+        $request->validate([
+            'player_id' => 'required|exists:players,id',
+        ]);
+
+        $player = Player::findOrFail($request->player_id);
+
+        if ($player->user_id !== Auth::id()) {
+            return back()->withErrors(['error' => 'No tienes permiso.']);
+        }
+
+        $queue = Queue::query()
+            ->where('player_id', $player->id)
+            ->where('status', 'waiting')
+            ->whereNull('match_id')
+            ->latest('joined_at')
+            ->first();
+
+        if (!$queue) {
+            return back()->withErrors(['error' => 'El personaje no esta en cola.']);
+        }
+
+        if ($queue->queue_type === 'premade') {
+            $partyMember = PartyMember::where('player_id', $player->id)
+                ->whereHas('party', function($q) {
+                    $q->where('status', 'queued');
+                })
+                ->first();
+
+            if ($partyMember) {
+                $party = Party::find($partyMember->party_id);
+                Queue::query()
+                    ->whereIn('player_id', $party->members()->pluck('player_id'))
+                    ->where('queue_type', 'premade')
+                    ->where('status', 'waiting')
+                    ->whereNull('match_id')
+                    ->update([
+                        'status' => 'cancelled',
+                        'team_id' => null,
+                        'match_id' => null,
+                        'matched_at' => null,
+                        'expires_at' => null,
+                    ]);
+                
+                $party->update(['status' => 'ready']);
+                return back()->with('success', 'La busqueda de la party ha sido cancelada. Ya pueden reencolar.');
+            }
+        }
+
+        $queue->update([
+            'status' => 'cancelled',
+            'team_id' => null,
+            'match_id' => null,
+            'matched_at' => null,
+            'expires_at' => null,
+        ]);
+
+        return back()->with('success', $player->character_name . ' salio de la cola random.');
+    }
+
+    public function createParty(Request $request, ArenaMatchmakingService $matchmakingService)
+    {
+        try {
+            $validated = $request->validate([
+                'party_player_ids' => 'required|array|size:' . self::PARTY_SIZE,
+                'party_player_ids.*' => 'required|integer|distinct|exists:players,id',
+                'party_conjurer_roles' => 'nullable|array|size:' . self::PARTY_SIZE,
+                'party_conjurer_roles.*' => 'nullable|in:support,offensive',
+            ]);
+
+            $selectedIds = collect($validated['party_player_ids'] ?? [])
+                ->map(fn ($id) => (int) $id)
+                ->values();
+
+            if ($selectedIds->count() !== self::PARTY_SIZE || $selectedIds->unique()->count() !== self::PARTY_SIZE) {
+                return back()->withErrors(['error' => 'La party debe tener exactamente 2 personajes distintos.']);
+            }
+
+            $players = Player::query()
+                ->with('user')
+                ->whereIn('id', $selectedIds)
+                ->get()
+                ->sortBy(fn (Player $player) => array_search($player->id, $selectedIds->all(), true))
+                ->values();
+
+            if ($players->count() !== self::PARTY_SIZE) {
+                return back()->withErrors(['error' => 'No se pudieron cargar los personajes.']);
+            }
+
+            $leader = $players->first();
+            if (!$leader || $leader->user_id !== Auth::id()) {
+                return back()->withErrors(['error' => 'Debes liderar la party con uno de tus personajes.']);
+            }
+
+            if ($players->pluck('user_id')->unique()->count() !== self::PARTY_SIZE) {
+                return back()->withErrors(['error' => 'La party debe tener 2 usuarios distintos.']);
+            }
+
+            $realms = $players->pluck('realm')->unique();
+            if ($realms->count() !== 1) {
+                return back()->withErrors(['error' => 'Todos deben ser del mismo reino.']);
+            }
+
+            $conflictingQueue = $this->findQueueConflictForPlayers($selectedIds);
+            if ($conflictingQueue) {
+                return back()->withErrors([
+                    'error' => ($conflictingQueue->player?->character_name ?? 'Uno de los personajes')
+                        . ' ya tiene una cola o match activo.',
+                ]);
+            }
+
+            $conflictingPartyMember = $this->findPartyConflictForPlayers($selectedIds);
+            if ($conflictingPartyMember) {
+                return back()->withErrors(['error' => $this->describePartyConflict($conflictingPartyMember)]);
+            }
+
+            // Checks (Queues, Lockouts, Limits)
+            $partyMatchesToday = $matchmakingService->countPartyMatchesTodayForPlayers($selectedIds->all());
+            if ($partyMatchesToday >= $matchmakingService->getPremadeDailyLimit()) {
+                return back()->withErrors(['error' => 'Esta party alcanzo su limite diario de ' . $matchmakingService->getPremadeDailyLimit() . ' matches.']);
+            }
+
+            $roleInputs = collect($validated['party_conjurer_roles'] ?? [])->values();
+            $supportCount = 0; $composition = [];
+
+            foreach ($players as $index => $player) {
+                /** @var \App\Models\Player $player */
+                if (!$player->is_active) throw new \RuntimeException('Todos los personajes deben estar activos.');
+                if ($player->isQueueLocked()) throw new \RuntimeException($player->character_name . ' esta bloqueado de las colas de juego.');
+                
+                $role = $this->resolveConjurerRoleForPlayer($player, $roleInputs->get($index));
+                if ($role === 'support') $supportCount++;
+                
+                $composition[] = [
+                    'player' => $player,
+                    'role' => $role
+                ];
+            }
+
+            if ($supportCount > 1) {
+                return back()->withErrors(['error' => 'No se permiten 2 conjuradores soporte dentro de la misma party.']);
+            }
+
+            DB::transaction(function () use ($leader, $composition) {
+                $party = Party::create([
+                    'leader_player_id' => $leader->id,
+                    'status' => 'forming',
+                    'realm' => $leader->realm
+                ]);
+
+                foreach ($composition as $index => $comp) {
+                    PartyMember::create([
+                        'party_id' => $party->id,
+                        'player_id' => $comp['player']->id,
+                        'is_accepted_invite' => $index === 0,
+                        'is_leader' => $index === 0,
+                        'conjurer_role' => $comp['role'],
+                    ]);
+                }
+            });
+
+            return back()->with('success', 'Invitaciones enviadas a la Party.');
+
+        } catch (\Throwable $e) {
+            Log::warning('Party creation rejected', [
+                'user_id' => Auth::id(),
+                'selected_player_ids' => $request->input('party_player_ids', []),
+                'message' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors(['error' => $e->getMessage()]);
+        }
+    }
+
+    public function acceptPartyInvite(Party $party, PartyMember $member)
+    {
+        if ($member->party_id !== $party->id || $party->status !== 'forming') {
+            return back()->withErrors(['error' => 'Esta invitacion ya no es valida.']);
+        }
+
+        if ($member->player->user_id !== Auth::id()) {
+            return back()->withErrors(['error' => 'No puedes aceptar invitaciones de otros jugadores.']);
+        }
+
+        $conflictingPartyMember = $this->findPartyConflictForPlayers(collect([$member->player_id]), $party->id);
+        if ($conflictingPartyMember) {
+            return back()->withErrors(['error' => $this->describePartyConflict($conflictingPartyMember)]);
+        }
+
+        $alreadyInQueue = Queue::query()
+            ->where('player_id', $member->player_id)
+            ->whereIn('status', ['waiting', 'matched', 'accepted'])
+            ->exists();
+        if ($alreadyInQueue) {
+            return back()->withErrors(['error' => 'El personaje ya se encuentra en cola independiente, abandonela primero.']);
+        }
+
+        $member->update(['is_accepted_invite' => true]);
+
+        if ($party->fresh()->isFull()) {
+            $party->update(['status' => 'ready']); // Can now enqueue
+        }
+
+        return back()->with('success', 'Has aceptado unirte a la party.');
+    }
+
+    public function rejectPartyInvite(Party $party, PartyMember $member)
+    {
+        if ($member->party_id !== $party->id || $party->status !== 'forming') {
+            return back()->withErrors(['error' => 'Esta invitacion ya no es valida.']);
+        }
+        if ($member->player->user_id !== Auth::id()) {
+            return back()->withErrors(['error' => 'No tienes permiso.']);
+        }
+
+        $party->update(['status' => 'dissolved']);
+        PartyMember::where('party_id', $party->id)->delete();
+
+        return back()->with('success', 'Has rechazado la invitacion y la party fue disuelta.');
+    }
+
+    public function leaveParty(Party $party)
+    {
+        $hasMember = $party->members()->whereIn('player_id', Auth::user()->players()->pluck('id'))->exists();
+        if (!$hasMember) {
+            return back()->withErrors(['error' => 'No perteneces a esta party.']);
+        }
+
+        DB::transaction(function () use ($party) {
+            if ($party->status === 'queued') {
+                // Cancel queues for all members
+                Queue::query()
+                    ->whereIn('player_id', $party->members->pluck('player_id'))
+                    ->where('queue_type', 'premade')
+                    ->where('status', 'waiting')
+                    ->whereNull('match_id')
+                    ->update([
+                        'status' => 'cancelled',
+                        'team_id' => null,
+                        'match_id' => null,
+                        'expires_at' => null,
+                    ]);
+            }
+
+            $party->update(['status' => 'dissolved']);
+            PartyMember::where('party_id', $party->id)->delete();
+        });
+
+        return back()->with('success', 'Has abandonado la party y esta se disolvio exitosamente.');
+    }
+
+    public function enqueueParty(Party $party, ArenaMatchmakingService $matchmakingService)
+    {
+        if ($party->leader->user_id !== Auth::id()) {
+            return back()->withErrors(['error' => 'Solo el lider puede ingresar a la cola.']);
+        }
+
+        if ($party->status !== 'ready' || !$party->isFull()) {
+            return back()->withErrors(['error' => 'La party no esta lista o ya esta en cola.']);
+        }
+
+        $partyPlayers = $party->members()->with('player.user')->get();
+
+        $conflictingPartyMember = $this->findPartyConflictForPlayers($partyPlayers->pluck('player_id'), $party->id);
+        if ($conflictingPartyMember) {
+            return back()->withErrors(['error' => $this->describePartyConflict($conflictingPartyMember)]);
+        }
+
+        $conflictingQueue = $this->findQueueConflictForPlayers($partyPlayers->pluck('player_id'));
+        if ($conflictingQueue) {
+            return back()->withErrors([
+                'error' => ($conflictingQueue->player?->character_name ?? 'Uno de los personajes')
+                    . ' ya tiene una cola o match activo externamente.',
+            ]);
+        }
+
+        DB::transaction(function () use ($party, $partyPlayers) {
+            $partySignature = collect($partyPlayers)->pluck('player.user_id')->sort()->values()->implode('-');
+            $teamId = (string) Str::uuid();
+
+            $composition = $partyPlayers->map(fn($member) => [
+                'player_id' => $member->player_id,
+                'user_id' => $member->player->user_id,
+                'character_name' => $member->player->character_name,
+                'subclass' => $member->player->subclass,
+                'realm' => $member->player->realm,
+                'discord_id' => (string) ($member->player->user->discord_id ?? ''),
+                'conjurer_role' => $member->conjurer_role,
+            ])->toArray();
+
+            foreach ($partyPlayers as $member) {
+                Queue::create([
+                    'player_id' => $member->player_id,
+                    'queue_type' => 'premade',
+                    'status' => 'waiting',
+                    'conjurer_role' => $member->conjurer_role,
+                    'estimated_mmr' => $member->player->mmr ?? 800,
+                    'team_composition' => $composition,
+                    'premade_leader_discord_id' => (string) (Auth::user()->discord_id ?? ''),
+                    'party_signature' => $partySignature,
+                    'joined_at' => now(),
+                    'expires_at' => now()->addMinutes(30),
+                    'team_id' => $teamId,
+                ]);
+            }
+
+            $party->update(['status' => 'queued']);
+        });
+
+        $matchmakingService->processQueue();
+
+        return back()->with('success', 'La party entro en la cola de busqueda global.');
+    }
+
+    public function statePoll(Request $request)
+    {
+        if (!Auth::check()) {
+            return response()->json([
+                'hash' => 'unknown',
+                'state' => null,
+            ]);
+        }
+
+        $user = Auth::user();
+        $playerIds = $user->players()->where('is_active', true)->pluck('id');
+        
+        if ($playerIds->isEmpty()) {
+            return response()->json([
+                'hash' => 'none',
+                'state' => [
+                    'party' => null,
+                    'pending_invites' => [],
+                    'queues' => [],
+                    'current_match' => null,
+                ],
+            ]);
+        }
+
+        $playerIdLookup = $playerIds
+            ->mapWithKeys(fn ($id) => [(int) $id => true])
+            ->all();
+        $recentCutoff = now()->subMinutes(5);
+        $pollRelevantStatuses = ['pending_acceptance', 'in_progress', 'completed', 'disputed'];
+
+        // 1. Party State
+        $party = Party::query()
+            ->select('parties.id', 'parties.status')
+            ->whereIn('status', Party::ACTIVE_STATUSES)
+            ->whereHas('members', function ($query) use ($playerIds) {
+                $query->whereIn('player_id', $playerIds);
+            })
+            ->withCount([
+                'members as accepted_members_count' => function ($query) {
+                    $query->where('is_accepted_invite', true);
+                },
+            ])
+            ->first();
+
+        $pendingInvites = PartyMember::query()
+            ->select('id', 'party_id', 'player_id')
+            ->whereIn('player_id', $playerIds)
+            ->where('is_accepted_invite', false)
+            ->whereHas('party', function($q) {
+                $q->where('status', 'forming');
+            })
+            ->orderBy('id')
+            ->get();
+
+        // 2. Queue State
+        $activeQueues = Queue::query()
+            ->whereIn('player_id', $playerIds)
+            ->whereIn('status', ['waiting', 'matched', 'accepted'])
+            ->select('id', 'player_id', 'queue_type', 'status', 'match_id')
+            ->orderBy('id')
+            ->get();
+
+        // 3. Match State (via active queues + recent direct transitions)
+        $matchIdsFromQueues = $activeQueues
+            ->whereNotNull('match_id')
+            ->pluck('match_id')
+            ->map(fn ($matchId) => (string) $matchId)
+            ->unique();
+
+        $relevantMatches = ArenaMatch::query()
+            ->select('id', 'status', 'team_a', 'team_b', 'updated_at')
+            ->with(['report:match_id,status,reporting_team,updated_at'])
+            ->where(function ($query) use ($matchIdsFromQueues, $pollRelevantStatuses, $recentCutoff) {
+                $query->where(function ($recentQuery) use ($pollRelevantStatuses, $recentCutoff) {
+                    $recentQuery->whereIn('status', $pollRelevantStatuses)
+                        ->where('updated_at', '>=', $recentCutoff);
+                });
+
+                if ($matchIdsFromQueues->isNotEmpty()) {
+                    $query->orWhereIn('id', $matchIdsFromQueues);
+                }
+            })
+            ->orderBy('id')
+            ->get();
+
+        $acceptedCountsByMatch = collect();
+        if ($matchIdsFromQueues->isNotEmpty()) {
+            $acceptedCountsByMatch = Queue::query()
+                ->selectRaw('match_id, COUNT(*) as accepted_count')
+                ->whereIn('match_id', $matchIdsFromQueues)
+                ->where('status', 'accepted')
+                ->groupBy('match_id')
+                ->pluck('accepted_count', 'match_id');
+        }
+
+        $queueMatches = $relevantMatches
+            ->filter(function (ArenaMatch $match) use ($matchIdsFromQueues) {
+                return $matchIdsFromQueues->contains((string) $match->id)
+                    && in_array($match->status, ['pending_acceptance', 'in_progress'], true);
+            })
+            ->values();
+
+        // 4. Direct match state (catches transitions after queues are closed)
+        $directMatches = $relevantMatches
+            ->filter(function (ArenaMatch $match) use ($playerIdLookup, $pollRelevantStatuses, $recentCutoff) {
+                return $match->updated_at !== null
+                    && $match->updated_at->gte($recentCutoff)
+                    && in_array($match->status, $pollRelevantStatuses, true)
+                    && $this->matchIncludesAnyPlayer($match, $playerIdLookup);
+            })
+            ->values();
+
+        $currentMatch = $this->resolveCurrentPollMatch($queueMatches, $directMatches);
+
+        $pollState = [
+            'party' => $party ? [
+                'id' => (int) $party->id,
+                'status' => (string) $party->status,
+                'accepted_members_count' => (int) $party->accepted_members_count,
+            ] : null,
+            'pending_invites' => $pendingInvites
+                ->map(fn (PartyMember $invite) => [
+                    'id' => (int) $invite->id,
+                    'party_id' => (int) $invite->party_id,
+                    'player_id' => (int) $invite->player_id,
+                ])
+                ->values()
+                ->all(),
+            'queues' => $activeQueues
+                ->map(fn (Queue $queue) => [
+                    'id' => (int) $queue->id,
+                    'player_id' => (int) $queue->player_id,
+                    'queue_type' => (string) $queue->queue_type,
+                    'status' => (string) $queue->status,
+                    'match_id' => $queue->match_id !== null ? (string) $queue->match_id : null,
+                ])
+                ->values()
+                ->all(),
+            'current_match' => $currentMatch
+                ? $this->buildPollMatchState($currentMatch, $acceptedCountsByMatch)
+                : null,
+        ];
+
+        return response()->json([
+            'hash' => md5(json_encode($pollState)),
+            'state' => $pollState,
+        ]);
+    }
+
+    private function matchIncludesAnyPlayer(ArenaMatch $match, array $playerIdLookup): bool
+    {
+        foreach ($match->getAllPlayers() as $player) {
+            $playerId = (int) ($player['player_id'] ?? 0);
+
+            if ($playerId !== 0 && isset($playerIdLookup[$playerId])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function resolveCurrentPollMatch(Collection $queueMatches, Collection $directMatches): ?ArenaMatch
+    {
+        if ($queueMatches->isNotEmpty()) {
+            return $queueMatches
+                ->sortByDesc(fn (ArenaMatch $match) => $match->updated_at?->timestamp ?? 0)
+                ->first();
+        }
+
+        if ($directMatches->isNotEmpty()) {
+            return $directMatches
+                ->sortByDesc(fn (ArenaMatch $match) => $match->updated_at?->timestamp ?? 0)
+                ->first();
+        }
+
+        return null;
+    }
+
+    private function buildPollMatchState(ArenaMatch $match, Collection $acceptedCountsByMatch): array
+    {
+        $acceptedCount = (int) ($acceptedCountsByMatch->get((string) $match->id)
+            ?? ($match->status === 'in_progress' ? $match->player_count : 0));
+
+        return [
+            'id' => (string) $match->id,
+            'status' => (string) $match->status,
+            'accepted_count' => $acceptedCount,
+            'player_count' => (int) $match->player_count,
+            'report_status' => $match->report?->status ? (string) $match->report->status : null,
+            'reporting_team' => $match->report?->reporting_team ? (string) $match->report->reporting_team : null,
+            'updated_at' => $match->updated_at?->timestamp,
+        ];
+    }
+
+    private function ensurePlayerCanQueueRandom(Player $player): void
+    {
+        if ($player->user_id !== Auth::id()) {
+            throw new \RuntimeException('No tienes permiso para usar este personaje.');
+        }
+
+        if (!$player->is_active) {
+            throw new \RuntimeException('El personaje debe estar activo.');
+        }
+
+        if ($player->isQueueLocked()) {
+            $reason = $player->queue_lock_reason_name ? ' (' . $player->queue_lock_reason_name . ')' : '';
+            throw new \RuntimeException(
+                'Este personaje tiene bloqueo activo' . $reason . ' hasta ' . $player->queue_locked_until?->format('Y-m-d H:i')
+            );
+        }
+    }
+
+    private function resolveConjurerRoleForPlayer(Player $player, ?string $role): ?string
+    {
+        if ($player->subclass !== 'conjurer') {
+            return null;
+        }
+
+        if (!in_array($role, ['support', 'offensive'], true)) {
+            throw new \RuntimeException('Los conjuradores deben seleccionar un rol.');
+        }
+
+        return $role;
+    }
+
+
+
+    public function sandboxSeed(Request $request, TestingLabService $testingLabService)
+    {
+        $this->ensureSandboxAccess();
+
+        $validated = $request->validate([
+            'ignis_count' => 'required|integer|min:0|max:60',
+            'syrtis_count' => 'required|integer|min:0|max:60',
+            'alsius_count' => 'required|integer|min:0|max:60',
+            'replace_existing' => 'nullable|boolean',
+        ]);
+
+        $totalRequested = (int) $validated['ignis_count']
+            + (int) $validated['syrtis_count']
+            + (int) $validated['alsius_count'];
+
+        if ($totalRequested === 0) {
+            return back()->withErrors(['error' => 'Debes crear al menos un bot de prueba.']);
+        }
+
+        if ($request->boolean('replace_existing', true)) {
+            $mixedMatches = $this->collectMixedSandboxMatches($testingLabService->testPlayerIds(), $testingLabService);
+
+            if ($mixedMatches->isNotEmpty()) {
+                return back()->withErrors([
+                    'error' => 'No puedes regenerar reemplazando el sandbox mientras existan matches mixtos con personajes reales.',
+                ]);
+            }
+        }
+
+        $createdPlayers = $testingLabService->seedRoster([
+            'ignis' => (int) $validated['ignis_count'],
+            'syrtis' => (int) $validated['syrtis_count'],
+            'alsius' => (int) $validated['alsius_count'],
+        ], $request->boolean('replace_existing', true));
+
+        return redirect()->route('admin.testing')
+            ->with('success', 'Sandbox de bots regenerado con ' . $createdPlayers . ' jugadores.');
+    }
+
+    public function sandboxToggleBot(Request $request, TestingLabService $testingLabService)
+    {
+        $this->ensureSandboxAccess();
+
+        $validated = $request->validate([
+            'player_id' => 'required|exists:players,id',
+        ]);
+
+        $player = Player::findOrFail($validated['player_id']);
+        if (!$this->isSandboxPlayer($player, $testingLabService)) {
+            abort(404);
+        }
+
+        $activeQueue = Queue::query()
+            ->where('player_id', $player->id)
+            ->whereIn('status', ['waiting', 'matched', 'accepted'])
+            ->latest('joined_at')
+            ->first();
+
+        if ($activeQueue && $activeQueue->status === 'waiting' && $activeQueue->match_id === null) {
+            $activeQueue->update([
+                'status' => 'cancelled',
+                'team_id' => null,
+                'match_id' => null,
+                'matched_at' => null,
+                'expires_at' => null,
+            ]);
+
+            return back()->with('success', $player->character_name . ' salio de la cola sandbox.');
+        }
+
+        if ($activeQueue) {
+            return back()->withErrors([
+                'error' => $player->character_name . ' ya participa en una cola o match activo.',
+            ]);
+        }
+
+        if ($player->isQueueLocked()) {
+            $reason = $player->queue_lock_reason_name ? ' (' . $player->queue_lock_reason_name . ')' : '';
+            return back()->withErrors([
+                'error' => $player->character_name . ' sigue bloqueado' . $reason . ' hasta ' . $player->queue_locked_until?->format('Y-m-d H:i') . '.',
+            ]);
+        }
+
+        Queue::create([
+            'player_id' => $player->id,
+            'queue_type' => 'random',
+            'status' => 'waiting',
+            'conjurer_role' => $this->assignSandboxConjurerRole($player),
+            'estimated_mmr' => $player->mmr ?? 800,
+            'joined_at' => now(),
+            'expires_at' => now()->addMinutes(30),
+        ]);
+
+        return back()->with('success', $player->character_name . ' entro a la cola sandbox.');
+    }
+
+    public function sandboxEnqueueRealm(Request $request, TestingLabService $testingLabService, ArenaMatchmakingService $matchmakingService)
+    {
+        $this->ensureSandboxAccess();
+
+        $validated = $request->validate([
+            'realm' => 'required|in:ignis,syrtis,alsius',
+            'count' => 'required|integer|min:1|max:60',
+        ]);
+
+        $players = $testingLabService->testPlayersQuery()
+            ->where('realm', $validated['realm'])
+            ->where('is_active', true)
+            ->orderByDesc('mmr')
+            ->orderBy('character_name')
+            ->get()
+            ->filter(function (Player $player) {
+                if ($player->isQueueLocked()) {
+                    return false;
+                }
+
+                return !Queue::query()
+                    ->where('player_id', $player->id)
+                    ->whereIn('status', ['waiting', 'matched', 'accepted'])
+                    ->exists();
+            })
+            ->take((int) $validated['count']);
+
+        if ($players->isEmpty()) {
+            return back()->withErrors(['error' => 'No hay bots libres en ese reino.']);
+        }
+
+        foreach ($players as $player) {
+            Queue::create([
+                'player_id' => $player->id,
+                'queue_type' => 'random',
+                'status' => 'waiting',
+                'conjurer_role' => $this->assignSandboxConjurerRole($player),
+                'estimated_mmr' => $player->mmr ?? 800,
+                'joined_at' => now(),
+                'expires_at' => now()->addMinutes(30),
+            ]);
+        }
+        
+        $matchmakingService->processQueue();
+
+        return back()->with('success', 'Se encolaron ' . $players->count() . ' bots de ' . ucfirst($validated['realm']) . ' y se ejecuto el matchmaking auto.');
+    }
+
+    public function sandboxProcess(ArenaMatchmakingService $matchmakingService)
+    {
+        $this->ensureSandboxAccess();
+
+        if (!$matchmakingService->isMatchesSchemaReady()) {
+            return back()->withErrors([
+                'error' => 'La tabla matches aun no tiene un esquema compatible con el MVP. Corre las migraciones de compatibilidad antes de usar el sandbox integrado.',
+            ]);
+        }
+
+        try {
+            $created = $matchmakingService->processQueue();
+        } catch (\Throwable $e) {
+            Log::error('Queue sandbox process failed', [
+                'user_id' => Auth::id(),
+                'message' => $e->getMessage(),
+            ]);
+
+            $message = 'No se pudo procesar la cola real desde el sandbox.';
+            if (config('app.debug') || Auth::user()?->isAdmin()) {
+                $message .= ' Detalle: ' . $e->getMessage();
+            }
+
+            return back()->withErrors(['error' => $message]);
+        }
+
+        return back()->with('success', 'Matchmaking ejecutado. Se crearon ' . $created . ' matches reales.');
+    }
+
+    public function sandboxAccept(Request $request, TestingLabService $testingLabService, ArenaMatchResultService $resultService)
+    {
+        $this->ensureSandboxAccess();
+
+        $validated = $request->validate([
+            'match_id' => 'nullable|exists:matches,id',
+        ]);
+
+        $botPlayerIds = $testingLabService->testPlayerIds();
+        if ($botPlayerIds->isEmpty()) {
+            return back()->withErrors(['error' => 'No hay bots creados en el sandbox.']);
+        }
+
+        $matches = isset($validated['match_id'])
+            ? collect([ArenaMatch::findOrFail($validated['match_id'])])
+            : $testingLabService->collectMatchesInvolvingPlayers($botPlayerIds, 40)
+                ->where('status', 'pending_acceptance')
+                ->values();
+
+        $acceptedBots = 0;
+        $promotedMatches = 0;
+
+        foreach ($matches as $match) {
+            $this->ensureSandboxMatch($match, $botPlayerIds, $testingLabService);
+            ['accepted_bots' => $acceptedCount, 'promoted' => $promoted] = $this->acceptBotParticipants($match, $botPlayerIds, $resultService);
+
+            $acceptedBots += $acceptedCount;
+            $promotedMatches += $promoted ? 1 : 0;
+        }
+
+        if ($acceptedBots === 0) {
+            return back()->withErrors(['error' => 'No habia participantes bot pendientes por aceptar en esos matches.']);
+        }
+
+        return back()->with('success', 'Se aceptaron ' . $acceptedBots . ' jugadores bot. ' . $promotedMatches . ' matches pasaron a in_progress.');
+    }
+
+    public function sandboxAcceptParties(TestingLabService $testingLabService)
+    {
+        $this->ensureSandboxAccess();
+
+        $botPlayerIds = $testingLabService->testPlayerIds();
+        if ($botPlayerIds->isEmpty()) {
+            return back()->withErrors(['error' => 'No hay bots creados en el sandbox.']);
+        }
+
+        $pendingMembers = PartyMember::query()
+            ->whereIn('player_id', $botPlayerIds)
+            ->where('is_accepted_invite', false)
+            ->with('party')
+            ->get();
+
+        $accepted = 0;
+
+        foreach ($pendingMembers as $member) {
+            if ($member->party && $member->party->status === 'forming') {
+                $member->update(['is_accepted_invite' => true]);
+                $accepted++;
+
+                if ($member->party->isFull()) {
+                    $member->party->update(['status' => 'ready']);
+                }
+            }
+        }
+
+        if ($accepted === 0) {
+            return back()->withErrors(['error' => 'No habia bots invitados a ninguna party.']);
+        }
+
+        return back()->with('success', "Se aceptaron $accepted invitaciones de party por parte de bots.");
+    }
+
+    public function sandboxInviteMe(TestingLabService $testingLabService)
+    {
+        $this->ensureSandboxAccess();
+
+        $botPlayerIds = $testingLabService->testPlayerIds();
+        if ($botPlayerIds->isEmpty()) {
+            return back()->withErrors(['error' => 'No hay bots suficientes en el sandbox. Genera bots primero.']);
+        }
+
+        $userPlayer = Auth::user()->players()->where('is_active', true)->first();
+        if (!$userPlayer) {
+            return back()->withErrors(['error' => 'No tienes ningun personaje activo real para ser invitado.']);
+        }
+
+        $existingParty = PartyMember::query()
+            ->where('player_id', $userPlayer->id)
+            ->whereHas('party', function($q) {
+                $q->whereIn('status', Party::ACTIVE_STATUSES);
+            })
+            ->first();
+
+        if ($existingParty) {
+            return back()->withErrors(['error' => 'Tu personaje ya pertenece a una Party (o tiene invitacion pendiente). Abandonala primero.']);
+        }
+
+        $bots = Player::query()
+            ->whereIn('id', $botPlayerIds)
+            ->where('realm', $userPlayer->realm)
+            ->whereNotIn('id', function ($builder) {
+                $builder->select('player_id')
+                    ->from('party_members')
+                    ->whereIn('party_id', Party::query()
+                        ->select('id')
+                        ->whereIn('status', Party::ACTIVE_STATUSES)
+                    );
+            })
+            ->take(1)
+            ->get();
+        if ($bots->count() < 1) {
+            return back()->withErrors(['error' => 'No hay bots disponibles del mismo reino que tu personaje real ('.ucfirst($userPlayer->realm).').']);
+        }
+
+        $botLeader = $bots->first();
+        
+        $party = Party::create([
+            'leader_player_id' => $botLeader->id,
+            'status' => 'forming',
+            'realm' => $botLeader->realm
+        ]);
+
+        PartyMember::create([
+            'party_id' => $party->id,
+            'player_id' => $botLeader->id,
+            'is_accepted_invite' => true,
+            'is_leader' => true,
+            'conjurer_role' => $this->assignSandboxConjurerRole($botLeader),
+        ]);
+
+        PartyMember::create([
+            'party_id' => $party->id,
+            'player_id' => $userPlayer->id,
+            'is_accepted_invite' => false,
+            'is_leader' => false,
+            'conjurer_role' => 'offensive',
+        ]);
+
+
+        return back()->with('success', "¡El bot {$botLeader->character_name} te ha enviado una invitación a Party!");
+    }
+
+    public function sandboxResolve(Request $request, ArenaMatch $match, ArenaMatchResultService $resultService, TestingLabService $testingLabService)
+    {
+        $this->ensureSandboxAccess();
+
+        $validated = $request->validate([
+            'winner_team' => 'required|in:team_a,team_b,draw',
+        ]);
+
+        $botPlayerIds = $testingLabService->testPlayerIds();
+        $this->ensureSandboxMatch($match, $botPlayerIds, $testingLabService);
+        $this->resolveSandboxMatchInternal($match, $validated['winner_team'], $resultService, $botPlayerIds);
+
+        return back()->with('success', 'El match ' . $match->match_code . ' fue resuelto para ' . $validated['winner_team'] . '.');
+    }
+
+    public function sandboxResolveAll(ArenaMatchResultService $resultService, TestingLabService $testingLabService)
+    {
+        $this->ensureSandboxAccess();
+
+        $botPlayerIds = $testingLabService->testPlayerIds();
+        $matches = $testingLabService->collectMatchesInvolvingPlayers($botPlayerIds, 40)
+            ->filter(function (ArenaMatch $match) use ($testingLabService, $botPlayerIds) {
+                return $match->status === 'in_progress'
+                    && $testingLabService->matchIntersectsPlayerPool($match, $botPlayerIds);
+            })
+            ->values();
+
+        $resolved = 0;
+
+        foreach ($matches as $match) {
+            $winnerTeam = random_int(0, 1) === 0 ? 'team_a' : 'team_b';
+            $this->resolveSandboxMatchInternal($match, $winnerTeam, $resultService, $botPlayerIds);
+            $resolved++;
+        }
+
+        if ($resolved === 0) {
+            return back()->withErrors(['error' => 'No hay matches en progreso con bots para resolver.']);
+        }
+
+        return back()->with('success', 'Se resolvieron ' . $resolved . ' matches del sandbox integrado.');
+    }
+
+    public function sandboxReset(TestingLabService $testingLabService)
+    {
+        $this->ensureSandboxAccess();
+
+        $botPlayerIds = $testingLabService->testPlayerIds();
+        $mixedActiveMatches = $this->collectMixedSandboxMatches(
+            $botPlayerIds,
+            $testingLabService,
+            ['pending_acceptance', 'accepted', 'in_progress']
+        );
+
+        if ($mixedActiveMatches->isNotEmpty()) {
+            return back()->withErrors([
+                'error' => 'Hay matches activos entre bots y personajes reales. Resuelvelos o cancelalos antes de resetear el sandbox.',
+            ]);
+        }
+
+        $result = $testingLabService->purge(false, true);
+
+        return back()->with('success', 'Sandbox reseteado. ' . $result['queues_deleted'] . ' colas, ' . $result['matches_deleted'] . ' matches bot-only y ' . $result['players_reset'] . ' bots quedaron listos.');
+    }
+
+    public function sandboxDestroy(TestingLabService $testingLabService)
+    {
+        $this->ensureSandboxAccess();
+
+        $botPlayerIds = $testingLabService->testPlayerIds();
+        $mixedMatches = $this->collectMixedSandboxMatches($botPlayerIds, $testingLabService);
+
+        if ($mixedMatches->isNotEmpty()) {
+            return back()->withErrors([
+                'error' => 'No se puede eliminar el sandbox mientras existan matches mixtos con personajes reales. Usa un personaje de pruebas dedicado o limpia primero ese historial manualmente.',
+            ]);
+        }
+
+        $result = $testingLabService->purge(true, false);
+
+        return back()->with('success', 'Sandbox eliminado. ' . $result['users_deleted'] . ' usuarios bot y ' . $result['players_deleted'] . ' personajes de prueba fueron removidos.');
+    }
+
+    private function buildSandboxData(
+        Collection $userPlayers,
+        TestingLabService $testingLabService,
+        ArenaMatchmakingService $matchmakingService
+    ): array {
+        $botPlayers = $testingLabService->testPlayersQuery()
+            ->with('user')
+            ->orderBy('realm')
+            ->orderByDesc('pl_points')
+            ->orderByDesc('mmr')
+            ->orderBy('character_name')
+            ->get();
+
+        $botPlayerIds = $botPlayers->pluck('id');
+        $activeQueues = $botPlayerIds->isEmpty()
+            ? collect()
+            : Queue::query()
+                ->with('player')
+                ->whereIn('player_id', $botPlayerIds)
+                ->whereIn('status', ['waiting', 'matched', 'accepted'])
+                ->orderByDesc('joined_at')
+                ->get();
+
+        $trackedPlayerIds = $botPlayerIds->merge($userPlayers->pluck('id'))->unique();
+        $relatedMatches = $trackedPlayerIds->isEmpty()
+            ? collect()
+            : $testingLabService->collectMatchesInvolvingPlayers($trackedPlayerIds, 40)
+                ->filter(fn (ArenaMatch $match) => $testingLabService->matchIntersectsPlayerPool($match, $botPlayerIds))
+                ->values();
+
+        $summary = [
+            'players' => $botPlayers->count(),
+            'idle_players' => $botPlayers->filter(function (Player $player) use ($activeQueues) {
+                return !$player->isQueueLocked() && !$activeQueues->contains('player_id', $player->id);
+            })->count(),
+            'waiting' => $activeQueues->where('status', 'waiting')->count(),
+            'matched' => $activeQueues->where('status', 'matched')->count(),
+            'accepted' => $activeQueues->where('status', 'accepted')->count(),
+            'pending_matches' => $relatedMatches->where('status', 'pending_acceptance')->count(),
+            'in_progress_matches' => $relatedMatches->where('status', 'in_progress')->count(),
+            'completed_matches' => $relatedMatches->where('status', 'completed')->count(),
+        ];
+
+        return [
+            'summary' => $summary,
+            'matchesSchemaReady' => $matchmakingService->isMatchesSchemaReady(),
+            'playersByRealm' => $botPlayers->groupBy('realm'),
+            'activeQueueByPlayer' => $activeQueues->keyBy('player_id'),
+            'pendingMatches' => $relatedMatches->where('status', 'pending_acceptance')->values(),
+            'inProgressMatches' => $relatedMatches->where('status', 'in_progress')->values(),
+            'recentMatches' => $relatedMatches->take(12)->values(),
+        ];
+    }
+
+    private function acceptBotParticipants(ArenaMatch $match, Collection $botPlayerIds, ArenaMatchResultService $resultService): array
+    {
+        $acceptedQueueIds = Queue::query()
+            ->where('match_id', (string) $match->id)
+            ->where('status', 'matched')
+            ->whereIn('player_id', $botPlayerIds)
+            ->pluck('id');
+
+        if ($acceptedQueueIds->isEmpty()) {
+            return [
+                'accepted_bots' => 0,
+                'promoted'      => false,
+            ];
+        }
+
+        Queue::query()
+            ->whereIn('id', $acceptedQueueIds)
+            ->update(['status' => 'accepted']);
+
+        return [
+            'accepted_bots' => $acceptedQueueIds->count(),
+            'promoted'      => $resultService->promoteMatchToInProgressIfReady($match->fresh()),
+        ];
+    }
+
+    private function resolveSandboxMatchInternal(
+        ArenaMatch $match,
+        string $winnerTeam,
+        ArenaMatchResultService $resultService,
+        ?Collection $botPlayerIds = null
+    ): void {
+        if ($match->status !== 'in_progress') {
+            throw new \RuntimeException('El match ' . $match->match_code . ' no esta en progreso.');
+        }
+
+        if ($match->results()->exists()) {
+            return;
+        }
+
+        if (!$match->report) {
+            $reporterId = $match->getTeamPlayerIds($winnerTeam)[0] ?? null;
+            $reporter = $reporterId ? Player::findOrFail($reporterId) : null;
+
+            if (!$reporter) {
+                throw new \RuntimeException('No se encontro reporter sintetico para ' . $match->match_code . '.');
+            }
+
+            $resultService->submitSyntheticReport($match, $reporter, $winnerTeam, 'Queue sandbox synthetic report');
+            $match->refresh()->load('report');
+        }
+
+        if ($match->report?->status === 'pending_confirmation') {
+            $reportingTeam = $match->report->reporting_team;
+            $confirmerSide = $reportingTeam === 'team_a' ? 'team_b' : 'team_a';
+            $confirmerId = $this->pickSandboxConfirmerId($match, $confirmerSide, $botPlayerIds);
+            $confirmer = $confirmerId ? Player::findOrFail($confirmerId) : null;
+
+            if (!$confirmer) {
+                throw new \RuntimeException('No se encontro confirmador sintetico para ' . $match->match_code . '.');
+            }
+
+            $resultService->confirmReport($match->report->fresh(), $confirmer);
+        }
+    }
+
+    private function pickSandboxConfirmerId(
+        ArenaMatch $match,
+        string $side,
+        ?Collection $botPlayerIds = null
+    ): ?int {
+        $playerIds = collect($match->getTeamPlayerIds($side))->map(fn ($id) => (int) $id);
+
+        if ($playerIds->isEmpty()) {
+            return null;
+        }
+
+        if ($botPlayerIds && $botPlayerIds->isNotEmpty()) {
+            $sandboxPlayerId = $playerIds
+                ->first(fn (int $playerId) => $botPlayerIds->contains($playerId));
+
+            if ($sandboxPlayerId) {
+                return $sandboxPlayerId;
+            }
+        }
+
+        return $playerIds->first();
+    }
+
+    private function collectMixedSandboxMatches(
+        Collection $botPlayerIds,
+        TestingLabService $testingLabService,
+        array $statuses = []
+    ): Collection {
+        if ($botPlayerIds->isEmpty()) {
+            return collect();
+        }
+
+        $matches = $testingLabService->collectMatchesInvolvingPlayers($botPlayerIds, 120)
+            ->filter(fn (ArenaMatch $match) => !$testingLabService->matchUsesOnlyPlayerPool($match, $botPlayerIds))
+            ->values();
+
+        if ($statuses === []) {
+            return $matches;
+        }
+
+        return $matches->whereIn('status', $statuses)->values();
+    }
+
+    private function ensureSandboxMatch(
+        ArenaMatch $match,
+        Collection $botPlayerIds,
+        TestingLabService $testingLabService
+    ): void {
+        abort_unless(
+            $testingLabService->matchIntersectsPlayerPool($match, $botPlayerIds),
+            404
+        );
+    }
+
+    private function isSandboxPlayer(Player $player, TestingLabService $testingLabService): bool
+    {
+        return $testingLabService->testPlayersQuery()
+            ->whereKey($player->id)
+            ->exists();
+    }
+
+    private function assignSandboxConjurerRole(Player $player): ?string
+    {
+        if ($player->subclass !== 'conjurer') {
+            return null;
+        }
+
+        return random_int(1, 100) <= 30 ? 'support' : 'offensive';
+    }
+
+    private function findQueueConflictForPlayers(Collection $playerIds): ?Queue
+    {
+        if ($playerIds->isEmpty()) {
+            return null;
+        }
+
+        return Queue::query()
+            ->with('player')
+            ->whereIn('player_id', $playerIds->all())
+            ->whereIn('status', ['waiting', 'matched', 'accepted'])
+            ->orderBy('id')
+            ->first();
+    }
+
+    private function findPartyConflictForPlayers(Collection $playerIds, ?string $ignorePartyId = null): ?PartyMember
+    {
+        if ($playerIds->isEmpty()) {
+            return null;
+        }
+
+        $query = PartyMember::query()
+            ->with(['player', 'party'])
+            ->whereIn('player_id', $playerIds->all())
+            ->whereIn('party_id', Party::query()
+                ->select('id')
+                ->whereIn('status', Party::ACTIVE_STATUSES)
+            );
+
+        if ($ignorePartyId !== null) {
+            $query->where('party_id', '!=', $ignorePartyId);
+        }
+
+        return $query->orderBy('id')->first();
+    }
+
+    private function describePartyConflict(PartyMember $partyMember): string
+    {
+        $characterName = $partyMember->player?->character_name ?? 'Uno de los personajes';
+
+        if ($partyMember->is_accepted_invite) {
+            return $characterName . ' ya pertenece a otra party activa.';
+        }
+
+        return $characterName . ' ya tiene una invitacion de party pendiente.';
+    }
+
+    private function canUseSandbox(): bool
+    {
+        return session('arena_admin.authenticated') === true
+            || (config('app.debug') && Auth::check())
+            || (Auth::check() && Auth::user()?->isAdmin());
+    }
+
+    private function ensureSandboxAccess(): void
+    {
+        abort_unless($this->canUseSandbox(), 404);
+    }
+}
