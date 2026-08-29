@@ -148,10 +148,17 @@ it('prefers a fresh rival over an exact recent rematch', function () {
         ->firstOrFail();
 
     $realms = [$newMatch->team_a_realm, $newMatch->team_b_realm];
+    sort($realms);
 
-    expect($realms)->toContain('ignis');
+    // La propiedad bajo prueba es que NO se repita el cruce recien jugado
+    // (ignis vs alsius). Cual de los otros dos cruces se elige depende del MMR
+    // promedio de cada equipo, no de esta regla: con estos valores gana
+    // alsius vs syrtis (diferencia 5) sobre ignis vs syrtis (diferencia 6).
+    // Exigir un reino concreto ataria el test a ese detalle en vez de a la regla.
+    expect($realms)->not->toBe(['alsius', 'ignis']);
+
+    // Y syrtis, que era el unico reino sin historial reciente, entra si o si.
     expect($realms)->toContain('syrtis');
-    expect($realms)->not->toContain('alsius');
 });
 
 it('avoids reusing an active zone while free zones remain', function () {
