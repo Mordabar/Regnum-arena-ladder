@@ -144,7 +144,9 @@ class QueueHubController extends Controller
                 $builder->whereNull('queue_locked_until')
                     ->orWhere('queue_locked_until', '<=', now());
             })
-            ->whereDoesntHave('queues', function ($builder) {
+            // Se descarta al candidato si CUALQUIER personaje de su cuenta esta
+            // en cola: seleccionarlo daria un error recien al pulsar "Buscar".
+            ->whereDoesntHave('user.players.queues', function ($builder) {
                 $builder->whereIn('status', ['waiting', 'matched', 'accepted']);
             })
             ->whereNotIn('id', function ($builder) {
@@ -234,15 +236,6 @@ class QueueHubController extends Controller
                 ]);
             }
 
-            $existingQueue = Queue::query()
-                ->whereIn('player_id', Auth::user()->players()->pluck('id'))
-                ->whereIn('status', ['waiting', 'matched', 'accepted'])
-                ->first();
-
-            if ($existingQueue) {
-                return back()->withErrors(['error' => 'El usuario ya tiene una cola o match activo.']);
-            }
-
             if ($request->queue_type === 'premade') {
                 return back()->withErrors(['error' => 'El emparejamiento premade ahora se maneja mediante Partys. Refresca la página.']);
             }
@@ -252,16 +245,42 @@ class QueueHubController extends Controller
 
             $conjurerRole = $this->resolveConjurerRoleForPlayer($player, $request->conjurer_role);
 
-            Queue::create([
-                'player_id' => $player->id,
-                'queue_type' => 'random',
-                'arena_mode' => $arenaMode,
-                'status' => 'waiting',
-                'conjurer_role' => $conjurerRole,
-                'estimated_mmr' => $player->mmr ?? 800,
-                'joined_at' => now(),
-                'expires_at' => now()->addMinutes(30),
-            ]);
+            // Comprobar y crear dentro de una transaccion con los personajes de
+            // la cuenta bloqueados: sin esto, dos peticiones simultaneas (doble
+            // clic, dos pestañas) leian "sin cola" a la vez y ambas insertaban,
+            // dejando al usuario en dos colas y potencialmente dos matches.
+            $created = DB::transaction(function () use ($player, $arenaMode, $conjurerRole) {
+                $lockedPlayerIds = Player::query()
+                    ->where('user_id', $player->user_id)
+                    ->lockForUpdate()
+                    ->pluck('id');
+
+                $existingQueue = Queue::query()
+                    ->whereIn('player_id', $lockedPlayerIds)
+                    ->whereIn('status', ['waiting', 'matched', 'accepted'])
+                    ->exists();
+
+                if ($existingQueue) {
+                    return false;
+                }
+
+                Queue::create([
+                    'player_id' => $player->id,
+                    'queue_type' => 'random',
+                    'arena_mode' => $arenaMode,
+                    'status' => 'waiting',
+                    'conjurer_role' => $conjurerRole,
+                    'estimated_mmr' => $player->mmr ?? 800,
+                    'joined_at' => now(),
+                    'expires_at' => now()->addMinutes(30),
+                ]);
+
+                return true;
+            });
+
+            if (!$created) {
+                return back()->withErrors(['error' => 'El usuario ya tiene una cola o match activo.']);
+            }
 
             $matchmakingService->processQueue();
 
@@ -493,12 +512,10 @@ class QueueHubController extends Controller
             return back()->withErrors(['error' => $this->describePartyConflict($conflictingPartyMember)]);
         }
 
-        $alreadyInQueue = Queue::query()
-            ->where('player_id', $member->player_id)
-            ->whereIn('status', ['waiting', 'matched', 'accepted'])
-            ->exists();
-        if ($alreadyInQueue) {
-            return back()->withErrors(['error' => 'El personaje ya se encuentra en cola independiente, abandonela primero.']);
+        // Por usuario, no por personaje: aceptar con un personaje mientras otro
+        // de la misma cuenta esta en cola llevaria a dos matches simultaneos.
+        if ($this->findQueueConflictForPlayers(collect([$member->player_id]))) {
+            return back()->withErrors(['error' => 'Ya tienes un personaje en cola o en match. Sal de esa cola antes de aceptar la party.']);
         }
 
         $member->update(['is_accepted_invite' => true]);
@@ -585,6 +602,40 @@ class QueueHubController extends Controller
             return back()->withErrors([
                 'error' => ($conflictingQueue->player?->character_name ?? 'Uno de los personajes')
                     . ' ya tiene una cola o match activo externamente.',
+            ]);
+        }
+
+        // Entre crear la party y pulsar "Buscar" pueden pasar horas: hay que
+        // revalidar lo que createParty comprobo en su momento.
+        foreach ($partyPlayers as $member) {
+            $memberPlayer = $member->player;
+
+            if (!$memberPlayer || !$memberPlayer->is_active) {
+                return back()->withErrors([
+                    'error' => ($memberPlayer->character_name ?? 'Un integrante') . ' ya no esta activo.',
+                ]);
+            }
+
+            if ($memberPlayer->isQueueLocked()) {
+                $reason = $memberPlayer->queue_lock_reason_name ? ' (' . $memberPlayer->queue_lock_reason_name . ')' : '';
+
+                return back()->withErrors([
+                    'error' => $memberPlayer->character_name . ' esta bloqueado de las colas' . $reason . '.',
+                ]);
+            }
+        }
+
+        // El limite diario tambien se revalida: la party sobrevive a sus
+        // matches, y sin esto entraba a la cola para quedarse ahi en silencio
+        // (buildPremadeTeams la descarta sin avisar a nadie).
+        $partyMatchesToday = $matchmakingService->countPartyMatchesTodayForPlayers(
+            $partyPlayers->pluck('player_id')->all(),
+            $party->arena_mode
+        );
+
+        if ($partyMatchesToday >= $matchmakingService->getPremadeDailyLimit()) {
+            return back()->withErrors([
+                'error' => 'Esta party alcanzo su limite diario de ' . $matchmakingService->getPremadeDailyLimit() . ' matches.',
             ]);
         }
 
@@ -1237,8 +1288,11 @@ class QueueHubController extends Controller
         $botPlayerIds = $testingLabService->testPlayerIds();
         $matches = $testingLabService->collectMatchesInvolvingPlayers($botPlayerIds, 40)
             ->filter(function (ArenaMatch $match) use ($testingLabService, $botPlayerIds) {
+                // SOLO bots: con interseccion bastaba un bot para que el
+                // sandbox resolviera un match con jugadores reales dentro,
+                // otorgandoles PL y MMR reales sin que el rival confirmara.
                 return $match->status === 'in_progress'
-                    && $testingLabService->matchIntersectsPlayerPool($match, $botPlayerIds);
+                    && $testingLabService->matchUsesOnlyPlayerPool($match, $botPlayerIds);
             })
             ->values();
 
@@ -1464,8 +1518,12 @@ class QueueHubController extends Controller
         Collection $botPlayerIds,
         TestingLabService $testingLabService
     ): void {
+        // Igual que sandboxReset y sandboxDestroy, que ya lo hacian bien: un
+        // match con aunque sea un jugador real no se resuelve desde el
+        // laboratorio, porque eso reparte PL y MMR reales saltandose la
+        // confirmacion del rival. Ese match debe seguir el flujo normal.
         abort_unless(
-            $testingLabService->matchIntersectsPlayerPool($match, $botPlayerIds),
+            $testingLabService->matchUsesOnlyPlayerPool($match, $botPlayerIds),
             404
         );
     }
@@ -1486,15 +1544,35 @@ class QueueHubController extends Controller
         return random_int(1, 100) <= 30 ? 'support' : 'offensive';
     }
 
+    /**
+     * Busca una cola activa que impida encolar a estos personajes.
+     *
+     * El conflicto se evalua por USUARIO, no por personaje: una cuenta puede
+     * tener hasta 5 personajes y una persona solo puede jugar un match a la
+     * vez. Mirando solo el player_id, alguien podia entrar a random con un
+     * personaje y a la vez a una party premade con otro, terminando en dos
+     * matches simultaneos. join() ya lo hacia bien; esto alinea el camino
+     * premade con esa misma regla.
+     */
     private function findQueueConflictForPlayers(Collection $playerIds): ?Queue
     {
         if ($playerIds->isEmpty()) {
             return null;
         }
 
+        $userIds = Player::query()
+            ->whereIn('id', $playerIds->all())
+            ->pluck('user_id')
+            ->filter()
+            ->unique();
+
+        if ($userIds->isEmpty()) {
+            return null;
+        }
+
         return Queue::query()
             ->with('player')
-            ->whereIn('player_id', $playerIds->all())
+            ->whereHas('player', fn ($query) => $query->whereIn('user_id', $userIds->all()))
             ->whereIn('status', ['waiting', 'matched', 'accepted'])
             ->orderBy('id')
             ->first();

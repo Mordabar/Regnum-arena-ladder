@@ -93,23 +93,11 @@ class ArenaMaintenanceService
                 'expires_at' => null,
             ]);
 
-        // Las partys que estaban en esa cola vuelven a su estado previo para no
-        // quedar congeladas en "buscando".
+        // Una sola autoridad para devolver partys a su estado previo, en vez de
+        // repetir aqui la regla: asi no puede divergir de la de mas abajo, y
+        // ademas respeta a las que siguen dentro de un match vivo.
         $affectedModes = $stuckQueues->pluck('arena_mode')->unique()->filter()->all();
-
-        if ($affectedModes !== []) {
-            Party::query()
-                ->whereIn('arena_mode', $affectedModes)
-                ->where('status', 'queued')
-                ->get()
-                ->each(function (Party $party) {
-                    $acceptedCount = (int) $party->members()->where('is_accepted_invite', true)->count();
-
-                    $party->update([
-                        'status' => $acceptedCount >= $party->teamSize() ? 'ready' : 'forming',
-                    ]);
-                });
-        }
+        $this->releaseQueuedPartiesWithoutQueues();
 
         Log::info('ArenaMaintenanceService libero colas de modalidades apagadas', [
             'queues' => $stuckQueues->count(),
@@ -138,40 +126,60 @@ class ArenaMaintenanceService
                 'expires_at' => null,
             ]);
 
-        $expiredPremadeGroups = $expiredQueues
-            ->where('queue_type', 'premade')
-            ->filter(fn (Queue $queue) => filled($queue->team_id))
-            ->groupBy('team_id');
+        $this->releaseQueuedPartiesWithoutQueues();
 
-        foreach ($expiredPremadeGroups as $queueGroup) {
-            $playerIds = $queueGroup->pluck('player_id')->map(fn ($id) => (int) $id)->sort()->values();
+        return $expiredQueues->count();
+    }
 
-            $party = Party::query()
-                ->with('members:id,party_id,player_id,is_accepted_invite')
-                ->where('status', 'queued')
-                ->get()
-                ->first(function (Party $party) use ($playerIds) {
-                    return $party->members
-                        ->pluck('player_id')
-                        ->map(fn ($id) => (int) $id)
-                        ->sort()
-                        ->values()
-                        ->all() === $playerIds->all();
-                });
+    /**
+     * Devuelve a su estado previo las partys que figuran "buscando" pero ya no
+     * tienen ninguna cola viva.
+     *
+     * Antes esto se resolvia exigiendo que el conjunto EXACTO de player_id de
+     * la party coincidiera con el de las colas expiradas. Bastaba que faltara
+     * una fila (por ejemplo si el admin sacaba de la cola a un solo miembro con
+     * remove_from_queue) para que ninguna party coincidiera: quedaba en
+     * 'queued' de forma permanente, sin colas, y sus integrantes veian
+     * "buscando oponente" para siempre. Ni enqueueParty ni leave() les daban
+     * salida. Mirar si queda alguna cola viva no depende de esas coincidencias
+     * y cubre todos los caminos.
+     */
+    public function releaseQueuedPartiesWithoutQueues(): int
+    {
+        $parties = Party::query()
+            ->with('members:id,party_id,player_id,is_accepted_invite')
+            ->where('status', 'queued')
+            ->get();
 
-            if (!$party) {
+        $released = 0;
+
+        foreach ($parties as $party) {
+            $memberPlayerIds = $party->members->pluck('player_id')->filter();
+
+            if ($memberPlayerIds->isEmpty()) {
                 continue;
             }
 
-            $acceptedCount = (int) $party->members
-                ->where('is_accepted_invite', true)
-                ->count();
+            // 'matched' y 'accepted' cuentan como vivas: esa party esta dentro
+            // de un match en curso y debe seguir reflejandolo.
+            $hasLiveQueue = Queue::query()
+                ->whereIn('player_id', $memberPlayerIds->all())
+                ->whereIn('status', ['waiting', 'matched', 'accepted'])
+                ->exists();
+
+            if ($hasLiveQueue) {
+                continue;
+            }
+
+            $acceptedCount = (int) $party->members->where('is_accepted_invite', true)->count();
 
             $party->update([
                 'status' => $acceptedCount >= $party->teamSize() ? 'ready' : 'forming',
             ]);
+
+            $released++;
         }
 
-        return $expiredQueues->count();
+        return $released;
     }
 }

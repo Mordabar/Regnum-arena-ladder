@@ -178,6 +178,15 @@ class ArenaMatchController extends Controller
             return back()->withErrors(['error' => 'No estás en este match.']);
         }
 
+        // Rechazar solo tiene sentido mientras el match espera aceptaciones.
+        // Sin esta comprobacion, quien fuera perdiendo un match ya empezado (o
+        // en disputa) podia cancelarlo desde aqui y evitar la derrota.
+        if (!$match->isPendingAcceptance()) {
+            return back()->withErrors([
+                'error' => 'Este match ya está en curso: no se puede rechazar. Si hubo un problema, repórtalo para que lo revise un administrador.',
+            ]);
+        }
+
         app(ArenaMatchmakingService::class)->cancelMatch($match, 'player_rejected', $player->id, true);
 
         return redirect()->route('queue.index', ['mode' => $match->arena_mode])

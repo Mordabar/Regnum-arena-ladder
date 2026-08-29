@@ -498,7 +498,16 @@
                     </div>
                     <div class="arena-card p-4">
                         <p class="text-[0.6rem] uppercase tracking-[0.2em] text-[color:var(--arena-muted)]">Reportado por</p>
-                        <p class="mt-1 font-semibold text-white arena-body-text">{{ $report->reporter?->character_name ?? 'Sin dato' }}</p>
+                        {{-- El sistema promete anonimato rival hasta el reveal: mostrar aqui el
+                             nombre del reportero lo delataba en cuanto reportaba, mientras el
+                             resto de la pagina seguia diciendo "Guerrero Anonimo". --}}
+                        <p class="mt-1 font-semibold text-white arena-body-text">
+                            @if($showRivalNames || $report->reporting_team === $ownSide)
+                                {{ $report->reporter?->character_name ?? 'Sin dato' }}
+                            @else
+                                Guerrero Anónimo
+                            @endif
+                        </p>
                     </div>
                 </div>
 

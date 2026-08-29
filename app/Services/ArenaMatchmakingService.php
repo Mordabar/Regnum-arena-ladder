@@ -15,6 +15,13 @@ use Illuminate\Support\Str;
 
 class ArenaMatchmakingService
 {
+    /**
+     * Estados desde los que un match todavia se puede cancelar. Una vez que
+     * pasa a in_progress la partida ya se esta jugando y solo el admin puede
+     * deshacerla (markVoid), que si controla los puntos ya otorgados.
+     */
+    public const CANCELLABLE_STATUSES = ['pending_acceptance', 'accepted'];
+
     private const PREMADE_DAILY_LIMIT = 3;
     private const REPEAT_PAIR_WINDOW_HOURS = 24;
     private const EXACT_REPEAT_PAIRING_PENALTY = 10000;
@@ -120,7 +127,14 @@ class ArenaMatchmakingService
             ->where('status', 'waiting')
             ->whereNull('match_id')
             ->whereHas('player', function ($query) {
-                $query->where('is_active', true);
+                // Un jugador sancionado no vuelve a emparejarse aunque su fila
+                // de cola siga viva: cancelMatch reencola sin revalidar, y
+                // enqueueParty puede lanzar una party creada horas antes.
+                $query->where('is_active', true)
+                    ->where(function ($lockQuery) {
+                        $lockQuery->whereNull('queue_locked_until')
+                            ->orWhere('queue_locked_until', '<=', now());
+                    });
             })
             ->with(['player.user'])
             ->orderBy('joined_at')
@@ -133,7 +147,14 @@ class ArenaMatchmakingService
             ->whereNull('match_id')
             ->whereNotNull('team_id')
             ->whereHas('player', function ($query) {
-                $query->where('is_active', true);
+                // Un jugador sancionado no vuelve a emparejarse aunque su fila
+                // de cola siga viva: cancelMatch reencola sin revalidar, y
+                // enqueueParty puede lanzar una party creada horas antes.
+                $query->where('is_active', true)
+                    ->where(function ($lockQuery) {
+                        $lockQuery->whereNull('queue_locked_until')
+                            ->orWhere('queue_locked_until', '<=', now());
+                    });
             })
             ->with(['player.user'])
             ->orderBy('joined_at')
@@ -255,7 +276,14 @@ class ArenaMatchmakingService
             return;
         }
 
-        if (in_array($match->status, ['completed', 'cancelled', 'void'], true)) {
+        // Lista blanca en vez de lista negra: un match solo se puede cancelar
+        // mientras nadie haya empezado a jugarlo. Con la lista negra anterior,
+        // 'in_progress' y 'disputed' NO estaban cubiertos, asi que un jugador
+        // que iba perdiendo podia cancelar el match por la ruta de rechazo y
+        // escaparse de la derrota, o borrar una disputa antes de que el admin
+        // la resolviera. Para deshacer un match ya empezado esta markVoid(),
+        // que ademas verifica que no haya resultados puntuados.
+        if (!in_array($match->status, self::CANCELLABLE_STATUSES, true)) {
             return;
         }
 
@@ -1108,6 +1136,17 @@ class ArenaMatchmakingService
         $teamSize = ArenaMode::teamSize($team->first()?->arena_mode);
 
         if ($team->count() !== $teamSize) {
+            return null;
+        }
+
+        // Un mismo usuario no puede ocupar dos puestos del equipo con dos de
+        // sus personajes: fisicamente solo puede jugar uno. buildPremadeTeams
+        // ya lo validaba por su cuenta, pero el camino random no lo hacia y es
+        // alcanzable (varios personajes por cuenta, reencolados tras cancelar).
+        // Al vivir aqui, la regla cubre las dos ramas.
+        $userIds = $team->map(fn (Queue $queue) => (int) ($queue->player->user_id ?? 0))->filter();
+
+        if ($userIds->count() !== $teamSize || $userIds->unique()->count() !== $teamSize) {
             return null;
         }
 

@@ -108,9 +108,16 @@ class AdminController extends Controller
         try {
             switch ($validated['action']) {
                 case 'force_complete':
+                    // Sin ganador explicito se caia en 'team_a' por defecto, es
+                    // decir se repartia PL a favor de un equipo elegido por el
+                    // orden de las columnas. Si no hay reporte del que deducirlo,
+                    // el admin tiene que decirlo.
                     $winnerTeam = $validated['winner_team']
-                        ?? $match->report?->claimed_winner_team
-                        ?? 'team_a';
+                        ?? $match->report?->claimed_winner_team;
+
+                    if (!$winnerTeam) {
+                        throw new \RuntimeException('Indica el resultado: este match no tiene reporte del que deducir el ganador.');
+                    }
 
                     $resultService->forceComplete(
                         $match,
