@@ -122,11 +122,24 @@
                 </form>
             </div>
             <p class="mt-3 text-sm text-[color:var(--arena-muted)]">
-                Para testear un match de tu personaje necesitas, segun la modalidad que elijas arriba:
-                @foreach(\App\Support\ArenaMode::enabled() as $sandboxMode)
-                    @php($sandboxTeamSize = \App\Support\ArenaMode::teamSize($sandboxMode))
-                    <strong class="text-white">{{ $sandboxMode }}</strong>: {{ $sandboxTeamSize - 1 }} bot(s) de tu reino y {{ $sandboxTeamSize }} del reino rival@if(!$loop->last); @else.@endif
-                @endforeach
+                @php
+                    // Se arma el texto en PHP en vez de con directivas Blade sueltas:
+                    // una directiva pegada a una palabra (rival@if) no se compila y
+                    // deja un @else huerfano que rompe la pagina entera al renderizar.
+                    $sandboxNeeds = collect(\App\Support\ArenaMode::enabled())
+                        ->map(function (string $mode) {
+                            $size = \App\Support\ArenaMode::teamSize($mode);
+
+                            return $mode . ': ' . ($size - 1) . ' bot(s) de tu reino y ' . $size . ' del reino rival';
+                        })
+                        ->implode('; ');
+                @endphp
+                Para testear un match de tu personaje necesitas, segun la modalidad que elijas arriba
+                @if($sandboxNeeds !== '')
+                    <strong class="text-white">{{ $sandboxNeeds }}</strong>.
+                @else
+                    <strong class="text-white">activar alguna modalidad primero</strong>.
+                @endif
                 Se hace en 2 pasos separados.
             </p>
             <div class="mt-5 flex flex-wrap gap-3">
