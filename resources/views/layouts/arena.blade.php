@@ -503,7 +503,7 @@
                         <a href="{{ route('home') }}" class="arena-nav-link text-xs text-[color:var(--arena-muted)] hover:text-white">Cambiar al Juego</a>
                         <button type="button" class="arena-btn-ghost px-3 py-1.5 text-xs" data-arena-alert-toggle>
                             <span class="inline-block h-2 w-2 rounded-full bg-emerald-400" data-arena-alert-indicator></span>
-                            <span data-arena-alert-label>Alertas ON</span>
+                            <span data-arena-alert-label>Alertas activas</span>
                         </button>
                         <span class="arena-chip hidden border-amber-500/30 bg-amber-950/30 text-amber-100 lg:inline-flex">🛡️ {{ $arenaAdminDisplayName }}</span>
                         <form method="POST" action="{{ route('admin.logout') }}">
@@ -531,7 +531,7 @@
                             </a>
                             <button type="button" class="arena-btn-ghost px-3 py-1.5 text-xs" data-arena-alert-toggle>
                                 <span class="inline-block h-2 w-2 rounded-full bg-emerald-400" data-arena-alert-indicator></span>
-                                <span data-arena-alert-label>Alertas ON</span>
+                                <span data-arena-alert-label>Alertas activas</span>
                             </button>
                             <span class="arena-chip hidden lg:inline-flex">{{ auth()->user()->discord_username }}</span>
                             <form method="POST" action="{{ route('logout') }}">
@@ -588,7 +588,7 @@
                     <a href="{{ route('admin.testing') }}" class="arena-nav-link block w-full {{ request()->routeIs('admin.testing') ? 'arena-nav-link-active' : '' }}">Testing</a>
                     <button type="button" class="arena-btn-ghost mt-3 w-full justify-center" data-arena-alert-toggle>
                         <span class="inline-block h-2 w-2 rounded-full bg-emerald-400" data-arena-alert-indicator></span>
-                        <span data-arena-alert-label>Alertas ON</span>
+                        <span data-arena-alert-label>Alertas activas</span>
                     </button>
                     
                     <div class="my-4 border-t border-[color:var(--arena-line)]"></div>
@@ -606,7 +606,7 @@
                         <a href="{{ route('matches.index') }}" class="arena-nav-link block w-full {{ request()->routeIs('matches.*') ? 'arena-nav-link-active' : '' }}">Matches</a>
                         <button type="button" class="arena-btn-ghost mt-3 w-full justify-center" data-arena-alert-toggle>
                             <span class="inline-block h-2 w-2 rounded-full bg-emerald-400" data-arena-alert-indicator></span>
-                            <span data-arena-alert-label>Alertas ON</span>
+                            <span data-arena-alert-label>Alertas activas</span>
                         </button>
                         
                         <div class="my-4 border-t border-[color:var(--arena-line)]"></div>
@@ -773,7 +773,6 @@
             let enabled = safeGet(enabledKey) !== '0';
             let audioContext = null;
             let unlocked = false;
-            let unlockHintShown = false;
 
             const patterns = {
                 match_found: {
@@ -851,21 +850,25 @@
                 alertButtons().forEach((button) => {
                     const label = button.querySelector('[data-arena-alert-label]');
                     const indicator = button.querySelector('[data-arena-alert-indicator]');
-                    const activeLabel = enabled ? (unlocked ? 'Alertas listas' : 'Activar sonido') : 'Alertas OFF';
+                    // Un solo interruptor: encendido o silenciado. El desbloqueo
+                    // del audio (unlocked) es un requisito del navegador, no una
+                    // decision del usuario, asi que no se muestra como un tercer
+                    // estado: se resuelve solo con el primer gesto en la pagina.
+                    const activeLabel = enabled ? 'Alertas activas' : 'Alertas silenciadas';
 
                     button.classList.toggle('border-emerald-500/30', enabled);
                     button.classList.toggle('text-emerald-200', enabled);
                     button.classList.toggle('border-rose-500/30', !enabled);
                     button.classList.toggle('text-rose-200', !enabled);
                     button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+                    button.setAttribute('title', enabled ? 'Silenciar las alertas sonoras' : 'Activar las alertas sonoras');
 
                     if (label) {
                         label.textContent = activeLabel;
                     }
 
                     if (indicator) {
-                        indicator.classList.toggle('bg-emerald-400', enabled && unlocked);
-                        indicator.classList.toggle('bg-amber-400', enabled && !unlocked);
+                        indicator.classList.toggle('bg-emerald-400', enabled);
                         indicator.classList.toggle('bg-rose-400', !enabled);
                     }
                 });
@@ -931,10 +934,12 @@
             const playPattern = (type) => {
                 const context = getAudioContext();
                 if (!context || !unlocked) {
-                    if (enabled && !unlockHintShown) {
-                        unlockHintShown = true;
-                        arenaToast('Haz un toque en la pagina para dejar listas las alertas sonoras.', 'info', 4500);
-                    }
+                    // Silencio en vez de un aviso: el desbloqueo del audio es
+                    // cosa del navegador y se resuelve solo en cuanto la persona
+                    // toca cualquier parte de la pagina. Pedirselo explicitamente
+                    // convertia un detalle tecnico en una tarea para el usuario.
+                    unlock();
+
                     return false;
                 }
 
@@ -972,18 +977,15 @@
                 safeSet(enabledKey, enabled ? '1' : '0');
 
                 if (enabled) {
+                    // Se intenta desbloquear en segundo plano. Si el navegador
+                    // aun no lo permite, los listeners de gesto lo resuelven en
+                    // la siguiente interaccion sin molestar al usuario.
                     await unlock();
                     if (!options.silent) {
-                        arenaToast(
-                            unlocked
-                                ? 'Alertas sonoras activadas.'
-                                : 'Alertas activadas. Haz un toque para dejar listo el sonido.',
-                            unlocked ? 'success' : 'info',
-                            4500
-                        );
+                        arenaToast('Alertas sonoras activadas.', 'success', 3500);
                     }
                 } else if (!options.silent) {
-                    arenaToast('Alertas sonoras desactivadas.', 'warning', 3500);
+                    arenaToast('Alertas sonoras silenciadas.', 'info', 3000);
                 }
 
                 updateButtons();
@@ -1011,13 +1013,11 @@
                 }
 
                 event.preventDefault();
-                if (enabled && !unlocked) {
-                    unlock().then((didUnlock) => {
-                        arenaToast(didUnlock ? 'Alertas sonoras listas.' : 'No pude activar el sonido todavia. Intenta con otro toque.', didUnlock ? 'success' : 'warning', 4000);
-                    });
-                    return;
-                }
 
+                // El clic siempre hace lo mismo: encender o silenciar. Antes,
+                // cuando el audio no estaba desbloqueado, el primer clic lo
+                // desbloqueaba en vez de conmutar, y el boton parecia moverse
+                // entre tres estados sin logica aparente.
                 setEnabled(!enabled);
             });
 

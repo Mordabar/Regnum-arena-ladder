@@ -30,3 +30,6 @@
 /.phpunit.cache
 /.phpunit.result.cache
 /storage/app/arena-reports/match-reports/testing/
+
+# Base de datos local para desarrollo y auditoria de UI
+/database/*.sqlite
