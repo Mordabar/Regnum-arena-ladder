@@ -64,9 +64,19 @@ class AdminController extends Controller
             });
         }
 
+        // El filtro por modalidad aparece con 2v2 y 3v3 conviviendo: sin el, la
+        // lista mezcla partidas de 2 y de 3 y no hay forma de auditar una sola.
+        $mode = $request->filled('mode') ? $request->string('mode')->value() : null;
+
+        if ($mode && array_key_exists($mode, ArenaMode::MODES)) {
+            $query->where('arena_mode', $mode);
+        } else {
+            $mode = null;
+        }
+
         $matches = $query->latest('created_at')->paginate(20)->withQueryString();
 
-        return view('admin.matches', compact('matches'));
+        return view('admin.matches', compact('matches', 'status', 'search', 'mode'));
     }
 
     public function moderationInbox()
@@ -212,13 +222,26 @@ class AdminController extends Controller
             }
         }
 
+        // Buscar por nombre: con cientos de personajes, paginar de 25 en 25
+        // hasta dar con uno no es una forma razonable de moderar.
+        $search = trim((string) $request->input('q', ''));
+
+        if ($search !== '') {
+            $query->where(function ($builder) use ($search) {
+                $builder->where('character_name', 'like', '%' . $search . '%')
+                    ->orWhereHas('user', fn ($userQuery) => $userQuery
+                        ->where('discord_username', 'like', '%' . $search . '%')
+                        ->orWhere('discord_id', 'like', '%' . $search . '%'));
+            });
+        }
+
         $players = $query
             ->orderByDesc('pl_points')
             ->orderByDesc('mmr')
             ->paginate(25)
             ->withQueryString();
 
-        return view('admin.players', compact('players'));
+        return view('admin.players', compact('players', 'realm', 'status', 'search'));
     }
 
     public function storePlayer(Request $request)

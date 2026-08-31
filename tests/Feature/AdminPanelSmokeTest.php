@@ -127,3 +127,39 @@ it('protege el panel de quien no ha iniciado sesion', function (string $route) {
     'admin.settings',
     'admin.testing',
 ]);
+
+/**
+ * El panel tiene su propia maquetacion compilada. Si alguna pantalla vuelve a
+ * `layouts.arena` pierde la navegacion lateral y se queda dependiendo del CDN
+ * de Tailwind, que es justo lo que se quiso evitar.
+ */
+it('sirve todas las pantallas con la maquetacion del panel', function (string $route) {
+    $response = $this->withSession(adminPanelSession())->get(route($route));
+
+    $response->assertOk();
+    $response->assertSee('ap-shell', escape: false);
+    $response->assertSee('css/admin.css', escape: false);
+})->with([
+    'admin.dashboard',
+    'admin.inbox',
+    'admin.matches.index',
+    'admin.players.index',
+    'admin.settings',
+    'admin.zones',
+    'admin.testing',
+]);
+
+it('deja el entorno de pruebas alcanzable desde el menu lateral', function () {
+    // Estaba fuera de todos los menus: solo se llegaba escribiendo la URL.
+    $this->withSession(adminPanelSession())
+        ->get(route('admin.dashboard'))
+        ->assertOk()
+        ->assertSee(route('admin.testing'), escape: false);
+});
+
+it('no filtra el usuario admin por defecto en la pantalla de acceso', function () {
+    $response = $this->get(route('admin.login'));
+
+    $response->assertOk();
+    $response->assertDontSee('Usuario por defecto');
+});
