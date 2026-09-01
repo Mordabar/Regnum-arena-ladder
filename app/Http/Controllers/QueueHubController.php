@@ -1118,8 +1118,16 @@ class QueueHubController extends Controller
         $acceptedBots = 0;
         $promotedMatches = 0;
 
+        // Antes se exigia que el match fuera SOLO de bots, y eso rompia el uso
+        // documentado del laboratorio: encolar tu personaje por el flujo normal
+        // y completar el cruce con bots. Ese match tiene una persona dentro, asi
+        // que abortaba con un 404 sin explicacion.
+        //
+        // La restriccion no hacia falta aqui: aceptar solo cambia las filas de
+        // cola de los bots (acceptBotParticipants filtra por sus ids) y el match
+        // no arranca hasta que TODOS han aceptado, la persona incluida. No se
+        // reparte ni un punto. Donde si hace falta es al resolver, y ahi sigue.
         foreach ($matches as $match) {
-            $this->ensureSandboxMatch($match, $botPlayerIds, $testingLabService);
             ['accepted_bots' => $acceptedCount, 'promoted' => $promoted] = $this->acceptBotParticipants($match, $botPlayerIds, $resultService);
 
             $acceptedBots += $acceptedCount;
@@ -1127,7 +1135,7 @@ class QueueHubController extends Controller
         }
 
         if ($acceptedBots === 0) {
-            return back()->withErrors(['error' => 'No habia participantes bot pendientes por aceptar en esos matches.']);
+            return back()->withErrors(['error' => 'Ningun bot tenia una aceptacion pendiente en esos enfrentamientos. Si esperas a que acepte tu personaje, hazlo desde la cola normal.']);
         }
 
         return back()->with('success', 'Se aceptaron ' . $acceptedBots . ' jugadores bot. ' . $promotedMatches . ' matches pasaron a in_progress.');
@@ -1275,7 +1283,16 @@ class QueueHubController extends Controller
         ]);
 
         $botPlayerIds = $testingLabService->testPlayerIds();
-        $this->ensureSandboxMatch($match, $botPlayerIds, $testingLabService);
+
+        // Resolver SI reparte PL y MMR de verdad, asi que un match con personas
+        // dentro no se cierra desde el laboratorio. Antes esto era un abort(404)
+        // que dejaba al moderador mirando una pagina de error sin saber por que.
+        if (!$testingLabService->matchUsesOnlyPlayerPool($match, $botPlayerIds)) {
+            return back()->withErrors([
+                'error' => 'El enfrentamiento ' . $match->match_code . ' tiene jugadores reales. Cerrarlo desde aqui repartiria puntos saltandose la confirmacion del rival: resuelvelo desde Enfrentamientos.',
+            ]);
+        }
+
         $this->resolveSandboxMatchInternal($match, $validated['winner_team'], $resultService, $botPlayerIds);
 
         return back()->with('success', 'El match ' . $match->match_code . ' fue resuelto para ' . $validated['winner_team'] . '.');
@@ -1513,20 +1530,6 @@ class QueueHubController extends Controller
         return $matches->whereIn('status', $statuses)->values();
     }
 
-    private function ensureSandboxMatch(
-        ArenaMatch $match,
-        Collection $botPlayerIds,
-        TestingLabService $testingLabService
-    ): void {
-        // Igual que sandboxReset y sandboxDestroy, que ya lo hacian bien: un
-        // match con aunque sea un jugador real no se resuelve desde el
-        // laboratorio, porque eso reparte PL y MMR reales saltandose la
-        // confirmacion del rival. Ese match debe seguir el flujo normal.
-        abort_unless(
-            $testingLabService->matchUsesOnlyPlayerPool($match, $botPlayerIds),
-            404
-        );
-    }
 
     private function isSandboxPlayer(Player $player, TestingLabService $testingLabService): bool
     {
