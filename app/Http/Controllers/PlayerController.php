@@ -14,6 +14,23 @@ class PlayerController extends Controller
         $this->middleware('auth');
     }
 
+    /**
+     * Asistente de creacion.
+     *
+     * Vive en su propia pagina y no en un formulario lateral del lobby porque
+     * ahora hay una vista previa 3D que necesita sitio, y porque elegir reino y
+     * subclase son decisiones irreversibles: merecen una pantalla propia en vez
+     * de un desplegable al lado de otra cosa.
+     */
+    public function create()
+    {
+        if (auth()->user()->players()->visibleToOwner()->count() >= 5) {
+            return redirect()->route('lobby')->with('error', 'Maximo 5 personajes permitidos por cuenta');
+        }
+
+        return view('players.create');
+    }
+
     public function store(Request $request)
     {
         // Los eliminados no ocupan slot: la idea de borrar es justamente poder

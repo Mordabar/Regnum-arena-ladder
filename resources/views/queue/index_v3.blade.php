@@ -178,7 +178,33 @@
             </div>
         </section>
     @elseif($currentQueue)
+        @php
+            $queuedPlayer = $players->firstWhere('id', $currentQueue->player_id);
+        @endphp
         <section class="arena-panel mb-6 p-6 arena-animate-in arena-stagger-1">
+
+            @if($queuedPlayer)
+                {{-- El guerrero que espera, en el mismo sitio donde el jugador
+                     mira el reloj. Sin esto la espera es una tabla de numeros. --}}
+                <x-arena-champion
+                    id="queue-stage"
+                    :realm="$queuedPlayer->realm"
+                    :subclass="$queuedPlayer->subclass"
+                    height="clamp(240px, 30vh, 340px)"
+                    :parallax="false"
+                    class="mb-5">
+                    <div class="arena-champion-overlay">
+                        <div class="absolute inset-x-5 bottom-4">
+                            <h2 class="arena-champion-name" style="font-size: clamp(20px, 3vw, 28px)">{{ $queuedPlayer->cleanName() }}</h2>
+                            <p class="mt-1 flex flex-wrap items-center gap-x-4 text-sm text-[color:var(--arena-muted)] arena-body-text">
+                                <span class="arena-champion-realm">{{ \App\Models\Player::REALMS[$queuedPlayer->realm] ?? $queuedPlayer->realm }}</span>
+                                <span>{{ \App\Models\Player::SUBCLASSES[$queuedPlayer->subclass] ?? $queuedPlayer->subclass }}</span>
+                            </p>
+                        </div>
+                    </div>
+                </x-arena-champion>
+            @endif
+
             <div class="flex items-start gap-3 rounded-2xl border border-sky-500/25 bg-sky-950/20 px-5 py-4 text-sky-100">
                 <svg class="mt-0.5 h-5 w-5 shrink-0 text-sky-400 animate-pulse" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
                 <div class="flex-1">

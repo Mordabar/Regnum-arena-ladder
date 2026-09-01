@@ -28,6 +28,7 @@ Route::get('/lobby', [LobbyController::class, 'index'])->middleware('auth')->nam
 Route::get('/ladder', [LadderController::class, 'index'])->name('ladder.index');
 Route::get('/ladder/player/{player}', [LadderController::class, 'show'])->name('ladder.show');
 
+Route::get('/player/crear', [PlayerController::class, 'create'])->middleware('auth')->name('player.create');
 Route::post('/player/register', [PlayerController::class, 'store'])->name('player.register');
 Route::put('/player/{player}/update', [PlayerController::class, 'update'])->name('player.update');
 Route::delete('/player/{player}', [PlayerController::class, 'destroy'])->name('player.destroy');

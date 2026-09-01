@@ -168,13 +168,28 @@ class Player extends Model
     ];
 
     // Constantes para subclases
+    /**
+     * Las claves son las del juego y no se tocan: van en la base de datos y en
+     * los equipos guardados de cada enfrentamiento. Lo que se traduce es la
+     * etiqueta, porque el resto del sitio esta en espanol.
+     */
     const SUBCLASSES = [
-        'knight' => 'Knight',
-        'barbarian' => 'Barbarian',
-        'hunter' => 'Hunter',
-        'marksman' => 'Marksman',
-        'conjurer' => 'Conjurer',
-        'warlock' => 'Warlock'
+        'knight' => 'Caballero',
+        'barbarian' => 'Bárbaro',
+        'hunter' => 'Cazador',
+        'marksman' => 'Tirador',
+        'conjurer' => 'Conjurador',
+        'warlock' => 'Brujo'
+    ];
+
+    /** Que hace cada subclase en la arena, en una linea, para quien no conoce el juego. */
+    const SUBCLASS_NOTES = [
+        'knight' => 'Aguanta el frente y protege a los suyos.',
+        'barbarian' => 'Cuerpo a cuerpo, mucho daño y poca defensa.',
+        'hunter' => 'Daño a distancia con trampas y mascota.',
+        'marksman' => 'El mayor daño a distancia del juego.',
+        'conjurer' => 'Cura y protege, o castiga desde atrás.',
+        'warlock' => 'Control y daño mágico en área.',
     ];
 
     const PENALTY_TYPES = [

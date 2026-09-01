@@ -471,6 +471,256 @@
         .arena-stagger-4 { animation-delay: 0.2s; }
         .arena-stagger-5 { animation-delay: 0.25s; }
         .arena-stagger-6 { animation-delay: 0.3s; }
+
+        /* ── Visor 3D de guerreros ───────────────────────────────────────────
+           El canvas se posiciona en absoluto sobre el contenedor y el emblema
+           del reino ocupa el mismo sitio: mientras no haya nada que renderizar,
+           la caja ya se ve completa en vez de dejar un agujero. */
+        .arena-champion {
+            /* El reino se nota antes de mirar el nombre: tine el fondo del
+               escenario, no solo el modelo. */
+            --champion-tint: var(--arena-fire);
+            position: relative;
+            overflow: hidden;
+            border-radius: 18px;
+            border: 1px solid var(--arena-line);
+            background:
+                radial-gradient(70% 55% at 50% 78%, color-mix(in srgb, var(--champion-tint) 16%, transparent), transparent 70%),
+                radial-gradient(78% 62% at 50% 30%, rgba(216, 177, 92, 0.07), transparent 68%),
+                linear-gradient(180deg, rgba(28, 20, 16, 0.92), rgba(14, 10, 7, 0.96));
+            transition: --champion-tint 0.3s ease;
+        }
+        .arena-champion[data-champion-realm="alsius"] { --champion-tint: var(--arena-ice); }
+        .arena-champion[data-champion-realm="syrtis"] { --champion-tint: var(--arena-forest); }
+        .arena-champion-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .arena-champion::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: radial-gradient(72% 62% at 50% 42%, transparent 42%, rgba(6, 4, 3, 0.62) 100%);
+        }
+        .arena-champion-fallback {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 24px;
+            text-align: center;
+            color: var(--arena-muted);
+            font-size: 12.5px;
+        }
+        .arena-champion-fallback p { margin: 0; max-width: 24ch; }
+        .arena-champion-glyph {
+            font-size: 76px;
+            line-height: 1;
+            color: var(--arena-fire);
+            opacity: 0.42;
+        }
+        .arena-champion[data-champion-realm="alsius"] .arena-champion-glyph { color: var(--arena-ice); }
+        .arena-champion[data-champion-realm="syrtis"] .arena-champion-glyph { color: var(--arena-forest); }
+
+        /* Contenido encima del escenario: nombre, cifras, etiquetas. */
+        .arena-champion-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 2;
+        }
+        .arena-champion-overlay > * { pointer-events: auto; }
+
+        .arena-champion-name {
+            margin: 0;
+            font-size: clamp(24px, 4vw, 38px);
+            font-weight: 700;
+            color: var(--arena-gold-soft);
+            text-shadow: 0 3px 24px rgba(0, 0, 0, 0.85);
+            text-wrap: balance;
+        }
+        .arena-champion-realm {
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--arena-fire);
+        }
+        .arena-champion[data-champion-realm="alsius"] .arena-champion-realm { color: var(--arena-ice); }
+        .arena-champion[data-champion-realm="syrtis"] .arena-champion-realm { color: var(--arena-forest); }
+        .arena-champion-status {
+            border-radius: 999px;
+            padding: 2px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            background: rgba(120, 53, 15, 0.45);
+            color: #fcd9a8;
+        }
+
+        /* En movil las cifras flotando arriba tapaban la cabeza del guerrero.
+           Bajan a la esquina, encima del nombre, donde no estorban. */
+        @media (max-width: 640px) {
+            .arena-champion-overlay .arena-stats-row {
+                top: auto;
+                right: auto;
+                left: 20px;
+                bottom: 86px;
+                justify-content: flex-start;
+            }
+            .arena-stat-pill { min-width: 0; padding: 5px 9px; }
+            .arena-stat-pill b { font-size: 14px; }
+        }
+
+        .arena-stat-pill {
+            min-width: 72px;
+            padding: 7px 12px;
+            border-radius: 11px;
+            border: 1px solid var(--arena-line);
+            background: rgba(9, 6, 4, 0.72);
+        }
+        .arena-stat-pill span {
+            display: block;
+            font-size: 9.5px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--arena-muted);
+        }
+        .arena-stat-pill b {
+            display: block;
+            margin-top: 2px;
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--arena-gold-soft);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ── Rail de personajes ── */
+        .arena-roster-slot {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+            padding: 9px 11px;
+            border-radius: 12px;
+            border: 1px solid transparent;
+            background: rgba(12, 8, 6, 0.45);
+            color: var(--arena-text);
+            font: inherit;
+            transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+        }
+        .arena-roster-slot:hover { background: rgba(36, 26, 20, 0.75); transform: translateX(2px); }
+        .arena-roster-slot:focus-visible { outline: 2px solid var(--arena-gold); outline-offset: 2px; }
+        .arena-roster-slot[aria-selected="true"] {
+            border-color: var(--arena-line-strong);
+            background: linear-gradient(90deg, rgba(63, 45, 31, 0.85), rgba(30, 21, 16, 0.7));
+        }
+        .arena-roster-crest {
+            width: 34px;
+            height: 34px;
+            border-radius: 9px;
+            flex: none;
+            display: grid;
+            place-items: center;
+            border: 1px solid var(--arena-line);
+            background: rgba(8, 5, 4, 0.8);
+        }
+        .arena-roster-name {
+            display: block;
+            font-weight: 600;
+            font-size: 14px;
+            line-height: 1.2;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .arena-roster-meta { display: block; font-size: 11.5px; color: var(--arena-muted); }
+        .arena-roster-pl {
+            margin-left: auto;
+            font-size: 12.5px;
+            color: var(--arena-gold);
+            font-variant-numeric: tabular-nums;
+        }
+        .arena-roster-empty {
+            justify-content: center;
+            color: var(--arena-muted);
+            border: 1px dashed var(--arena-line);
+            background: none;
+            font-size: 13px;
+            text-decoration: none;
+        }
+        .arena-roster-empty:hover { color: var(--arena-gold-soft); border-color: var(--arena-line-strong); transform: none; }
+
+        /* ── Asistente de creacion ── */
+        .arena-wizard-step {
+            border: 1px solid var(--arena-line);
+            border-radius: 16px;
+            padding: 18px;
+            background: rgba(16, 11, 8, 0.6);
+        }
+        .arena-wizard-num {
+            display: inline-grid;
+            place-items: center;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: 700;
+            background: rgba(216, 177, 92, 0.16);
+            color: var(--arena-gold-soft);
+            border: 1px solid var(--arena-line-strong);
+        }
+        .arena-wizard-step[data-done="1"] .arena-wizard-num {
+            background: var(--arena-gold);
+            color: #20160e;
+        }
+        .arena-choice {
+            position: relative;
+            display: block;
+            cursor: pointer;
+        }
+        /* El radio cubre toda la tarjeta en vez de encogerse a cero: sigue
+           siendo un radio de verdad (teclado, lectores, autofill) y ademas se
+           puede pulsar en cualquier punto de la tarjeta. */
+        .arena-choice input {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            opacity: 0;
+            cursor: pointer;
+            z-index: 1;
+        }
+        .arena-choice-body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 10px;
+            border-radius: 14px;
+            border: 1px solid var(--arena-line);
+            background: rgba(9, 6, 4, 0.55);
+            text-align: center;
+            transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+        }
+        .arena-choice:hover .arena-choice-body { transform: translateY(-2px); background: rgba(36, 26, 20, 0.7); }
+        .arena-choice input:focus-visible + .arena-choice-body { outline: 2px solid var(--arena-gold); outline-offset: 2px; }
+        .arena-choice input:checked + .arena-choice-body {
+            border-color: var(--choice-color, var(--arena-gold));
+            background: rgba(63, 45, 31, 0.6);
+            box-shadow: 0 0 0 1px var(--choice-color, var(--arena-gold)) inset;
+        }
+        .arena-choice-title { font-size: 13.5px; font-weight: 600; color: var(--arena-text); }
+        .arena-choice-note { font-size: 11.5px; color: var(--arena-muted); line-height: 1.4; }
     </style>
     {{-- Utilidades de Tailwind, compiladas y servidas desde este dominio.
 
@@ -1138,6 +1388,38 @@
             @endif
         });
     </script>
+
+    {{-- Visores 3D.
+         El modulo solo se descarga si la pagina tiene algun visor, y el propio
+         modulo se encarga de traer Three.js. Una pagina sin guerreros no paga
+         ni un byte por esto. --}}
+    @if(auth()->check())
+        <script src="{{ asset('js/arena-champion.js') }}?v={{ @filemtime(public_path('js/arena-champion.js')) ?: '1' }}" defer></script>
+        <script>
+            /* Monta todos los [data-champion-viewer] de la pagina y los deja
+               accesibles por id para que cada vista pueda cambiarlos en vivo
+               (elegir otro personaje, cambiar de reino en el formulario...). */
+            /* Los modelos que existen se listan aqui una sola vez: el visor no
+               tiene que preguntarle al servidor por cada guerrero. */
+            window.arenaChampionModels = @json(\App\Support\ChampionModels::available());
+            window.arenaChampionViewers = {};
+            document.addEventListener('DOMContentLoaded', function () {
+                if (!window.ArenaChampion) { return; }
+                document.querySelectorAll('[data-champion-viewer]').forEach(function (host) {
+                    var canvas = host.querySelector('canvas');
+                    if (!canvas) { return; }
+                    window.arenaChampionViewers[host.dataset.championId] = window.ArenaChampion.mount(canvas, {
+                        realm: host.dataset.championRealm,
+                        subclass: host.dataset.championSubclass,
+                        parallax: host.dataset.championParallax !== '0'
+                    });
+                });
+                document.dispatchEvent(new CustomEvent('arena:champions-ready'));
+            });
+        </script>
+    @endif
+
     @stack('arena-map-scripts')
+    @stack('scripts')
 </body>
 </html>
