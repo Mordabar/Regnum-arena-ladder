@@ -19,8 +19,14 @@
 window.ArenaChampion = (function () {
   'use strict';
 
-  var THREE_URL = '/js/three.min.js';
-  var LOADER_URL = '/js/three-gltf-loader.js';
+  /**
+   * Las rutas llegan con version desde el servidor (?v=fecha de modificacion).
+   * Hace falta porque los estaticos se cachean un ano como inmutables: sin
+   * version, actualizar Three.js no llegaria nunca a quien ya lo tiene.
+   */
+  var ASSETS = window.arenaChampionAssets || {};
+  var THREE_URL = ASSETS.three || '/js/three.min.js';
+  var LOADER_URL = ASSETS.loader || '/js/three-gltf-loader.js';
 
   var REALM_COLOR = { ignis: 0xd3642f, alsius: 0x79b5d6, syrtis: 0x8eb34a };
   var REALM_GLYPH = { ignis: '◆', alsius: '✹', syrtis: '❀' };
@@ -125,13 +131,33 @@ window.ArenaChampion = (function () {
     return loaderPromise;
   }
 
+  var webglSupported = null;
+
+  /**
+   * Comprobar WebGL cuesta un contexto, y el navegador solo deja tener unos
+   * pocos abiertos a la vez. Se comprueba UNA vez, y el contexto de prueba se
+   * cierra a proposito: si no, cada visor de la pagina se comia uno de los
+   * pocos contextos disponibles solo para preguntar si podia usarlos.
+   */
   function hasWebGL() {
+    if (webglSupported !== null) { return webglSupported; }
+
     try {
-      var c = document.createElement('canvas');
-      return !!(window.WebGLRenderingContext && (c.getContext('webgl') || c.getContext('experimental-webgl')));
+      var canvas = document.createElement('canvas');
+      var gl = window.WebGLRenderingContext
+        && (canvas.getContext('webgl') || canvas.getContext('experimental-webgl'));
+
+      if (gl) {
+        var lose = gl.getExtension('WEBGL_lose_context');
+        if (lose) { lose.loseContext(); }
+      }
+
+      webglSupported = !!gl;
     } catch (e) {
-      return false;
+      webglSupported = false;
     }
+
+    return webglSupported;
   }
 
   /* ─────────── silueta procedural: el hueco donde entra el .glb ─────────── */
@@ -544,6 +570,7 @@ window.ArenaChampion = (function () {
 
     var api = { available: true };
     var renderer, scene, camera, rim, ring, champion, raf = null;
+    var observer = null, resizeObserver = null;
     var visible = true, spin = 0, grow = 0, token = 0;
     var pointer = { x: 0 };
     var current = {
@@ -610,7 +637,8 @@ window.ArenaChampion = (function () {
       // el lienzo se queda con la medida que tenia al arrancar y el guerrero
       // aparece cortado por abajo.
       if ('ResizeObserver' in window) {
-        new ResizeObserver(resize).observe(host);
+        resizeObserver = new ResizeObserver(resize);
+        resizeObserver.observe(host);
       }
 
       if (options.parallax !== false) {
@@ -758,17 +786,20 @@ window.ArenaChampion = (function () {
       if (raf !== null) { cancelAnimationFrame(raf); raf = null; }
     }
 
+    function onVisibilityChange() {
+      visible = document.visibilityState !== 'hidden';
+      if (visible) { start(); } else { stop(); }
+    }
+
     function watchVisibility() {
       if ('IntersectionObserver' in window) {
-        new IntersectionObserver(function (entries) {
+        observer = new IntersectionObserver(function (entries) {
           visible = entries[0].isIntersecting && document.visibilityState !== 'hidden';
           if (visible) { start(); } else { stop(); }
-        }, { threshold: 0.05 }).observe(host);
+        }, { threshold: 0.05 });
+        observer.observe(host);
       }
-      document.addEventListener('visibilitychange', function () {
-        visible = document.visibilityState !== 'hidden';
-        if (visible) { start(); } else { stop(); }
-      });
+      document.addEventListener('visibilitychange', onVisibilityChange);
     }
 
     function disposeTree(obj) {
@@ -787,8 +818,18 @@ window.ArenaChampion = (function () {
     api.dispose = function () {
       stop();
       window.removeEventListener('resize', resize);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      if (observer) { observer.disconnect(); }
+      if (resizeObserver) { resizeObserver.disconnect(); }
       if (champion) { disposeTree(champion); }
-      if (renderer) { renderer.dispose(); }
+      if (scene) { disposeTree(scene); }
+      if (renderer) {
+        renderer.dispose();
+        // Devuelve el contexto al navegador en vez de esperar al recolector.
+        var ctx = renderer.getContext();
+        var lose = ctx && ctx.getExtension && ctx.getExtension('WEBGL_lose_context');
+        if (lose) { lose.loseContext(); }
+      }
     };
 
     return api;

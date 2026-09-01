@@ -897,6 +897,25 @@
             box-shadow: 0 0 0 1px var(--choice-color, var(--arena-gold)) inset;
         }
         .arena-choice-title { font-size: 13.5px; font-weight: 600; color: var(--arena-text); }
+        /* Solo hace falta cuando se ven las razas de los tres reinos a la vez,
+           que es lo que pasa sin JavaScript. Con scripts, el paso 1 ya ha
+           filtrado y esta linea sobra. */
+        .arena-choice-realm {
+            font-size: 10.5px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--arena-gold);
+            opacity: 0.75;
+        }
+        .arena-choice-hint {
+            margin: 0 0 2px;
+            font-size: 12.5px;
+            color: var(--arena-muted);
+        }
+        /* Con JavaScript el filtrado deja un solo reino a la vista, y repetir
+           su nombre en cada tarjeta es ruido. */
+        .arena-wizard-step[data-races-filtered="1"] .arena-choice-realm,
+        .arena-wizard-step[data-races-filtered="1"] .arena-choice-hint { display: none; }
         .arena-choice-note { font-size: 11.5px; color: var(--arena-muted); line-height: 1.4; }
     </style>
     {{-- Utilidades de Tailwind, compiladas y servidas desde este dominio.
@@ -1571,6 +1590,15 @@
          modulo se encarga de traer Three.js. Una pagina sin guerreros no paga
          ni un byte por esto. --}}
     @if(auth()->check())
+        <script>
+            /* Las rutas de Three.js y del cargador de modelos, con su version.
+               El modulo las lee de aqui en vez de escribirlas a mano: asi el
+               cacheo de un ano no impide actualizar la libreria. */
+            window.arenaChampionAssets = {
+                three: "{{ asset('js/three.min.js') }}?v={{ @filemtime(public_path('js/three.min.js')) ?: '1' }}",
+                loader: "{{ asset('js/three-gltf-loader.js') }}?v={{ @filemtime(public_path('js/three-gltf-loader.js')) ?: '1' }}"
+            };
+        </script>
         <script src="{{ asset('js/arena-champion.js') }}?v={{ @filemtime(public_path('js/arena-champion.js')) ?: '1' }}" defer></script>
         <script>
             /* Monta todos los [data-champion-viewer] de la pagina y los deja

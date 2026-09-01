@@ -93,3 +93,24 @@ it('enlaza la hoja despues del bloque de estilos del layout', function () {
     expect($link)->not->toBeFalse();
     expect($link)->toBeGreaterThan($styleEnd);
 });
+
+it('los estaticos se sirven comprimidos y cacheados', function () {
+    // three.min.js son 589 KB sin comprimir y 146 KB con gzip. Medido en el
+    // navegador contra un servidor sin compresion: en movil esa diferencia es
+    // la mitad de la espera de carga.
+    $htaccess = file_get_contents(public_path('.htaccess'));
+
+    expect($htaccess)->toContain('mod_deflate')
+        ->and($htaccess)->toContain('application/javascript')
+        ->and($htaccess)->toContain('model/gltf-binary');
+});
+
+it('las hojas y los scripts llevan version en la URL', function () {
+    // El cacheo de un ano solo es seguro si al cambiar el archivo cambia la
+    // URL. Si algun dia se quita el ?v=, el jugador se queda con la version
+    // vieja hasta que vacie la cache.
+    $layout = file_get_contents(resource_path('views/layouts/arena.blade.php'));
+
+    expect($layout)->toContain("asset('css/site.css') }}?v=")
+        ->and($layout)->toContain("asset('js/arena-champion.js') }}?v=");
+});

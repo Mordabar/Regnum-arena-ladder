@@ -108,6 +108,29 @@ it('el asistente muestra solo las razas del reino elegido y todas las opciones',
     }
 });
 
+it('sin javascript se ven las razas de los tres reinos', function () {
+    // Es el JavaScript quien esconde las que no tocan. Si las escondiese el
+    // servidor, quien navega sin scripts y elige otro reino se quedaria sin
+    // ninguna raza que marcar y no podria terminar el formulario.
+    $html = $this->actingAs(lookUser('nojs'))->get(route('player.create'))->getContent();
+
+    foreach (Player::RACES as $realm => $races) {
+        foreach (array_keys($races) as $race) {
+            $pos = strpos($html, 'value="' . $race . '"');
+            expect($pos)->not->toBeFalse("Falta la raza {$race}");
+        }
+    }
+
+    // Ninguna tarjeta de raza sale oculta desde el servidor.
+    expect($html)->not->toMatch('/data-race-of="[a-z]+"\s+hidden/');
+
+    // Y cada una dice a que reino pertenece, que es lo unico que las distingue
+    // cuando se ven las doce juntas.
+    foreach (Player::REALMS as $label) {
+        expect($html)->toContain('Solo ' . $label);
+    }
+});
+
 it('el visor recibe raza y sexo en todas las pantallas', function () {
     $user = lookUser('e');
     $player = Player::create([

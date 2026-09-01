@@ -129,14 +129,19 @@
                     </p>
 
                     <div class="grid gap-2.5 sm:grid-cols-2" data-race-options>
+                        {{-- Sin JavaScript se ven las doce; el aviso explica por que. --}}
+                        <p class="arena-choice-hint sm:col-span-2">
+                            Cada raza pertenece a un reino. Aquí solo cuentan las del reino que hayas
+                            elegido en el paso 1.
+                        </p>
                         @foreach($races as $realmKey => $realmRaces)
                             @foreach($realmRaces as $raceKey => $raceLabel)
-                                {{-- Cada tarjeta declara a que reino pertenece; el paso 1 decide
-                                     cuales se muestran. Sin JavaScript se ven todas y el servidor
-                                     rechaza una raza que no case con el reino. --}}
-                                <label class="arena-choice" data-race-of="{{ $realmKey }}"
-                                       @if($realmKey !== $oldRealm) hidden @endif>
-                                    <input type="radio" name="race" value="{{ $raceKey }}"
+                                {{-- Todas las tarjetas salen visibles del servidor y es el
+                                     JavaScript el que esconde las que no son del reino elegido.
+                                     Al reves (ocultarlas aqui) dejaba sin ninguna raza que elegir
+                                     a quien navega sin scripts y cambia de reino. --}}
+                                <label class="arena-choice" data-race-of="{{ $realmKey }}">
+                                    <input type="radio" name="race" value="{{ $raceKey }}" required
                                            data-preview-input="race"
                                            data-label="{{ $raceLabel }}"
                                            data-realm="{{ $realmKey }}"
@@ -144,6 +149,7 @@
                                     <span class="arena-choice-body" style="align-items: flex-start; text-align: left">
                                         <span class="arena-choice-title">{{ $raceLabel }}</span>
                                         <span class="arena-choice-note">{{ $raceNotes[$raceKey] ?? '' }}</span>
+                                        <span class="arena-choice-realm">Solo {{ \App\Models\Player::REALMS[$realmKey] }}</span>
                                     </span>
                                 </label>
                             @endforeach
@@ -259,6 +265,11 @@
            primera del nuevo (siempre la variante humana). */
         function syncRaces(realm) {
             var options = form.querySelectorAll('[data-race-of]');
+
+            // Marca el paso como filtrado: con las razas de un solo reino a la
+            // vista sobra decir a que reino pertenecen.
+            var step = form.querySelector('[data-race-options]').closest('.arena-wizard-step');
+            if (step) { step.dataset.racesFiltered = '1'; }
             var current = checked('race');
             var firstOfRealm = null;
 
