@@ -17,6 +17,13 @@
 
     $oldRealm = old('realm', 'ignis');
     $oldSubclass = old('subclass', 'knight');
+    $oldRace = old('race', \App\Models\Player::defaultRace($oldRealm));
+    $oldGender = old('gender', 'male');
+
+    // Todas las razas de los tres reinos van al HTML: el paso de raza se filtra
+    // en el navegador segun el reino elegido, sin recargar la pagina.
+    $races = \App\Models\Player::RACES;
+    $raceNotes = \App\Models\Player::RACE_NOTES;
 @endphp
 
 @extends('layouts.arena')
@@ -60,6 +67,8 @@
                     id="create-preview"
                     :realm="$oldRealm"
                     :subclass="$oldSubclass"
+                    :race="$oldRace"
+                    :gender="$oldGender"
                     height="clamp(320px, 44vh, 500px)"
                     class="arena-animate-in arena-stagger-1">
                     <div class="arena-champion-overlay">
@@ -67,6 +76,7 @@
                             <h2 class="arena-champion-name" data-preview-name>Tu guerrero</h2>
                             <p class="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[color:var(--arena-muted)] arena-body-text">
                                 <span class="arena-champion-realm" data-preview-realm>Ignis</span>
+                                <span data-preview-race>Esquelio</span>
                                 <span data-preview-subclass>Caballero</span>
                             </p>
                         </div>
@@ -74,7 +84,7 @@
                 </x-arena-champion>
 
                 <p class="mt-3 text-center text-xs text-[color:var(--arena-muted)] arena-body-text">
-                    Vista previa. Los modelos definitivos irán sustituyendo a estas siluetas por reino y subclase.
+                    Vista previa. Los modelos definitivos irán sustituyendo a estas siluetas por reino, raza y sexo.
                 </p>
             </div>
 
@@ -108,10 +118,58 @@
                     </div>
                 </fieldset>
 
-                {{-- 2. Subclase --}}
+                {{-- 2. Raza y sexo --}}
                 <fieldset class="arena-wizard-step arena-animate-in arena-stagger-3" data-done="1">
                     <legend class="flex items-center gap-3 px-1">
                         <span class="arena-wizard-num">2</span>
+                        <span class="text-base font-semibold text-white">Elige tu raza</span>
+                    </legend>
+                    <p class="mb-3 mt-1 text-sm text-[color:var(--arena-muted)] arena-body-text">
+                        Solo cambia cómo se ve tu guerrero. No da ninguna ventaja en el ladder.
+                    </p>
+
+                    <div class="grid gap-2.5 sm:grid-cols-2" data-race-options>
+                        @foreach($races as $realmKey => $realmRaces)
+                            @foreach($realmRaces as $raceKey => $raceLabel)
+                                {{-- Cada tarjeta declara a que reino pertenece; el paso 1 decide
+                                     cuales se muestran. Sin JavaScript se ven todas y el servidor
+                                     rechaza una raza que no case con el reino. --}}
+                                <label class="arena-choice" data-race-of="{{ $realmKey }}"
+                                       @if($realmKey !== $oldRealm) hidden @endif>
+                                    <input type="radio" name="race" value="{{ $raceKey }}"
+                                           data-preview-input="race"
+                                           data-label="{{ $raceLabel }}"
+                                           data-realm="{{ $realmKey }}"
+                                           @checked($oldRace === $raceKey && $oldRealm === $realmKey)>
+                                    <span class="arena-choice-body" style="align-items: flex-start; text-align: left">
+                                        <span class="arena-choice-title">{{ $raceLabel }}</span>
+                                        <span class="arena-choice-note">{{ $raceNotes[$raceKey] ?? '' }}</span>
+                                    </span>
+                                </label>
+                            @endforeach
+                        @endforeach
+                    </div>
+
+                    <p class="mb-2 mt-4 text-sm font-semibold text-white arena-body-text">Sexo</p>
+                    <div class="grid grid-cols-2 gap-2.5">
+                        @foreach(\App\Models\Player::GENDERS as $genderKey => $genderLabel)
+                            <label class="arena-choice">
+                                <input type="radio" name="gender" value="{{ $genderKey }}" required
+                                       data-preview-input="gender"
+                                       data-label="{{ $genderLabel }}"
+                                       @checked($oldGender === $genderKey)>
+                                <span class="arena-choice-body">
+                                    <span class="arena-choice-title">{{ $genderLabel }}</span>
+                                </span>
+                            </label>
+                        @endforeach
+                    </div>
+                </fieldset>
+
+                {{-- 3. Subclase --}}
+                <fieldset class="arena-wizard-step arena-animate-in arena-stagger-3" data-done="1">
+                    <legend class="flex items-center gap-3 px-1">
+                        <span class="arena-wizard-num">3</span>
                         <span class="text-base font-semibold text-white">Elige tu subclase</span>
                     </legend>
                     <p class="mb-3 mt-1 text-sm text-[color:var(--arena-muted)] arena-body-text">
@@ -136,10 +194,10 @@
                     </p>
                 </fieldset>
 
-                {{-- 3. Nombre --}}
+                {{-- 4. Nombre --}}
                 <fieldset class="arena-wizard-step arena-animate-in arena-stagger-4">
                     <legend class="flex items-center gap-3 px-1">
-                        <span class="arena-wizard-num">3</span>
+                        <span class="arena-wizard-num">4</span>
                         <span class="text-base font-semibold text-white">Ponle nombre</span>
                     </legend>
                     <p class="mb-3 mt-1 text-sm text-[color:var(--arena-muted)] arena-body-text">
@@ -178,10 +236,10 @@
 
 @push('scripts')
 <script>
-    /* La vista previa sigue a los campos: cada cambio de reino o subclase
-       reconstruye el guerrero, y el nombre se escribe encima del escenario
-       según se teclea. Sin JavaScript el formulario funciona igual, solo que
-       sin previsualización. */
+    /* La vista previa sigue a los campos: reino, raza, sexo y subclase
+       reconstruyen el guerrero, y el nombre se escribe encima del escenario
+       segun se teclea. Sin JavaScript el formulario funciona igual: se ven
+       todas las razas y el servidor rechaza la que no case con el reino. */
     (function () {
         var form = document.getElementById('createChampionForm');
         if (!form) { return; }
@@ -189,14 +247,44 @@
         var host = document.querySelector('[data-champion-id="create-preview"]');
         var nameOut = document.querySelector('[data-preview-name]');
         var realmOut = document.querySelector('[data-preview-realm]');
+        var raceOut = document.querySelector('[data-preview-race]');
         var subclassOut = document.querySelector('[data-preview-subclass]');
 
         function checked(name) {
             return form.querySelector('input[name="' + name + '"]:checked');
         }
 
+        /* Cada reino tiene sus razas. Al cambiar de reino se ocultan las que no
+           tocan y, si la que estaba elegida era de otro reino, se pasa a la
+           primera del nuevo (siempre la variante humana). */
+        function syncRaces(realm) {
+            var options = form.querySelectorAll('[data-race-of]');
+            var current = checked('race');
+            var firstOfRealm = null;
+
+            options.forEach(function (option) {
+                var belongs = option.dataset.raceOf === realm;
+                option.hidden = !belongs;
+
+                var input = option.querySelector('input');
+                // Un radio oculto no debe seguir siendo obligatorio ni enviable.
+                input.disabled = !belongs;
+
+                if (belongs && !firstOfRealm) { firstOfRealm = input; }
+                if (!belongs && input.checked) { input.checked = false; }
+            });
+
+            if (firstOfRealm && (!current || current.disabled || !current.checked)) {
+                firstOfRealm.checked = true;
+            }
+        }
+
         function refresh() {
             var realm = checked('realm');
+            if (realm) { syncRaces(realm.value); }
+
+            var race = checked('race');
+            var gender = checked('gender');
             var subclass = checked('subclass');
             var name = form.querySelector('input[name="character_name"]');
 
@@ -204,17 +292,22 @@
                 realmOut.textContent = realm.dataset.label;
                 if (host) { host.dataset.championRealm = realm.value; }
             }
+            if (race) { raceOut.textContent = race.dataset.label; }
             if (subclass) { subclassOut.textContent = subclass.dataset.label; }
 
             nameOut.textContent = (name && name.value.trim()) ? name.value.trim() : 'Tu guerrero';
 
             var viewer = window.arenaChampionViewers && window.arenaChampionViewers['create-preview'];
-            if (viewer && realm && subclass) { viewer.set(realm.value, subclass.value); }
+            if (viewer && realm && subclass) {
+                viewer.set(realm.value, subclass.value, race ? race.value : null, gender ? gender.value : 'male');
+            }
 
             // El paso queda marcado como resuelto en cuanto tiene respuesta.
             form.querySelectorAll('.arena-wizard-step').forEach(function (step) {
-                var input = step.querySelector('input[type="radio"]:checked, input[type="text"]');
-                var done = input && (input.type === 'radio' || input.value.trim().length >= 3);
+                var text = step.querySelector('input[type="text"]');
+                var done = text
+                    ? text.value.trim().length >= 3
+                    : step.querySelectorAll('input[type="radio"]:checked').length > 0;
                 step.dataset.done = done ? '1' : '0';
             });
         }

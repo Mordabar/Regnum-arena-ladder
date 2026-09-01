@@ -303,6 +303,10 @@ class AdminController extends Controller
             'mmr' => isset($validated['mmr']) ? (int) $validated['mmr'] : 800,
             'trust_score' => 100,
             'is_active' => true,
+            // Un personaje creado a mano tambien necesita aspecto: sin raza el
+            // visor no sabria que maniqui dibujar.
+            'race' => Player::defaultRace($validated['realm']),
+            'gender' => 'male',
         ]);
 
         app(LadderCacheService::class)->forgetSummary();

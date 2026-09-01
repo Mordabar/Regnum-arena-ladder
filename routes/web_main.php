@@ -110,3 +110,4 @@ Route::prefix('/' . $arenaAdminPath)->group(function () {
         });
     });
 });
+

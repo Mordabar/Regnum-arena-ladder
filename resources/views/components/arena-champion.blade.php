@@ -1,6 +1,8 @@
 @props([
     'realm' => 'ignis',
     'subclass' => 'knight',
+    'race' => null,
+    'gender' => 'male',
     'height' => '420px',
     'id' => null,
     'parallax' => true,
@@ -20,6 +22,8 @@
      data-champion-id="{{ $viewerId }}"
      data-champion-realm="{{ $realm }}"
      data-champion-subclass="{{ $subclass }}"
+     data-champion-race="{{ $race ?: \App\Models\Player::defaultRace($realm) }}"
+     data-champion-gender="{{ $gender ?: 'male' }}"
      data-champion-parallax="{{ $parallax ? '1' : '0' }}"
      style="height: {{ $height }}">
 

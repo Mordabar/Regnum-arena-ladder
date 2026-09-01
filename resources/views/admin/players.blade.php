@@ -134,6 +134,7 @@
                         </div>
                         <div class="ap-list-meta">
                             {{ \App\Models\Player::SUBCLASSES[$player->subclass] ?? ucfirst($player->subclass) }}
+                            · {{ $player->raceName() }} · {{ $player->genderName() }}
                             @if($player->user?->discord_username) · {{ $player->user->discord_username }} @endif
                         </div>
                     </th>

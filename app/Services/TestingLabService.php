@@ -229,6 +229,11 @@ class TestingLabService
             'character_name' => $this->generateRandomCharacterName(),
             'subclass' => $subclass,
             'realm' => $realm,
+            // Los bots tambien tienen aspecto: si todos salieran con la misma
+            // raza y sexo, el laboratorio no serviria para ver como queda la
+            // variedad real de guerreros.
+            'race' => array_rand(Player::RACES[$realm] ?? Player::RACES['ignis']),
+            'gender' => array_rand(Player::GENDERS),
             'pl_points' => 0,
             'mmr' => random_int(760, 1120),
             'matches_played' => 0,

@@ -52,6 +52,15 @@ class PlayerController extends Controller
             ],
             'subclass' => ['required', Rule::in(array_keys(Player::SUBCLASSES))],
             'realm' => ['required', Rule::in(array_keys(Player::REALMS))],
+            // La raza tiene que existir DENTRO del reino elegido: un enano no
+            // es de Ignis. Se valida en el servidor y no solo escondiendo
+            // opciones en el formulario.
+            'race' => ['required', 'string', function ($attribute, $value, $fail) use ($request) {
+                if (!Player::raceBelongsToRealm($value, $request->input('realm'))) {
+                    $fail('Esa raza no pertenece al reino elegido.');
+                }
+            }],
+            'gender' => ['required', Rule::in(array_keys(Player::GENDERS))],
         ], [
             'character_name.required' => 'El nombre del personaje es obligatorio',
             'character_name.min' => 'El nombre debe tener al menos 3 caracteres',
@@ -62,6 +71,8 @@ class PlayerController extends Controller
             'subclass.in' => 'Subclase no valida',
             'realm.required' => 'Debes seleccionar un reino',
             'realm.in' => 'Reino no valido',
+            'race.required' => 'Debes elegir una raza',
+            'gender.required' => 'Debes elegir el sexo del personaje',
         ]);
 
         Player::create([
@@ -69,6 +80,8 @@ class PlayerController extends Controller
             'character_name' => $validated['character_name'],
             'subclass' => $validated['subclass'],
             'realm' => $validated['realm'],
+            'race' => $validated['race'],
+            'gender' => $validated['gender'],
         ]);
 
         app(LadderCacheService::class)->forgetSummary();

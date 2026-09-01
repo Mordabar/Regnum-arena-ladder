@@ -1,15 +1,35 @@
 # Modelos 3D de guerreros
 
-Cada archivo se llama `{reino}-{subclase}.glb` y el visor lo carga solo si
-existe. Mientras falte, ese guerrero se dibuja con la silueta generada por
-codigo, asi que los modelos se pueden subir de uno en uno sin tocar codigo ni
-esperar a tenerlos todos.
+El visor busca el archivo mas concreto que exista y, si no hay ninguno, dibuja
+la silueta generada por codigo. Se pueden subir de uno en uno sin tocar codigo.
 
-Combinaciones posibles (18 en total):
+## Nombres de archivo, del mas concreto al mas general
 
-    ignis|alsius|syrtis  x  knight|barbarian|hunter|marksman|conjurer|warlock
+1. `{reino}-{raza}-{sexo}-{subclase}.glb` — cuerpo y armadura completos.
+2. `{reino}-{raza}-{sexo}.glb` — **este es el nivel base**: el cuerpo con la
+   ropa del reino. El arma y la armadura de la subclase quedan a cargo de la
+   silueta hasta que exista el nivel 1.
+3. `{reino}-{subclase}.glb` — respaldo antiguo, un modelo por reino y subclase.
 
-Ejemplos: `ignis-knight.glb`, `alsius-conjurer.glb`, `syrtis-marksman.glb`.
+## Los 24 modelos base (nivel 2)
+
+12 combinaciones de reino y raza, por dos sexos. Los humanos son tres razas
+distintas aunque compartan cuerpo, porque la ropa cambia con el reino.
+
+| Reino  | Razas                                  |
+|--------|----------------------------------------|
+| Alsius | nordo, utghar, dwarf, lamai            |
+| Ignis  | esquelio, dark_elf, molok, lamai       |
+| Syrtis | alturian, wood_elf, half_elf, lamai    |
+
+Sexos: `male`, `female`.
+
+Ejemplos: `alsius-dwarf-male.glb`, `ignis-dark_elf-female.glb`,
+`syrtis-wood_elf-male.glb`.
+
+## Subclases (para el nivel 1)
+
+`knight`, `barbarian`, `hunter`, `marksman`, `conjurer`, `warlock`.
 
 ## Que tiene que cumplir cada modelo
 
@@ -23,5 +43,5 @@ Ejemplos: `ignis-knight.glb`, `alsius-conjurer.glb`, `syrtis-marksman.glb`.
 ## Como comprobar que funciona
 
 Deja el archivo aqui y recarga el lobby. Si el nombre es correcto, la silueta
-se sustituye sola. Si no aparece, revisa el nombre: tiene que coincidir con la
-clave del reino y de la subclase tal y como estan en la base de datos.
+se sustituye sola. Si no aparece, revisa que el nombre coincida exactamente con
+las claves de reino, raza, sexo y subclase que usa la base de datos.

@@ -1588,6 +1588,8 @@
                     window.arenaChampionViewers[host.dataset.championId] = window.ArenaChampion.mount(canvas, {
                         realm: host.dataset.championRealm,
                         subclass: host.dataset.championSubclass,
+                        race: host.dataset.championRace,
+                        gender: host.dataset.championGender,
                         parallax: host.dataset.championParallax !== '0'
                     });
                 });

@@ -197,6 +197,8 @@
                     id="queue-stage"
                     :realm="$queuedPlayer->realm"
                     :subclass="$queuedPlayer->subclass"
+                    :race="$queuedPlayer->race"
+                    :gender="$queuedPlayer->gender"
                     height="clamp(240px, 30vh, 340px)"
                     :parallax="false"
                     class="mb-5">
@@ -205,6 +207,7 @@
                             <h2 class="arena-champion-name" style="font-size: clamp(20px, 3vw, 28px)">{{ $queuedPlayer->cleanName() }}</h2>
                             <p class="mt-1 flex flex-wrap items-center gap-x-4 text-sm text-[color:var(--arena-muted)] arena-body-text">
                                 <span class="arena-champion-realm">{{ \App\Models\Player::REALMS[$queuedPlayer->realm] ?? $queuedPlayer->realm }}</span>
+                                <span>{{ $queuedPlayer->raceName() }}</span>
                                 <span>{{ \App\Models\Player::SUBCLASSES[$queuedPlayer->subclass] ?? $queuedPlayer->subclass }}</span>
                             </p>
                         </div>

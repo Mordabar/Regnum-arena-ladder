@@ -14,6 +14,8 @@ class Player extends Model
         'character_name',
         'subclass',
         'realm',
+        'race',
+        'gender',
         'pl_points',
         'mmr',
         'matches_played',
@@ -181,6 +183,81 @@ class Player extends Model
         'conjurer' => 'Conjurador',
         'warlock' => 'Brujo'
     ];
+
+    /**
+     * Razas jugables de cada reino.
+     *
+     * Salen del juego: cada reino tiene su variante humana y dos razas propias,
+     * y los lamai son comunes a los tres. En el ladder la raza no da ninguna
+     * ventaja, solo cambia el aspecto del guerrero.
+     */
+    const RACES = [
+        'alsius' => [
+            'nordo' => 'Nordo',
+            'utghar' => 'Utghar',
+            'dwarf' => 'Enano',
+            'lamai' => 'Lamai',
+        ],
+        'ignis' => [
+            'esquelio' => 'Esquelio',
+            'dark_elf' => 'Elfo oscuro',
+            'molok' => 'Molok',
+            'lamai' => 'Lamai',
+        ],
+        'syrtis' => [
+            'alturian' => 'Alturiano',
+            'wood_elf' => 'Elfo del bosque',
+            'half_elf' => 'Semielfo',
+            'lamai' => 'Lamai',
+        ],
+    ];
+
+    /**
+     * Sexo del personaje. Solo cambia el maniqui: cintura, caderas y falda.
+     * No toca nada del ladder ni del emparejamiento.
+     */
+    const GENDERS = [
+        'male' => 'Masculino',
+        'female' => 'Femenino',
+    ];
+
+    /** En que se nota cada raza a simple vista. */
+    const RACE_NOTES = [
+        'nordo' => 'Humano del norte, complexión corriente.',
+        'utghar' => 'Corpulento y con cuernos.',
+        'dwarf' => 'Bajo, ancho y con barba.',
+        'lamai' => 'Menudo y de orejas grandes.',
+        'esquelio' => 'Humano del desierto, complexión corriente.',
+        'dark_elf' => 'Piel morada y orejas puntiagudas.',
+        'molok' => 'Enorme y de piel oscura.',
+        'alturian' => 'Humano del bosque, complexión corriente.',
+        'wood_elf' => 'Esbelto, piel clara y orejas largas.',
+        'half_elf' => 'Como un humano, con orejas algo puntiagudas.',
+    ];
+
+    /** Raza por defecto de un reino: siempre su variante humana. */
+    public static function defaultRace(string $realm): string
+    {
+        return array_key_first(self::RACES[$realm] ?? self::RACES['ignis']);
+    }
+
+    /** Si esa raza se puede elegir en ese reino. */
+    public static function raceBelongsToRealm(?string $race, ?string $realm): bool
+    {
+        return $race !== null
+            && $realm !== null
+            && array_key_exists($race, self::RACES[$realm] ?? []);
+    }
+
+    public function raceName(): string
+    {
+        return self::RACES[$this->realm][$this->race] ?? 'Sin raza';
+    }
+
+    public function genderName(): string
+    {
+        return self::GENDERS[$this->gender] ?? self::GENDERS['male'];
+    }
 
     /** Que hace cada subclase en la arena, en una linea, para quien no conoce el juego. */
     const SUBCLASS_NOTES = [

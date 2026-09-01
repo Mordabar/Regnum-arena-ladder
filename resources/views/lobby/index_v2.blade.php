@@ -21,6 +21,9 @@
         'realmName' => \App\Models\Player::REALMS[$p->realm] ?? ucfirst($p->realm),
         'subclass' => $p->subclass,
         'subclassName' => \App\Models\Player::SUBCLASSES[$p->subclass] ?? ucfirst($p->subclass),
+        'race' => $p->race,
+        'raceName' => $p->raceName(),
+        'gender' => $p->gender ?: 'male',
         'pl' => number_format((float) $p->pl_points, 1),
         'mmr' => $p->mmr,
         'wins' => $p->wins,
@@ -94,6 +97,8 @@
                                 data-player-id="{{ $player->id }}"
                                 data-realm="{{ $player->realm }}"
                                 data-subclass="{{ $player->subclass }}"
+                                data-race="{{ $player->race }}"
+                                data-gender="{{ $player->gender }}"
                                 aria-selected="{{ $loop->first ? 'true' : 'false' }}"
                                 style="--slot-realm: var(--arena-{{ $player->realm === 'ignis' ? 'fire' : ($player->realm === 'alsius' ? 'ice' : 'forest') }})">
                             <span class="arena-roster-crest">
@@ -103,7 +108,7 @@
                                 <span class="arena-roster-name">{{ $player->cleanName() }}</span>
                                 <span class="arena-roster-meta">
                                     {{ \App\Models\Player::SUBCLASSES[$player->subclass] ?? ucfirst($player->subclass) }}
-                                    · {{ \App\Models\Player::REALMS[$player->realm] ?? ucfirst($player->realm) }}
+                                    · {{ $player->raceName() }}
                                 </span>
                             </span>
                             <span class="arena-roster-pl">{{ number_format((float) $player->pl_points, 1) }}</span>
@@ -128,6 +133,8 @@
                     id="lobby-stage"
                     :realm="$featured->realm"
                     :subclass="$featured->subclass"
+                    :race="$featured->race"
+                    :gender="$featured->gender"
                     height="clamp(340px, 46vh, 520px)"
                     class="arena-animate-in arena-stagger-2">
 
@@ -145,6 +152,7 @@
                             </div>
                             <p class="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[color:var(--arena-muted)] arena-body-text">
                                 <span class="arena-champion-realm" data-champion-realm-name>—</span>
+                                <span data-champion-race-name>—</span>
                                 <span data-champion-subclass-name>—</span>
                                 <span data-champion-matches>—</span>
                             </p>
@@ -242,6 +250,7 @@
 
             document.querySelector('[data-champion-name]').textContent = c.name;
             document.querySelector('[data-champion-realm-name]').textContent = c.realmName;
+            document.querySelector('[data-champion-race-name]').textContent = c.raceName;
             document.querySelector('[data-champion-subclass-name]').textContent = c.subclassName;
             document.querySelector('[data-champion-matches]').textContent =
                 c.wins + ' victorias · ' + c.losses + ' derrotas';
@@ -256,7 +265,7 @@
             if (stage) { stage.dataset.championRealm = c.realm; }
 
             var viewer = window.arenaChampionViewers && window.arenaChampionViewers['lobby-stage'];
-            if (viewer) { viewer.set(c.realm, c.subclass); }
+            if (viewer) { viewer.set(c.realm, c.subclass, c.race, c.gender); }
 
             document.querySelectorAll('[data-champion-panel]').forEach(function (panel) {
                 panel.hidden = panel.dataset.playerId !== String(id);

@@ -70,6 +70,8 @@
                     id="duel-stage"
                     :realm="$player->realm"
                     :subclass="$player->subclass"
+                    :race="$player->race"
+                    :gender="$player->gender"
                     height="230px"
                     :parallax="false"
                     class="arena-duel-stage" />

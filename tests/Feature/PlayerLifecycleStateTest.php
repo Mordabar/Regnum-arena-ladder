@@ -102,6 +102,8 @@ it('el nombre queda libre para volver a crear el personaje', function () {
             'character_name' => 'Renace',
             'subclass' => 'hunter',
             'realm' => 'ignis',
+            'race' => 'esquelio',
+            'gender' => 'male',
         ])
         ->assertRedirect()
         ->assertSessionHasNoErrors();
@@ -163,14 +165,14 @@ it('un eliminado no ocupa slot de personaje', function () {
 
     // Con los 5 slots llenos no deja crear.
     $this->actingAs($user)
-        ->post(route('player.register'), ['character_name' => 'Sexto', 'subclass' => 'knight', 'realm' => 'ignis'])
+        ->post(route('player.register'), ['character_name' => 'Sexto', 'subclass' => 'knight', 'realm' => 'ignis', 'race' => 'esquelio', 'gender' => 'male'])
         ->assertRedirect();
     expect(Player::query()->where('character_name', 'Sexto')->exists())->toBeFalse();
 
     $this->actingAs($user)->delete(route('player.destroy', $user->players()->first()))->assertRedirect();
 
     $this->actingAs($user)
-        ->post(route('player.register'), ['character_name' => 'Sexto', 'subclass' => 'knight', 'realm' => 'ignis'])
+        ->post(route('player.register'), ['character_name' => 'Sexto', 'subclass' => 'knight', 'realm' => 'ignis', 'race' => 'esquelio', 'gender' => 'male'])
         ->assertRedirect()
         ->assertSessionHasNoErrors();
 
