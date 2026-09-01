@@ -458,7 +458,7 @@ class QueueHubController extends Controller
 
             foreach ($players as $index => $player) {
                 /** @var \App\Models\Player $player */
-                if (!$player->is_active) throw new \RuntimeException('Todos los personajes deben estar activos.');
+                if (!$player->is_active) throw new \RuntimeException('Todos los personajes de la party deben estar habilitados.');
                 if ($player->isQueueLocked()) throw new \RuntimeException($player->character_name . ' esta bloqueado de las colas de juego.');
                 
                 $role = $this->resolveConjurerRoleForPlayer($player, $roleInputs->get($index));
@@ -910,7 +910,7 @@ class QueueHubController extends Controller
         }
 
         if (!$player->is_active) {
-            throw new \RuntimeException('El personaje debe estar activo.');
+            throw new \RuntimeException('Este personaje esta deshabilitado: recuperalo desde el lobby para volver a usarlo.');
         }
 
         if ($player->isQueueLocked()) {

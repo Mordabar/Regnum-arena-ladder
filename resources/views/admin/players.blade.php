@@ -85,8 +85,10 @@
         <label class="ap-label" for="f-status">Estado</label>
         <select name="status" id="f-status" class="ap-select">
             <option value="">Cualquiera</option>
-            <option value="active" @selected($status === 'active')>Activos</option>
-            <option value="inactive" @selected($status === 'inactive')>Inactivos</option>
+            <option value="active" @selected($status === 'active')>Habilitados</option>
+            <option value="inactive" @selected($status === 'inactive')>Fuera de juego (todos)</option>
+            <option value="disabled" @selected($status === 'disabled')>Deshabilitados</option>
+            <option value="deleted" @selected($status === 'deleted')>Eliminados por su dueño</option>
             <option value="locked" @selected($status === 'locked')>Sancionados</option>
             <option value="dormant" @selected($status === 'dormant')>Sin actividad ({{ $dormancyDays }}+ dias)</option>
         </select>
@@ -140,7 +142,7 @@
                             @if($isLocked)
                                 <span class="ap-badge ap-badge-danger"><span class="ap-badge-dot"></span>Sancionado</span>
                             @elseif(!$player->is_active)
-                                <span class="ap-badge ap-badge-neutral"><span class="ap-badge-dot"></span>Inactivo</span>
+                                <span class="ap-badge ap-badge-neutral"><span class="ap-badge-dot"></span>{{ $player->statusLabel() }}</span>
                             @else
                                 <span class="ap-badge ap-badge-ok"><span class="ap-badge-dot"></span>Activo</span>
                             @endif
@@ -196,7 +198,7 @@
                                     <form method="POST" action="{{ route('admin.players.update', $player) }}">
                                         @csrf
                                         <input type="hidden" name="action" value="toggle_active">
-                                        <button type="submit" class="ap-btn ap-btn-sm">{{ $player->is_active ? 'Desactivar' : 'Reactivar' }}</button>
+                                        <button type="submit" class="ap-btn ap-btn-sm">{{ $player->is_active ? 'Deshabilitar' : 'Habilitar' }}</button>
                                     </form>
                                     @if(!$activeQueue)
                                         @php($adminEnabledModes = \App\Support\ArenaMode::enabled())

@@ -219,6 +219,18 @@ class AdminController extends Controller
                 $query->whereNotNull('queue_locked_until')->where('queue_locked_until', '>', now());
             } elseif ($status === 'inactive') {
                 $query->where('is_active', false);
+            } elseif ($status === 'deleted') {
+                // Los borro su dueno: la fila sigue ahi para no perder su
+                // historial de enfrentamientos.
+                $query->where('is_active', false)
+                    ->where('deactivated_reason', Player::DEACTIVATED_BY_PLAYER);
+            } elseif ($status === 'disabled') {
+                // Apagados desde el panel. Las filas antiguas, sin motivo
+                // guardado, tambien caen aqui: es lo unico que se sabe de ellas.
+                $query->where('is_active', false)
+                    ->where(fn ($builder) => $builder
+                        ->where('deactivated_reason', Player::DEACTIVATED_BY_ADMIN)
+                        ->orWhereNull('deactivated_reason'));
             } elseif ($status === 'active') {
                 $query->where('is_active', true);
             } elseif ($status === 'dormant') {
@@ -336,14 +348,29 @@ class AdminController extends Controller
                     ]);
                 }
 
-                $player->update(['is_active' => !$player->is_active]);
+                // Al apagarlo queda constancia de que fue decision del panel, no
+                // del jugador: son dos estados distintos y se muestran distinto.
+                $player->update($player->is_active
+                    ? [
+                        'is_active' => false,
+                        'deactivated_reason' => Player::DEACTIVATED_BY_ADMIN,
+                        'deactivated_at' => now(),
+                    ]
+                    : [
+                        'is_active' => true,
+                        'deactivated_reason' => null,
+                        'deactivated_at' => null,
+                    ]);
+
                 app(LadderCacheService::class)->forgetSummary();
-                $message = 'Estado del personaje actualizado.';
+                $message = $player->is_active
+                    ? 'Personaje habilitado.'
+                    : 'Personaje deshabilitado.';
                 break;
 
             case 'enqueue_random':
                 if (!$player->is_active) {
-                    return back()->withErrors(['error' => 'No puedes encolar un personaje inactivo.']);
+                    return back()->withErrors(['error' => 'No puedes encolar un personaje deshabilitado.']);
                 }
 
                 if ($player->isQueueLocked()) {

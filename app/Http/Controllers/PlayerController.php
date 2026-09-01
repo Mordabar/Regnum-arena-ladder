@@ -104,14 +104,18 @@ class PlayerController extends Controller
         $characterName = $player->character_name;
 
         if ($player->matches_played > 0) {
+            // No se borra la fila: sus partidas ya jugadas siguen contando en el
+            // historial y en los enfrentamientos donde aparece.
             $player->update([
                 'is_active' => false,
-                'character_name' => $player->character_name . ' [INACTIVO]',
+                'deactivated_reason' => Player::DEACTIVATED_BY_PLAYER,
+                'deactivated_at' => now(),
+                'character_name' => $player->character_name . Player::DELETED_NAME_SUFFIX,
             ]);
 
             app(LadderCacheService::class)->forgetSummary();
 
-            return redirect()->route('lobby')->with('warning', "Personaje '{$characterName}' desactivado (tenia {$player->matches_played} partidas). Sus estadisticas se mantienen en el ranking pero no podra usarse mas.");
+            return redirect()->route('lobby')->with('warning', "Personaje '{$characterName}' eliminado (tenia {$player->matches_played} partidas). Su historial de enfrentamientos se conserva, pero sale del ranking y ya no puede entrar en cola. Puedes recuperarlo desde el lobby.");
         }
 
         $player->delete();
@@ -130,7 +134,7 @@ class PlayerController extends Controller
             return redirect()->route('lobby')->with('error', 'Este personaje ya esta activo');
         }
 
-        $cleanName = str_replace(' [INACTIVO]', '', $player->character_name);
+        $cleanName = $player->cleanName();
 
         $nameExists = Player::where('character_name', $cleanName)
             ->where('realm', $player->realm)
@@ -144,6 +148,8 @@ class PlayerController extends Controller
 
         $player->update([
             'is_active' => true,
+            'deactivated_reason' => null,
+            'deactivated_at' => null,
             'character_name' => $cleanName,
         ]);
 

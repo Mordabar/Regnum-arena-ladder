@@ -96,9 +96,11 @@
                                     <x-arena-realm-icon :realm="$player->realm" size="lg" />
                                     <div>
                                         <div class="flex flex-wrap items-center gap-2">
-                                            <h3 class="text-xl font-semibold text-white">{{ $player->character_name }}</h3>
+                                            {{-- Sin la marca [ELIMINADO]: la insignia de al lado ya dice
+                                                 en que estado esta, y repetirlo ensucia el nombre. --}}
+                                            <h3 class="text-xl font-semibold text-white">{{ $player->cleanName() }}</h3>
                                             <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold {{ $player->is_active ? 'bg-emerald-900/40 text-emerald-200' : 'bg-amber-900/40 text-amber-200' }}">
-                                                {{ $player->is_active ? 'Activo' : 'Inactivo' }}
+                                                {{ $player->statusLabel() }}
                                             </span>
                                         </div>
                                         <p class="mt-1 text-sm text-[color:var(--arena-muted)] arena-body-text">
@@ -156,14 +158,18 @@
 
                                     @if($players->count() > 1)
                                         <button type="button" class="arena-btn-ghost px-4 py-2 text-sm" data-modal-open="modal-deactivate-{{ $player->id }}">
-                                            {{ $player->matches_played > 0 ? 'Desactivar' : 'Eliminar' }}
+                                            Eliminar
                                         </button>
-                                        <x-arena-modal :id="'modal-deactivate-'.$player->id" :title="($player->matches_played > 0 ? 'Desactivar' : 'Eliminar') . ' a ' . $player->character_name" variant="danger">
+                                        <x-arena-modal :id="'modal-deactivate-'.$player->id" :title="'Eliminar a ' . $player->character_name" variant="danger">
                                             <p class="text-sm text-[color:var(--arena-muted)] arena-body-text">
                                                 @if($player->matches_played > 0)
-                                                    Este personaje tiene {{ $player->matches_played }} partidas registradas. Se desactivará pero no se eliminarán sus estadísticas.
+                                                    Este personaje tiene {{ $player->matches_played }} partidas registradas.
+                                                    Su historial de enfrentamientos se conserva, pero saldrá del ranking
+                                                    y no podrá volver a entrar en cola. Puedes recuperarlo más adelante
+                                                    desde este mismo lobby.
                                                 @else
-                                                    Este personaje será eliminado permanentemente.
+                                                    Este personaje será eliminado permanentemente. No tiene partidas
+                                                    jugadas, así que no queda nada que conservar.
                                                 @endif
                                             </p>
                                             <div class="mt-5 flex gap-3">
@@ -179,7 +185,7 @@
                                 @else
                                     <form method="POST" action="{{ route('player.reactivate', $player) }}">
                                         @csrf
-                                        <button type="submit" class="arena-btn-secondary px-4 py-2 text-sm">Reactivar guerrero</button>
+                                        <button type="submit" class="arena-btn-secondary px-4 py-2 text-sm">Recuperar guerrero</button>
                                     </form>
                                 @endif
                             </div>

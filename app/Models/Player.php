@@ -26,7 +26,18 @@ class Player extends Model
         'last_penalty_type',
         'last_penalty_at',
         'is_active',
+        'deactivated_reason',
+        'deactivated_at',
     ];
+
+    /** El jugador borro el personaje. Sus partidas jugadas se conservan. */
+    public const DEACTIVATED_BY_PLAYER = 'deleted_by_player';
+
+    /** Un administrador lo apago desde el panel. */
+    public const DEACTIVATED_BY_ADMIN = 'disabled_by_admin';
+
+    /** Marca que se anade al nombre de un personaje borrado por su dueno. */
+    public const DELETED_NAME_SUFFIX = ' [ELIMINADO]';
 
     protected function casts(): array
     {
@@ -39,9 +50,36 @@ class Player extends Model
             'trust_score' => 'integer',
             'penalty_strikes' => 'integer',
             'is_active' => 'boolean',
+            'deactivated_at' => 'datetime',
             'queue_locked_until' => 'datetime',
             'last_penalty_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Como se llama el estado del personaje de cara a quien lo lee.
+     *
+     * "Inactivo" ya no se usa: se confundia con la metrica de actividad del
+     * ladder, que mide otra cosa (cuanto hace que su dueno no entra).
+     */
+    public function statusLabel(): string
+    {
+        if ($this->is_active) {
+            return 'Activo';
+        }
+
+        return match ($this->deactivated_reason) {
+            self::DEACTIVATED_BY_PLAYER => 'Eliminado',
+            self::DEACTIVATED_BY_ADMIN => 'Deshabilitado',
+            // Filas anteriores a que se guardase el motivo.
+            default => 'Deshabilitado',
+        };
+    }
+
+    /** Nombre sin la marca de eliminado, para reactivar o para mostrarlo limpio. */
+    public function cleanName(): string
+    {
+        return str_replace([self::DELETED_NAME_SUFFIX, ' [INACTIVO]'], '', $this->character_name);
     }
 
     // Relación con User
