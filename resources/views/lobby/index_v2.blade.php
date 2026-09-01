@@ -1,6 +1,9 @@
 @php
     $user = auth()->user();
+    // Los eliminados no aparecen: su fila solo existe para conservar el
+    // historial de enfrentamientos. Recuperarlos se le pide a un admin.
     $players = $user->players()
+        ->visibleToOwner()
         ->orderByDesc('is_active')
         ->orderByDesc('pl_points')
         ->orderByDesc('mmr')
@@ -183,10 +186,10 @@
                                         </x-arena-modal>
                                     @endif
                                 @else
-                                    <form method="POST" action="{{ route('player.reactivate', $player) }}">
-                                        @csrf
-                                        <button type="submit" class="arena-btn-secondary px-4 py-2 text-sm">Recuperar guerrero</button>
-                                    </form>
+                                    <p class="text-sm text-amber-200/80 arena-body-text">
+                                        Un administrador deshabilito este personaje. Escribe al soporte del
+                                        Discord si crees que es un error.
+                                    </p>
                                 @endif
                             </div>
                         </article>

@@ -76,6 +76,30 @@ class Player extends Model
         };
     }
 
+    /**
+     * Personajes que el jugador todavia ve en su lobby.
+     *
+     * Un personaje eliminado desaparece de su vista y del ranking: la fila
+     * sigue existiendo solo para no romper el historial de enfrentamientos ya
+     * jugados. Recuperarlo hay que pedirselo a un administrador.
+     */
+    public function scopeVisibleToOwner($query)
+    {
+        return $query->where(fn ($builder) => $builder
+            ->whereNull('deactivated_reason')
+            ->orWhere('deactivated_reason', '!=', self::DEACTIVATED_BY_PLAYER));
+    }
+
+    public function scopeDeletedByOwner($query)
+    {
+        return $query->where('deactivated_reason', self::DEACTIVATED_BY_PLAYER);
+    }
+
+    public function isDeletedByOwner(): bool
+    {
+        return $this->deactivated_reason === self::DEACTIVATED_BY_PLAYER;
+    }
+
     /** Nombre sin la marca de eliminado, para reactivar o para mostrarlo limpio. */
     public function cleanName(): string
     {

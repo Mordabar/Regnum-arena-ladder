@@ -313,7 +313,7 @@ class AdminController extends Controller
     public function updatePlayer(Request $request, Player $player)
     {
         $validated = $request->validate([
-            'action' => 'required|in:lock_12h,unlock_queue,toggle_active,enqueue_random,remove_from_queue',
+            'action' => 'required|in:lock_12h,unlock_queue,toggle_active,restore_deleted,enqueue_random,remove_from_queue',
             'conjurer_role' => 'nullable|in:support,offensive',
             'arena_mode' => 'nullable|in:' . implode(',', ArenaMode::all()),
         ]);
@@ -366,6 +366,43 @@ class AdminController extends Controller
                 $message = $player->is_active
                     ? 'Personaje habilitado.'
                     : 'Personaje deshabilitado.';
+                break;
+
+            case 'restore_deleted':
+                // Devolver a la vida un personaje que borro su dueno. Es la
+                // unica via: desde el lobby ya no se puede, justamente para que
+                // pase por aqui.
+                if (!$player->isDeletedByOwner()) {
+                    return back()->withErrors([
+                        'error' => 'Este personaje no lo elimino su dueno. Si esta apagado, usa Habilitar.',
+                    ]);
+                }
+
+                $cleanName = $player->cleanName();
+
+                // Mientras estaba fuera, el jugador pudo crear otro personaje
+                // con ese mismo nombre. Devolverselo asi crearia dos iguales.
+                $nameTaken = Player::query()
+                    ->where('character_name', $cleanName)
+                    ->where('realm', $player->realm)
+                    ->where('id', '!=', $player->id)
+                    ->exists();
+
+                if ($nameTaken) {
+                    return back()->withErrors([
+                        'error' => "No se puede recuperar: el nombre '{$cleanName}' ya esta ocupado en " . (Player::REALMS[$player->realm] ?? $player->realm) . '. Renombra primero al que lo ocupa.',
+                    ]);
+                }
+
+                $player->update([
+                    'is_active' => true,
+                    'deactivated_reason' => null,
+                    'deactivated_at' => null,
+                    'character_name' => $cleanName,
+                ]);
+
+                app(LadderCacheService::class)->forgetSummary();
+                $message = "Personaje '{$cleanName}' recuperado y de vuelta en el ranking.";
                 break;
 
             case 'enqueue_random':

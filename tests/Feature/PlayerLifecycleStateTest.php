@@ -73,13 +73,59 @@ it('borrar un personaje sin partidas si lo elimina de verdad', function () {
     expect(Player::query()->find($novato->id))->toBeNull();
 });
 
-it('recuperar un personaje eliminado le quita la marca y el motivo', function () {
+it('un personaje eliminado desaparece del lobby y del ranking de su dueno', function () {
     $user = lifecycleUser('c');
+    $borrado = lifecyclePlayer($user, 'Fantasma', 3);
+    lifecyclePlayer($user, 'Segundo');
+
+    $this->actingAs($user)->delete(route('player.destroy', $borrado))->assertRedirect();
+
+    // La primera carga lleva el aviso de "eliminado", que nombra al personaje.
+    // Lo que importa es la siguiente: ahi ya no debe quedar rastro de el.
+    $this->actingAs($user)->get(route('lobby'))->assertOk();
+    $this->actingAs($user)->get(route('lobby'))
+        ->assertOk()
+        ->assertDontSee('Fantasma');
+
+    $this->get(route('ladder.index'))->assertOk()->assertDontSee('Fantasma');
+});
+
+it('el nombre queda libre para volver a crear el personaje', function () {
+    $user = lifecycleUser('c2');
+    $original = lifecyclePlayer($user, 'Renace', 3);
+    lifecyclePlayer($user, 'Segundo');
+
+    $this->actingAs($user)->delete(route('player.destroy', $original))->assertRedirect();
+
+    $this->actingAs($user)
+        ->post(route('player.register'), [
+            'character_name' => 'Renace',
+            'subclass' => 'hunter',
+            'realm' => 'ignis',
+        ])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    $nuevo = Player::query()->where('character_name', 'Renace')->firstOrFail();
+
+    expect($nuevo->id)->not->toBe($original->id)
+        ->and($nuevo->matches_played)->toBe(0);
+});
+
+it('recuperar un eliminado es cosa del admin, no del jugador', function () {
+    $user = lifecycleUser('c3');
     $veterano = lifecyclePlayer($user, 'Vuelve', 3);
     lifecyclePlayer($user, 'Segundo');
 
     $this->actingAs($user)->delete(route('player.destroy', $veterano))->assertRedirect();
-    $this->actingAs($user)->post(route('player.reactivate', $veterano))->assertRedirect();
+
+    // El jugador ya no tiene ninguna via: la ruta de reactivar no existe.
+    expect(fn () => route('player.reactivate', $veterano))
+        ->toThrow(Symfony\Component\Routing\Exception\RouteNotFoundException::class);
+
+    $this->withSession(lifecycleAdminSession())
+        ->post(route('admin.players.update', $veterano), ['action' => 'restore_deleted'])
+        ->assertRedirect();
 
     $veterano->refresh();
 
@@ -88,6 +134,47 @@ it('recuperar un personaje eliminado le quita la marca y el motivo', function ()
         ->and($veterano->deactivated_reason)->toBeNull()
         ->and($veterano->deactivated_at)->toBeNull()
         ->and($veterano->statusLabel())->toBe('Activo');
+});
+
+it('el admin no puede recuperar si el nombre ya lo ocupa otro personaje', function () {
+    $user = lifecycleUser('c4');
+    $original = lifecyclePlayer($user, 'Choque', 3);
+    lifecyclePlayer($user, 'Segundo');
+
+    $this->actingAs($user)->delete(route('player.destroy', $original))->assertRedirect();
+
+    // El jugador rehizo el personaje con el mismo nombre mientras tanto.
+    lifecyclePlayer($user, 'Choque');
+
+    $this->withSession(lifecycleAdminSession())
+        ->from(route('admin.players.index'))
+        ->post(route('admin.players.update', $original), ['action' => 'restore_deleted'])
+        ->assertRedirect()
+        ->assertSessionHasErrors('error');
+
+    expect($original->fresh()->is_active)->toBeFalse();
+});
+
+it('un eliminado no ocupa slot de personaje', function () {
+    $user = lifecycleUser('c5');
+    foreach (range(1, 5) as $i) {
+        lifecyclePlayer($user, 'Slot' . $i, $i === 1 ? 3 : 0);
+    }
+
+    // Con los 5 slots llenos no deja crear.
+    $this->actingAs($user)
+        ->post(route('player.register'), ['character_name' => 'Sexto', 'subclass' => 'knight', 'realm' => 'ignis'])
+        ->assertRedirect();
+    expect(Player::query()->where('character_name', 'Sexto')->exists())->toBeFalse();
+
+    $this->actingAs($user)->delete(route('player.destroy', $user->players()->first()))->assertRedirect();
+
+    $this->actingAs($user)
+        ->post(route('player.register'), ['character_name' => 'Sexto', 'subclass' => 'knight', 'realm' => 'ignis'])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    expect(Player::query()->where('character_name', 'Sexto')->exists())->toBeTrue();
 });
 
 it('apagar desde el panel se llama deshabilitado, no eliminado', function () {

@@ -195,11 +195,22 @@
                             <div class="ap-actions-group">
                                 <p class="ap-actions-title">Rutina</p>
                                 <div class="flex flex-wrap gap-2">
-                                    <form method="POST" action="{{ route('admin.players.update', $player) }}">
-                                        @csrf
-                                        <input type="hidden" name="action" value="toggle_active">
-                                        <button type="submit" class="ap-btn ap-btn-sm">{{ $player->is_active ? 'Deshabilitar' : 'Habilitar' }}</button>
-                                    </form>
+                                    @if($player->isDeletedByOwner())
+                                        {{-- Lo borro su dueno: desde el lobby ya no puede volver, asi que
+                                             la recuperacion pasa por aqui a proposito. --}}
+                                        <form method="POST" action="{{ route('admin.players.update', $player) }}"
+                                              data-ap-confirm="Vas a devolver '{{ $player->cleanName() }}' a su dueno y al ranking. ¿Seguro?">
+                                            @csrf
+                                            <input type="hidden" name="action" value="restore_deleted">
+                                            <button type="submit" class="ap-btn ap-btn-sm">Recuperar personaje</button>
+                                        </form>
+                                    @else
+                                        <form method="POST" action="{{ route('admin.players.update', $player) }}">
+                                            @csrf
+                                            <input type="hidden" name="action" value="toggle_active">
+                                            <button type="submit" class="ap-btn ap-btn-sm">{{ $player->is_active ? 'Deshabilitar' : 'Habilitar' }}</button>
+                                        </form>
+                                    @endif
                                     @if(!$activeQueue)
                                         @php($adminEnabledModes = \App\Support\ArenaMode::enabled())
                                         <form method="POST" action="{{ route('admin.players.update', $player) }}" class="flex gap-2">
