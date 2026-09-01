@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'Regnum Arena Ladder')</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <script src="https://cdn.tailwindcss.com"></script>
+    {{-- Utilidades compiladas en el propio dominio, no desde un CDN externo. --}}
+    <link rel="stylesheet" href="{{ asset('css/site.css') }}?v={{ @filemtime(public_path('css/site.css')) ?: '1' }}">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
         [x-cloak] { display: none !important; }

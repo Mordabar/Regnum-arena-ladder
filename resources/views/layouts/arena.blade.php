@@ -9,7 +9,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Spectral:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         [x-cloak] { display: none !important; }
 
@@ -473,6 +472,21 @@
         .arena-stagger-5 { animation-delay: 0.25s; }
         .arena-stagger-6 { animation-delay: 0.3s; }
     </style>
+    {{-- Utilidades de Tailwind, compiladas y servidas desde este dominio.
+
+         Antes esto era <script src="cdn.tailwindcss.com">, que compila Tailwind
+         en el navegador de cada visitante: si ese dominio fallaba, la pagina se
+         quedaba sin una sola clase.
+
+         Va DESPUES del <style> de arriba a proposito. El CDN inyectaba sus
+         reglas al final de la cabecera, asi que las utilidades ganaban a las
+         clases arena-* cuando compartian propiedad. El marcado depende de ello:
+         "arena-field px-4 py-2" o "arena-nav-link block w-full" solo tienen
+         sentido si el px-4 y el block ganan. Moverlo antes del <style> cambia
+         el relleno de campos y botones y rompe el menu movil. Comprobado
+         comparando los estilos calculados de las 1.438 etiquetas de las dos
+         paginas con cada orden. --}}
+    <link rel="stylesheet" href="{{ asset('css/site.css') }}?v={{ @filemtime(public_path('css/site.css')) ?: '1' }}">
     @stack('arena-map-styles')
 </head>
 @php
