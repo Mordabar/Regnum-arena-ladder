@@ -4,7 +4,10 @@
     "version": "1.0.0",
     "scripts": {
         "dev": "vite",
-        "build": "vite build"
+        "build": "npm run build:site && npm run build:admin",
+        "build:site": "tailwindcss -i resources/css/site.css -o public/css/site.css --minify",
+        "build:admin": "tailwindcss -c tailwind.admin.config.js -i resources/css/admin.css -o public/css/admin.css --minify",
+        "check:css": "node tools/check-css-coverage.mjs"
     },
     "devDependencies": {
         "@tailwindcss/forms": "^0.5.7",

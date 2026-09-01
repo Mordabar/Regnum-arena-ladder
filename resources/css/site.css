@@ -1,0 +1,18 @@
+/*
+ * Hoja del sitio publico.
+ *
+ * Antes las utilidades llegaban por <script src="cdn.tailwindcss.com">, que
+ * compila Tailwind en el navegador de cada visitante: si ese dominio caia o
+ * estaba bloqueado, la pagina se quedaba sin ninguna clase y el sitio se veia
+ * como un documento sin maquetar. Ahora se compila aqui y se sirve desde el
+ * propio dominio.
+ *
+ * El diseno no vive en este archivo: los tokens y los componentes `arena-*`
+ * siguen en el <style> de resources/views/layouts/arena.blade.php, que es CSS
+ * normal y nunca dependio del CDN. Esto solo aporta las utilidades.
+ *
+ *   npx tailwindcss -i resources/css/site.css -o public/css/site.css --minify
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

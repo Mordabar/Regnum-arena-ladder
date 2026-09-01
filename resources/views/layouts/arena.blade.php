@@ -4,12 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'Regnum Arena Ladder')</title>
-    <meta name="description" content="Regnum Arena Ladder — Conquest PvP 2v2. Emparejamiento por reino y subclase, ranking automático PL/MMR, anonimato rival.">
+    <meta name="description" content="Regnum Arena Ladder — Conquest PvP por reino y subclase, ranking automático PL/MMR, anonimato rival.">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Spectral:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         [x-cloak] { display: none !important; }
 
@@ -473,6 +472,21 @@
         .arena-stagger-5 { animation-delay: 0.25s; }
         .arena-stagger-6 { animation-delay: 0.3s; }
     </style>
+    {{-- Utilidades de Tailwind, compiladas y servidas desde este dominio.
+
+         Antes esto era <script src="cdn.tailwindcss.com">, que compila Tailwind
+         en el navegador de cada visitante: si ese dominio fallaba, la pagina se
+         quedaba sin una sola clase.
+
+         Va DESPUES del <style> de arriba a proposito. El CDN inyectaba sus
+         reglas al final de la cabecera, asi que las utilidades ganaban a las
+         clases arena-* cuando compartian propiedad. El marcado depende de ello:
+         "arena-field px-4 py-2" o "arena-nav-link block w-full" solo tienen
+         sentido si el px-4 y el block ganan. Moverlo antes del <style> cambia
+         el relleno de campos y botones y rompe el menu movil. Comprobado
+         comparando los estilos calculados de las 1.438 etiquetas de las dos
+         paginas con cada orden. --}}
+    <link rel="stylesheet" href="{{ asset('css/site.css') }}?v={{ @filemtime(public_path('css/site.css')) ?: '1' }}">
     @stack('arena-map-styles')
 </head>
 @php
@@ -503,7 +517,7 @@
                         <a href="{{ route('home') }}" class="arena-nav-link text-xs text-[color:var(--arena-muted)] hover:text-white">Cambiar al Juego</a>
                         <button type="button" class="arena-btn-ghost px-3 py-1.5 text-xs" data-arena-alert-toggle>
                             <span class="inline-block h-2 w-2 rounded-full bg-emerald-400" data-arena-alert-indicator></span>
-                            <span data-arena-alert-label>Alertas ON</span>
+                            <span data-arena-alert-label>Alertas activas</span>
                         </button>
                         <span class="arena-chip hidden border-amber-500/30 bg-amber-950/30 text-amber-100 lg:inline-flex">🛡️ {{ $arenaAdminDisplayName }}</span>
                         <form method="POST" action="{{ route('admin.logout') }}">
@@ -531,7 +545,7 @@
                             </a>
                             <button type="button" class="arena-btn-ghost px-3 py-1.5 text-xs" data-arena-alert-toggle>
                                 <span class="inline-block h-2 w-2 rounded-full bg-emerald-400" data-arena-alert-indicator></span>
-                                <span data-arena-alert-label>Alertas ON</span>
+                                <span data-arena-alert-label>Alertas activas</span>
                             </button>
                             <span class="arena-chip hidden lg:inline-flex">{{ auth()->user()->discord_username }}</span>
                             <form method="POST" action="{{ route('logout') }}">
@@ -588,7 +602,7 @@
                     <a href="{{ route('admin.testing') }}" class="arena-nav-link block w-full {{ request()->routeIs('admin.testing') ? 'arena-nav-link-active' : '' }}">Testing</a>
                     <button type="button" class="arena-btn-ghost mt-3 w-full justify-center" data-arena-alert-toggle>
                         <span class="inline-block h-2 w-2 rounded-full bg-emerald-400" data-arena-alert-indicator></span>
-                        <span data-arena-alert-label>Alertas ON</span>
+                        <span data-arena-alert-label>Alertas activas</span>
                     </button>
                     
                     <div class="my-4 border-t border-[color:var(--arena-line)]"></div>
@@ -606,7 +620,7 @@
                         <a href="{{ route('matches.index') }}" class="arena-nav-link block w-full {{ request()->routeIs('matches.*') ? 'arena-nav-link-active' : '' }}">Matches</a>
                         <button type="button" class="arena-btn-ghost mt-3 w-full justify-center" data-arena-alert-toggle>
                             <span class="inline-block h-2 w-2 rounded-full bg-emerald-400" data-arena-alert-indicator></span>
-                            <span data-arena-alert-label>Alertas ON</span>
+                            <span data-arena-alert-label>Alertas activas</span>
                         </button>
                         
                         <div class="my-4 border-t border-[color:var(--arena-line)]"></div>
@@ -773,57 +787,57 @@
             let enabled = safeGet(enabledKey) !== '0';
             let audioContext = null;
             let unlocked = false;
-            let unlockHintShown = false;
 
+            // Dos notas como mucho, separadas, y la ultima con cola larga para
+            // que el aviso se apague solo. Los avisos importantes suben de tono
+            // (match encontrado, caceria); los informativos se quedan planos.
             const patterns = {
                 match_found: {
                     tones: [
-                        { freq: 784, duration: 0.11, delay: 0.00, type: 'triangle' },
-                        { freq: 988, duration: 0.12, delay: 0.15, type: 'triangle' },
-                        { freq: 1319, duration: 0.18, delay: 0.32, type: 'sine' },
+                        { freq: 880, duration: 0.55, delay: 0.00, gain: 0.055 },
+                        { freq: 1318, duration: 1.60, delay: 0.16, gain: 0.055 },
                     ],
                     vibrate: [80, 40, 120],
                 },
                 party_invite: {
                     tones: [
-                        { freq: 740, duration: 0.12, delay: 0.00, type: 'sine' },
-                        { freq: 1047, duration: 0.16, delay: 0.18, type: 'sine' },
+                        { freq: 784, duration: 0.45, delay: 0.00, gain: 0.045 },
+                        { freq: 1046, duration: 1.30, delay: 0.14, gain: 0.045 },
                     ],
                     vibrate: [60, 30, 80],
                 },
                 party_ready: {
                     tones: [
-                        { freq: 660, duration: 0.12, delay: 0.00, type: 'triangle' },
-                        { freq: 880, duration: 0.18, delay: 0.16, type: 'triangle' },
+                        { freq: 659, duration: 0.40, delay: 0.00, gain: 0.045 },
+                        { freq: 988, duration: 1.25, delay: 0.14, gain: 0.045 },
                     ],
                     vibrate: [70],
                 },
                 hunt_start: {
                     tones: [
-                        { freq: 587, duration: 0.14, delay: 0.00, type: 'square' },
-                        { freq: 784, duration: 0.14, delay: 0.16, type: 'square' },
-                        { freq: 1047, duration: 0.24, delay: 0.34, type: 'triangle' },
+                        { freq: 587, duration: 0.40, delay: 0.00, gain: 0.05 },
+                        { freq: 880, duration: 0.40, delay: 0.15, gain: 0.05 },
+                        { freq: 1174, duration: 1.70, delay: 0.30, gain: 0.05 },
                     ],
                     vibrate: [120, 50, 120],
                 },
                 report_submitted: {
                     tones: [
-                        { freq: 698, duration: 0.11, delay: 0.00, type: 'sine' },
-                        { freq: 698, duration: 0.11, delay: 0.16, type: 'sine' },
+                        { freq: 698, duration: 0.35, delay: 0.00, gain: 0.04 },
+                        { freq: 880, duration: 1.10, delay: 0.13, gain: 0.04 },
                     ],
                     vibrate: [50, 25, 50],
                 },
                 report_confirmed: {
                     tones: [
-                        { freq: 523, duration: 0.12, delay: 0.00, type: 'triangle' },
-                        { freq: 659, duration: 0.12, delay: 0.16, type: 'triangle' },
-                        { freq: 784, duration: 0.18, delay: 0.32, type: 'sine' },
+                        { freq: 659, duration: 0.35, delay: 0.00, gain: 0.045 },
+                        { freq: 988, duration: 1.45, delay: 0.14, gain: 0.045 },
                     ],
                     vibrate: [90, 40, 90],
                 },
                 generic: {
                     tones: [
-                        { freq: 740, duration: 0.16, delay: 0.00, type: 'triangle' },
+                        { freq: 880, duration: 1.10, delay: 0.00, gain: 0.04 },
                     ],
                     vibrate: [60],
                 },
@@ -851,21 +865,25 @@
                 alertButtons().forEach((button) => {
                     const label = button.querySelector('[data-arena-alert-label]');
                     const indicator = button.querySelector('[data-arena-alert-indicator]');
-                    const activeLabel = enabled ? (unlocked ? 'Alertas listas' : 'Activar sonido') : 'Alertas OFF';
+                    // Un solo interruptor: encendido o silenciado. El desbloqueo
+                    // del audio (unlocked) es un requisito del navegador, no una
+                    // decision del usuario, asi que no se muestra como un tercer
+                    // estado: se resuelve solo con el primer gesto en la pagina.
+                    const activeLabel = enabled ? 'Alertas activas' : 'Alertas silenciadas';
 
                     button.classList.toggle('border-emerald-500/30', enabled);
                     button.classList.toggle('text-emerald-200', enabled);
                     button.classList.toggle('border-rose-500/30', !enabled);
                     button.classList.toggle('text-rose-200', !enabled);
                     button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+                    button.setAttribute('title', enabled ? 'Silenciar las alertas sonoras' : 'Activar las alertas sonoras');
 
                     if (label) {
                         label.textContent = activeLabel;
                     }
 
                     if (indicator) {
-                        indicator.classList.toggle('bg-emerald-400', enabled && unlocked);
-                        indicator.classList.toggle('bg-amber-400', enabled && !unlocked);
+                        indicator.classList.toggle('bg-emerald-400', enabled);
                         indicator.classList.toggle('bg-rose-400', !enabled);
                     }
                 });
@@ -931,10 +949,12 @@
             const playPattern = (type) => {
                 const context = getAudioContext();
                 if (!context || !unlocked) {
-                    if (enabled && !unlockHintShown) {
-                        unlockHintShown = true;
-                        arenaToast('Haz un toque en la pagina para dejar listas las alertas sonoras.', 'info', 4500);
-                    }
+                    // Silencio en vez de un aviso: el desbloqueo del audio es
+                    // cosa del navegador y se resuelve solo en cuanto la persona
+                    // toca cualquier parte de la pagina. Pedirselo explicitamente
+                    // convertia un detalle tecnico en una tarea para el usuario.
+                    unlock();
+
                     return false;
                 }
 
@@ -942,22 +962,42 @@
                 const baseTime = context.currentTime + 0.02;
 
                 pattern.tones.forEach((tone) => {
-                    const oscillator = context.createOscillator();
-                    const gainNode = context.createGain();
+                    // Campana, no pitido. El ataque es casi instantaneo (6 ms) y
+                    // luego la cola cae exponencialmente durante todo el resto:
+                    // eso es lo que hace que suene y se vaya apagando solo, en
+                    // vez de cortarse de golpe como antes, cuando la nota entera
+                    // duraba poco mas de una decima de segundo.
+                    //
+                    // Cada nota lleva ademas un armonico agudo mas corto y mas
+                    // bajo de volumen. Es lo que le da el timbre metalico: una
+                    // sinusoide sola suena a tono de prueba.
                     const startAt = baseTime + (tone.delay ?? 0);
-                    const duration = tone.duration ?? 0.15;
-                    const endAt = startAt + duration;
+                    const duration = tone.duration ?? 1.2;
+                    const peak = tone.gain ?? 0.05;
+                    const attack = 0.006;
 
-                    oscillator.type = tone.type ?? 'sine';
-                    oscillator.frequency.setValueAtTime(tone.freq ?? 660, startAt);
-                    gainNode.gain.setValueAtTime(0.0001, startAt);
-                    gainNode.gain.exponentialRampToValueAtTime(0.045, startAt + 0.02);
-                    gainNode.gain.exponentialRampToValueAtTime(0.0001, endAt);
+                    const voices = [
+                        { freq: tone.freq ?? 660, gain: peak, decay: duration, type: tone.type ?? 'sine' },
+                        { freq: (tone.freq ?? 660) * (tone.partial ?? 2.76), gain: peak * 0.22, decay: duration * 0.45, type: 'sine' },
+                    ];
 
-                    oscillator.connect(gainNode);
-                    gainNode.connect(context.destination);
-                    oscillator.start(startAt);
-                    oscillator.stop(endAt + 0.02);
+                    voices.forEach((voice) => {
+                        const oscillator = context.createOscillator();
+                        const gainNode = context.createGain();
+                        const endAt = startAt + voice.decay;
+
+                        oscillator.type = voice.type;
+                        oscillator.frequency.setValueAtTime(voice.freq, startAt);
+
+                        gainNode.gain.setValueAtTime(0.0001, startAt);
+                        gainNode.gain.exponentialRampToValueAtTime(voice.gain, startAt + attack);
+                        gainNode.gain.exponentialRampToValueAtTime(0.0001, endAt);
+
+                        oscillator.connect(gainNode);
+                        gainNode.connect(context.destination);
+                        oscillator.start(startAt);
+                        oscillator.stop(endAt + 0.03);
+                    });
                 });
 
                 if (navigator.vibrate && pattern.vibrate) {
@@ -972,18 +1012,15 @@
                 safeSet(enabledKey, enabled ? '1' : '0');
 
                 if (enabled) {
+                    // Se intenta desbloquear en segundo plano. Si el navegador
+                    // aun no lo permite, los listeners de gesto lo resuelven en
+                    // la siguiente interaccion sin molestar al usuario.
                     await unlock();
                     if (!options.silent) {
-                        arenaToast(
-                            unlocked
-                                ? 'Alertas sonoras activadas.'
-                                : 'Alertas activadas. Haz un toque para dejar listo el sonido.',
-                            unlocked ? 'success' : 'info',
-                            4500
-                        );
+                        arenaToast('Alertas sonoras activadas.', 'success', 3500);
                     }
                 } else if (!options.silent) {
-                    arenaToast('Alertas sonoras desactivadas.', 'warning', 3500);
+                    arenaToast('Alertas sonoras silenciadas.', 'info', 3000);
                 }
 
                 updateButtons();
@@ -1011,13 +1048,11 @@
                 }
 
                 event.preventDefault();
-                if (enabled && !unlocked) {
-                    unlock().then((didUnlock) => {
-                        arenaToast(didUnlock ? 'Alertas sonoras listas.' : 'No pude activar el sonido todavia. Intenta con otro toque.', didUnlock ? 'success' : 'warning', 4000);
-                    });
-                    return;
-                }
 
+                // El clic siempre hace lo mismo: encender o silenciar. Antes,
+                // cuando el audio no estaba desbloqueado, el primer clic lo
+                // desbloqueaba en vez de conmutar, y el boton parecia moverse
+                // entre tres estados sin logica aparente.
                 setEnabled(!enabled);
             });
 

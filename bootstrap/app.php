@@ -25,6 +25,11 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->redirectGuestsTo(fn () => route('auth.discord'));
+        // Anota la ultima visita del usuario. Va en el grupo web porque lo que
+        // interesa medir es "entro al ladder", no "hizo tal accion".
+        $middleware->web(append: [
+            \App\Http\Middleware\TrackUserActivity::class,
+        ]);
         $middleware->alias([
             'arena.admin' => \App\Http\Middleware\EnsureArenaAdminSession::class,
             'arena.maintenance' => \App\Http\Middleware\EnsureArenaMaintenanceFresh::class,

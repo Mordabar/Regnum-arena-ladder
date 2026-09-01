@@ -26,7 +26,18 @@ class Player extends Model
         'last_penalty_type',
         'last_penalty_at',
         'is_active',
+        'deactivated_reason',
+        'deactivated_at',
     ];
+
+    /** El jugador borro el personaje. Sus partidas jugadas se conservan. */
+    public const DEACTIVATED_BY_PLAYER = 'deleted_by_player';
+
+    /** Un administrador lo apago desde el panel. */
+    public const DEACTIVATED_BY_ADMIN = 'disabled_by_admin';
+
+    /** Marca que se anade al nombre de un personaje borrado por su dueno. */
+    public const DELETED_NAME_SUFFIX = ' [ELIMINADO]';
 
     protected function casts(): array
     {
@@ -39,12 +50,111 @@ class Player extends Model
             'trust_score' => 'integer',
             'penalty_strikes' => 'integer',
             'is_active' => 'boolean',
+            'deactivated_at' => 'datetime',
             'queue_locked_until' => 'datetime',
             'last_penalty_at' => 'datetime',
         ];
     }
 
+    /**
+     * Como se llama el estado del personaje de cara a quien lo lee.
+     *
+     * "Inactivo" ya no se usa: se confundia con la metrica de actividad del
+     * ladder, que mide otra cosa (cuanto hace que su dueno no entra).
+     */
+    public function statusLabel(): string
+    {
+        if ($this->is_active) {
+            return 'Activo';
+        }
+
+        return match ($this->deactivated_reason) {
+            self::DEACTIVATED_BY_PLAYER => 'Eliminado',
+            self::DEACTIVATED_BY_ADMIN => 'Deshabilitado',
+            // Filas anteriores a que se guardase el motivo.
+            default => 'Deshabilitado',
+        };
+    }
+
+    /**
+     * Personajes que el jugador todavia ve en su lobby.
+     *
+     * Un personaje eliminado desaparece de su vista y del ranking: la fila
+     * sigue existiendo solo para no romper el historial de enfrentamientos ya
+     * jugados. Recuperarlo hay que pedirselo a un administrador.
+     */
+    public function scopeVisibleToOwner($query)
+    {
+        return $query->where(fn ($builder) => $builder
+            ->whereNull('deactivated_reason')
+            ->orWhere('deactivated_reason', '!=', self::DEACTIVATED_BY_PLAYER));
+    }
+
+    public function scopeDeletedByOwner($query)
+    {
+        return $query->where('deactivated_reason', self::DEACTIVATED_BY_PLAYER);
+    }
+
+    public function isDeletedByOwner(): bool
+    {
+        return $this->deactivated_reason === self::DEACTIVATED_BY_PLAYER;
+    }
+
+    /** Nombre sin la marca de eliminado, para reactivar o para mostrarlo limpio. */
+    public function cleanName(): string
+    {
+        return str_replace([self::DELETED_NAME_SUFFIX, ' [INACTIVO]'], '', $this->character_name);
+    }
+
     // Relación con User
+    /**
+     * Dias sin aparecer a partir de los cuales un personaje se considera
+     * dormido. Configurable desde el panel; por defecto dos semanas.
+     */
+    public static function dormancyDays(): int
+    {
+        return max(1, (int) \App\Models\AppSetting::getValue('inactive_after_days', 14));
+    }
+
+    /**
+     * Personajes cuyo dueno lleva mucho sin pasar por el ladder.
+     *
+     * OJO: esto NO es lo mismo que `is_active`. `is_active` dice si el personaje
+     * esta habilitado para jugar (se apaga al borrarlo teniendo partidas, o a
+     * mano desde el panel). Dormido dice que hace tiempo que nadie lo usa. Un
+     * personaje puede estar perfectamente habilitado y llevar un mes dormido, y
+     * mezclar las dos cosas impediria volver a jugar a quien regresa.
+     */
+    public function scopeDormant($query, ?int $days = null)
+    {
+        $days = $days ?? self::dormancyDays();
+
+        return $query->whereHas('user', function ($userQuery) use ($days) {
+            $userQuery->where(function ($inner) use ($days) {
+                $inner->whereNull('last_seen_at')
+                    ->orWhere('last_seen_at', '<', now()->subDays($days));
+            });
+        });
+    }
+
+    public function scopeSeenRecently($query, ?int $days = null)
+    {
+        $days = $days ?? self::dormancyDays();
+
+        return $query->whereHas('user', function ($userQuery) use ($days) {
+            $userQuery->whereNotNull('last_seen_at')
+                ->where('last_seen_at', '>=', now()->subDays($days));
+        });
+    }
+
+    public function isDormant(?int $days = null): bool
+    {
+        $lastSeen = $this->user?->last_seen_at;
+
+        return $lastSeen === null
+            || $lastSeen->lt(now()->subDays($days ?? self::dormancyDays()));
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);

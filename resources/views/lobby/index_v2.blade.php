@@ -1,6 +1,9 @@
 @php
     $user = auth()->user();
+    // Los eliminados no aparecen: su fila solo existe para conservar el
+    // historial de enfrentamientos. Recuperarlos se le pide a un admin.
     $players = $user->players()
+        ->visibleToOwner()
         ->orderByDesc('is_active')
         ->orderByDesc('pl_points')
         ->orderByDesc('mmr')
@@ -31,7 +34,7 @@
             </div>
 
             <div class="grid min-w-[240px] gap-3 sm:grid-cols-2">
-                <a href="{{ route('queue.index') }}" class="arena-btn text-center">
+                <a href="{{ route('queue.index', ['mode' => \App\Support\ArenaMode::default()]) }}" class="arena-btn text-center">
                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
                     Buscar combate
                 </a>
@@ -58,7 +61,7 @@
         <article class="arena-card arena-animate-in arena-stagger-3 p-5">
             <p class="arena-kicker">Formato</p>
             <div class="mt-2 flex items-center gap-2">
-                <p class="text-3xl font-semibold text-white">2v2</p>
+                <p class="text-3xl font-semibold text-white">{{ implode(' · ', \App\Support\ArenaMode::enabled()) ?: '—' }}</p>
                 <div class="flex items-center gap-1">
                     <x-arena-realm-icon realm="ignis" size="xs" />
                     <x-arena-realm-icon realm="alsius" size="xs" />
@@ -96,9 +99,11 @@
                                     <x-arena-realm-icon :realm="$player->realm" size="lg" />
                                     <div>
                                         <div class="flex flex-wrap items-center gap-2">
-                                            <h3 class="text-xl font-semibold text-white">{{ $player->character_name }}</h3>
+                                            {{-- Sin la marca [ELIMINADO]: la insignia de al lado ya dice
+                                                 en que estado esta, y repetirlo ensucia el nombre. --}}
+                                            <h3 class="text-xl font-semibold text-white">{{ $player->cleanName() }}</h3>
                                             <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold {{ $player->is_active ? 'bg-emerald-900/40 text-emerald-200' : 'bg-amber-900/40 text-amber-200' }}">
-                                                {{ $player->is_active ? 'Activo' : 'Inactivo' }}
+                                                {{ $player->statusLabel() }}
                                             </span>
                                         </div>
                                         <p class="mt-1 text-sm text-[color:var(--arena-muted)] arena-body-text">
@@ -109,7 +114,7 @@
                                 </div>
 
                                 @if($player->is_active)
-                                    <a href="{{ route('queue.index') }}" class="arena-btn px-4 py-2 text-sm">
+                                    <a href="{{ route('queue.index', ['mode' => \App\Support\ArenaMode::default()]) }}" class="arena-btn px-4 py-2 text-sm">
                                         <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
                                         Pelear
                                     </a>
@@ -156,14 +161,18 @@
 
                                     @if($players->count() > 1)
                                         <button type="button" class="arena-btn-ghost px-4 py-2 text-sm" data-modal-open="modal-deactivate-{{ $player->id }}">
-                                            {{ $player->matches_played > 0 ? 'Desactivar' : 'Eliminar' }}
+                                            Eliminar
                                         </button>
-                                        <x-arena-modal :id="'modal-deactivate-'.$player->id" :title="($player->matches_played > 0 ? 'Desactivar' : 'Eliminar') . ' a ' . $player->character_name" variant="danger">
+                                        <x-arena-modal :id="'modal-deactivate-'.$player->id" :title="'Eliminar a ' . $player->character_name" variant="danger">
                                             <p class="text-sm text-[color:var(--arena-muted)] arena-body-text">
                                                 @if($player->matches_played > 0)
-                                                    Este personaje tiene {{ $player->matches_played }} partidas registradas. Se desactivará pero no se eliminarán sus estadísticas.
+                                                    Este personaje tiene {{ $player->matches_played }} partidas registradas.
+                                                    Su historial de enfrentamientos se conserva, pero saldrá del ranking
+                                                    y no podrá volver a entrar en cola. Puedes recuperarlo más adelante
+                                                    desde este mismo lobby.
                                                 @else
-                                                    Este personaje será eliminado permanentemente.
+                                                    Este personaje será eliminado permanentemente. No tiene partidas
+                                                    jugadas, así que no queda nada que conservar.
                                                 @endif
                                             </p>
                                             <div class="mt-5 flex gap-3">
@@ -177,10 +186,10 @@
                                         </x-arena-modal>
                                     @endif
                                 @else
-                                    <form method="POST" action="{{ route('player.reactivate', $player) }}">
-                                        @csrf
-                                        <button type="submit" class="arena-btn-secondary px-4 py-2 text-sm">Reactivar guerrero</button>
-                                    </form>
+                                    <p class="text-sm text-amber-200/80 arena-body-text">
+                                        Un administrador deshabilito este personaje. Escribe al soporte del
+                                        Discord si crees que es un error.
+                                    </p>
                                 @endif
                             </div>
                         </article>

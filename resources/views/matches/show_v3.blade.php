@@ -130,7 +130,7 @@
                         </span>
                     </div>
                     <h2 class="mt-1 text-2xl font-semibold text-[color:var(--arena-gold-soft)]">Confirma tu disponibilidad</h2>
-                    <p class="mt-2 text-sm text-[color:var(--arena-muted)] arena-body-text">Los 4 jugadores deben aceptar para que comience la cacería.</p>
+                    <p class="mt-2 text-sm text-[color:var(--arena-muted)] arena-body-text">Los {{ \App\Support\ArenaMode::teamSize($match->arena_mode) * 2 }} jugadores deben aceptar para que comience la cacería.</p>
                     <div class="mt-2 text-xs text-[color:var(--arena-gold)] font-mono bg-black/30 inline-block px-3 py-1 rounded-md border border-[color:var(--arena-gold)]/20">
                         Expira en: <span id="matchAcceptanceCountdown" data-expires="{{ $match->expires_at?->timestamp }}">--:--</span>
                     </div>
@@ -270,7 +270,7 @@
                     <p class="mt-1 text-sm text-sky-200/70 arena-body-text">
                         El equipo rival debe confirmar o disputar tu reporte.
                         @if($match->expires_at)
-                            Tiempo restante: {{ $match->expires_at->diffForHumans() }}
+                            Tiempo restante: {{ $match->expires_at->locale('es')->diffForHumans() }}
                         @endif
                     </p>
                 </div>
@@ -498,7 +498,16 @@
                     </div>
                     <div class="arena-card p-4">
                         <p class="text-[0.6rem] uppercase tracking-[0.2em] text-[color:var(--arena-muted)]">Reportado por</p>
-                        <p class="mt-1 font-semibold text-white arena-body-text">{{ $report->reporter?->character_name ?? 'Sin dato' }}</p>
+                        {{-- El sistema promete anonimato rival hasta el reveal: mostrar aqui el
+                             nombre del reportero lo delataba en cuanto reportaba, mientras el
+                             resto de la pagina seguia diciendo "Guerrero Anonimo". --}}
+                        <p class="mt-1 font-semibold text-white arena-body-text">
+                            @if($showRivalNames || $report->reporting_team === $ownSide)
+                                {{ $report->reporter?->character_name ?? 'Sin dato' }}
+                            @else
+                                Guerrero Anónimo
+                            @endif
+                        </p>
                     </div>
                 </div>
 

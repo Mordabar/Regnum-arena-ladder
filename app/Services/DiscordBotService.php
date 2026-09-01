@@ -16,7 +16,11 @@ class DiscordBotService
 
     public function __construct()
     {
-        $this->botToken = config('services.discord.bot_token');
+        // Sin cast, un DISCORD_BOT_TOKEN ausente hacia que el contenedor no
+        // pudiera construir este servicio y tumbaba cualquier pagina que lo
+        // inyecte (entre ellas todo el panel admin). Las llamadas ya
+        // comprueban el token antes de usarlo.
+        $this->botToken = (string) config('services.discord.bot_token', '');
     }
 
     /**

@@ -336,6 +336,14 @@ class ArenaMatchResultService
 
     public function markDisputed(ArenaMatch $match, ?User $admin = null, ?string $note = null): void
     {
+        // Mismo criterio que markVoid: un match ya puntuado no puede volver a
+        // disputa. Si lo hiciera, desapareceria de los listados de completados
+        // pero sus puntos seguirian contando en el ladder, sin forma de
+        // revertirlos. Para corregir un resultado ya dado esta forceComplete.
+        if ($match->results()->exists()) {
+            throw new \RuntimeException('No puedes mandar a disputa un match ya puntuado. Corrige el resultado en su lugar.');
+        }
+
         DB::transaction(function () use ($match, $admin, $note) {
             if ($match->report) {
                 $match->report->update([
@@ -403,7 +411,16 @@ class ArenaMatchResultService
         $winnerTeam = $offendingSide === 'team_a' ? 'team_b' : 'team_a';
         $offender = Player::findOrFail($offendingPlayerId);
 
-        $this->applyAbandonmentPenalty($offender, $match, $admin, $note ?? 'Abandonment walkover');
+        // Idempotencia: forceComplete si lo es (deriva a correctProcessedMatch),
+        // pero la penalizacion no. Sin esto, reenviar el formulario (doble clic,
+        // reintento tras timeout, dos admins a la vez) sumaba un segundo strike,
+        // restaba trust otra vez y ENCADENABA el bloqueo sobre si mismo. Si el
+        // match ya esta resuelto, solo se re-deriva el resultado.
+        $alreadyResolved = $match->results()->exists();
+
+        if (!$alreadyResolved) {
+            $this->applyAbandonmentPenalty($offender, $match, $admin, $note ?? 'Abandonment walkover');
+        }
 
         return $this->forceComplete(
             $match,
@@ -427,7 +444,16 @@ class ArenaMatchResultService
         $winnerTeam = $offendingSide === 'team_a' ? 'team_b' : 'team_a';
         $offender = Player::findOrFail($offendingPlayerId);
 
-        $this->applyPenalty($offender, 'support_infraction', $match, $admin, $note ?? 'Support role infraction');
+        // Idempotencia: forceComplete si lo es (deriva a correctProcessedMatch),
+        // pero la penalizacion no. Sin esto, reenviar el formulario (doble clic,
+        // reintento tras timeout, dos admins a la vez) sumaba un segundo strike,
+        // restaba trust otra vez y ENCADENABA el bloqueo sobre si mismo. Si el
+        // match ya esta resuelto, solo se re-deriva el resultado.
+        $alreadyResolved = $match->results()->exists();
+
+        if (!$alreadyResolved) {
+            $this->applyPenalty($offender, 'support_infraction', $match, $admin, $note ?? 'Support role infraction');
+        }
 
         return $this->forceComplete(
             $match,
@@ -599,6 +625,13 @@ class ArenaMatchResultService
     ): array {
         if ($match->results()->exists()) {
             throw new \RuntimeException('Este match ya fue procesado.');
+        }
+
+        // Un match cancelado o anulado no puede otorgar puntos: si quedo un
+        // reporte pendiente al cancelarse, confirmarlo despues sumaria PL de
+        // una partida que oficialmente no existe.
+        if (in_array($match->status, ['cancelled', 'void'], true)) {
+            throw new \RuntimeException('Este match fue ' . ($match->status === 'void' ? 'anulado' : 'cancelado') . ' y ya no puede puntuarse.');
         }
 
         $resultRows = [];

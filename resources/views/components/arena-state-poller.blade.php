@@ -89,6 +89,48 @@
 
         const toIdSet = (items) => new Set((items ?? []).map((item) => String(item.id)));
 
+        // Mientras el jugador tiene algo en marcha —cola, party, invitacion o
+        // match— el sondeo NO frena. El frenado progresivo existe para no
+        // castigar al servidor con peticiones inutiles, pero aplicarlo aqui era
+        // contraproducente: la espera en cola es justo el momento en que puede
+        // aparecer un cruce en cualquier instante, y llegaba a tardar 8 segundos
+        // en enterarse. Sin nada en curso sigue frenando como antes.
+        const hasLiveActivity = (state) => {
+            if (!state) {
+                return false;
+            }
+
+            return (state.queues ?? []).length > 0
+                || (state.pending_invites ?? []).length > 0
+                || !!state.party
+                || !!state.current_match;
+        };
+
+        // El contador de gente en cola llega fuera del hash, asi que se pinta en
+        // vivo sin recargar la pagina.
+        const paintQueuePulse = (pulse) => {
+            if (!pulse) {
+                return;
+            }
+
+            (pulse.realms ?? []).forEach((realm) => {
+                const node = document.querySelector('[data-queue-pulse-realm="' + realm.key + '"]');
+                if (node) {
+                    node.textContent = realm.waiting;
+                }
+            });
+
+            const totalNode = document.querySelector('[data-queue-pulse-total]');
+            if (totalNode) {
+                totalNode.textContent = pulse.total;
+            }
+
+            const hintNode = document.querySelector('[data-queue-pulse-hint]');
+            if (hintNode && pulse.hint) {
+                hintNode.textContent = pulse.hint;
+            }
+        };
+
         const detectAlertEvents = (previousState, nextState) => {
             const events = [];
             const previousInvites = toIdSet(previousState?.pending_invites);
@@ -218,6 +260,8 @@
                     const data = await r.json();
                     const nextState = data.state ?? null;
 
+                    paintQueuePulse(data.queue_pulse);
+
                     if (data.hash && data.hash !== 'unknown') {
                         if (lastHash === null) {
                             if (lastState) {
@@ -239,8 +283,13 @@
                         } else {
                             lastState = nextState;
                             storeState(nextState);
-                            stablePolls += 1;
-                            currentInterval = resolveInterval();
+
+                            if (hasLiveActivity(nextState)) {
+                                resetCadence();
+                            } else {
+                                stablePolls += 1;
+                                currentInterval = resolveInterval();
+                            }
                         }
                     }
                 }

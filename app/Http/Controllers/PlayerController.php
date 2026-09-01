@@ -16,7 +16,9 @@ class PlayerController extends Controller
 
     public function store(Request $request)
     {
-        if (auth()->user()->players()->count() >= 5) {
+        // Los eliminados no ocupan slot: la idea de borrar es justamente poder
+        // volver a crear ese personaje.
+        if (auth()->user()->players()->visibleToOwner()->count() >= 5) {
             return redirect()->route('lobby')->with('error', 'Maximo 5 personajes permitidos por cuenta');
         }
 
@@ -97,21 +99,25 @@ class PlayerController extends Controller
             return redirect()->route('lobby')->with('error', 'No tienes permisos para eliminar este personaje');
         }
 
-        if (auth()->user()->players()->count() <= 1) {
+        if (auth()->user()->players()->visibleToOwner()->count() <= 1) {
             return redirect()->route('lobby')->with('error', 'No puedes eliminar tu ultimo personaje');
         }
 
         $characterName = $player->character_name;
 
         if ($player->matches_played > 0) {
+            // No se borra la fila: sus partidas ya jugadas siguen contando en el
+            // historial y en los enfrentamientos donde aparece.
             $player->update([
                 'is_active' => false,
-                'character_name' => $player->character_name . ' [INACTIVO]',
+                'deactivated_reason' => Player::DEACTIVATED_BY_PLAYER,
+                'deactivated_at' => now(),
+                'character_name' => $player->character_name . Player::DELETED_NAME_SUFFIX,
             ]);
 
             app(LadderCacheService::class)->forgetSummary();
 
-            return redirect()->route('lobby')->with('warning', "Personaje '{$characterName}' desactivado (tenia {$player->matches_played} partidas). Sus estadisticas se mantienen en el ranking pero no podra usarse mas.");
+            return redirect()->route('lobby')->with('warning', "Personaje '{$characterName}' eliminado. Su historial de enfrentamientos se conserva para no falsear las partidas ya jugadas, pero sale del ranking y de tu lobby, y el nombre queda libre para volver a crearlo. Si necesitas recuperarlo tal cual, pideselo a un administrador.");
         }
 
         $player->delete();
@@ -120,35 +126,4 @@ class PlayerController extends Controller
         return redirect()->route('lobby')->with('success', "Personaje '{$characterName}' eliminado completamente (sin partidas jugadas)");
     }
 
-    public function reactivate(Player $player)
-    {
-        if ($player->user_id !== auth()->id()) {
-            return redirect()->route('lobby')->with('error', 'No tienes permisos para reactivar este personaje');
-        }
-
-        if ($player->is_active) {
-            return redirect()->route('lobby')->with('error', 'Este personaje ya esta activo');
-        }
-
-        $cleanName = str_replace(' [INACTIVO]', '', $player->character_name);
-
-        $nameExists = Player::where('character_name', $cleanName)
-            ->where('realm', $player->realm)
-            ->where('id', '!=', $player->id)
-            ->where('is_active', true)
-            ->exists();
-
-        if ($nameExists) {
-            return redirect()->route('lobby')->with('error', "No se puede reactivar: el nombre '{$cleanName}' ya esta en uso por otro personaje activo");
-        }
-
-        $player->update([
-            'is_active' => true,
-            'character_name' => $cleanName,
-        ]);
-
-        app(LadderCacheService::class)->forgetSummary();
-
-        return redirect()->route('lobby')->with('success', "Personaje '{$cleanName}' reactivado exitosamente");
-    }
 }

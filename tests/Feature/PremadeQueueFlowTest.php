@@ -352,8 +352,11 @@ it('keeps queue type multipliers neutral for random mirrors and premade mirrors'
 
     expect($randomWinner->pl_change)->toBe(3.0);
     expect($randomWinner->mmr_change)->toBe(16);
-    expect($randomWinner->scoring_context['queue_type_multiplier_pl'])->toBe(1.0);
-    expect($randomWinner->scoring_context['queue_type_multiplier_mmr'])->toBe(1.0);
+    // json_encode(1.0) serializa "1", asi que el multiplicador neutro vuelve
+    // como int. Se compara el valor, que es lo que importa (los no enteros,
+    // como 1.25 o 0.8, si conservan el tipo float y usan toBe()).
+    expect($randomWinner->scoring_context['queue_type_multiplier_pl'])->toEqual(1.0);
+    expect($randomWinner->scoring_context['queue_type_multiplier_mmr'])->toEqual(1.0);
 
     $premadeTeamA = [
         makePremadeFlowPlayer('mirror-prem-a1', 'syrtis', 'knight', 1000),
@@ -392,6 +395,6 @@ it('keeps queue type multipliers neutral for random mirrors and premade mirrors'
 
     expect($premadeWinner->pl_change)->toBe(3.0);
     expect($premadeWinner->mmr_change)->toBe(16);
-    expect($premadeWinner->scoring_context['queue_type_multiplier_pl'])->toBe(1.0);
-    expect($premadeWinner->scoring_context['queue_type_multiplier_mmr'])->toBe(1.0);
+    expect($premadeWinner->scoring_context['queue_type_multiplier_pl'])->toEqual(1.0);
+    expect($premadeWinner->scoring_context['queue_type_multiplier_mmr'])->toEqual(1.0);
 });

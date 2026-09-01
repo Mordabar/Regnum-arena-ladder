@@ -13,7 +13,7 @@
             <div>
                 <p class="arena-kicker">Ranking público</p>
                 <h1 class="mt-3 text-4xl font-bold text-[color:var(--arena-gold-soft)]">{{ \App\Models\AppSetting::getValue('season_name', 'Alpha Season') }}</h1>
-                <p class="mt-2 max-w-3xl text-[color:var(--arena-sand)] arena-body-text">{{ \App\Models\AppSetting::getValue('home_tagline', 'Conquest PvP 2v2 por reino y subclase') }}</p>
+                <p class="mt-2 max-w-3xl text-[color:var(--arena-sand)] arena-body-text">{{ \App\Models\AppSetting::getValue('home_tagline', 'Conquest PvP por reino y subclase') }}</p>
             </div>
             <div class="flex items-center gap-2">
                 <x-arena-realm-icon realm="ignis" size="md" />

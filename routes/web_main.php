@@ -31,7 +31,6 @@ Route::get('/ladder/player/{player}', [LadderController::class, 'show'])->name('
 Route::post('/player/register', [PlayerController::class, 'store'])->name('player.register');
 Route::put('/player/{player}/update', [PlayerController::class, 'update'])->name('player.update');
 Route::delete('/player/{player}', [PlayerController::class, 'destroy'])->name('player.destroy');
-Route::post('/player/{player}/reactivate', [PlayerController::class, 'reactivate'])->name('player.reactivate');
 
 Route::middleware(['auth', 'arena.maintenance'])->group(function () {
     Route::get('/queue', [QueueHubController::class, 'index'])->name('queue.index');
