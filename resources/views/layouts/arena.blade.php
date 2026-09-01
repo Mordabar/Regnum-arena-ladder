@@ -788,55 +788,56 @@
             let audioContext = null;
             let unlocked = false;
 
+            // Dos notas como mucho, separadas, y la ultima con cola larga para
+            // que el aviso se apague solo. Los avisos importantes suben de tono
+            // (match encontrado, caceria); los informativos se quedan planos.
             const patterns = {
                 match_found: {
                     tones: [
-                        { freq: 784, duration: 0.11, delay: 0.00, type: 'triangle' },
-                        { freq: 988, duration: 0.12, delay: 0.15, type: 'triangle' },
-                        { freq: 1319, duration: 0.18, delay: 0.32, type: 'sine' },
+                        { freq: 880, duration: 0.55, delay: 0.00, gain: 0.055 },
+                        { freq: 1318, duration: 1.60, delay: 0.16, gain: 0.055 },
                     ],
                     vibrate: [80, 40, 120],
                 },
                 party_invite: {
                     tones: [
-                        { freq: 740, duration: 0.12, delay: 0.00, type: 'sine' },
-                        { freq: 1047, duration: 0.16, delay: 0.18, type: 'sine' },
+                        { freq: 784, duration: 0.45, delay: 0.00, gain: 0.045 },
+                        { freq: 1046, duration: 1.30, delay: 0.14, gain: 0.045 },
                     ],
                     vibrate: [60, 30, 80],
                 },
                 party_ready: {
                     tones: [
-                        { freq: 660, duration: 0.12, delay: 0.00, type: 'triangle' },
-                        { freq: 880, duration: 0.18, delay: 0.16, type: 'triangle' },
+                        { freq: 659, duration: 0.40, delay: 0.00, gain: 0.045 },
+                        { freq: 988, duration: 1.25, delay: 0.14, gain: 0.045 },
                     ],
                     vibrate: [70],
                 },
                 hunt_start: {
                     tones: [
-                        { freq: 587, duration: 0.14, delay: 0.00, type: 'square' },
-                        { freq: 784, duration: 0.14, delay: 0.16, type: 'square' },
-                        { freq: 1047, duration: 0.24, delay: 0.34, type: 'triangle' },
+                        { freq: 587, duration: 0.40, delay: 0.00, gain: 0.05 },
+                        { freq: 880, duration: 0.40, delay: 0.15, gain: 0.05 },
+                        { freq: 1174, duration: 1.70, delay: 0.30, gain: 0.05 },
                     ],
                     vibrate: [120, 50, 120],
                 },
                 report_submitted: {
                     tones: [
-                        { freq: 698, duration: 0.11, delay: 0.00, type: 'sine' },
-                        { freq: 698, duration: 0.11, delay: 0.16, type: 'sine' },
+                        { freq: 698, duration: 0.35, delay: 0.00, gain: 0.04 },
+                        { freq: 880, duration: 1.10, delay: 0.13, gain: 0.04 },
                     ],
                     vibrate: [50, 25, 50],
                 },
                 report_confirmed: {
                     tones: [
-                        { freq: 523, duration: 0.12, delay: 0.00, type: 'triangle' },
-                        { freq: 659, duration: 0.12, delay: 0.16, type: 'triangle' },
-                        { freq: 784, duration: 0.18, delay: 0.32, type: 'sine' },
+                        { freq: 659, duration: 0.35, delay: 0.00, gain: 0.045 },
+                        { freq: 988, duration: 1.45, delay: 0.14, gain: 0.045 },
                     ],
                     vibrate: [90, 40, 90],
                 },
                 generic: {
                     tones: [
-                        { freq: 740, duration: 0.16, delay: 0.00, type: 'triangle' },
+                        { freq: 880, duration: 1.10, delay: 0.00, gain: 0.04 },
                     ],
                     vibrate: [60],
                 },
@@ -961,22 +962,42 @@
                 const baseTime = context.currentTime + 0.02;
 
                 pattern.tones.forEach((tone) => {
-                    const oscillator = context.createOscillator();
-                    const gainNode = context.createGain();
+                    // Campana, no pitido. El ataque es casi instantaneo (6 ms) y
+                    // luego la cola cae exponencialmente durante todo el resto:
+                    // eso es lo que hace que suene y se vaya apagando solo, en
+                    // vez de cortarse de golpe como antes, cuando la nota entera
+                    // duraba poco mas de una decima de segundo.
+                    //
+                    // Cada nota lleva ademas un armonico agudo mas corto y mas
+                    // bajo de volumen. Es lo que le da el timbre metalico: una
+                    // sinusoide sola suena a tono de prueba.
                     const startAt = baseTime + (tone.delay ?? 0);
-                    const duration = tone.duration ?? 0.15;
-                    const endAt = startAt + duration;
+                    const duration = tone.duration ?? 1.2;
+                    const peak = tone.gain ?? 0.05;
+                    const attack = 0.006;
 
-                    oscillator.type = tone.type ?? 'sine';
-                    oscillator.frequency.setValueAtTime(tone.freq ?? 660, startAt);
-                    gainNode.gain.setValueAtTime(0.0001, startAt);
-                    gainNode.gain.exponentialRampToValueAtTime(0.045, startAt + 0.02);
-                    gainNode.gain.exponentialRampToValueAtTime(0.0001, endAt);
+                    const voices = [
+                        { freq: tone.freq ?? 660, gain: peak, decay: duration, type: tone.type ?? 'sine' },
+                        { freq: (tone.freq ?? 660) * (tone.partial ?? 2.76), gain: peak * 0.22, decay: duration * 0.45, type: 'sine' },
+                    ];
 
-                    oscillator.connect(gainNode);
-                    gainNode.connect(context.destination);
-                    oscillator.start(startAt);
-                    oscillator.stop(endAt + 0.02);
+                    voices.forEach((voice) => {
+                        const oscillator = context.createOscillator();
+                        const gainNode = context.createGain();
+                        const endAt = startAt + voice.decay;
+
+                        oscillator.type = voice.type;
+                        oscillator.frequency.setValueAtTime(voice.freq, startAt);
+
+                        gainNode.gain.setValueAtTime(0.0001, startAt);
+                        gainNode.gain.exponentialRampToValueAtTime(voice.gain, startAt + attack);
+                        gainNode.gain.exponentialRampToValueAtTime(0.0001, endAt);
+
+                        oscillator.connect(gainNode);
+                        gainNode.connect(context.destination);
+                        oscillator.start(startAt);
+                        oscillator.stop(endAt + 0.03);
+                    });
                 });
 
                 if (navigator.vibrate && pattern.vibrate) {

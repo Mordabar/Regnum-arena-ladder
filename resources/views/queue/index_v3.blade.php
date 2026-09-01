@@ -186,7 +186,7 @@
                         {{ $currentQueue->queue_type === 'premade' ? 'Tu premade está buscando rival…' : 'Buscando match…' }}
                     </p>
                     <p class="mt-1 text-sm text-sky-200/70 arena-body-text">
-                        Modo: {{ $queueTypeLabel }} &middot; Buscando hace <span id="queueWaitTime" class="font-mono text-[color:var(--arena-emerald)]" data-joined="{{ $currentQueue->joined_at?->timestamp }}"></span> &middot; Expira <span id="queueExpires" data-expires="{{ $currentQueue->expires_at?->timestamp }}">{{ $currentQueue->expires_at?->diffForHumans() ?? 'sin límite' }}</span>
+                        Modo: {{ $queueTypeLabel }} &middot; Buscando hace <span id="queueWaitTime" class="font-mono text-[color:var(--arena-emerald)]" data-joined="{{ $currentQueue->joined_at?->timestamp }}"></span> &middot; Expira <span id="queueExpires" data-expires="{{ $currentQueue->expires_at?->timestamp }}">{{ $currentQueue->expires_at?->locale('es')->diffForHumans() ?? 'sin límite' }}</span>
 
                         <script>
                             function updateQueueTimers() {
@@ -212,6 +212,41 @@
                     <input type="hidden" name="player_id" value="{{ $currentQueue->player_id }}">
                     <button type="submit" class="arena-btn-danger-ghost px-4 py-2 text-sm">Salir</button>
                 </form>
+            </div>
+
+            {{-- Quien mas esta esperando ahora mismo.
+
+                 El problema de una cola vacia no es la espera: es no saber si
+                 hay alguien al otro lado. Sin esto el jugador se siente solo y
+                 se va a los dos minutos. Los numeros se refrescan en vivo desde
+                 el sondeo, sin recargar la pagina. --}}
+            <div class="mt-4 rounded-2xl border border-[color:var(--arena-line)] bg-[rgba(12,8,6,0.7)] px-5 py-4">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <p class="arena-kicker">En cola ahora · {{ \App\Support\ArenaMode::label($currentQueue->arena_mode) }}</p>
+                    <p class="text-sm text-[color:var(--arena-muted)] arena-body-text">
+                        <span data-queue-pulse-total class="font-semibold text-[color:var(--arena-gold-soft)]">{{ $queuePulse['total'] }}</span>
+                        en total
+                    </p>
+                </div>
+
+                <div class="mt-3 grid gap-2 sm:grid-cols-3">
+                    @foreach($queuePulse['realms'] as $pulseRealm)
+                        <div class="flex items-center justify-between gap-3 rounded-xl border border-[color:var(--arena-line)] px-3 py-2">
+                            <span class="inline-flex items-center gap-2 text-sm arena-body-text">
+                                <x-arena-realm-icon :realm="$pulseRealm['key']" size="xs" />
+                                {{ $pulseRealm['name'] }}
+                            </span>
+                            <span data-queue-pulse-realm="{{ $pulseRealm['key'] }}"
+                                  class="font-mono text-lg font-semibold text-white">{{ $pulseRealm['waiting'] }}</span>
+                        </div>
+                    @endforeach
+                </div>
+
+                @if($queuePulse['hint'])
+                    <p data-queue-pulse-hint class="mt-3 text-sm text-[color:var(--arena-sand)] arena-body-text">
+                        {{ $queuePulse['hint'] }}
+                    </p>
+                @endif
             </div>
         </section>
     @elseif(!$hasRoster)

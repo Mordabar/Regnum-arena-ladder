@@ -270,7 +270,7 @@
                     <p class="mt-1 text-sm text-sky-200/70 arena-body-text">
                         El equipo rival debe confirmar o disputar tu reporte.
                         @if($match->expires_at)
-                            Tiempo restante: {{ $match->expires_at->diffForHumans() }}
+                            Tiempo restante: {{ $match->expires_at->locale('es')->diffForHumans() }}
                         @endif
                     </p>
                 </div>

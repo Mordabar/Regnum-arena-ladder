@@ -99,16 +99,23 @@
         </div>
         <a href="{{ route('admin.players.index') }}" class="ap-btn ap-btn-sm ap-btn-quiet">Gestionar</a>
     </div>
-    <div class="grid gap-3 grid-cols-2 lg:grid-cols-4">
+    <div class="grid gap-3 grid-cols-2 lg:grid-cols-5">
         <div class="ap-metric">
             <span class="ap-metric-label">Registrados</span>
             <span class="ap-metric-value ap-num">{{ $stats['players'] }}</span>
             <span class="ap-metric-note">personajes creados en total</span>
         </div>
         <div class="ap-metric">
-            <span class="ap-metric-label">Activos</span>
+            <span class="ap-metric-label">Habilitados</span>
             <span class="ap-metric-value ap-num">{{ $stats['active_players'] }}</span>
-            <span class="ap-metric-note">pueden entrar en cola</span>
+            <span class="ap-metric-note">personajes que pueden entrar en cola</span>
+        </div>
+        <div class="ap-metric">
+            <span class="ap-metric-label">Sin actividad</span>
+            <span class="ap-metric-value ap-num">{{ $stats['dormant_players'] }}</span>
+            <span class="ap-metric-note">
+                <a href="{{ route('admin.players.index', ['status' => 'dormant']) }}" style="color: var(--ap-accent)">habilitados sin entrar en {{ \App\Models\Player::dormancyDays() }}+ dias</a>
+            </span>
         </div>
         <div class="ap-metric {{ $stats['locked_players'] > 0 ? 'ap-metric-danger' : '' }}">
             <span class="ap-metric-label">Sancionados</span>

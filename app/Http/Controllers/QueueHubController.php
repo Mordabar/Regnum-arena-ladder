@@ -7,6 +7,7 @@ use App\Models\Player;
 use App\Models\Queue;
 use App\Services\ArenaMatchResultService;
 use App\Services\ArenaMatchmakingService;
+use App\Services\QueuePulseService;
 use App\Services\TestingLabService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -91,6 +92,13 @@ class QueueHubController extends Controller
                 ->get();
         }
 
+        // Cuanta gente espera ahora mismo, por reino. Se calcula desde el reino
+        // del personaje que el jugador tiene en cola (o el primero que tenga),
+        // para poder decirle que le falta en vez de un numero suelto.
+        $pulseRealm = $players->firstWhere('id', $currentQueue?->player_id)?->realm
+            ?? $players->first()?->realm;
+        $queuePulse = app(QueuePulseService::class)->forMode($arenaMode, $pulseRealm);
+
         return view('queue.index_v3', compact(
             'players',
             'premadeDailyLimit',
@@ -100,7 +108,8 @@ class QueueHubController extends Controller
             'pendingInvites',
             'arenaMode',
             'teamSize',
-            'enabledModes'
+            'enabledModes',
+            'queuePulse'
         ));
     }
 
@@ -736,7 +745,9 @@ class QueueHubController extends Controller
         $activeQueues = Queue::query()
             ->whereIn('player_id', $playerIds)
             ->whereIn('status', ['waiting', 'matched', 'accepted'])
-            ->select('id', 'player_id', 'queue_type', 'status', 'match_id')
+            // arena_mode se selecciona para poder contar el pulso de la cola en
+            // la modalidad que el jugador esta jugando, no en la de por defecto.
+            ->select('id', 'player_id', 'queue_type', 'status', 'match_id', 'arena_mode')
             ->orderBy('id')
             ->get();
 
@@ -823,9 +834,26 @@ class QueueHubController extends Controller
                 : null,
         ];
 
+        // El pulso de cola va DELIBERADAMENTE fuera del hash. Si entrara, cada
+        // vez que cualquier jugador entrase o saliese de la cola cambiaria el
+        // hash y el poller recargaria la pagina entera a todo el mundo. Aqui
+        // fuera, el contador se refresca en vivo sin recargar nada.
+        // El reino desde el que se cuenta es el del personaje que esta en cola.
+        // Quien tiene personajes en varios reinos veria una pista equivocada si
+        // se cogiese siempre el primero de la lista.
+        $queuedPlayerId = $activeQueues->first()?->player_id;
+        $pulseRealm = Player::query()
+            ->when($queuedPlayerId, fn ($query) => $query->where('id', $queuedPlayerId))
+            ->whereIn('id', $playerIds)
+            ->value('realm');
+
         return response()->json([
             'hash' => md5(json_encode($pollState)),
             'state' => $pollState,
+            'queue_pulse' => app(QueuePulseService::class)->forMode(
+                $activeQueues->first()?->arena_mode,
+                $pulseRealm
+            ),
         ]);
     }
 

@@ -88,6 +88,7 @@
             <option value="active" @selected($status === 'active')>Activos</option>
             <option value="inactive" @selected($status === 'inactive')>Inactivos</option>
             <option value="locked" @selected($status === 'locked')>Sancionados</option>
+            <option value="dormant" @selected($status === 'dormant')>Sin actividad ({{ $dormancyDays }}+ dias)</option>
         </select>
     </div>
     <button type="submit" class="ap-btn ap-btn-primary">
@@ -118,6 +119,10 @@
                     $activeQueue = $player->queues->first();
                     $isLocked = $player->queue_locked_until && $player->queue_locked_until->isFuture();
                     $rowId = 'ap-player-' . $player->id;
+                    // Sin actividad = su dueno no pasa por el sitio desde hace
+                    // $dormancyDays dias. Nada que ver con is_active, que es el
+                    // interruptor manual del personaje.
+                    $isDormant = $player->isDormant($dormancyDays);
                 @endphp
                 <tr>
                     <th scope="row" style="font-weight: 500">
@@ -142,7 +147,19 @@
                             @if($activeQueue)
                                 <span class="ap-badge ap-badge-info"><span class="ap-badge-dot"></span>En cola {{ $activeQueue->arena_mode ?: '2v2' }}</span>
                             @endif
+                            @if($isDormant)
+                                <span class="ap-badge ap-badge-neutral" title="Sin entrar al sitio desde hace {{ $dormancyDays }} dias o mas"><span class="ap-badge-dot"></span>Sin actividad</span>
+                            @endif
                         </div>
+                        @if($isDormant)
+                            <div class="ap-list-meta">
+                                @if($player->user?->last_seen_at)
+                                    Ultima visita <x-admin.ago :date="$player->user->last_seen_at" />
+                                @else
+                                    Sin visitas registradas
+                                @endif
+                            </div>
+                        @endif
                         @if($isLocked)
                             <div class="ap-list-meta">
                                 Hasta {{ $player->queue_locked_until->format('d/m H:i') }}

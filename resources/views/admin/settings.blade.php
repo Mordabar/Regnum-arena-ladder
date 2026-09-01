@@ -75,6 +75,14 @@
                         <input type="number" min="1" max="60" id="s-report" name="report_confirmation_window_minutes" value="{{ $settings['report_confirmation_window_minutes'] }}" class="ap-input">
                         <span class="ap-hint">Minutos que tiene el rival para confirmar o rechazar el reporte.</span>
                     </div>
+                    <div class="ap-field">
+                        <label class="ap-label" for="s-dormant">Marcar sin actividad (dias)</label>
+                        <input type="number" min="1" max="365" id="s-dormant" name="inactive_after_days" value="{{ $settings['inactive_after_days'] }}" class="ap-input">
+                        <span class="ap-hint">
+                            Dias sin entrar al sitio tras los que un jugador aparece como "Sin actividad".
+                            Es solo una etiqueta para el panel: no le impide encolar ni le quita puntos.
+                        </span>
+                    </div>
                 </div>
             </section>
 

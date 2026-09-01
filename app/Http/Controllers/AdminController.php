@@ -24,6 +24,10 @@ class AdminController extends Controller
         $stats = [
             'players' => Player::query()->count(),
             'active_players' => Player::query()->where('is_active', true)->count(),
+            // Habilitados pero sin pasar por el ladder desde hace tiempo. Es una
+            // lectura distinta de `is_active`, que solo dice si el personaje
+            // esta habilitado para jugar.
+            'dormant_players' => Player::query()->where('is_active', true)->dormant()->count(),
             'locked_players' => Player::query()->whereNotNull('queue_locked_until')->where('queue_locked_until', '>', now())->count(),
             'waiting_queues' => Queue::query()->where('status', 'waiting')->count(),
             'pending_acceptance' => ArenaMatch::query()->where('status', 'pending_acceptance')->count(),
@@ -217,6 +221,10 @@ class AdminController extends Controller
                 $query->where('is_active', false);
             } elseif ($status === 'active') {
                 $query->where('is_active', true);
+            } elseif ($status === 'dormant') {
+                // Sin actividad NO es lo mismo que deshabilitado: mide cuanto
+                // hace que su dueno no pasa por el ladder.
+                $query->dormant();
             }
         }
 
@@ -239,7 +247,9 @@ class AdminController extends Controller
             ->paginate(25)
             ->withQueryString();
 
-        return view('admin.players', compact('players', 'realm', 'status', 'search'));
+        $dormancyDays = Player::dormancyDays();
+
+        return view('admin.players', compact('players', 'realm', 'status', 'search', 'dormancyDays'));
     }
 
     public function storePlayer(Request $request)
@@ -449,6 +459,7 @@ class AdminController extends Controller
             'abandonment_trust_penalty' => AppSetting::getValue('abandonment_trust_penalty', 15),
             'support_infraction_trust_penalty' => AppSetting::getValue('support_infraction_trust_penalty', 25),
             'penalty_max_lock_hours' => AppSetting::getValue('penalty_max_lock_hours', 96),
+            'inactive_after_days' => AppSetting::getValue('inactive_after_days', 14),
         ];
 
         $discordConfig = [
@@ -485,6 +496,7 @@ class AdminController extends Controller
             'abandonment_trust_penalty' => 'required|integer|min:1|max:100',
             'support_infraction_trust_penalty' => 'required|integer|min:1|max:100',
             'penalty_max_lock_hours' => 'required|integer|min:1|max:336',
+            'inactive_after_days' => 'required|integer|min:1|max:365',
         ]);
 
         $this->applyArenaModeToggles([
@@ -511,6 +523,7 @@ class AdminController extends Controller
         AppSetting::setValue('abandonment_trust_penalty', $validated['abandonment_trust_penalty'], 'runtime', 'integer', false);
         AppSetting::setValue('support_infraction_trust_penalty', $validated['support_infraction_trust_penalty'], 'runtime', 'integer', false);
         AppSetting::setValue('penalty_max_lock_hours', $validated['penalty_max_lock_hours'], 'runtime', 'integer', false);
+        AppSetting::setValue('inactive_after_days', $validated['inactive_after_days'], 'runtime', 'integer', false);
 
         return back()->with('success', 'Configuracion guardada.');
     }

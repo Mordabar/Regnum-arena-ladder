@@ -478,6 +478,7 @@ function defaultSettingsPayload(): array
         'abandonment_trust_penalty' => 15,
         'support_infraction_trust_penalty' => 25,
         'penalty_max_lock_hours' => 96,
+        'inactive_after_days' => 14,
     ];
 }
 
