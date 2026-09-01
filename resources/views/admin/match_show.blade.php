@@ -247,7 +247,11 @@
                 <span class="ap-hint">Viene preseleccionado lo que dice el reporte, si lo hay.</span>
             </div>
 
-            <div class="ap-field" data-ap-when="abandonment_walkover support_infraction" hidden>
+            {{-- Sin JavaScript se ven todos los campos. Es feo pero honesto: si
+                 este selector estuviera oculto por defecto y el script fallara,
+                 al elegir "abandono" se sancionaria al primer jugador de la
+                 lista sin que nadie lo viera. --}}
+            <div class="ap-field" data-ap-when="abandonment_walkover support_infraction">
                 <label class="ap-label" for="d-player">Jugador afectado</label>
                 <select name="player_id" id="d-player" class="ap-select">
                     @foreach($match->getAllPlayers() as $player)

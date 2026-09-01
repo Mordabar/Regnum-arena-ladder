@@ -19,11 +19,15 @@ class AdminNavigation
     /**
      * Secciones del menu, con el contador de pendientes cuando lo hay.
      *
+     * Recibe los contadores ya calculados en vez de pedirlos: quien pinta el
+     * menu tambien los necesita para la cabecera, y calcularlos dos veces son
+     * dos consultas de mas en cada carga de cada pantalla.
+     *
+     * @param  array{inbox: int, confirmations: int, disputes: int}  $counts
      * @return array<int, array{label: string, items: array<int, array<string, mixed>>}>
      */
-    public static function sections(): array
+    public static function sections(array $counts): array
     {
-        $counts = self::pendingCounts();
 
         return [
             [

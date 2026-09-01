@@ -35,9 +35,7 @@ class AdminController extends Controller
 
         $recentMatches = ArenaMatch::query()->latest('created_at')->take(8)->get();
         $recentReports = MatchReport::query()->with(['match', 'reporter'])->latest('created_at')->take(8)->get();
-        $recentUsers = User::query()->latest('created_at')->take(8)->get();
-
-        return view('admin.dashboard', compact('stats', 'recentMatches', 'recentReports', 'recentUsers'));
+        return view('admin.dashboard', compact('stats', 'recentMatches', 'recentReports'));
     }
 
     public function matches(Request $request)

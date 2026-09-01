@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es" class="ap-root">
+<html lang="es">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -18,8 +18,8 @@
 </head>
 <body>
 @php
-    $navSections = \App\Support\AdminNavigation::sections();
     $pending = \App\Support\AdminNavigation::pendingCounts();
+    $navSections = \App\Support\AdminNavigation::sections($pending);
     $adminName = session('arena_admin.display_name', 'Admin');
 @endphp
 
@@ -167,28 +167,69 @@
 @stack('scripts')
 @stack('arena-map-scripts')
 <script>
-    // Modal minimo del panel: lo usa la auditoria de zona del detalle de match.
+    // Modal del panel. Ademas de abrir y cerrar, gestiona el foco: al abrirse
+    // lo lleva dentro, no deja que el tabulador salga por detras del velo, y al
+    // cerrarse lo devuelve al boton que lo abrio. Sin eso, quien navega con
+    // teclado abre el mapa y se pierde recorriendo la pagina que hay debajo.
     (function () {
+        let opener = null;
+        let trapped = null;
+
+        const focusablesIn = (root) => [...root.querySelectorAll(
+            'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )].filter((el) => el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+
+        const open = (id, trigger) => {
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            opener = trigger || null;
+            trapped = modal;
+            modal.style.display = 'flex';
+            document.body.classList.add('ap-locked');
+            const targets = focusablesIn(modal);
+            (targets[0] || modal).focus();
+            // El mapa se dibuja dentro de un contenedor que estaba oculto y
+            // necesita recalcular su tamano.
+            window.dispatchEvent(new Event('resize'));
+        };
+
         const close = (id) => {
-            const el = document.getElementById(id);
-            if (el) { el.style.display = 'none'; document.body.classList.remove('ap-locked'); }
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            modal.style.display = 'none';
+            document.body.classList.remove('ap-locked');
+            if (trapped === modal) trapped = null;
+            if (opener) { opener.focus(); opener = null; }
         };
 
         document.addEventListener('click', (event) => {
-            const opener = event.target.closest('[data-modal-open]');
-            if (opener) {
-                const el = document.getElementById(opener.dataset.modalOpen);
-                if (el) { el.style.display = 'flex'; document.body.classList.add('ap-locked'); }
-                window.dispatchEvent(new Event('resize'));
-                return;
-            }
+            const trigger = event.target.closest('[data-modal-open]');
+            if (trigger) { open(trigger.dataset.modalOpen, trigger); return; }
             const closer = event.target.closest('[data-modal-close]');
             if (closer) close(closer.dataset.modalClose);
         });
 
         document.addEventListener('keydown', (event) => {
-            if (event.key !== 'Escape') return;
-            document.querySelectorAll('[role="dialog"]').forEach((el) => close(el.id));
+            if (event.key === 'Escape') {
+                document.querySelectorAll('[role="dialog"]').forEach((el) => close(el.id));
+                return;
+            }
+
+            if (event.key !== 'Tab' || !trapped) return;
+
+            const targets = focusablesIn(trapped);
+            if (!targets.length) { event.preventDefault(); return; }
+
+            const first = targets[0];
+            const last = targets[targets.length - 1];
+
+            if (event.shiftKey && (document.activeElement === first || !trapped.contains(document.activeElement))) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
         });
     })();
 </script>

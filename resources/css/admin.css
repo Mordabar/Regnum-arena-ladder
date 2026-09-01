@@ -28,7 +28,10 @@
         /* Texto: tres niveles, suficientes para jerarquía sin inventar grises. */
         --ap-text: #f5f3f0;
         --ap-text-muted: #a8a09a;
-        --ap-text-subtle: #6f6763;
+        /* 4.6:1 sobre la superficie elevada y 5.0:1 sobre la base: el minimo
+           legible. Con #6f6763 se quedaba en 3.2:1 y las notas explicativas
+           eran ilegibles justo para quien mas las necesita. */
+        --ap-text-subtle: #8a827c;
 
         /* Acento de marca. */
         --ap-accent: #d8b15c;
@@ -293,14 +296,17 @@
     /* ── Reinos ────────────────────────────────────────────────────── */
     .ap-realm { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; }
     .ap-realm-mark { width: 7px; height: 7px; border-radius: 2px; flex: none; transform: rotate(45deg); }
-    .ap-realm-ignis  { color: var(--ap-ignis); }
-    .ap-realm-ignis  .ap-realm-mark { background: var(--ap-ignis); }
-    .ap-realm-alsius { color: var(--ap-alsius); }
-    .ap-realm-alsius .ap-realm-mark { background: var(--ap-alsius); }
-    .ap-realm-syrtis { color: var(--ap-syrtis); }
-    .ap-realm-syrtis .ap-realm-mark { background: var(--ap-syrtis); }
-    .ap-realm-none   { color: var(--ap-text-subtle); }
-    .ap-realm-none   .ap-realm-mark { background: var(--ap-text-subtle); }
+    /* La doble clase sube la especificidad a proposito: sin ella, el color del
+       reino perdia contra el del texto secundario que lo envuelve y el nombre
+       salia gris con la marca de color al lado. */
+    .ap-realm.ap-realm-ignis  { color: var(--ap-ignis); }
+    .ap-realm.ap-realm-ignis  .ap-realm-mark { background: var(--ap-ignis); }
+    .ap-realm.ap-realm-alsius { color: var(--ap-alsius); }
+    .ap-realm.ap-realm-alsius .ap-realm-mark { background: var(--ap-alsius); }
+    .ap-realm.ap-realm-syrtis { color: var(--ap-syrtis); }
+    .ap-realm.ap-realm-syrtis .ap-realm-mark { background: var(--ap-syrtis); }
+    .ap-realm.ap-realm-none   { color: var(--ap-text-muted); }
+    .ap-realm.ap-realm-none   .ap-realm-mark { background: var(--ap-text-muted); }
 
     /* ── Estado vacío ──────────────────────────────────────────────── */
     .ap-empty {
@@ -967,8 +973,10 @@
         justify-content: center;
         font-size: 11px;
         font-weight: 600;
-        background: var(--ap-danger-dim);
-        color: var(--ap-danger);
+        /* Fondo opaco a proposito: sobre el elemento activo del menu el relleno
+           translucido se mezclaba con el dorado y el numero bajaba a 4.4:1. */
+        background: #3a2020;
+        color: #fca5a5;
     }
 }
 

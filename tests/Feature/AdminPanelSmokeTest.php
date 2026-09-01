@@ -163,3 +163,59 @@ it('no filtra el usuario admin por defecto en la pantalla de acceso', function (
     $response->assertOk();
     $response->assertDontSee('Usuario por defecto');
 });
+
+/**
+ * El formulario de decision oculta con JavaScript los campos que no aplican a
+ * la accion elegida. Si el script no llega a ejecutarse, todo tiene que quedar
+ * VISIBLE: con el selector de jugador oculto por defecto, elegir "abandono"
+ * sancionaria al primero de la lista sin que el moderador lo viera.
+ */
+it('deja visibles todos los campos de decision cuando no hay javascript', function () {
+    $player = adminPanelPlayer('nojs');
+    $rival = adminPanelPlayer('nojs-rival', 'syrtis');
+
+    $match = ArenaMatch::create([
+        'match_code' => 'ARENA-9100',
+        'report_token' => 'NOJS000001',
+        'queue_mode' => 'random',
+        'arena_mode' => '2v2',
+        'team_a_realm' => 'ignis',
+        'team_b_realm' => 'syrtis',
+        'team_a' => [['player_id' => $player->id, 'character_name' => $player->character_name, 'subclass' => 'knight', 'realm' => 'ignis', 'discord_id' => (string) $player->user_id]],
+        'team_b' => [['player_id' => $rival->id, 'character_name' => $rival->character_name, 'subclass' => 'knight', 'realm' => 'syrtis', 'discord_id' => (string) $rival->user_id]],
+        'zone' => 'frozen_bridge',
+        'status' => 'in_progress',
+        'estimated_mmr_avg' => 1000,
+        'started_at' => now(),
+    ]);
+
+    $html = $this->withSession(adminPanelSession())
+        ->get(route('admin.matches.show', $match))
+        ->assertOk()
+        ->getContent();
+
+    // El bloque del selector de jugador no puede llevar el atributo hidden.
+    expect($html)->toContain('data-ap-when="abandonment_walkover support_infraction"');
+    expect($html)->not->toContain('data-ap-when="abandonment_walkover support_infraction" hidden');
+});
+
+/**
+ * El menu lateral y la cabecera necesitan los mismos contadores. Se calculan
+ * una sola vez por peticion: repetirlos eran dos consultas de mas en cada carga
+ * de cada pantalla del panel.
+ */
+it('cuenta los pendientes una sola vez por peticion', function () {
+    $queries = [];
+    Illuminate\Support\Facades\DB::listen(function ($query) use (&$queries) {
+        $queries[] = $query->sql;
+    });
+
+    $this->withSession(adminPanelSession())->get(route('admin.settings'))->assertOk();
+
+    $pendingCountQueries = collect($queries)
+        ->filter(fn (string $sql) => str_contains($sql, 'count(*)')
+            && (str_contains($sql, 'match_reports') || str_contains($sql, 'matches')))
+        ->count();
+
+    expect($pendingCountQueries)->toBe(2);
+});

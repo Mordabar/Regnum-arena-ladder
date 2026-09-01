@@ -15,6 +15,11 @@ export default {
     './resources/views/admin/**/*.blade.php',
     './resources/views/components/arena-zone-map.blade.php',
     './resources/views/components/admin/**/*.blade.php',
+    // La vista de paginacion tambien usa clases del panel: si no se escanea,
+    // Tailwind purga .ap-pagination y la paginacion sale sin estilo. No se ve
+    // en local mientras haya pocos datos, porque con una sola pagina no se
+    // renderiza.
+    './resources/views/vendor/pagination/admin.blade.php',
     './app/Support/AdminNavigation.php',
   ],
   theme: { extend: {} },
