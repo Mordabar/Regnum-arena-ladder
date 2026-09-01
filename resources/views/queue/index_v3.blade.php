@@ -109,6 +109,13 @@
     </section>
 
     {{-- ── ACTION PANEL: show only the ONE thing the user needs to do ── --}}
+    @if($matchLineup)
+        {{-- Cruce encontrado: se acepta aqui mismo, sin pasar por la pagina del
+             enfrentamiento. Antes habia que ver un panel, pulsar "Aceptar
+             match", cargar otra pagina y aceptar alli, con el reloj corriendo. --}}
+        <x-arena-match-overlay :match="$currentMatch" :lineup="$matchLineup" :player="$matchPlayer" />
+    @endif
+
     @if($currentMatch)
         <section class="arena-panel mb-6 p-6 arena-animate-in arena-stagger-1 border-l-4 {{ $currentMatch->status === 'pending_acceptance' ? 'border-l-amber-500/60' : ($currentMatch->status === 'in_progress' ? 'border-l-emerald-500/60' : 'border-l-sky-500/60') }}">
             <div class="flex flex-wrap items-center justify-between gap-4">
@@ -119,7 +126,7 @@
                             <h2 class="mt-1 text-2xl font-semibold text-[color:var(--arena-gold-soft)]">Acepta tu match</h2>
                             <span id="queueMatchCountdown" class="mt-1 arena-chip text-xs bg-black/40 border border-red-500/30 text-red-300 px-2 py-1" data-expires="{{ $currentMatch->expires_at?->timestamp }}">--:--</span>
                         </div>
-                        <p class="mt-2 text-sm text-[color:var(--arena-muted)] arena-body-text">Los {{ \App\Support\ArenaMode::teamSize($currentMatch->arena_mode) * 2 }} jugadores deben confirmar. Entra al detalle y acepta.</p>
+                        <p class="mt-2 text-sm text-[color:var(--arena-muted)] arena-body-text">Los {{ \App\Support\ArenaMode::teamSize($currentMatch->arena_mode) * 2 }} jugadores deben confirmar. El aviso de cruce te deja aceptar sin salir de aqui.</p>
                         
                         <script>
                             function updateQueueMatchTimer() {

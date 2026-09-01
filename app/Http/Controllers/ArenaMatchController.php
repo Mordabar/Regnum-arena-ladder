@@ -106,6 +106,10 @@ class ArenaMatchController extends Controller
         $request->validate([
             'match_id' => 'required|exists:matches,id',
             'player_id' => 'required|exists:players,id',
+            // Desde donde se acepto. El aviso de cruce vive encima de la cola,
+            // asi que devolver alli deja al jugador donde estaba, viendo quien
+            // falta por confirmar, en vez de saltarle a otra pagina.
+            'from' => 'nullable|in:queue',
         ]);
 
         $match = ArenaMatch::findOrFail($request->match_id);
@@ -145,6 +149,11 @@ class ArenaMatchController extends Controller
             });
         } catch (\Throwable $e) {
             return back()->withErrors(['error' => $e->getMessage()]);
+        }
+
+        if ($request->input('from') === 'queue') {
+            return redirect()->route('queue.index', ['mode' => $match->arena_mode])
+                ->with('success', '¡Combate aceptado! Esperando a los demás.');
         }
 
         return redirect()->route('matches.show', $match)

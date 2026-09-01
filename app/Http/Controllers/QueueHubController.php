@@ -7,6 +7,7 @@ use App\Models\Player;
 use App\Models\Queue;
 use App\Services\ArenaMatchResultService;
 use App\Services\ArenaMatchmakingService;
+use App\Services\MatchLineupService;
 use App\Services\QueuePulseService;
 use App\Services\TestingLabService;
 use Illuminate\Http\Request;
@@ -99,6 +100,19 @@ class QueueHubController extends Controller
             ?? $players->first()?->realm;
         $queuePulse = app(QueuePulseService::class)->forMode($arenaMode, $pulseRealm);
 
+        // Alineaciones del cruce pendiente. Se calculan aqui para que el aviso
+        // pueda mostrarse encima de la cola sin obligar al jugador a abrir otra
+        // pagina: el reloj corre mientras navega.
+        $matchLineup = null;
+        $matchPlayer = null;
+
+        if ($currentMatch && $currentMatch->status === 'pending_acceptance' && !$currentMatch->isExpired()) {
+            $matchLineup = app(MatchLineupService::class)->forViewer($currentMatch, $players->pluck('id')->all());
+            $matchPlayer = $matchLineup
+                ? $players->firstWhere('id', $matchLineup['viewer_player_id'])
+                : null;
+        }
+
         return view('queue.index_v3', compact(
             'players',
             'premadeDailyLimit',
@@ -109,7 +123,9 @@ class QueueHubController extends Controller
             'arenaMode',
             'teamSize',
             'enabledModes',
-            'queuePulse'
+            'queuePulse',
+            'matchLineup',
+            'matchPlayer'
         ));
     }
 

@@ -170,7 +170,7 @@
                 events.push({
                     type: 'match_found',
                     key: 'match-found:' + nextMatch.id,
-                    message: 'Match encontrado. Entra y acepta.',
+                    message: 'Combate encontrado. Acepta ahora.',
                 });
             }
 

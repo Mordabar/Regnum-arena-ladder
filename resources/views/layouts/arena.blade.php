@@ -659,6 +659,183 @@
         }
         .arena-roster-empty:hover { color: var(--arena-gold-soft); border-color: var(--arena-line-strong); transform: none; }
 
+        /* ── Aviso de cruce ─────────────────────────────────────────────────
+           Se apodera de la pantalla a proposito: encontrar rival es el momento
+           que decide la partida y tiene un reloj corriendo. Un panel mas en
+           medio del scroll se pierde. */
+        .arena-duel {
+            position: fixed;
+            inset: 0;
+            z-index: 60;
+            /* Flex con margin:auto en la tarjeta, no place-items:center: cuando
+               el aviso es mas alto que la pantalla, centrar con grid deja la
+               cabecera por encima del borde y no hay forma de subir hasta ella. */
+            display: flex;
+            padding: 20px;
+            background: rgba(5, 3, 2, 0.86);
+            backdrop-filter: blur(7px);
+            overflow-y: auto;
+            animation: arenaDuelIn 0.28s ease-out both;
+        }
+        @keyframes arenaDuelIn { from { opacity: 0 } to { opacity: 1 } }
+
+        .arena-duel-card {
+            width: min(720px, 100%);
+            margin: auto;
+            flex: none;
+            border: 1px solid var(--arena-line-strong);
+            border-radius: 20px;
+            overflow: hidden;
+            background: linear-gradient(180deg, rgba(32, 22, 17, 0.98), rgba(14, 10, 7, 0.98));
+            box-shadow: 0 40px 90px rgba(0, 0, 0, 0.7);
+            animation: arenaDuelPop 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+        }
+        @keyframes arenaDuelPop { from { transform: scale(0.94) } to { transform: scale(1) } }
+
+        .arena-duel-head {
+            padding: 20px 24px 16px;
+            text-align: center;
+            border-bottom: 1px solid var(--arena-line);
+        }
+        .arena-duel-title {
+            margin: 6px 0 0;
+            font-size: clamp(21px, 3.4vw, 27px);
+            font-weight: 700;
+            color: var(--arena-gold-soft);
+            text-wrap: balance;
+        }
+        .arena-duel-sub {
+            margin: 6px auto 0;
+            max-width: 46ch;
+            font-size: 13.5px;
+            color: var(--arena-muted);
+        }
+        .arena-duel-ring { position: relative; width: 78px; height: 78px; margin: 14px auto 0; }
+        .arena-duel-ring svg { transform: rotate(-90deg); display: block; }
+        .arena-duel-ring circle { fill: none; stroke-width: 5; stroke-linecap: round; }
+        .arena-duel-ring .bg { stroke: rgba(222, 185, 99, 0.14); }
+        .arena-duel-ring .fg {
+            stroke: var(--arena-gold);
+            transition: stroke-dashoffset 0.95s linear, stroke 0.3s ease;
+        }
+        .arena-duel-ring.is-urgent .fg { stroke: #c4553f; }
+        .arena-duel-ring b {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            font-size: 21px;
+            font-weight: 700;
+            color: var(--arena-gold-soft);
+            font-variant-numeric: tabular-nums;
+        }
+        .arena-duel-count {
+            margin: 8px 0 0;
+            font-size: 12px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--arena-muted);
+        }
+
+        .arena-duel-body { padding: 18px 24px 4px; display: flex; flex-direction: column; gap: 16px; }
+        /* Retrato, no panoramica: a lo ancho el guerrero se quedaba en un
+           munequito en medio de mucho aire. */
+        .arena-duel-stage {
+            border-radius: 14px;
+            width: min(320px, 100%);
+            margin: 0 auto;
+        }
+
+        .arena-duel-lineups {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 14px;
+            align-items: center;
+        }
+        .arena-duel-team { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+        .arena-duel-team h3 {
+            margin: 0 0 2px;
+            font-size: 10.5px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--team-color, var(--arena-gold));
+        }
+        .arena-duel-fighter {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 11px;
+            background: rgba(10, 7, 5, 0.6);
+            border: 1px solid var(--arena-line);
+            transition: border-color 0.25s ease;
+        }
+        .arena-duel-fighter.is-ready { border-color: rgba(95, 174, 106, 0.45); }
+        .arena-duel-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            flex: none;
+            display: grid;
+            place-items: center;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--arena-line);
+        }
+        .arena-duel-fighter b {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--arena-text);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .arena-duel-fighter > span > span { display: block; font-size: 11px; color: var(--arena-muted); }
+        .arena-duel-ready {
+            margin-left: auto;
+            font-size: 10.5px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--arena-muted);
+            white-space: nowrap;
+        }
+        .arena-duel-fighter.is-ready .arena-duel-ready { color: #7cc98a; }
+        .arena-duel-versus { font-size: 19px; font-weight: 700; color: var(--arena-muted); letter-spacing: 0.08em; }
+
+        .arena-duel-zone {
+            display: flex;
+            gap: 14px;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-radius: 13px;
+            border: 1px solid var(--arena-line);
+            background: rgba(10, 7, 5, 0.6);
+        }
+        .arena-duel-zone-key {
+            margin: 0;
+            font-size: 10px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--arena-muted);
+        }
+        .arena-duel-zone-value { margin: 2px 0 0; font-size: 16px; font-weight: 600; color: var(--arena-gold-soft); }
+
+        .arena-duel-foot { display: flex; gap: 10px; flex-wrap: wrap; padding: 16px 24px 22px; }
+        .arena-duel-foot > * { min-width: 140px; }
+
+        @media (max-width: 620px) {
+            .arena-duel { padding: 12px; }
+            /* Menos escenario y mas alineaciones: en una pantalla de movil lo
+               que hay que decidir es si aceptas, no admirar el retrato. */
+            .arena-duel-stage { height: 170px !important; width: min(220px, 100%); }
+            .arena-duel-lineups { grid-template-columns: 1fr; }
+            .arena-duel-versus { text-align: center; }
+            .arena-duel-body { padding: 14px 16px 4px; }
+            .arena-duel-head { padding: 16px 16px 14px; }
+            .arena-duel-foot { padding: 14px 16px 18px; }
+        }
+
         /* ── Asistente de creacion ── */
         .arena-wizard-step {
             border: 1px solid var(--arena-line);
