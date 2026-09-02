@@ -18,20 +18,24 @@
     :root {
         /* Superficies: escala de grises cálidos, no negro puro, para que el
            contraste con el texto no vibre en pantallas grandes. */
-        --ap-bg: #0c0a09;
-        --ap-surface: #141110;
-        --ap-surface-raised: #1c1917;
-        --ap-surface-overlay: #232020;
-        --ap-line: #2c2725;
-        --ap-line-strong: #3d3734;
+        /* Las mismas tierras del arena. Antes eran grises neutros y el panel
+           parecia de otro producto: el jugador cruza de una a otra en la misma
+           sesion y la marca tiene que sobrevivir al salto. */
+        --ap-bg: #0f0b08;
+        --ap-surface: #17110d;
+        --ap-surface-raised: #1f1712;
+        --ap-surface-overlay: #271d16;
+        /* Las lineas llevan oro, como en el arena, en vez de gris. */
+        --ap-line: rgba(222, 185, 99, 0.16);
+        --ap-line-strong: rgba(232, 200, 122, 0.3);
 
         /* Texto: tres niveles, suficientes para jerarquía sin inventar grises. */
-        --ap-text: #f5f3f0;
-        --ap-text-muted: #a8a09a;
+        --ap-text: #f3ebda;
+        --ap-text-muted: #b4a387;
         /* 4.6:1 sobre la superficie elevada y 5.0:1 sobre la base: el minimo
            legible. Con #6f6763 se quedaba en 3.2:1 y las notas explicativas
            eran ilegibles justo para quien mas las necesita. */
-        --ap-text-subtle: #8a827c;
+        --ap-text-subtle: #9c8d76;
 
         /* Acento de marca. */
         --ap-accent: #d8b15c;
@@ -75,7 +79,14 @@
 
     body {
         margin: 0;
-        background: var(--ap-bg);
+        /* El mismo halo por reino que el sitio publico, mas tenue: aqui se lee
+           mucho rato y no puede competir con las tablas. */
+        background:
+            radial-gradient(circle at 16% 4%, rgba(121, 181, 214, 0.07), transparent 26%),
+            radial-gradient(circle at 82% 6%, rgba(142, 179, 74, 0.07), transparent 26%),
+            radial-gradient(circle at 50% 96%, rgba(211, 100, 47, 0.08), transparent 30%),
+            var(--ap-bg);
+        background-attachment: fixed;
         color: var(--ap-text);
         font-family: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
         font-size: 14px;
@@ -373,7 +384,12 @@
     }
 
     .ap-brand-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
-    .ap-brand-text strong { font-size: 13px; font-weight: 600; color: var(--ap-text); }
+    .ap-brand-text strong {
+        font-family: "Cinzel", Georgia, serif;
+        font-size: 13.5px;
+        font-weight: 700;
+        color: var(--ap-accent-soft);
+    }
     .ap-brand-text span { font-size: 11px; color: var(--ap-text-subtle); }
 
     .ap-nav {
@@ -465,10 +481,11 @@
     .ap-topbar-title { flex: 1; min-width: 0; }
     .ap-topbar-title h1 {
         margin: 0;
-        font-size: 17px;
-        font-weight: 600;
-        letter-spacing: -0.01em;
-        color: var(--ap-text);
+        font-family: "Cinzel", Georgia, serif;
+        font-size: 19px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        color: var(--ap-accent-soft);
     }
     .ap-topbar-title p {
         margin: 2px 0 0;
@@ -627,10 +644,14 @@
         margin-bottom: 10px;
     }
 
+    /* Los titulos llevan la serif del arena. Los datos no: en una tabla
+       densa una serif con mayusculas espaciadas se lee peor. */
     .ap-section-title {
         margin: 0;
-        font-size: 13px;
+        font-family: "Cinzel", Georgia, serif;
+        font-size: 13.5px;
         font-weight: 600;
+        letter-spacing: 0.01em;
         color: var(--ap-text);
     }
 

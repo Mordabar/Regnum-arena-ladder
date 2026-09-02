@@ -838,6 +838,13 @@
             .arena-console-ident { inset-inline: 14px; bottom: 14px; }
         }
 
+        .arena-home-champion { display: block; }
+        .arena-home-champion-stage {
+            border-radius: 14px;
+            border: 1px solid var(--arena-line);
+            background: rgba(0, 0, 0, 0.35);
+        }
+
         .arena-champion-podium { display: block; }
         .arena-champion-podium-stage {
             border-radius: 12px;

@@ -54,13 +54,12 @@
         ? ($report->claimed_winner_team === 'draw' ? null : ($report->claimed_winner_team === 'team_a' ? $match->team_a_realm : $match->team_b_realm))
         : null;
 
+    // Los mismos cuatro pasos que el lobby, con los mismos nombres. Esta
+    // pagina contaba cinco y con otras palabras, asi que llegar aqui desde el
+    // lobby parecia cambiar de aplicacion en el ultimo paso.
     $stepperCurrent = match(true) {
-        $match->status === 'pending_acceptance' => 2,
-        $match->status === 'in_progress' && !$report => 3,
-        $reportPendingConfirmation => 4,
-        $match->status === 'disputed' => 4,
-        $match->status === 'completed' => 5,
-        default => 3,
+        $match->status === 'pending_acceptance' => 3,
+        default => 4,
     };
 
     $statusClass = match($match->status) {
@@ -132,7 +131,7 @@
         {{-- Stepper --}}
         <div class="relative mt-6">
             <x-arena-stepper
-                :steps="['Match', 'Aceptación', 'Combate', 'Reporte', 'Cierre']"
+                :steps="['Registra', 'Elige modo', 'Espera cruce', 'Pelea y reporta']"
                 :current="$stepperCurrent"
             />
         </div>

@@ -12,7 +12,14 @@ use Illuminate\Support\Facades\Route;
 $arenaAdminPath = trim((string) config('arena_admin.path', 'lowly-control-room'), '/');
 
 Route::get('/', function () {
-    return view('home_v2');
+    // La portada de un juego ensena a un guerrero, no solo su logotipo. Se
+    // elige el primero del ladder: es publico y cambia solo.
+    $champion = \App\Models\Player::query()
+        ->where('is_active', true)
+        ->orderByPublicLadder()
+        ->first(['id', 'character_name', 'realm', 'subclass', 'race', 'gender', 'pl_points', 'is_active', 'deactivated_reason']);
+
+    return view('home_v2', compact('champion'));
 })->name('home');
 
 Route::get('/login', function () {
@@ -117,6 +124,7 @@ Route::prefix('/' . $arenaAdminPath)->group(function () {
         });
     });
 });
+
 
 
 

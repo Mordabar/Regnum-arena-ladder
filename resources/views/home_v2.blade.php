@@ -33,13 +33,11 @@
 
                 <div class="mt-8 flex flex-wrap gap-3">
                     @auth
+                        {{-- El lobby y la arena son la misma pantalla: dos
+                             botones al mismo sitio solo hacian dudar. --}}
                         <a href="{{ route('lobby') }}" class="arena-btn">
-                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/></svg>
-                            Ir al lobby
-                        </a>
-                        <a href="{{ route('lobby') }}" class="arena-btn-secondary">
                             <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
-                            Buscar combate
+                            Entrar al lobby
                         </a>
                     @else
                         <a href="{{ route('auth.discord') }}" class="arena-btn-secondary">
@@ -55,13 +53,40 @@
             </div>
 
             <div class="grid gap-4 arena-animate-in arena-stagger-2">
-                <div class="flex justify-center lg:justify-end">
-                    <x-arena-brand class="rounded-[2rem] border border-[color:var(--arena-line)] bg-[linear-gradient(180deg,rgba(47,34,24,0.74),rgba(16,11,8,0.9))] px-6 py-5 shadow-[0_20px_45px_rgba(0,0,0,0.26)]" />
-                </div>
+                @if($champion ?? null)
+                    {{-- El primero del ladder, en 3D. Una portada de juego
+                         ensena el juego; el logotipo ya esta en la cabecera. --}}
+                    <a href="{{ route('ladder.show', $champion) }}" class="arena-home-champion arena-card arena-card-{{ $champion->realm }} p-4">
+                        <x-arena-champion
+                            id="home-champion"
+                            :realm="$champion->realm"
+                            :subclass="$champion->subclass"
+                            :race="$champion->race"
+                            :gender="$champion->gender"
+                            :parallax="false"
+                            height="clamp(220px, 30vh, 300px)"
+                            class="arena-home-champion-stage" />
+                        <div class="mt-3">
+                            <p class="arena-kicker flex items-center gap-2">
+                                <x-arena-realm-icon :realm="$champion->realm" size="xs" />
+                                Numero 1 del ladder
+                            </p>
+                            <h2 class="mt-1.5 truncate text-xl font-semibold text-white">{{ $champion->cleanName() }}</h2>
+                            <p class="mt-1 flex flex-wrap items-center gap-x-3 text-sm text-[color:var(--arena-muted)] arena-body-text">
+                                <span>{{ \App\Models\Player::SUBCLASSES[$champion->subclass] ?? $champion->subclass }}</span>
+                                <span class="font-semibold text-amber-300">{{ number_format((float) $champion->pl_points, 1) }} PL</span>
+                            </p>
+                        </div>
+                    </a>
+                @else
+                    <div class="flex justify-center lg:justify-end">
+                        <x-arena-brand class="rounded-[2rem] border border-[color:var(--arena-line)] bg-[linear-gradient(180deg,rgba(47,34,24,0.74),rgba(16,11,8,0.9))] px-6 py-5 shadow-[0_20px_45px_rgba(0,0,0,0.26)]" />
+                    </div>
+                @endif
 
                 {{-- Stepper: How it works --}}
                 <x-arena-stepper
-                    :steps="['Registra', 'Entra a cola', 'Pelea', 'Reporta']"
+                    :steps="['Registra', 'Elige modo', 'Espera cruce', 'Pelea y reporta']"
                     :current="1"
                     class="mt-2"
                 />

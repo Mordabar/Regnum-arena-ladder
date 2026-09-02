@@ -96,7 +96,12 @@
                         </div>
 
                         <div class="mt-5">
-                            <a href="{{ route('matches.show', $match) }}" class="arena-btn-secondary w-full">
+                            {{-- Aceptar y reportar viven en el lobby, que es
+                                 donde ocurre el combate entero. Mandar aqui a
+                                 otra pagina para hacer eso era volver a partir
+                                 el flujo en dos. --}}
+                            <a href="{{ in_array($match->status, ['pending_acceptance', 'in_progress'], true) ? route('lobby', ['mode' => $match->arena_mode]) : route('matches.show', $match) }}"
+                               class="arena-btn-secondary w-full">
                                 @if($match->status === 'pending_acceptance')
                                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
                                     Aceptar match

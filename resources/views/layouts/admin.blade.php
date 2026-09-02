@@ -12,7 +12,9 @@
     <link rel="stylesheet" href="{{ asset('css/admin.css') }}?v={{ @filemtime(public_path('css/admin.css')) ?: '1' }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    {{-- Cinzel para los titulos, la misma que el sitio publico: el panel es parte
+         del mismo producto y el jugador cruza de uno a otro en la misma sesion. --}}
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&display=swap">
     @stack('styles')
     @stack('arena-map-styles')
 </head>
