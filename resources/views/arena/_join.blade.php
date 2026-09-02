@@ -74,10 +74,12 @@
 
                 {{-- El constructor de grupo, plegado hasta que se pide. --}}
                 <div id="tab-premade" class="arena-premade-builder mt-5" data-has-party="{{ $activeParty ? '1' : '0' }}" hidden>
-                    <p class="mb-4 flex flex-wrap items-center gap-x-3 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                        <span>Forma tu escuadra con {{ $teamSize - 1 }} aliado(s) y lánzate a la arena.</span>
-                        <span class="arena-chip text-[color:var(--arena-ice)]">{{ $premadeDailyLimit }}/día</span>
-                    </p>
+                    @unless($activeParty)
+                        <p class="mb-4 flex flex-wrap items-center gap-x-3 text-sm text-[color:var(--arena-muted)] arena-body-text">
+                            <span>Forma tu escuadra con {{ $teamSize - 1 }} aliado(s) y lánzate a la arena.</span>
+                            <span class="arena-chip text-[color:var(--arena-ice)]">{{ $premadeDailyLimit }}/día</span>
+                        </p>
+                    @endunless
 
                     @if(isset($activeParty) && $activeParty)
                         {{-- La party ya se ve arriba, dentro del escenario, con

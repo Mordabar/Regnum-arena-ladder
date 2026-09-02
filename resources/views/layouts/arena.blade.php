@@ -1034,12 +1034,20 @@
 
         @media (max-width: 720px) {
             .arena-queue-buttons { grid-template-columns: 1fr; }
+            /* La party se queda arriba a la derecha y encoge: puesta en el
+               flujo se pintaba sobre el guerrero y lo partia por la mitad. */
             .arena-console-party {
-                position: static;
-                align-items: flex-start;
-                margin: 10px 0 0;
-                background: rgba(8, 5, 4, 0.55);
+                top: 56px;
+                right: 10px;
+                bottom: auto;
+                padding: 7px 8px;
+                gap: 5px;
             }
+            .arena-console-party-slots { gap: 5px; }
+            .arena-console-party-slot { width: 44px; }
+            .arena-console-party-slot b { display: none; }
+            .arena-console-party-portrait { width: 42px; }
+            .arena-console-party-portrait.is-empty { height: 48px; font-size: 15px; }
         }
 
         .arena-queue-with {
