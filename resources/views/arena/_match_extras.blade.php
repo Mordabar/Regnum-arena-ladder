@@ -65,7 +65,7 @@
         const summary = document.getElementById('premadeSummary');
         const submitButton = document.getElementById('premadeSubmitButton');
         const endpoint = @json(route('queue.premade.candidates'));
-        if (!leaderSelect || !hint || !summary || !submitButton) return;
+        if (!leaderSelect || !hint || !submitButton) return;
 
         // Los slots de compañero salen del servidor: [2] en 2v2, [2,3] en 3v3.
         const companionSlots = @json($premadeSlots);
@@ -75,11 +75,23 @@
 
         const escapeHtml = (v) => String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 
+        /* El lider ya no se elige: es el guerrero del escenario, y viaja en un
+           campo oculto con sus datos. Antes esto leia la opcion marcada de un
+           desplegable que pedia elegir personaje por segunda vez. */
         const getLeaderData = () => {
+            const d = leaderSelect.dataset;
             if (!leaderSelect.value) return null;
-            const o = leaderSelect.options[leaderSelect.selectedIndex];
-            if (!o) return null;
-            return { id: Number(o.value), character_name: o.dataset.characterName, realm: o.dataset.realm, realm_label: o.dataset.realmLabel, subclass: o.dataset.subclass, subclass_label: o.dataset.subclassLabel, user_id: Number(o.dataset.user), owner_label: o.dataset.ownerLabel, is_conjurer: o.dataset.subclass === 'conjurer' };
+            return {
+                id: Number(leaderSelect.value),
+                character_name: d.characterName,
+                realm: d.realm,
+                realm_label: d.realmLabel,
+                subclass: d.subclass,
+                subclass_label: d.subclassLabel,
+                user_id: Number(d.user),
+                owner_label: d.ownerLabel,
+                is_conjurer: d.subclass === 'conjurer',
+            };
         };
 
         const getSelectedPlayerIds = (skip = null) => {
@@ -93,6 +105,7 @@
             const leader = getLeaderData();
             const slots = { 1: leader };
             companionSlots.forEach(slot => { slots[slot] = state.members[slot]; });
+            if (!summary) { return; }
             summary.innerHTML = Object.keys(slots).map(k => {
                 const p = slots[k];
                 if (!p) return '<div class="rounded-2xl border border-[color:var(--arena-line)] bg-black/10 px-4 py-3 text-sm text-[color:var(--arena-muted)]">Slot '+k+' pendiente</div>';
@@ -190,6 +203,7 @@
         };
 
         leaderSelect.addEventListener('change', syncLeader);
+        document.addEventListener('arena:champion-changed', syncLeader);
 
         companionSlots.forEach(slot => {
             const input = document.getElementById('premadeSearch'+slot);

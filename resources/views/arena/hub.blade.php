@@ -44,6 +44,15 @@
         ?? $players->first();
     $lockedToPlayer = $hasActiveState;
 
+    // Mismo criterio que en el creador: cada raza por el rasgo que la
+    // distingue, no por un adorno cualquiera.
+    $raceIcons = [
+        'nordo' => 'human', 'esquelio' => 'human', 'alturian' => 'human',
+        'utghar' => 'horns', 'dwarf' => 'beard', 'molok' => 'hulk',
+        'dark_elf' => 'ears', 'wood_elf' => 'ears', 'half_elf' => 'ears-short',
+        'lamai' => 'ears-big',
+    ];
+
     $championData = $players->mapWithKeys(fn ($p) => [$p->id => [
         'name' => $p->cleanName(),
         'realm' => $p->realm,
@@ -165,9 +174,16 @@
 
                 <div class="arena-console-slots">
                     @foreach($players as $player)
-                        @php($isFeatured = $featured && $player->id === $featured->id)
                         {{-- Enlaces de verdad, no botones: sin JavaScript el rail
-                             sigue cambiando de guerrero, recargando con ?player. --}}
+                             sigue cambiando de guerrero, recargando con ?player.
+
+                             El bloque de PHP va explicito: la forma corta de una
+                             linea, seguida de un comentario Blade, compila una
+                             apertura sin cerrar y se lleva por delante el resto
+                             del archivo. --}}
+                        @php
+                            $isFeatured = $featured && $player->id === $featured->id;
+                        @endphp
                         <a href="{{ route('lobby', ['mode' => $arenaMode, 'player' => $player->id]) }}"
                            class="arena-roster-slot {{ $lockedToPlayer && !$isFeatured ? 'is-locked' : '' }}"
                            data-champion-slot
@@ -235,9 +251,9 @@
                                              @if(!$featured || $player->id !== $featured->id) hidden @endif>
                                             @if($player->is_active && !$hasActiveState)
                                                 <button type="button" class="arena-console-tool" data-modal-open="modal-rename-{{ $player->id }}"
-                                                        aria-label="Editar el nombre de {{ $player->cleanName() }}" title="Editar nombre">
+                                                        aria-label="Editar a {{ $player->cleanName() }}" title="Editar guerrero">
                                                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                                                    <span>Nombre</span>
+                                                    <span>Editar</span>
                                                 </button>
                                                 @if($players->count() > 1)
                                                     <button type="button" class="arena-console-tool is-danger" data-modal-open="modal-delete-{{ $player->id }}"
@@ -317,6 +333,89 @@
                                 <div class="arena-stat-pill"><span>V/D</span><b data-champion-record>{{ $featured->wins }}/{{ $featured->losses }}</b></div>
                             </div>
                         </div>
+
+                        {{-- ── BARRA DE ACCIONES ──────────────────────────────
+                             Pegada al pie del escenario, como el menu de accion
+                             de un juego: lo que se puede hacer con el guerrero
+                             que estas viendo, dentro de su propio panel. --}}
+                        @if($canJoinQueue)
+                            <div class="arena-console-actions">
+                                @if(!$modesAreOpen)
+                                    <p class="arena-console-actions-note">Las colas estan cerradas por el momento.</p>
+                                @elseif($activeParty)
+                                    @php
+                                        $isLeader = $players->contains(fn ($p) => $p->id === $activeParty->leader_player_id);
+                                        $partyReady = $activeParty->status === 'ready';
+                                        $partyQueued = $activeParty->status === 'queued';
+                                    @endphp
+
+                                    @if($isLeader && $partyReady && $activePartyModeIsOpen)
+                                        <form method="POST" action="{{ route('party.enqueue', $activeParty) }}">
+                                            @csrf
+                                            <button class="arena-console-action is-primary">
+                                                <x-admin.icon name="users" class="h-4 w-4" />
+                                                Entrar a Premade {{ ArenaMode::label($activePartyMode) }}
+                                            </button>
+                                        </form>
+                                    @else
+                                        <p class="arena-console-actions-note">
+                                            @if($partyQueued)
+                                                <span class="arena-party-dot is-live"></span> Tu party busca rival.
+                                            @elseif(!$activePartyModeIsOpen)
+                                                <span class="arena-party-dot"></span> {{ ArenaMode::label($activePartyMode) }} esta apagada: la party espera.
+                                            @else
+                                                <span class="arena-party-dot"></span> Esperando a que tus aliados acepten.
+                                            @endif
+                                        </p>
+                                    @endif
+
+                                    <form method="POST" action="{{ route('party.leave', $activeParty) }}">
+                                        @csrf
+                                        <button class="arena-console-action is-danger">
+                                            {{ $partyQueued ? 'Cancelar busqueda' : 'Abandonar party' }}
+                                        </button>
+                                    </form>
+                                @else
+                                    <form method="POST" action="{{ route('queue.join') }}">
+                                        @csrf
+                                        <input type="hidden" name="queue_type" value="random">
+                                        <input type="hidden" name="arena_mode" value="{{ $arenaMode }}">
+                                        {{-- El guerrero ya esta elegido arriba: este campo lo sigue. --}}
+                                        <input type="hidden" id="playerSelect" name="player_id" data-queue-player-select
+                                               data-subclass="{{ $featured?->subclass }}"
+                                               value="{{ $featured?->id }}">
+                                        <button type="submit" class="arena-console-action is-primary" @disabled($featured?->isQueueLocked())>
+                                            <x-admin.icon name="play" class="h-4 w-4" />
+                                            Entrar a Random {{ $arenaMode }}
+                                        </button>
+                                    </form>
+
+                                    <button type="button" class="arena-console-action" data-modal-open="modal-premade">
+                                        <x-admin.icon name="users" class="h-4 w-4" />
+                                        Armar grupo premade {{ $arenaMode }}
+                                    </button>
+                                @endif
+                            </div>
+
+                            @if($featured?->isQueueLocked())
+                                <p class="arena-queue-locked">
+                                    {{ $featured->cleanName() }} esta bloqueado para la cola hasta
+                                    {{ $featured->queue_locked_until?->format('d/m H:i') }}. Elige otro guerrero.
+                                </p>
+                            @endif
+
+                            <div class="arena-console-foot">
+                                <p class="arena-queue-with">
+                                    Entras con
+                                    <b data-champion-name>{{ $featured?->cleanName() }}</b>
+                                    <span data-champion-subclass-name>{{ $featured ? (PlayerModel::SUBCLASSES[$featured->subclass] ?? $featured->subclass) : '' }}</span>
+                                </p>
+                                <button type="button" class="arena-btn-ghost px-4 py-2 text-sm" data-modal-open="modal-arena-rules">
+                                    <x-admin.icon name="sliders" class="h-4 w-4" />
+                                    Ver reglas de juego
+                                </button>
+                            </div>
+                        @endif
                     </div>
                 @endif
 
@@ -338,19 +437,62 @@
         @if(!$hasActiveState)
             @foreach($players as $player)
                 @if($player->is_active)
-                    <x-arena-modal :id="'modal-rename-'.$player->id" :title="'Cambiar el nombre de ' . $player->cleanName()">
-                        <form method="POST" action="{{ route('player.update', $player) }}" class="space-y-3">
+                    {{-- Nombre, raza y sexo se pueden cambiar, como en el juego.
+                         El reino y la subclase no: son lo que decide contra
+                         quien peleas y como, y cambiarlos seria otro personaje
+                         con el historial del anterior. --}}
+                    <x-arena-modal :id="'modal-rename-'.$player->id" :title="'Editar a ' . $player->cleanName()">
+                        <form method="POST" action="{{ route('player.update', $player) }}" class="space-y-4">
                             @csrf
                             @method('PUT')
+
                             <label class="block">
                                 <span class="mb-2 block text-sm arena-body-text">Nombre del personaje</span>
                                 <input type="text" name="character_name" value="{{ $player->character_name }}" class="arena-field" required>
                             </label>
+
+                            <div>
+                                <span class="mb-2 block text-sm arena-body-text">Raza</span>
+                                <div class="arena-edit-choices">
+                                    @foreach(PlayerModel::RACES[$player->realm] ?? [] as $raceKey => $raceLabel)
+                                        <label class="arena-choice">
+                                            <input type="radio" name="race" value="{{ $raceKey }}" @checked($player->race === $raceKey) required>
+                                            <span class="arena-choice-body arena-choice-body-row">
+                                                <span class="arena-choice-mark">
+                                                    <x-arena-icon :name="$raceIcons[$raceKey] ?? 'human'" class="h-4 w-4" />
+                                                </span>
+                                                <span class="min-w-0">
+                                                    <span class="arena-choice-title">{{ $raceLabel }}</span>
+                                                    <span class="arena-choice-note">{{ PlayerModel::RACE_NOTES[$raceKey] ?? '' }}</span>
+                                                </span>
+                                            </span>
+                                        </label>
+                                    @endforeach
+                                </div>
+                            </div>
+
+                            <div>
+                                <span class="mb-2 block text-sm arena-body-text">Sexo</span>
+                                <div class="arena-edit-choices">
+                                    @foreach(PlayerModel::GENDERS as $genderKey => $genderLabel)
+                                        <label class="arena-choice">
+                                            <input type="radio" name="gender" value="{{ $genderKey }}" @checked(($player->gender ?: 'male') === $genderKey) required>
+                                            <span class="arena-choice-body arena-choice-body-row">
+                                                <span class="arena-choice-mark">
+                                                    <x-arena-icon :name="$genderKey" class="h-4 w-4" />
+                                                </span>
+                                                <span class="arena-choice-title">{{ $genderLabel }}</span>
+                                            </span>
+                                        </label>
+                                    @endforeach
+                                </div>
+                            </div>
+
                             <p class="text-xs text-[color:var(--arena-muted)] arena-body-text">
-                                Reino, raza, sexo y subclase no se pueden cambiar.
+                                El reino y la subclase no se pueden cambiar.
                             </p>
                             <div class="flex gap-3 pt-1">
-                                <button type="submit" class="arena-btn-secondary px-4 py-2">Guardar</button>
+                                <button type="submit" class="arena-btn-secondary px-4 py-2">Guardar cambios</button>
                                 <button type="button" class="arena-btn-ghost px-4 py-2" data-modal-close="modal-rename-{{ $player->id }}">Cancelar</button>
                             </div>
                         </form>

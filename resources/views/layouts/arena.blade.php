@@ -942,6 +942,7 @@
             position: absolute;
             right: 16px;
             bottom: 16px;
+            box-shadow: 0 14px 32px rgba(0, 0, 0, 0.45);
             display: flex;
             flex-direction: column;
             gap: 8px;
@@ -953,10 +954,11 @@
             backdrop-filter: blur(8px);
         }
         .arena-console-party-key {
-            font-size: 10px;
+            font-size: 10.5px;
+            font-weight: 700;
             letter-spacing: 0.18em;
             text-transform: uppercase;
-            color: var(--arena-gold);
+            color: var(--arena-gold-soft);
         }
         .arena-console-party-slots { display: flex; gap: 8px; }
         .arena-console-party-slot {
@@ -977,9 +979,9 @@
         }
         .arena-console-party-slot.is-empty b { color: var(--arena-muted); font-weight: 400; }
         .arena-console-party-portrait {
-            width: 54px;
+            width: 58px;
             border-radius: 10px;
-            border: 1px dashed var(--arena-line);
+            border: 1px dashed var(--arena-line-strong);
             background: rgba(0, 0, 0, 0.45);
         }
         .arena-console-party-slot.is-in .arena-console-party-portrait {
@@ -994,15 +996,146 @@
             color: var(--arena-muted);
         }
 
-        /* Las dos acciones del lobby. */
-        .arena-queue-actions { display: flex; flex-direction: column; gap: 14px; }
-        .arena-queue-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .arena-queue-buttons > * { width: 100%; justify-content: center; }
-        .arena-btn-secondary.is-active {
-            border-color: var(--arena-line-strong);
+        /* ── Barra de acciones del guerrero ────────────────────────────────
+           Pegada al pie del escenario, como el menu de accion de un juego: lo
+           que se puede hacer con el guerrero que estas viendo vive en su propio
+           panel, no en una tarjeta suelta mas abajo. */
+        .arena-console-stage {
+            border: 1px solid var(--arena-line-strong);
+            border-radius: 18px;
+            overflow: hidden;
+            background: linear-gradient(180deg, rgba(30, 21, 15, 0.6), rgba(14, 10, 8, 0.75));
+        }
+        .arena-console-stage > .arena-champion { border-radius: 0; border: 0; }
+        .arena-console-stage > .arena-champion::after { border-radius: 0; }
+
+        .arena-console-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            padding: 12px;
+            border-top: 1px solid var(--arena-line);
+            background: rgba(8, 5, 4, 0.55);
+        }
+        .arena-console-actions > form { display: contents; }
+        .arena-console-action {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 9px;
+            width: 100%;
+            padding: 13px 16px;
+            border-radius: 12px;
+            border: 1px solid var(--arena-line-strong);
+            background: linear-gradient(180deg, rgba(52, 38, 26, 0.9), rgba(20, 14, 10, 0.95));
+            font-family: "Cinzel", Georgia, serif;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.01em;
             color: var(--arena-gold-soft);
+            cursor: pointer;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+        .arena-console-action:hover {
+            transform: translateY(-1px);
+            border-color: var(--arena-gold);
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+        }
+        .arena-console-action:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+        .arena-console-action.is-primary {
+            border-color: rgba(95, 174, 106, 0.55);
+            background: linear-gradient(180deg, rgba(58, 122, 74, 0.95), rgba(26, 62, 36, 0.98));
+            color: #eaf7ec;
+        }
+        .arena-console-action.is-primary:hover { border-color: #7cc98a; }
+        .arena-console-action.is-danger {
+            border-color: rgba(190, 84, 76, 0.5);
+            background: linear-gradient(180deg, rgba(78, 32, 30, 0.9), rgba(30, 14, 13, 0.95));
+            color: #f0bdb5;
+        }
+        /* Con un aviso ocupando la fila, el boton que queda tambien la ocupa:
+           medio boton suelto a la izquierda se ve como un descuadre. */
+        .arena-console-actions:has(.arena-console-actions-note) .arena-console-action {
+            grid-column: 1 / -1;
+        }
+        .arena-console-actions-note {
+            grid-column: 1 / -1;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            padding: 11px 14px;
+            border-radius: 11px;
+            border: 1px solid var(--arena-line);
+            background: rgba(0, 0, 0, 0.28);
+            font-size: 13px;
+            color: var(--arena-sand);
+        }
+
+        /* El pie del panel: con quien entras y donde estan las reglas. Dentro
+           del mismo marco que la figura y la barra, no como una tarjeta suelta
+           debajo. */
+        .arena-console-foot {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 14px;
+            border-top: 1px solid var(--arena-line);
+            background: rgba(0, 0, 0, 0.22);
+        }
+        .arena-queue-locked {
+            margin: 12px;
+            border: 1px solid rgba(190, 84, 76, 0.4);
+            border-radius: 12px;
+            background: rgba(78, 32, 30, 0.3);
+            padding: 10px 14px;
+            font-size: 13px;
+            color: #f0bdb5;
         }
         .arena-queue-hint { margin: 0; font-size: 12.5px; color: var(--arena-muted); }
+        .arena-queue-with {
+            margin: 0;
+            font-size: 13.5px;
+            color: var(--arena-muted);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 8px;
+        }
+        .arena-queue-with b { font-size: 15px; color: var(--arena-gold-soft); }
+
+        /* El lider de la invitacion, fijo: es el guerrero que ya elegiste. */
+        .arena-invite-leader {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 14px;
+            border: 1px solid var(--arena-line-strong);
+            background: rgba(10, 7, 5, 0.6);
+        }
+        .arena-invite-leader b { display: block; font-size: 14px; color: var(--arena-gold-soft); }
+        .arena-invite-leader > span > span { display: block; font-size: 12px; color: var(--arena-muted); }
+        .arena-invite-leader-tag {
+            margin-left: auto;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--arena-line);
+            font-size: 10px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--arena-gold);
+        }
+
+        /* Las opciones del editor, en dos columnas. */
+        .arena-edit-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+        @media (max-width: 620px) {
+            .arena-console-actions { grid-template-columns: 1fr; }
+            .arena-edit-choices { grid-template-columns: 1fr; }
+        }
 
         .arena-party-state {
             display: flex;

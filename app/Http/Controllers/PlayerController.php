@@ -112,10 +112,23 @@ class PlayerController extends Controller
             'character_name.max' => 'El nombre no puede tener mas de 25 caracteres',
             'character_name.regex' => 'Solo se permiten letras, numeros, espacios, guiones y guiones bajos',
             'character_name.unique' => 'Este nombre ya existe en el reino',
+            'race.required' => 'Elige una raza para tu guerrero',
+        ]);
+
+        // La raza si se puede cambiar, como en el juego. El reino y la subclase
+        // no: son lo que decide contra quien peleas y como, y cambiarlos seria
+        // otro personaje con el historial del anterior.
+        $raceValidated = $request->validate([
+            'race' => ['required', 'string', Rule::in(array_keys(Player::RACES[$player->realm] ?? []))],
+            'gender' => ['required', Rule::in(array_keys(Player::GENDERS))],
+        ], [
+            'race.in' => 'Esa raza no pertenece a tu reino',
         ]);
 
         $player->update([
             'character_name' => $validated['character_name'],
+            'race' => $raceValidated['race'],
+            'gender' => $raceValidated['gender'],
         ]);
 
         app(LadderCacheService::class)->forgetSummary();

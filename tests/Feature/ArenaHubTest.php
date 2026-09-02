@@ -241,10 +241,14 @@ it('entrar y armar grupo son dos botones, y el grupo arranca con el guerrero del
         ->assertOk()
         ->assertSee('Entrar a Random 2v2')
         ->assertSee('Armar grupo premade 2v2')
-        ->assertSee('data-premade-toggle', false)
-        ->assertSee('data-party-leader-select', false)
-        // El lider viene marcado con el guerrero del escenario.
-        ->assertSee('value="' . $primero->id . '"' . "\n" . '                                        data-user', false);
+        // Armar grupo abre una ventana de invitacion, no despliega otro
+        // formulario donde volver a elegir personaje.
+        ->assertSee('data-modal-open="modal-premade"', false)
+        ->assertSee('id="modal-premade"', false)
+        // El lider es el guerrero del escenario: campo oculto, no desplegable.
+        ->assertSee('name="party_player_ids[]" data-party-leader-select', false)
+        ->assertSee('value="' . $primero->id . '"', false)
+        ->assertDontSee('Slot 1 — Tu líder');
 });
 
 it('las reglas se abren en una ventana, no ocupan sitio todo el rato', function () {
@@ -295,4 +299,36 @@ it('la invitacion a party flota y dice a que modalidad te invitan', function () 
         ->assertSee('Invitacion a party 3v3')
         ->assertSee('Capitana')
         ->assertSee('Invitada');
+});
+
+it('las acciones del guerrero viven en su propio panel, no en una tarjeta suelta', function () {
+    $user = hubUser('acciones');
+    hubPlayer($user, 'Accionada');
+
+    $html = $this->actingAs($user)->get(route('lobby'))->getContent();
+
+    $escenario = strpos($html, 'class="arena-console-stage"');
+    $barra = strpos($html, 'class="arena-console-actions"');
+    $cierre = strpos($html, 'class="arena-console-foot"');
+
+    expect($escenario)->not->toBeFalse()
+        ->and($barra)->not->toBeFalse()
+        // La barra se pinta dentro del escenario, entre su apertura y su pie.
+        ->and($barra)->toBeGreaterThan($escenario)
+        ->and($cierre)->toBeGreaterThan($barra);
+});
+
+it('el editor del guerrero deja cambiar raza y sexo', function () {
+    $user = hubUser('editor');
+    $player = hubPlayer($user, 'Mutable', 'alsius', 'knight');
+
+    $this->actingAs($user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('Editar a Mutable')
+        // Las cuatro razas de Alsius, no las de los otros reinos.
+        ->assertSee('value="utghar"', false)
+        ->assertSee('value="dwarf"', false)
+        ->assertDontSee('value="molok"', false)
+        ->assertSee('name="gender" value="female"', false)
+        ->assertSee('El reino y la subclase no se pueden cambiar.');
 });
