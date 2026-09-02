@@ -89,6 +89,7 @@ Route::prefix('/' . $arenaAdminPath)->group(function () {
         Route::post('/testing/invite-me', [QueueHubController::class, 'sandboxInviteMe'])->name('testing.invite-me');
         Route::post('/testing/resolve-all', [QueueHubController::class, 'sandboxResolveAll'])->name('testing.resolve-all');
         Route::post('/testing/resolve/{match}', [QueueHubController::class, 'sandboxResolve'])->name('testing.resolve');
+        Route::post('/testing/bot-report/{match}', [QueueHubController::class, 'sandboxBotReport'])->name('testing.bot-report');
         Route::post('/testing/reset', [QueueHubController::class, 'sandboxReset'])->name('testing.reset');
         Route::post('/testing/destroy', [QueueHubController::class, 'sandboxDestroy'])->name('testing.destroy');
 

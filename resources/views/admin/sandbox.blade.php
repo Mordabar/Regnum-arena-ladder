@@ -278,14 +278,35 @@
                     <div class="ap-list-title">{{ $match->match_code }}</div>
                     <div class="ap-list-meta">{{ $match->zone_name }}</div>
                 </div>
+                @php
+                    $isBotOnly = in_array((int) $match->id, $botOnlyMatchIds, true);
+                    $hasReport = in_array((int) $match->id, $reportedMatchIds, true);
+                @endphp
                 <div class="flex flex-wrap gap-2">
-                    @foreach(['team_a' => $match->team_a_realm, 'team_b' => $match->team_b_realm] as $side => $sideRealm)
-                        <form method="POST" action="{{ route('admin.testing.resolve', $match) }}">
+                    @if($isBotOnly)
+                        {{-- Solo bots: se puede cerrar de golpe, no hay puntos
+                             de nadie de verdad en juego. --}}
+                        @foreach(['team_a' => $match->team_a_realm, 'team_b' => $match->team_b_realm] as $side => $sideRealm)
+                            <form method="POST" action="{{ route('admin.testing.resolve', $match) }}">
+                                @csrf
+                                <input type="hidden" name="winner_team" value="{{ $side }}">
+                                <button type="submit" class="ap-btn ap-btn-sm">Gana {{ \App\Models\ArenaMatch::REALMS[$sideRealm] ?? ucfirst((string) $sideRealm) }}</button>
+                            </form>
+                        @endforeach
+                    @elseif($hasReport)
+                        <span class="ap-badge ap-badge-info">Reportado · te toca confirmar</span>
+                    @else
+                        {{-- Con una persona dentro no se cierra de golpe: el bot
+                             sube su reporte y la persona confirma o rechaza,
+                             que es el flujo que se quiere ensayar. --}}
+                        <form method="POST" action="{{ route('admin.testing.bot-report', $match) }}">
                             @csrf
-                            <input type="hidden" name="winner_team" value="{{ $side }}">
-                            <button type="submit" class="ap-btn ap-btn-sm">Gana {{ \App\Models\ArenaMatch::REALMS[$sideRealm] ?? ucfirst((string) $sideRealm) }}</button>
+                            <button type="submit" class="ap-btn ap-btn-sm">
+                                <x-admin.icon name="inbox" class="h-3.5 w-3.5" />
+                                Que un bot reporte
+                            </button>
                         </form>
-                    @endforeach
+                    @endif
                     <a href="{{ route('admin.matches.show', $match) }}" class="ap-btn ap-btn-sm ap-btn-quiet">Abrir</a>
                 </div>
             </div>

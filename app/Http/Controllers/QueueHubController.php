@@ -1341,13 +1341,79 @@ class QueueHubController extends Controller
         // que dejaba al moderador mirando una pagina de error sin saber por que.
         if (!$testingLabService->matchUsesOnlyPlayerPool($match, $botPlayerIds)) {
             return back()->withErrors([
-                'error' => 'El enfrentamiento ' . $match->match_code . ' tiene jugadores reales. Cerrarlo desde aqui repartiria puntos saltandose la confirmacion del rival: resuelvelo desde Enfrentamientos.',
+                'error' => 'El enfrentamiento ' . $match->match_code . ' tiene jugadores reales, asi que cerrarlo de golpe repartiria puntos saltandose la confirmacion del rival. Usa "Que un bot reporte": el bot sube su reporte y tu lo confirmas o lo rechazas desde el enfrentamiento, que es el flujo de verdad.',
             ]);
         }
 
         $this->resolveSandboxMatchInternal($match, $validated['winner_team'], $resultService, $botPlayerIds);
 
         return back()->with('success', 'El match ' . $match->match_code . ' fue resuelto para ' . $validated['winner_team'] . '.');
+    }
+
+    /**
+     * Hace que un bot suba el reporte del enfrentamiento.
+     *
+     * Es la pieza que faltaba para ensayar el flujo entero. Cerrar un match
+     * mixto de golpe se sigue negando, porque repartiria puntos sin que nadie
+     * confirmara; lo que si se puede es empujar la mitad que le toca al bot y
+     * dejar que la persona confirme o rechace desde su propia pantalla, que es
+     * exactamente lo que hara un jugador de verdad.
+     */
+    public function sandboxBotReport(Request $request, ArenaMatch $match, ArenaMatchResultService $resultService, TestingLabService $testingLabService)
+    {
+        $this->ensureSandboxAccess();
+
+        $validated = $request->validate([
+            'winner_team' => 'nullable|in:team_a,team_b,draw',
+        ]);
+
+        if ($match->status !== 'in_progress') {
+            return back()->withErrors(['error' => 'Solo se puede reportar un enfrentamiento en juego.']);
+        }
+
+        if ($match->report) {
+            return back()->withErrors(['error' => 'Este enfrentamiento ya tiene un reporte esperando respuesta.']);
+        }
+
+        $botPlayerIds = $testingLabService->testPlayerIds();
+
+        // El reporte lo firma un bot: si lo firmara la persona, seria ella
+        // quien tendria que confirmarlo, y no habria nada que ensayar.
+        $reporterEntry = collect($match->getAllPlayers())
+            ->first(fn ($player) => $botPlayerIds->contains((int) ($player['player_id'] ?? 0)));
+
+        if (!$reporterEntry) {
+            return back()->withErrors(['error' => 'Este enfrentamiento no tiene ningun bot que pueda reportar.']);
+        }
+
+        $reporter = Player::find((int) $reporterEntry['player_id']);
+
+        if (!$reporter) {
+            return back()->withErrors(['error' => 'El bot que iba a reportar ya no existe.']);
+        }
+
+        // Por defecto gana el equipo del bot que reporta: es lo que haria
+        // cualquiera, y deja a la persona en el lado interesante, el de decidir
+        // si confirma o rechaza.
+        $winnerTeam = $validated['winner_team']
+            ?: ($match->getTeamSideForPlayer($reporter->id, (string) $reporter->user?->discord_id) ?? 'team_a');
+
+        try {
+            $resultService->submitSyntheticReport(
+                $match,
+                $reporter,
+                $winnerTeam,
+                'Reporte de prueba generado desde el laboratorio'
+            );
+        } catch (\Throwable $exception) {
+            return back()->withErrors(['error' => 'No se pudo generar el reporte: ' . $exception->getMessage()]);
+        }
+
+        return back()->with(
+            'success',
+            'El bot ' . $reporter->character_name . ' reporto el enfrentamiento ' . $match->match_code
+            . '. Ahora te toca a ti: entra al enfrentamiento y confirmalo o rechazalo.'
+        );
     }
 
     public function sandboxResolveAll(ArenaMatchResultService $resultService, TestingLabService $testingLabService)
@@ -1490,6 +1556,19 @@ class QueueHubController extends Controller
             'activeQueueByPlayer' => $activeQueues->keyBy('player_id'),
             'pendingMatches' => $relatedMatches->where('status', 'pending_acceptance')->values(),
             'inProgressMatches' => $relatedMatches->where('status', 'in_progress')->values(),
+            // Que enfrentamientos son solo de bots. Los mixtos no se pueden
+            // cerrar de golpe (repartirian puntos reales sin confirmacion), asi
+            // que la vista tiene que ofrecerles otro boton, no el mismo.
+            'botOnlyMatchIds' => $relatedMatches
+                ->filter(fn (ArenaMatch $match) => $testingLabService->matchUsesOnlyPlayerPool($match, $botPlayerIds))
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all(),
+            'reportedMatchIds' => $relatedMatches
+                ->filter(fn (ArenaMatch $match) => $match->report !== null)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all(),
             'recentMatches' => $relatedMatches->take(12)->values(),
         ];
     }

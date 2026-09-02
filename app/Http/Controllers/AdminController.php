@@ -111,7 +111,7 @@ class AdminController extends Controller
     public function resolveMatch(Request $request, ArenaMatch $match, ArenaMatchResultService $resultService)
     {
         $validated = $request->validate([
-            'action' => 'required|in:force_complete,void,dispute,lock_player,abandonment_walkover,support_infraction',
+            'action' => 'required|in:confirm_report,force_complete,void,dispute,lock_player,abandonment_walkover,support_infraction',
             'winner_team' => 'nullable|in:team_a,team_b,draw',
             'player_id' => 'nullable|exists:players,id',
             'note' => 'nullable|string|max:1000',
@@ -119,6 +119,18 @@ class AdminController extends Controller
 
         try {
             switch ($validated['action']) {
+                case 'confirm_report':
+                    // Lo mismo que si el rival hubiera pulsado "confirmar", con
+                    // su origen anotado. Sirve para ensayar el flujo entero y
+                    // para desatascar un reporte cuyo rival no va a contestar.
+                    if (!$match->report) {
+                        throw new \RuntimeException('Este match no tiene reporte que confirmar.');
+                    }
+
+                    $resultService->confirmReportForRival($match->report, $validated['note'] ?? null);
+                    $message = 'Reporte confirmado en nombre del rival y ladder actualizado.';
+                    break;
+
                 case 'force_complete':
                     // Sin ganador explicito se caia en 'team_a' por defecto, es
                     // decir se repartia PL a favor de un equipo elegido por el
@@ -517,6 +529,7 @@ class AdminController extends Controller
             'accept_window_minutes' => AppSetting::getValue('accept_window_minutes', 5),
             'hunt_window_minutes' => AppSetting::getValue('hunt_window_minutes', 30),
             'report_confirmation_window_minutes' => AppSetting::getValue('report_confirmation_window_minutes', 15),
+            'dispute_auto_void_hours' => AppSetting::getValue('dispute_auto_void_hours', 48),
             'premade_daily_limit' => AppSetting::getValue('premade_daily_limit', 3),
             'random_vs_premade_pl_bonus_pct' => AppSetting::getValue('random_vs_premade_pl_bonus_pct', 25),
             'random_vs_premade_mmr_bonus_pct' => AppSetting::getValue('random_vs_premade_mmr_bonus_pct', 18),
@@ -554,6 +567,7 @@ class AdminController extends Controller
             'accept_window_minutes' => 'required|integer|min:1|max:30',
             'hunt_window_minutes' => 'required|integer|min:5|max:120',
             'report_confirmation_window_minutes' => 'required|integer|min:1|max:60',
+            'dispute_auto_void_hours' => 'required|integer|min:1|max:336',
             'premade_daily_limit' => 'required|integer|min:1|max:10',
             'random_vs_premade_pl_bonus_pct' => 'required|numeric|min:0|max:50',
             'random_vs_premade_mmr_bonus_pct' => 'required|numeric|min:0|max:50',
@@ -581,6 +595,7 @@ class AdminController extends Controller
         AppSetting::setValue('accept_window_minutes', $validated['accept_window_minutes'], 'runtime', 'integer', false);
         AppSetting::setValue('hunt_window_minutes', $validated['hunt_window_minutes'], 'runtime', 'integer', false);
         AppSetting::setValue('report_confirmation_window_minutes', $validated['report_confirmation_window_minutes'], 'runtime', 'integer', false);
+        AppSetting::setValue('dispute_auto_void_hours', $validated['dispute_auto_void_hours'], 'runtime', 'integer', false);
         AppSetting::setValue('premade_daily_limit', $validated['premade_daily_limit'], 'runtime', 'integer', false);
         AppSetting::setValue('random_vs_premade_pl_bonus_pct', $validated['random_vs_premade_pl_bonus_pct'], 'runtime', 'float', false);
         AppSetting::setValue('random_vs_premade_mmr_bonus_pct', $validated['random_vs_premade_mmr_bonus_pct'], 'runtime', 'float', false);

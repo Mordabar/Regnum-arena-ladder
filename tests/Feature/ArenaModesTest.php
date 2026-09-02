@@ -468,6 +468,7 @@ function defaultSettingsPayload(): array
         'accept_window_minutes' => 5,
         'hunt_window_minutes' => 30,
         'report_confirmation_window_minutes' => 15,
+        'dispute_auto_void_hours' => 48,
         'premade_daily_limit' => 3,
         'random_vs_premade_pl_bonus_pct' => 25,
         'random_vs_premade_mmr_bonus_pct' => 18,

@@ -231,6 +231,9 @@
             <div class="ap-field">
                 <label class="ap-label" for="d-action">Decision</label>
                 <select name="action" id="d-action" class="ap-select">
+                    @if($report && $report->status === 'pending_confirmation')
+                        <option value="confirm_report">Confirmar el reporte por el rival</option>
+                    @endif
                     <option value="force_complete">Cerrar con un resultado</option>
                     <option value="dispute">Abrir disputa y congelar</option>
                     <option value="abandonment_walkover">Alguien abandono: derrota y sancion</option>
@@ -307,6 +310,12 @@
         const groups = form.querySelectorAll('[data-ap-when]');
 
         const copy = {
+            confirm_report: {
+                text: 'Se aplica el reporte tal cual, como si el rival lo hubiera confirmado. Sirve para ensayar el flujo completo y para desatascar un reporte que el rival no va a contestar.',
+                label: 'Confirmar por el rival',
+                confirm: 'Vas a dar por bueno el reporte y mover el ranking.',
+                danger: false,
+            },
             force_complete: {
                 text: 'Se cierra el enfrentamiento con el resultado elegido y se reparten puntos y MMR entre todos los participantes.',
                 label: 'Cerrar y repartir puntos',

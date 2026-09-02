@@ -62,7 +62,12 @@
                     <div class="ap-field">
                         <label class="ap-label" for="s-report">Confirmar el resultado</label>
                         <input type="number" min="1" max="60" id="s-report" name="report_confirmation_window_minutes" value="{{ $settings['report_confirmation_window_minutes'] }}" class="ap-input">
-                        <span class="ap-hint">Minutos que tiene el rival para confirmar o rechazar el reporte.</span>
+                        <span class="ap-hint">Minutos que tiene el rival para rechazar el reporte. Si deja pasar el plazo sin decir nada, el reporte se da por bueno y la partida se puntua.</span>
+                    </div>
+                    <div class="ap-field">
+                        <label class="ap-label" for="s-dispute">Cerrar disputas solas (horas)</label>
+                        <input type="number" min="1" max="336" id="s-dispute" name="dispute_auto_void_hours" value="{{ $settings['dispute_auto_void_hours'] }}" class="ap-input">
+                        <span class="ap-hint">Horas que una disputa espera tu decision. Al vencer se anula sola: nadie gana ni pierde puntos. Es el ultimo cierre automatico, para que ningun enfrentamiento se quede abierto para siempre.</span>
                     </div>
                     <div class="ap-field">
                         <label class="ap-label" for="s-dormant">Marcar sin actividad (dias)</label>
