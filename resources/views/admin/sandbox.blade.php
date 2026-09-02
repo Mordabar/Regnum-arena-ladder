@@ -15,6 +15,8 @@
     $activeQueueByPlayer = $sandbox['activeQueueByPlayer'];
     $pendingMatches = $sandbox['pendingMatches'];
     $inProgressMatches = $sandbox['inProgressMatches'];
+    $botOnlyMatchIds = $sandbox['botOnlyMatchIds'];
+    $reportedMatchIds = $sandbox['reportedMatchIds'];
     $recentMatches = $sandbox['recentMatches'];
     $enabledModes = \App\Support\ArenaMode::enabled();
 

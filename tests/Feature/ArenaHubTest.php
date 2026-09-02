@@ -157,3 +157,42 @@ it('en cola el reloj cuenta desde que entro y se ve el pulso por reino', functio
         ->assertSee('data-champion-id="queue-stage"', false)
         ->assertSee('Salir de la cola');
 });
+
+it('el rival puede confirmar el reporte sin salir del lobby', function () {
+    // Antes "Subir el reporte" y su respuesta vivian en otra pagina. El formulario
+    // del lobby apuntaba ademas a un campo que el controlador no lee.
+    \Illuminate\Support\Facades\Storage::fake('arena_reports');
+
+    $mine = hubPlayer(hubUser('conf-a'), 'Confirmadora', 'syrtis', 'hunter');
+    $foe = hubPlayer(hubUser('conf-b'), 'Reportador', 'ignis', 'knight');
+    $match = hubLiveMatch($mine, $foe);
+
+    app(\App\Services\ArenaMatchResultService::class)
+        ->submitSyntheticReport($match, $foe, 'team_b', 'reporte de prueba');
+
+    $response = $this->actingAs($mine->user)->get(route('lobby'));
+
+    $response->assertOk()
+        ->assertSee('Confirma si es correcto')
+        ->assertSee('name="report_id" value="' . $match->fresh('report')->report->id . '"', false);
+
+    $this->actingAs($mine->user)->post(route('matches.report.confirm'), [
+        'report_id' => $match->fresh('report')->report->id,
+        'player_id' => $mine->id,
+    ])->assertRedirect();
+
+    expect($match->fresh()->status)->toBe('completed')
+        ->and($match->fresh()->winner_team)->toBe('team_b');
+});
+
+it('quien todavia no ha reportado ve el formulario en el lobby', function () {
+    $mine = hubPlayer(hubUser('form-a'), 'Reportadora', 'alsius', 'warlock');
+    $foe = hubPlayer(hubUser('form-b'), 'Contrario', 'ignis', 'barbarian');
+    $match = hubLiveMatch($mine, $foe);
+
+    $this->actingAs($mine->user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('Subir el reporte del combate')
+        ->assertSee('action="' . route('matches.report') . '"', false)
+        ->assertSee('name="evidence_files[]"', false);
+});

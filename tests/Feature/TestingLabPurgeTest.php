@@ -271,3 +271,76 @@ it('el laboratorio se puede vaciar y regenerar desde el panel', function () {
 
     expect(app(TestingLabService::class)->testPlayerIds())->toHaveCount(4);
 });
+
+it('un bot puede reportar para que la persona ensaye la confirmacion', function () {
+    // Cerrar de golpe un enfrentamiento con personas dentro se sigue negando,
+    // porque repartiria puntos sin que nadie confirmara. Lo que si se puede es
+    // empujar la mitad del bot.
+    \Illuminate\Support\Facades\Storage::fake('arena_reports');
+
+    $lab = app(\App\Services\TestingLabService::class);
+    $lab->seedRoster(['ignis' => 2, 'syrtis' => 2]);
+    $bots = $lab->testPlayersQuery()->get();
+
+    $human = \App\Models\Player::create([
+        'user_id' => \App\Models\User::create([
+            'discord_id' => 'lab-human',
+            'discord_username' => 'lab_human',
+            'name' => 'Lab Human',
+            'email' => 'lab-human@example.com',
+        ])->id,
+        'character_name' => 'Persona',
+        'subclass' => 'knight',
+        'realm' => 'ignis',
+        'pl_points' => 0,
+        'mmr' => 1000,
+        'trust_score' => 100,
+        'is_active' => true,
+    ]);
+
+    $mate = $bots->firstWhere('realm', 'ignis');
+    $foes = $bots->where('realm', 'syrtis')->take(2)->values();
+
+    $pack = fn (\App\Models\Player $p) => [
+        'player_id' => $p->id,
+        'character_name' => $p->character_name,
+        'subclass' => $p->subclass,
+        'realm' => $p->realm,
+        'discord_id' => (string) $p->user_id,
+    ];
+
+    $match = \App\Models\ArenaMatch::create([
+        'match_code' => 'LAB-1', 'report_token' => 'LABTOKEN',
+        'queue_mode' => 'random', 'arena_mode' => '2v2',
+        'team_a_realm' => 'ignis', 'team_b_realm' => 'syrtis',
+        'team_a' => [$pack($human), $pack($mate)],
+        'team_b' => [$pack($foes[0]), $pack($foes[1])],
+        'zone' => 'frozen_bridge', 'status' => 'in_progress',
+        'estimated_mmr_avg' => 1000, 'player_count' => 4,
+        'started_at' => now(), 'expires_at' => now()->addMinutes(30),
+    ]);
+
+    $admin = [
+        'arena_admin.authenticated' => true,
+        'arena_admin.account_id' => 1,
+        'arena_admin.username' => 'admin',
+        'arena_admin.display_name' => 'admin',
+    ];
+
+    // Cerrar de golpe: se niega, porque hay una persona dentro.
+    $this->withSession($admin)
+        ->post(route('admin.testing.resolve', $match), ['winner_team' => 'team_a'])
+        ->assertSessionHasErrors('error');
+
+    // Reportar por el bot: se acepta, y lo firma un bot del equipo CONTRARIO,
+    // que es el unico que deja a la persona algo que confirmar.
+    $this->withSession($admin)
+        ->post(route('admin.testing.bot-report', $match))
+        ->assertSessionHas('success');
+
+    $report = $match->fresh('report')->report;
+
+    expect($report)->not->toBeNull()
+        ->and($report->status)->toBe('pending_confirmation')
+        ->and($report->reporting_team)->toBe('team_b');
+});

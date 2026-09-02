@@ -178,7 +178,7 @@
             <div class="arena-duel-actions">
                 <form method="POST" action="{{ route('matches.report.confirm') }}">
                     @csrf
-                    <input type="hidden" name="match_id" value="{{ $match->id }}">
+                    <input type="hidden" name="report_id" value="{{ $report->id }}">
                     <input type="hidden" name="player_id" value="{{ $lineup['viewer_player_id'] }}">
                     <button type="submit" class="arena-btn px-5 py-2.5">Confirmar resultado</button>
                 </form>

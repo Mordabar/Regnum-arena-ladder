@@ -1386,10 +1386,29 @@ class QueueHubController extends Controller
 
         $botPlayerIds = $testingLabService->testPlayerIds();
 
-        // El reporte lo firma un bot: si lo firmara la persona, seria ella
-        // quien tendria que confirmarlo, y no habria nada que ensayar.
-        $reporterEntry = collect($match->getAllPlayers())
-            ->first(fn ($player) => $botPlayerIds->contains((int) ($player['player_id'] ?? 0)));
+        // El reporte lo firma un bot del equipo CONTRARIO a la persona. Solo el
+        // rival puede confirmar un reporte, asi que un bot del propio equipo
+        // dejaria a quien prueba mirando un "esperando al rival" sin nada que
+        // pulsar, que es justo lo que se queria ensayar.
+        $entries = collect($match->getAllPlayers());
+
+        $humanEntry = $entries->first(fn ($player) => !$botPlayerIds->contains((int) ($player['player_id'] ?? 0)));
+        $humanSide = $humanEntry
+            ? $match->getTeamSideForPlayer((int) $humanEntry['player_id'], $humanEntry['discord_id'] ?? null)
+            : null;
+
+        $reporterEntry = $entries
+            ->filter(fn ($player) => $botPlayerIds->contains((int) ($player['player_id'] ?? 0)))
+            ->sortByDesc(function ($player) use ($match, $humanSide) {
+                if (!$humanSide) {
+                    return 0;
+                }
+
+                $side = $match->getTeamSideForPlayer((int) $player['player_id'], $player['discord_id'] ?? null);
+
+                return $side !== null && $side !== $humanSide ? 1 : 0;
+            })
+            ->first();
 
         if (!$reporterEntry) {
             return back()->withErrors(['error' => 'Este enfrentamiento no tiene ningun bot que pueda reportar.']);
@@ -1404,7 +1423,7 @@ class QueueHubController extends Controller
         // Por defecto gana el equipo del bot que reporta: es lo que haria
         // cualquiera, y deja a la persona en el lado interesante, el de decidir
         // si confirma o rechaza.
-        $winnerTeam = $validated['winner_team']
+        $winnerTeam = ($validated['winner_team'] ?? null)
             ?: ($match->getTeamSideForPlayer($reporter->id, (string) $reporter->user?->discord_id) ?? 'team_a');
 
         try {
