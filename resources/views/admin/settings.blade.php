@@ -14,15 +14,8 @@
             {{-- Modalidades: lo primero, porque es el interruptor que decide si
                  hay juego o no. --}}
             <section class="ap-card ap-rise p-4">
-                <div class="ap-section-head">
-                    <div>
-                        <h2 class="ap-section-title">Modalidades abiertas</h2>
-                        <p class="ap-section-note">
-                            Se encienden por separado y pueden convivir. El ranking es uno solo:
-                            una partida de 2v2 y una de 3v3 suman los mismos puntos a la misma tabla.
-                        </p>
-                    </div>
-                </div>
+                <x-admin.section-head title="Modalidades abiertas" icon="swords"
+                                        note="Se encienden por separado y pueden convivir. El ranking es uno solo: una partida de 2v2 y una de 3v3 suman los mismos puntos a la misma tabla." />
 
                 <div class="flex flex-col gap-2">
                     @foreach(['2v2' => ['Arena 2v2', 'Equipos de dos jugadores'], '3v3' => ['Arena 3v3', 'Equipos de tres jugadores']] as $modeKey => $modeInfo)
@@ -53,12 +46,8 @@
 
             {{-- Ventanas de tiempo --}}
             <section class="ap-card ap-rise ap-delay-1 p-4">
-                <div class="ap-section-head">
-                    <div>
-                        <h2 class="ap-section-title">Ventanas de tiempo</h2>
-                        <p class="ap-section-note">Cuanto espera el sistema antes de resolver algo por su cuenta.</p>
-                    </div>
-                </div>
+                <x-admin.section-head title="Ventanas de tiempo" icon="clock" tone="info"
+                                        note="Cuanto espera el sistema antes de resolver algo por su cuenta." />
                 <div class="grid gap-3 md:grid-cols-3">
                     <div class="ap-field">
                         <label class="ap-label" for="s-accept">Aceptar la partida</label>
@@ -88,15 +77,8 @@
 
             {{-- Balance --}}
             <section class="ap-card ap-rise ap-delay-2 p-4">
-                <div class="ap-section-head">
-                    <div>
-                        <h2 class="ap-section-title">Equilibrio entre aleatorias y premades</h2>
-                        <p class="ap-section-note">
-                            Un equipo premade juega coordinado; estos porcentajes compensan a quien
-                            entra en cola solo.
-                        </p>
-                    </div>
-                </div>
+                <x-admin.section-head title="Equilibrio entre aleatorias y premades" icon="scale"
+                                        note="Un equipo premade juega coordinado; estos porcentajes compensan a quien entra en cola solo." />
                 <div class="grid gap-3 md:grid-cols-2">
                     <div class="ap-field md:col-span-2">
                         <label class="ap-label" for="s-premade-limit">Partidas premade por equipo y dia</label>
@@ -124,15 +106,8 @@
 
             {{-- Sanciones --}}
             <section class="ap-card ap-rise ap-delay-3 p-4">
-                <div class="ap-section-head">
-                    <div>
-                        <h2 class="ap-section-title">Sanciones</h2>
-                        <p class="ap-section-note">
-                            Se aplican solas cuando alguien abandona una partida o incumple las reglas de soporte.
-                            La confianza baja y el bloqueo crece con la reincidencia, hasta el tope que fijes.
-                        </p>
-                    </div>
-                </div>
+                <x-admin.section-head title="Sanciones" icon="ban" tone="danger"
+                                        note="Se aplican solas cuando alguien abandona una partida o incumple las reglas de soporte. La confianza baja y el bloqueo crece con la reincidencia, hasta el tope que fijes." />
                 <div class="grid gap-3 md:grid-cols-3">
                     <div class="ap-field">
                         <label class="ap-label" for="s-lock-ab">Bloqueo por abandonar (horas)</label>
@@ -160,12 +135,8 @@
 
             {{-- Textos publicos --}}
             <section class="ap-card ap-rise ap-delay-4 p-4">
-                <div class="ap-section-head">
-                    <div>
-                        <h2 class="ap-section-title">Textos del sitio publico</h2>
-                        <p class="ap-section-note">Lo que leen los jugadores en la portada. No afecta a las partidas.</p>
-                    </div>
-                </div>
+                <x-admin.section-head title="Textos del sitio publico" icon="type"
+                                        note="Lo que leen los jugadores en la portada. No afecta a las partidas." />
                 <div class="grid gap-3 md:grid-cols-2">
                     <div class="ap-field">
                         <label class="ap-label" for="s-season">Nombre de la temporada</label>
@@ -198,12 +169,8 @@
         {{-- Panel lateral: solo lectura. Se separa del formulario para que quede
              claro que aqui no se toca nada; esto vive en el servidor. --}}
         <aside class="ap-card ap-rise ap-delay-2 p-4 xl:sticky" style="top: 76px">
-            <div class="ap-section-head">
-                <div>
-                    <h2 class="ap-section-title">Conexion con Discord</h2>
-                    <p class="ap-section-note">Solo lectura. Se configura en el servidor, no desde aqui.</p>
-                </div>
-            </div>
+            <x-admin.section-head title="Conexion con Discord" icon="link" tone="info"
+                                    note="Solo lectura. Se configura en el servidor, no desde aqui." />
 
             <div class="flex flex-col gap-2">
                 <div class="ap-kv">

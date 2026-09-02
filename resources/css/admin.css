@@ -621,7 +621,7 @@
     /* ── Secciones de contenido ────────────────────────────────────── */
     .ap-section-head {
         display: flex;
-        align-items: baseline;
+        align-items: flex-start;
         justify-content: space-between;
         gap: 12px;
         margin-bottom: 10px;
@@ -635,6 +635,27 @@
     }
 
     .ap-section-note { margin: 2px 0 0; font-size: 11.5px; color: var(--ap-text-subtle); }
+
+    /* La marca de la seccion: un icono en su placa. Con la placa el icono se
+       lee como una etiqueta y no como un adorno suelto al lado del texto. */
+    .ap-section-lead { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+
+    .ap-section-mark {
+        display: grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        flex: none;
+        margin-top: 1px;
+        border-radius: 9px;
+        border: 1px solid var(--ap-line);
+        background: var(--ap-accent-dim);
+        color: var(--ap-accent);
+    }
+    .ap-section-mark-danger { color: var(--ap-danger); border-color: color-mix(in srgb, var(--ap-danger) 35%, transparent); }
+    .ap-section-mark-warn   { color: var(--ap-warn);   border-color: color-mix(in srgb, var(--ap-warn) 35%, transparent); }
+    .ap-section-mark-ok     { color: var(--ap-ok);     border-color: color-mix(in srgb, var(--ap-ok) 35%, transparent); }
+    .ap-section-mark-info   { color: var(--ap-info); border-color: rgba(96, 165, 250, 0.3); }
 
     /* Banda de atencion: lo unico del panel que puede gritar. */
     .ap-alertband {

@@ -76,12 +76,8 @@
     </div>
 
     <aside class="ap-card p-4 self-start">
-        <div class="ap-section-head">
-            <div>
-                <h2 class="ap-section-title">Editar una zona</h2>
-                <p class="ap-section-note">Elige la zona y vuelve a trazar su contorno.</p>
-            </div>
-        </div>
+        <x-admin.section-head title="Editar una zona" icon="map"
+                              note="Elige la zona y vuelve a trazar su contorno." />
 
         <div class="ap-field mb-3">
             <label class="ap-label" for="zone-selector">Zona</label>

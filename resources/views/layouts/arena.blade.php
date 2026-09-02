@@ -669,6 +669,15 @@
             color: var(--arena-gold);
             font-variant-numeric: tabular-nums;
         }
+        .arena-profile-portrait {
+            width: 118px;
+            flex: none;
+            border-radius: 14px;
+            border: 1px solid var(--arena-line);
+            background: rgba(0, 0, 0, 0.4);
+        }
+        @media (max-width: 520px) { .arena-profile-portrait { width: 92px; height: 120px !important; } }
+
         .arena-roster-lock {
             display: block;
             margin-top: 3px;

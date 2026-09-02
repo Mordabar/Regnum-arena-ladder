@@ -84,7 +84,10 @@
     {{-- Reporte y pruebas --}}
     <section class="ap-card ap-rise ap-delay-3 p-4">
         <div class="ap-section-head">
-            <h2 class="ap-section-title">Lo que reportaron los jugadores</h2>
+            <span class="ap-section-lead">
+                <span class="ap-section-mark"><x-admin.icon name="inbox" class="h-4 w-4" /></span>
+                <h2 class="ap-section-title">Lo que reportaron los jugadores</h2>
+            </span>
             @if($report)<x-admin.status kind="report" :value="$report->status" />@endif
         </div>
 
@@ -155,12 +158,8 @@
 
     {{-- Puntos aplicados --}}
     <section class="ap-card ap-rise ap-delay-4 p-4">
-        <div class="ap-section-head">
-            <div>
-                <h2 class="ap-section-title">Puntos ya aplicados</h2>
-                <p class="ap-section-note">Lo que este enfrentamiento sumo o resto en el ranking.</p>
-            </div>
-        </div>
+        <x-admin.section-head title="Puntos ya aplicados" icon="trophy"
+                                note="Lo que este enfrentamiento sumo o resto en el ranking." />
 
         @if($match->results->isEmpty())
             <div class="ap-empty">
@@ -210,7 +209,9 @@
      primero la decision, se ve que consecuencias tiene y se confirma una vez. --}}
 <section class="ap-card ap-rise p-4" id="ap-decide">
     <div class="ap-section-head">
-        <div>
+        <div class="ap-section-lead">
+            <span class="ap-section-mark ap-section-mark-warn"><x-admin.icon name="scale" class="h-4 w-4" /></span>
+            <div class="min-w-0">
             <h2 class="ap-section-title">Tomar una decision</h2>
             <p class="ap-section-note">
                 @if($isClosed)
@@ -219,6 +220,7 @@
                     Elige que hacer, revisa las consecuencias y confirma.
                 @endif
             </p>
+            </div>
         </div>
     </div>
 

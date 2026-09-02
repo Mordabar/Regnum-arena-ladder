@@ -330,3 +330,13 @@ it('no se borra un personaje con enfrentamiento en marcha', function () {
 
     expect(\App\Models\Player::find($victim->id))->not->toBeNull();
 });
+
+it('el porcentaje de victorias nunca pasa del 100 aunque los contadores se descuadren', function () {
+    // Los tres contadores se escriben por separado: una correccion de
+    // moderacion o una purga del laboratorio pueden dejarlos incoherentes, y el
+    // perfil llego a anunciar "200% win rate".
+    $player = lifecyclePlayer(lifecycleUser('winrate'), 'Descuadrado');
+    $player->forceFill(['wins' => 2, 'losses' => 20, 'matches_played' => 1])->save();
+
+    expect($player->fresh()->win_rate)->toBe(9.1);
+});

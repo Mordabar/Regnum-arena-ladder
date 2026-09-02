@@ -60,12 +60,8 @@
 
 {{-- 2. Lo que esta pasando ahora. Numeros que cambian solos. --}}
 <section class="ap-rise ap-delay-1 mb-6">
-    <div class="ap-section-head">
-        <div>
-            <h2 class="ap-section-title">Actividad en curso</h2>
-            <p class="ap-section-note">Se mueve solo con el matchmaking automatico.</p>
-        </div>
-    </div>
+    <x-admin.section-head title="Actividad en curso" icon="gauge"
+                          note="Se mueve solo con el matchmaking automatico." />
     <div class="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <a href="{{ route('admin.matches.index') }}" class="ap-metric">
             <span class="ap-metric-label"><x-admin.icon name="clock" class="h-3.5 w-3.5" /> En cola</span>
@@ -92,13 +88,11 @@
 
 {{-- 3. La comunidad. Cambia despacio: va despues. --}}
 <section class="ap-rise ap-delay-2 mb-6">
-    <div class="ap-section-head">
-        <div>
-            <h2 class="ap-section-title">Jugadores</h2>
-            <p class="ap-section-note">Cuentas registradas y sanciones activas.</p>
-        </div>
-        <a href="{{ route('admin.players.index') }}" class="ap-btn ap-btn-sm ap-btn-quiet">Gestionar</a>
-    </div>
+    <x-admin.section-head title="Jugadores" icon="users" note="Cuentas registradas y sanciones activas.">
+        <x-slot:aside>
+            <a href="{{ route('admin.players.index') }}" class="ap-btn ap-btn-sm ap-btn-quiet">Gestionar</a>
+        </x-slot:aside>
+    </x-admin.section-head>
     <div class="grid gap-3 grid-cols-2 lg:grid-cols-5">
         <div class="ap-metric">
             <span class="ap-metric-label">Registrados</span>
@@ -138,10 +132,11 @@
 {{-- 4. Historial reciente, para contexto. --}}
 <div class="grid gap-5 lg:grid-cols-2">
     <section class="ap-card ap-rise ap-delay-3 p-4">
-        <div class="ap-section-head">
-            <h2 class="ap-section-title">Ultimos enfrentamientos</h2>
-            <a href="{{ route('admin.matches.index') }}" class="ap-btn ap-btn-sm ap-btn-quiet">Ver todos</a>
-        </div>
+        <x-admin.section-head title="Ultimos enfrentamientos" icon="swords">
+            <x-slot:aside>
+                <a href="{{ route('admin.matches.index') }}" class="ap-btn ap-btn-sm ap-btn-quiet">Ver todos</a>
+            </x-slot:aside>
+        </x-admin.section-head>
         @forelse($recentMatches as $match)
             <a href="{{ route('admin.matches.show', $match) }}" class="ap-list-row">
                 <div class="ap-list-main">
@@ -163,10 +158,11 @@
     </section>
 
     <section class="ap-card ap-rise ap-delay-4 p-4">
-        <div class="ap-section-head">
-            <h2 class="ap-section-title">Ultimos reportes de resultado</h2>
-            <a href="{{ route('admin.inbox') }}" class="ap-btn ap-btn-sm ap-btn-quiet">Bandeja</a>
-        </div>
+        <x-admin.section-head title="Ultimos reportes de resultado" icon="inbox">
+            <x-slot:aside>
+                <a href="{{ route('admin.inbox') }}" class="ap-btn ap-btn-sm ap-btn-quiet">Bandeja</a>
+            </x-slot:aside>
+        </x-admin.section-head>
         @forelse($recentReports as $report)
             @if($report->match)
                 <a href="{{ route('admin.matches.show', $report->match) }}" class="ap-list-row">

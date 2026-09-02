@@ -6,7 +6,7 @@
     $paths = [
         'gauge' => '<path d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/><path d="m13.4 10.6 3.6-3.6"/><path d="M3.3 17a9 9 0 1 1 17.4 0"/>',
         'inbox' => '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13a2 2 0 0 1 1.9 1.4L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6l2.6-5.6A2 2 0 0 1 5.5 5Z"/>',
-        'swords' => '<path d="m14.5 17.5 6-6V4h-7.5l-6 6"/><path d="m9.5 6.5-6 6V20h7.5l6-6"/><path d="m5 19 3-3"/><path d="m16 8 3-3"/>',
+        'swords' => '<path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="m13 19 6-6"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/><path d="M14.5 6.5 18 3h3v3l-3.5 3.5"/><path d="m5 14 4 4"/><path d="m7 17-3 3"/><path d="m3 19 2 2"/>',
         'users' => '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/>',
         'sliders' => '<path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/>',
         'map' => '<path d="m9 4 6 2 5-2v14l-5 2-6-2-5 2V6l5-2Z"/><path d="M9 4v14"/><path d="M15 6v14"/>',
@@ -28,6 +28,17 @@
         'wand' => '<path d="m6 18 9-9"/><path d="M15 4v3"/><path d="M18.5 5.5 17 7"/><path d="M20 10h-3"/><circle cx="16" cy="8" r="2.5"/>',
         'axe' => '<path d="m4 20 8-8"/><path d="M13 3 21 11l-4 3-7-7Z"/>',
         'sparkle' => '<path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><path d="m6 6 2.5 2.5"/><path d="m15.5 15.5 2.5 2.5"/><path d="m18 6-2.5 2.5"/><path d="m8.5 15.5-2.5 2.5"/>',
+        'scale' => '<path d="M12 3v18"/><path d="M7 6h10"/><path d="m5 6-3 7h6L5 6Z"/><path d="m19 6-3 7h6l-3-7Z"/><path d="M8 20h8"/>',
+        'ban' => '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>',
+        'type' => '<path d="M4 6V4h16v2"/><path d="M12 4v16"/><path d="M9 20h6"/>',
+        'link' => '<path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.2 1.1"/><path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.2-1.1"/>',
+        'bot' => '<rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4"/><circle cx="12" cy="3" r="1"/><path d="M9 13h.01"/><path d="M15 13h.01"/><path d="M9.5 17h5"/>',
+        'trophy' => '<path d="M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 6H4v1a3 3 0 0 0 3 3"/><path d="M17 6h3v1a3 3 0 0 1-3 3"/><path d="M12 14v4"/><path d="M8.5 21h7"/><path d="M10 18h4v3h-4z"/>',
+        'zap' => '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/>',
+        'plus' => '<path d="M12 5v14"/><path d="M5 12h14"/>',
+        'eye' => '<path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="3"/>',
+        'crown' => '<path d="m3 7 4 4 5-6 5 6 4-4v11H3V7Z"/><path d="M3 20h18"/>',
+        'megaphone' => '<path d="M4 10v4a2 2 0 0 0 2 2h1l8 4V4L7 8H6a2 2 0 0 0-2 2Z"/><path d="M19 9a3 3 0 0 1 0 6"/>',
         'dot' => '<circle cx="12" cy="12" r="4"/>',
     ];
 @endphp

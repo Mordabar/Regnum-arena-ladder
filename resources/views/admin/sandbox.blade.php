@@ -59,12 +59,8 @@
 
 {{-- Estado del laboratorio --}}
 <section class="ap-rise ap-delay-1 mb-5">
-    <div class="ap-section-head">
-        <div>
-            <h2 class="ap-section-title">Estado del laboratorio</h2>
-            <p class="ap-section-note">Solo cuenta bots, no jugadores reales.</p>
-        </div>
-    </div>
+    <x-admin.section-head title="Estado del laboratorio" icon="gauge"
+                            note="Solo cuenta bots, no jugadores reales." />
     <div class="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
         @foreach([
             ['Bots creados', $summary['players'], 'personajes de prueba'],
@@ -88,9 +84,12 @@
     {{-- Paso 1 --}}
     <section class="ap-card ap-rise ap-delay-2 p-4">
         <div class="ap-section-head">
-            <div>
-                <h2 class="ap-section-title"><span class="ap-step">1</span> Crear el roster de bots</h2>
-                <p class="ap-section-note">Cuantos personajes de prueba quieres en cada reino.</p>
+            <div class="ap-section-lead">
+                <span class="ap-section-mark"><x-admin.icon name="bot" class="h-4 w-4" /></span>
+                <div class="min-w-0">
+                    <h2 class="ap-section-title"><span class="ap-step">1</span> Crear el roster de bots</h2>
+                    <p class="ap-section-note">Cuantos personajes de prueba quieres en cada reino.</p>
+                </div>
             </div>
         </div>
         <form method="POST" action="{{ route('admin.testing.seed') }}" class="grid gap-3 sm:grid-cols-4">
@@ -115,7 +114,9 @@
     {{-- Paso 2 --}}
     <section class="ap-card ap-rise ap-delay-3 p-4">
         <div class="ap-section-head">
-            <div>
+            <div class="ap-section-lead">
+                <span class="ap-section-mark"><x-admin.icon name="users" class="h-4 w-4" /></span>
+                <div class="min-w-0">
                 <h2 class="ap-section-title"><span class="ap-step">2</span> Meter bots en la cola</h2>
                 <p class="ap-section-note">
                     @if($needsByMode !== '')
@@ -124,6 +125,7 @@
                         Abre una modalidad antes de encolar a nadie.
                     @endif
                 </p>
+                </div>
             </div>
         </div>
         <form method="POST" action="{{ route('admin.testing.enqueue-realm') }}" class="grid gap-3 sm:grid-cols-4">
@@ -157,9 +159,12 @@
     {{-- Paso 3 --}}
     <section class="ap-card ap-rise ap-delay-4 p-4 xl:col-span-2">
         <div class="ap-section-head">
-            <div>
-                <h2 class="ap-section-title"><span class="ap-step">3</span> Empujar el flujo</h2>
-                <p class="ap-section-note">Estos botones hacen a mano lo que en produccion hace el reloj automatico.</p>
+            <div class="ap-section-lead">
+                <span class="ap-section-mark"><x-admin.icon name="play" class="h-4 w-4" /></span>
+                <div class="min-w-0">
+                    <h2 class="ap-section-title"><span class="ap-step">3</span> Empujar el flujo</h2>
+                    <p class="ap-section-note">Estos botones hacen a mano lo que en produccion hace el reloj automatico.</p>
+                </div>
             </div>
         </div>
 
@@ -233,7 +238,10 @@
     {{-- Partidas del laboratorio --}}
     <section class="ap-card ap-rise p-4">
         <div class="ap-section-head">
-            <h2 class="ap-section-title">Esperando aceptacion</h2>
+            <span class="ap-section-lead">
+                <span class="ap-section-mark ap-section-mark-warn"><x-admin.icon name="clock" class="h-4 w-4" /></span>
+                <h2 class="ap-section-title">Esperando aceptacion</h2>
+            </span>
             <span class="ap-badge ap-badge-neutral ap-num">{{ $pendingMatches->count() }}</span>
         </div>
         @forelse($pendingMatches as $match)
@@ -258,7 +266,10 @@
 
     <section class="ap-card ap-rise p-4">
         <div class="ap-section-head">
-            <h2 class="ap-section-title">En juego</h2>
+            <span class="ap-section-lead">
+                <span class="ap-section-mark ap-section-mark-ok"><x-admin.icon name="swords" class="h-4 w-4" /></span>
+                <h2 class="ap-section-title">En juego</h2>
+            </span>
             <span class="ap-badge ap-badge-neutral ap-num">{{ $inProgressMatches->count() }}</span>
         </div>
         @forelse($inProgressMatches as $match)
@@ -285,12 +296,8 @@
 
     {{-- Roster --}}
     <section class="ap-card ap-rise p-4 xl:col-span-2">
-        <div class="ap-section-head">
-            <div>
-                <h2 class="ap-section-title">Bots del laboratorio</h2>
-                <p class="ap-section-note">Puedes encolar o sacar a cada uno por separado.</p>
-            </div>
-        </div>
+        <x-admin.section-head title="Bots del laboratorio" icon="bot"
+                                note="Puedes encolar o sacar a cada uno por separado." />
 
         @forelse($playersByRealm as $realm => $realmPlayers)
             <details class="ap-details" open>
@@ -338,7 +345,10 @@
     {{-- Historial --}}
     <section class="ap-card ap-rise p-4 xl:col-span-2">
         <div class="ap-section-head">
-            <h2 class="ap-section-title">Ultimas partidas del laboratorio</h2>
+            <span class="ap-section-lead">
+                <span class="ap-section-mark"><x-admin.icon name="flask" class="h-4 w-4" /></span>
+                <h2 class="ap-section-title">Ultimas partidas del laboratorio</h2>
+            </span>
         </div>
         @forelse($recentMatches as $match)
             <a href="{{ route('admin.matches.show', $match) }}" class="ap-list-row">

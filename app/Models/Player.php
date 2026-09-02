@@ -364,8 +364,18 @@ class Player extends Model
 
     public function getWinRateAttribute()
     {
-        if ($this->matches_played == 0) return 0;
-        return round(($this->wins / $this->matches_played) * 100, 1);
+        // El denominador es el mayor entre las partidas contadas y la suma de
+        // victorias y derrotas. Los tres contadores se escriben por separado y
+        // pueden quedar descuadrados (una correccion de moderacion, una purga
+        // del laboratorio); sin esto el perfil llegaba a anunciar "200% win
+        // rate", que no es un dato raro sino un dato imposible.
+        $played = max((int) $this->matches_played, (int) $this->wins + (int) $this->losses);
+
+        if ($played <= 0) {
+            return 0;
+        }
+
+        return round(min(100, ($this->wins / $played) * 100), 1);
     }
 
     public function getRankingPositionAttribute()

@@ -16,12 +16,8 @@
 {{-- Alta manual: plegada por defecto. Es una operacion rara y no deberia
      competir por atencion con la lista, que es lo que se usa a diario. --}}
 <section class="ap-card ap-rise mb-4 p-4" id="ap-create-player" hidden>
-    <div class="ap-section-head">
-        <div>
-            <h2 class="ap-section-title">Crear jugador desde el panel</h2>
-            <p class="ap-section-note">Genera un usuario administrado y su personaje. Util para pruebas y para reponer una cuenta perdida.</p>
-        </div>
-    </div>
+    <x-admin.section-head title="Crear jugador desde el panel" icon="plus"
+                          note="Genera un usuario administrado y su personaje. Util para pruebas y para reponer una cuenta perdida." />
     <form method="POST" action="{{ route('admin.players.store') }}" class="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
         @csrf
         <div class="ap-field">
