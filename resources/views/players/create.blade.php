@@ -38,11 +38,13 @@
         <p class="arena-kicker">Reclutamiento</p>
         <h1 class="mt-2 text-3xl font-bold text-[color:var(--arena-gold-soft)]">Crear guerrero</h1>
         <p class="mt-2 max-w-2xl text-[color:var(--arena-sand)] arena-body-text">
-            Tres decisiones y ya estás en la arena. Vas viendo a tu guerrero mientras eliges:
-            el reino le da el color y la subclase, el arma.
+            Cuatro pasos y ya estás en la arena. Vas viendo a tu guerrero mientras eliges:
+            el reino le pone la capa, la raza el cuerpo, el sexo la figura y la subclase
+            el arma y la armadura.
         </p>
         <p class="mt-3 text-sm text-[color:var(--arena-muted)] arena-body-text">
-            Slot {{ $visible + 1 }} de 5 · El reino y la subclase no se pueden cambiar después.
+            Slot {{ $visible + 1 }} de 5 · Solo el nombre se puede cambiar después: reino,
+            raza, sexo y subclase quedan fijos.
         </p>
     </section>
 
@@ -62,14 +64,18 @@
         <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_400px] items-start">
 
             {{-- ── VISTA PREVIA ── --}}
-            <div class="lg:sticky lg:top-6 order-1">
+            {{-- Pegada arriba tambien en movil: si no, al llegar al paso de la
+                 subclase el guerrero quedaba mil pixeles mas arriba y la
+                 promesa de "vas viendo a tu guerrero mientras eliges" no se
+                 cumplia justo en el formato donde mas gente lo va a usar. --}}
+            <div class="arena-preview-dock order-1 sticky top-2 z-10 lg:top-6">
                 <x-arena-champion
                     id="create-preview"
                     :realm="$oldRealm"
                     :subclass="$oldSubclass"
                     :race="$oldRace"
                     :gender="$oldGender"
-                    height="clamp(320px, 44vh, 500px)"
+                    height="var(--preview-height, clamp(320px, 44vh, 500px))"
                     class="arena-animate-in arena-stagger-1">
                     <div class="arena-champion-overlay">
                         <div class="absolute inset-x-5 bottom-5">
@@ -83,7 +89,7 @@
                     </div>
                 </x-arena-champion>
 
-                <p class="mt-3 text-center text-xs text-[color:var(--arena-muted)] arena-body-text">
+                <p class="arena-champion-caption mt-3 text-center text-xs text-[color:var(--arena-muted)] arena-body-text">
                     Vista previa. Los modelos definitivos irán sustituyendo a estas siluetas por reino, raza y sexo.
                 </p>
             </div>
@@ -125,7 +131,8 @@
                         <span class="text-base font-semibold text-white">Elige tu raza</span>
                     </legend>
                     <p class="mb-3 mt-1 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                        Solo cambia cómo se ve tu guerrero. No da ninguna ventaja en el ladder.
+                        No da ninguna ventaja en el ladder, solo cambia cómo se ve tu guerrero.
+                        Aun así es para siempre: tampoco se puede cambiar después.
                     </p>
 
                     <div class="grid gap-2.5 sm:grid-cols-2" data-race-options>

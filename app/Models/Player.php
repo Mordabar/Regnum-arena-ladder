@@ -249,9 +249,19 @@ class Player extends Model
             && array_key_exists($race, self::RACES[$realm] ?? []);
     }
 
+    /**
+     * Nombre de la raza tal y como se dibuja.
+     *
+     * Si el dato guardado no vale para este reino (una fila antigua, una
+     * importacion torcida), se responde con la variante humana: es exactamente
+     * el maniqui que el visor esta pintando, y decir otra cosa haria que el
+     * texto y el modelo se contradijeran delante del jugador.
+     */
     public function raceName(): string
     {
-        return self::RACES[$this->realm][$this->race] ?? 'Sin raza';
+        $races = self::RACES[$this->realm] ?? [];
+
+        return $races[$this->race] ?? ($races[self::defaultRace($this->realm ?? 'ignis')] ?? 'Sin raza');
     }
 
     public function genderName(): string

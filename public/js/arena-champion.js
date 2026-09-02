@@ -91,8 +91,26 @@ window.ArenaChampion = (function () {
     return SUBCLASS[subclass] || SUBCLASS.knight;
   }
 
+  /**
+   * Que razas puede tener cada reino. Es la misma tabla que el servidor:
+   * si aqui no se comprobase, un dato torcido (un enano guardado en Syrtis)
+   * haria que la ficha dijese "Alturiano" mientras el modelo dibuja un enano
+   * de manual, y el jugador leeria una cosa y veria otra.
+   */
+  var REALM_RACES = {
+    alsius: ['nordo', 'utghar', 'dwarf', 'lamai'],
+    ignis: ['esquelio', 'dark_elf', 'molok', 'lamai'],
+    syrtis: ['alturian', 'wood_elf', 'half_elf', 'lamai']
+  };
+
   function raceOf(race, realm) {
-    return RACE[race] || RACE[DEFAULT_RACE_BY_REALM[realm]] || RACE.nordo;
+    var allowed = REALM_RACES[realm];
+
+    if (race && RACE[race] && (!allowed || allowed.indexOf(race) !== -1)) {
+      return RACE[race];
+    }
+
+    return RACE[DEFAULT_RACE_BY_REALM[realm]] || RACE.nordo;
   }
 
   /* Medidas de la silueta por defecto, por si hay que encuadrar antes de que
@@ -522,20 +540,35 @@ window.ArenaChampion = (function () {
     if (!url) { return Promise.resolve(null); }
 
     if (Object.prototype.hasOwnProperty.call(modelCache, url)) {
-      return Promise.resolve(modelCache[url] ? modelCache[url].clone(true) : null);
+      return Promise.resolve(modelCache[url] ? borrowFromCache(modelCache[url]) : null);
     }
 
     return needLoader().then(function () {
       return new Promise(function (resolve) {
         new THREE.GLTFLoader().load(url, function (gltf) {
           modelCache[url] = gltf.scene;
-          resolve(gltf.scene.clone(true));
+          resolve(borrowFromCache(gltf.scene));
         }, undefined, function () {
           modelCache[url] = null;
           resolve(null);
         });
       });
     }).catch(function () { return null; });
+  }
+
+  /**
+   * Copia de trabajo de un modelo cacheado.
+   *
+   * `clone()` de Three comparte la geometria y los materiales con el original,
+   * asi que liberar la copia al cambiar de guerrero destruiria los recursos del
+   * modelo guardado: el cache dejaria de ahorrar nada y cada cambio volveria a
+   * subir buffers y a compilar shaders. Se marca la copia como prestada para
+   * que no se libere.
+   */
+  function borrowFromCache(source) {
+    var copy = source.clone(true);
+    copy.userData.borrowed = true;
+    return copy;
   }
 
   /** Encaja cualquier modelo en la misma altura y centro que la silueta. */
@@ -550,6 +583,7 @@ window.ArenaChampion = (function () {
     object.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale);
     object.scale.setScalar(scale);
     wrapper.add(object);
+    wrapper.userData.borrowed = object.userData.borrowed;
     return wrapper;
   }
 
@@ -560,6 +594,7 @@ window.ArenaChampion = (function () {
     var host = canvas.parentElement;
 
     if (!hasWebGL()) {
+      markFallbackState(host, 'unsupported');
       paintFallback(host, options.realm);
       return {
         set: function (realm) { paintFallback(host, realm); },
@@ -570,7 +605,7 @@ window.ArenaChampion = (function () {
 
     var api = { available: true };
     var renderer, scene, camera, rim, ring, champion, raf = null;
-    var observer = null, resizeObserver = null;
+    var observer = null, resizeObserver = null, onPointerMove = null;
     var visible = true, spin = 0, grow = 0, token = 0;
     var pointer = { x: 0 };
     var current = {
@@ -580,12 +615,15 @@ window.ArenaChampion = (function () {
       gender: options.gender || null
     };
 
+    markFallbackState(host, 'loading');
+
     needThree().then(function () {
       build();
       setChampion(current.realm, current.subclass, current.race, current.gender);
       watchVisibility();
       hideFallback(host);
     }).catch(function () {
+      markFallbackState(host, 'unsupported');
       paintFallback(host, current.realm);
       api.available = false;
     });
@@ -642,10 +680,11 @@ window.ArenaChampion = (function () {
       }
 
       if (options.parallax !== false) {
-        host.addEventListener('pointermove', function (e) {
+        onPointerMove = function (e) {
           var r = canvas.getBoundingClientRect();
           pointer.x = ((e.clientX - r.left) / r.width - 0.5) * 2;
-        });
+        };
+        host.addEventListener('pointermove', onPointerMove);
       }
     }
 
@@ -707,8 +746,21 @@ window.ArenaChampion = (function () {
       var distForWidth = (width / 2) / Math.tan(hFov / 2);
       var dist = Math.max(distForHeight, distForWidth);
 
-      camera.position.set(0, center + lift, dist);
-      camera.lookAt(0, center, 0);
+      // En un escenario muy apaisado el guerrero se quedaba clavado en el
+      // centro con dos franjas de suelo vacio a los lados, y el nombre le
+      // caia justo debajo. Se desplaza a la derecha para que el rotulo tenga
+      // su propio sitio: la composicion pasa a estar decidida en vez de ser
+      // el resultado de centrarlo todo.
+      // El desplazamiento se mide contra el guerrero, no contra el ancho de la
+      // escena: en un escenario muy apaisado (el de la cola es 4:1) un
+      // porcentaje del ancho visible lo mandaba fuera del cuadro.
+      var visibleWidth = 2 * dist * Math.tan(hFov / 2);
+      var shift = camera.aspect > 1.8
+        ? Math.min(visibleWidth * 0.14, width * 0.42)
+        : 0;
+
+      camera.position.set(-shift, center + lift, dist);
+      camera.lookAt(-shift, center, 0);
       camera.updateProjectionMatrix();
     }
 
@@ -732,7 +784,11 @@ window.ArenaChampion = (function () {
     }
 
     function swap(group) {
-      if (champion) { scene.remove(champion); disposeTree(champion); }
+      if (champion) {
+        scene.remove(champion);
+        // Lo prestado no se destruye: sus recursos son del modelo cacheado.
+        if (!champion.userData.borrowed) { disposeTree(champion); }
+      }
       champion = group;
       grow = 0;
       scene.add(champion);
@@ -819,9 +875,14 @@ window.ArenaChampion = (function () {
       stop();
       window.removeEventListener('resize', resize);
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      if (onPointerMove) { host.removeEventListener('pointermove', onPointerMove); }
       if (observer) { observer.disconnect(); }
       if (resizeObserver) { resizeObserver.disconnect(); }
-      if (champion) { disposeTree(champion); }
+      // Se saca al guerrero de la escena ANTES de liberar el resto: si es una
+      // copia prestada del cache, barrer la escena entera destruiria tambien
+      // los recursos del modelo guardado.
+      if (champion && scene) { scene.remove(champion); }
+      if (champion && !champion.userData.borrowed) { disposeTree(champion); }
       if (scene) { disposeTree(scene); }
       if (renderer) {
         renderer.dispose();
@@ -844,6 +905,17 @@ window.ArenaChampion = (function () {
   function hideFallback(host) {
     var el = host.querySelector('[data-champion-fallback]');
     if (el) { el.hidden = true; }
+  }
+
+  /**
+   * Mientras se descarga Three.js el emblema del reino se queda, pero SIN el
+   * aviso de "no disponible": son 600 KB y en una conexion lenta la pagina
+   * pasaba varios segundos afirmando algo que era mentira. El aviso solo
+   * aparece cuando de verdad no se puede dibujar.
+   */
+  function markFallbackState(host, state) {
+    var el = host.querySelector('[data-champion-fallback]');
+    if (el) { el.dataset.championState = state; }
   }
 
   function paintFallback(host, realm) {

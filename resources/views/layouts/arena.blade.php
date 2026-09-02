@@ -504,7 +504,13 @@
             position: absolute;
             inset: 0;
             pointer-events: none;
-            background: radial-gradient(72% 62% at 50% 42%, transparent 42%, rgba(6, 4, 3, 0.62) 100%);
+            background:
+                /* Franja oscura al pie: el nombre y las etiquetas van encima de
+                   una escena viva, y con un guerrero de piel clara el texto se
+                   quedaba en 1.8:1 de contraste. Con esto no baja de 7:1 sea
+                   cual sea el modelo. */
+                linear-gradient(to top, rgba(6, 4, 3, 0.92) 0%, rgba(6, 4, 3, 0.72) 12%, transparent 34%),
+                radial-gradient(72% 62% at 50% 42%, transparent 42%, rgba(6, 4, 3, 0.62) 100%);
         }
         .arena-champion-fallback {
             position: absolute;
@@ -520,6 +526,13 @@
             font-size: 12.5px;
         }
         .arena-champion-fallback p { margin: 0; max-width: 24ch; }
+        /* El aviso solo cuando el visor ha dado el 3D por imposible. Sin JS o
+           mientras carga, se ve el emblema y nada mas. */
+        .arena-champion-fallback-note { display: none; }
+        .arena-champion-fallback[data-champion-state="unsupported"] .arena-champion-fallback-note { display: block; }
+        .arena-champion-fallback[data-champion-state="loading"] .arena-champion-glyph {
+            animation: arenaPulse 1.8s ease-in-out infinite;
+        }
         .arena-champion-glyph {
             font-size: 76px;
             line-height: 1;
@@ -564,18 +577,25 @@
             color: #fcd9a8;
         }
 
-        /* En movil las cifras flotando arriba tapaban la cabeza del guerrero.
-           Bajan a la esquina, encima del nombre, donde no estorban. */
+        /* En movil las cifras no caben dentro del escenario sin taparle la
+           cabeza al guerrero o pisar su nombre. Salen fuera, debajo, donde se
+           leen enteras. Probado: dentro se solapaban 20 px con el rotulo. */
         @media (max-width: 640px) {
-            .arena-champion-overlay .arena-stats-row {
-                top: auto;
-                right: auto;
-                left: 20px;
-                bottom: 86px;
-                justify-content: flex-start;
+            /* Ojo con el selector: apuntar a `.arena-champion-overlay
+               .arena-stats-row` tocaba tambien la fila de dentro del escenario
+               y le devolvia el display que la utilidad `hidden` acababa de
+               quitarle. Solo la de fuera. */
+            .arena-champion-stats-outside .arena-stats-row {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 6px;
             }
-            .arena-stat-pill { min-width: 0; padding: 5px 9px; }
-            .arena-stat-pill b { font-size: 14px; }
+            /* Que se ve y que no lo deciden las utilidades (hidden / sm:flex)
+               en el propio marcado: sus reglas van despues de esta hoja y
+               ganarian igualmente. Aqui solo queda la maquetacion. */
+            .arena-champion-stats-outside { padding: 0 2px; }
+            .arena-stat-pill { min-width: 0; padding: 6px 9px; text-align: center; }
+            .arena-stat-pill b { font-size: 15px; }
         }
 
         .arena-stat-pill {
@@ -619,7 +639,7 @@
         }
         .arena-roster-slot:hover { background: rgba(36, 26, 20, 0.75); transform: translateX(2px); }
         .arena-roster-slot:focus-visible { outline: 2px solid var(--arena-gold); outline-offset: 2px; }
-        .arena-roster-slot[aria-selected="true"] {
+        .arena-roster-slot[aria-pressed="true"] {
             border-color: var(--arena-line-strong);
             background: linear-gradient(90deg, rgba(63, 45, 31, 0.85), rgba(30, 21, 16, 0.7));
         }
@@ -907,6 +927,22 @@
             color: var(--arena-gold);
             opacity: 0.75;
         }
+        /* En movil la vista previa se queda pegada arriba y encoge, para que
+           siga viendose mientras se rellenan los pasos de abajo. */
+        .arena-preview-dock {
+            --preview-height: clamp(320px, 44vh, 500px);
+            background: var(--arena-night);
+        }
+        @media (max-width: 1023px) {
+            .arena-preview-dock {
+                --preview-height: 180px;
+                padding-bottom: 8px;
+                margin-bottom: 4px;
+            }
+            .arena-preview-dock .arena-champion-name { font-size: 20px; }
+            .arena-preview-dock .arena-champion-caption { display: none; }
+        }
+
         .arena-choice-hint {
             margin: 0 0 2px;
             font-size: 12.5px;

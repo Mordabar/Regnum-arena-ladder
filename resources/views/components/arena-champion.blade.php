@@ -29,11 +29,14 @@
 
     <canvas class="arena-champion-canvas" aria-hidden="true"></canvas>
 
-    <div class="arena-champion-fallback" data-champion-fallback>
+    {{-- El emblema es lo que se ve antes del 3D y tambien si no hay 3D. El
+         aviso, en cambio, solo aparece cuando de verdad no se puede dibujar:
+         mientras se descarga la libreria decia algo que no era cierto. --}}
+    <div class="arena-champion-fallback" data-champion-fallback data-champion-state="idle">
         <span class="arena-champion-glyph" data-champion-glyph aria-hidden="true">
             {{ ['ignis' => '◆', 'alsius' => '✹', 'syrtis' => '❀'][$realm] ?? '◆' }}
         </span>
-        <p>Vista 3D no disponible en este navegador.</p>
+        <p class="arena-champion-fallback-note">Vista 3D no disponible en este navegador.</p>
     </div>
 
     {{ $slot }}

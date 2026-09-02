@@ -167,8 +167,12 @@ it('el emblema del reino se ve sin javascript y sin webgl', function () {
 
     $html = $this->actingAs($user)->get(route('lobby'))->getContent();
 
-    // El atributo se emite tal cual, sin `hidden` al lado: lo oculta el visor
-    // desde JavaScript, y solo cuando ya tiene el guerrero montado.
-    expect($html)->toMatch('/data-champion-fallback\s*>/')
+    // El respaldo se emite sin `hidden`: lo oculta el visor desde JavaScript, y
+    // solo cuando ya tiene el guerrero montado.
+    expect($html)->toContain('data-champion-fallback')
         ->and($html)->not->toMatch('/data-champion-fallback[^>]*hidden/');
+
+    // Y arranca en 'idle': el aviso de "no disponible" solo aparece cuando el
+    // visor da el 3D por imposible, no mientras descarga la libreria.
+    expect($html)->toContain('data-champion-state="idle"');
 });

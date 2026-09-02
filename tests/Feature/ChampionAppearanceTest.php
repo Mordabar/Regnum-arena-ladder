@@ -194,3 +194,28 @@ it('el modulo 3d conoce las mismas razas y subclases que el servidor', function 
         expect($js)->toContain($gender . ':');
     }
 });
+
+it('una raza corrupta cae en la variante humana, no en un hueco', function () {
+    // El visor ya dibuja el maniqui humano cuando la raza no existe. Si el
+    // texto dijese "Sin raza", el jugador leeria una cosa y veria otra.
+    $user = lookUser('corrupto');
+    $player = Player::create([
+        'user_id' => $user->id,
+        'character_name' => 'Torcido',
+        'subclass' => 'knight',
+        'realm' => 'syrtis',
+        'race' => 'alturian',
+        'gender' => 'male',
+        'pl_points' => 0,
+        'mmr' => 1000,
+        'trust_score' => 100,
+        'is_active' => true,
+    ]);
+    $player->forceFill(['race' => 'dragon_inventado'])->saveQuietly();
+
+    expect($player->fresh()->raceName())->toBe('Alturiano');
+
+    $this->actingAs($user)->get(route('lobby'))
+        ->assertOk()
+        ->assertDontSee('Sin raza');
+});

@@ -88,10 +88,12 @@
                     <span class="text-xs text-[color:var(--arena-muted)]">{{ $players->count() }}/5</span>
                 </div>
 
-                <div class="flex flex-col gap-2" role="listbox" aria-label="Elige tu guerrero">
+                {{-- Botones a secas y no un listbox: se anunciaba como lista de
+                     seleccion pero no respondia a las flechas, y colgaba de el
+                     un enlace y un parrafo que no son opciones. --}}
+                <div class="flex flex-col gap-2">
                     @foreach($players as $player)
                         <button type="button"
-                                role="option"
                                 class="arena-roster-slot"
                                 data-champion-slot
                                 data-player-id="{{ $player->id }}"
@@ -99,7 +101,7 @@
                                 data-subclass="{{ $player->subclass }}"
                                 data-race="{{ $player->race }}"
                                 data-gender="{{ $player->gender }}"
-                                aria-selected="{{ $loop->first ? 'true' : 'false' }}"
+                                aria-pressed="{{ $loop->first ? 'true' : 'false' }}"
                                 style="--slot-realm: var(--arena-{{ $player->realm === 'ignis' ? 'fire' : ($player->realm === 'alsius' ? 'ice' : 'forest') }})">
                             <span class="arena-roster-crest">
                                 <x-arena-realm-icon :realm="$player->realm" size="sm" />
@@ -139,26 +141,39 @@
                     class="arena-animate-in arena-stagger-2">
 
                     <div class="arena-champion-overlay">
-                        <div class="arena-stats-row absolute right-4 top-4 flex flex-wrap justify-end gap-2">
-                            <div class="arena-stat-pill"><span>PL</span><b data-champion-pl>—</b></div>
-                            <div class="arena-stat-pill"><span>MMR</span><b data-champion-mmr>—</b></div>
-                            <div class="arena-stat-pill"><span>V/D</span><b data-champion-record>—</b></div>
+                        {{-- Las cifras salen ya escritas del servidor. Antes solo
+                             las ponia el script y, sin JavaScript, el bloque mas
+                             grande de la pagina se quedaba lleno de rayas. --}}
+                        <div class="arena-champion-stats-inside arena-stats-row absolute right-4 top-4 hidden sm:flex flex-wrap justify-end gap-2">
+                            <div class="arena-stat-pill"><span>PL</span><b data-champion-pl>{{ number_format((float) $featured->pl_points, 1) }}</b></div>
+                            <div class="arena-stat-pill"><span>MMR</span><b data-champion-mmr>{{ $featured->mmr }}</b></div>
+                            <div class="arena-stat-pill"><span>V/D</span><b data-champion-record>{{ $featured->wins }}/{{ $featured->losses }}</b></div>
                         </div>
 
                         <div class="absolute inset-x-5 bottom-5" aria-live="polite">
                             <div class="flex flex-wrap items-center gap-3">
-                                <h2 class="arena-champion-name" data-champion-name>—</h2>
-                                <span class="arena-champion-status" data-champion-status hidden></span>
+                                <h2 class="arena-champion-name" data-champion-name>{{ $featured->cleanName() }}</h2>
+                                <span class="arena-champion-status" data-champion-status @if($featured->is_active) hidden @endif>{{ $featured->statusLabel() }}</span>
                             </div>
                             <p class="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                                <span class="arena-champion-realm" data-champion-realm-name>—</span>
-                                <span data-champion-race-name>—</span>
-                                <span data-champion-subclass-name>—</span>
-                                <span data-champion-matches>—</span>
+                                <span class="arena-champion-realm" data-champion-realm-name>{{ \App\Models\Player::REALMS[$featured->realm] ?? $featured->realm }}</span>
+                                <span data-champion-race-name>{{ $featured->raceName() }}</span>
+                                <span data-champion-subclass-name>{{ \App\Models\Player::SUBCLASSES[$featured->subclass] ?? $featured->subclass }}</span>
+                                <span data-champion-matches>{{ $featured->wins }} victorias · {{ $featured->losses }} derrotas</span>
                             </p>
                         </div>
                     </div>
                 </x-arena-champion>
+
+                {{-- En movil las cifras no caben dentro del escenario sin pisar
+                     al guerrero o a su nombre, asi que viven aqui debajo. --}}
+                <div class="arena-champion-stats-outside sm:hidden">
+                    <div class="arena-stats-row">
+                        <div class="arena-stat-pill"><span>PL</span><b data-champion-pl>{{ number_format((float) $featured->pl_points, 1) }}</b></div>
+                        <div class="arena-stat-pill"><span>MMR</span><b data-champion-mmr>{{ $featured->mmr }}</b></div>
+                        <div class="arena-stat-pill"><span>V/D</span><b data-champion-record>{{ $featured->wins }}/{{ $featured->losses }}</b></div>
+                    </div>
+                </div>
 
                 {{-- Acciones del guerrero seleccionado --}}
                 @foreach($players as $player)
@@ -248,19 +263,27 @@
             var c = champions[id];
             if (!c) { return; }
 
-            document.querySelector('[data-champion-name]').textContent = c.name;
-            document.querySelector('[data-champion-realm-name]').textContent = c.realmName;
-            document.querySelector('[data-champion-race-name]').textContent = c.raceName;
-            document.querySelector('[data-champion-subclass-name]').textContent = c.subclassName;
-            document.querySelector('[data-champion-matches]').textContent =
-                c.wins + ' victorias · ' + c.losses + ' derrotas';
-            document.querySelector('[data-champion-pl]').textContent = c.pl;
-            document.querySelector('[data-champion-mmr]').textContent = c.mmr;
-            document.querySelector('[data-champion-record]').textContent = c.wins + '/' + c.losses;
+            // Hay dos juegos de cifras (dentro del escenario en escritorio,
+            // debajo en movil): se escriben los dos o uno se queda mintiendo.
+            var paintAll = function (selector, value) {
+                document.querySelectorAll(selector).forEach(function (node) {
+                    node.textContent = value;
+                });
+            };
 
-            var status = document.querySelector('[data-champion-status]');
-            status.textContent = c.status;
-            status.hidden = c.active;
+            paintAll('[data-champion-name]', c.name);
+            paintAll('[data-champion-realm-name]', c.realmName);
+            paintAll('[data-champion-race-name]', c.raceName);
+            paintAll('[data-champion-subclass-name]', c.subclassName);
+            paintAll('[data-champion-matches]', c.wins + ' victorias · ' + c.losses + ' derrotas');
+            paintAll('[data-champion-pl]', c.pl);
+            paintAll('[data-champion-mmr]', c.mmr);
+            paintAll('[data-champion-record]', c.wins + '/' + c.losses);
+
+            document.querySelectorAll('[data-champion-status]').forEach(function (status) {
+                status.textContent = c.status;
+                status.hidden = c.active;
+            });
 
             if (stage) { stage.dataset.championRealm = c.realm; }
 
@@ -271,7 +294,7 @@
                 panel.hidden = panel.dataset.playerId !== String(id);
             });
             slots.forEach(function (slot) {
-                slot.setAttribute('aria-selected', slot.dataset.playerId === String(id) ? 'true' : 'false');
+                slot.setAttribute('aria-pressed', slot.dataset.playerId === String(id) ? 'true' : 'false');
             });
         }
 
