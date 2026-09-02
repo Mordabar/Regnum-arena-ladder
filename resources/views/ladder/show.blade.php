@@ -126,7 +126,7 @@
         </div>
 
         <div class="mt-6">
-            {{ $results->links() }}
+            {{ $results->links('vendor.pagination.arena') }}
         </div>
     </section>
 </div>

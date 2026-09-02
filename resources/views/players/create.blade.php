@@ -59,6 +59,17 @@
         </div>
     @endif
 
+@php
+    // Cada opcion con su marca. Doce razas en texto plano se leen como una
+    // lista de la compra; el icono dice de un vistazo por donde va cada una.
+    $raceIcons = [
+        'nordo' => 'human', 'esquelio' => 'human', 'alturian' => 'human',
+        'utghar' => 'horns', 'dwarf' => 'beard', 'molok' => 'hulk',
+        'dark_elf' => 'ears', 'wood_elf' => 'ears', 'half_elf' => 'ears-short',
+        'lamai' => 'ears-big',
+    ];
+@endphp
+
     <form method="POST" action="{{ route('player.register') }}" id="createChampionForm">
         @csrf
         <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_400px] items-start">
@@ -153,10 +164,15 @@
                                            data-label="{{ $raceLabel }}"
                                            data-realm="{{ $realmKey }}"
                                            @checked($oldRace === $raceKey && $oldRealm === $realmKey)>
-                                    <span class="arena-choice-body" style="align-items: flex-start; text-align: left">
-                                        <span class="arena-choice-title">{{ $raceLabel }}</span>
-                                        <span class="arena-choice-note">{{ $raceNotes[$raceKey] ?? '' }}</span>
-                                        <span class="arena-choice-realm">Solo {{ \App\Models\Player::REALMS[$realmKey] }}</span>
+                                    <span class="arena-choice-body arena-choice-body-row">
+                                        <span class="arena-choice-mark">
+                                            <x-arena-icon :name="$raceIcons[$raceKey] ?? 'human'" class="h-5 w-5" />
+                                        </span>
+                                        <span class="min-w-0">
+                                            <span class="arena-choice-title">{{ $raceLabel }}</span>
+                                            <span class="arena-choice-note">{{ $raceNotes[$raceKey] ?? '' }}</span>
+                                            <span class="arena-choice-realm">Solo {{ \App\Models\Player::REALMS[$realmKey] }}</span>
+                                        </span>
                                     </span>
                                 </label>
                             @endforeach
@@ -172,6 +188,9 @@
                                        data-label="{{ $genderLabel }}"
                                        @checked($oldGender === $genderKey)>
                                 <span class="arena-choice-body">
+                                    <span class="arena-choice-mark">
+                                        <x-arena-icon :name="$genderKey" class="h-5 w-5" />
+                                    </span>
                                     <span class="arena-choice-title">{{ $genderLabel }}</span>
                                 </span>
                             </label>
@@ -195,9 +214,14 @@
                                        data-preview-input="subclass"
                                        data-label="{{ $label }}"
                                        @checked($oldSubclass === $key)>
-                                <span class="arena-choice-body" style="align-items: flex-start; text-align: left">
-                                    <span class="arena-choice-title">{{ $label }}</span>
-                                    <span class="arena-choice-note">{{ $subclassNotes[$key] ?? '' }}</span>
+                                <span class="arena-choice-body arena-choice-body-row">
+                                    <span class="arena-choice-mark">
+                                        <x-arena-icon :name="$key" class="h-5 w-5" />
+                                    </span>
+                                    <span class="min-w-0">
+                                        <span class="arena-choice-title">{{ $label }}</span>
+                                        <span class="arena-choice-note">{{ $subclassNotes[$key] ?? '' }}</span>
+                                    </span>
                                 </span>
                             </label>
                         @endforeach

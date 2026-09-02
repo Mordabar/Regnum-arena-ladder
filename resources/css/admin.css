@@ -58,8 +58,10 @@
         --ap-alsius: #79b5d6;
         --ap-syrtis: #8eb34a;
 
-        --ap-radius: 10px;
-        --ap-radius-sm: 7px;
+        /* Las mismas esquinas del arena: alli los paneles son de 20px y aqui
+           eran de 10px, y eso solo ya hacia que pareciera otro producto. */
+        --ap-radius: 16px;
+        --ap-radius-sm: 10px;
 
         /* Una sola curva y tres duraciones para todo el panel: el movimiento
            debe sentirse como un solo sistema, no como efectos sueltos. */
@@ -133,9 +135,12 @@
 @layer components {
     /* ── Superficies ───────────────────────────────────────────────── */
     .ap-card {
-        background: var(--ap-surface);
+        /* Mismo cuerpo que los paneles del arena: degradado tenue y sombra
+           blanda en vez de un relleno plano. */
+        background: linear-gradient(180deg, rgba(36, 26, 19, 0.72), rgba(20, 15, 11, 0.86));
         border: 1px solid var(--ap-line);
         border-radius: var(--ap-radius);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
     }
 
     .ap-card-raised {
@@ -370,17 +375,13 @@
     }
 
     .ap-brand-mark {
-        width: 30px;
-        height: 30px;
-        flex: 0 0 30px;
-        border-radius: 8px;
-        display: grid;
-        place-items: center;
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 0.04em;
-        color: #1a1408;
-        background: linear-gradient(140deg, var(--ap-accent-soft), var(--ap-accent));
+        width: 34px;
+        height: 34px;
+        flex: 0 0 34px;
+        border-radius: 10px;
+        object-fit: contain;
+        background: radial-gradient(circle at 30% 30%, rgba(255, 239, 185, 0.16), rgba(20, 15, 10, 0.88) 62%);
+        padding: 2px;
     }
 
     .ap-brand-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }

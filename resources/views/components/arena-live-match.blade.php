@@ -182,8 +182,20 @@
                     <input type="hidden" name="player_id" value="{{ $lineup['viewer_player_id'] }}">
                     <button type="submit" class="arena-btn px-5 py-2.5">Confirmar resultado</button>
                 </form>
-                <a href="{{ route('matches.show', $match) }}" class="arena-btn-danger-ghost px-5 py-2.5">Rechazar y explicar</a>
+                <button type="button" class="arena-btn-danger-ghost px-5 py-2.5" data-reject-toggle>Rechazar y explicar</button>
             </div>
+
+            <form method="POST" action="{{ route('matches.report.reject') }}" class="arena-report-reject" data-reject-form hidden>
+                @csrf
+                <input type="hidden" name="report_id" value="{{ $report->id }}">
+                <input type="hidden" name="player_id" value="{{ $lineup['viewer_player_id'] }}">
+                <label class="block">
+                    <span class="mb-2 block text-sm font-medium arena-body-text">Por que lo rechazas</span>
+                    <textarea name="rejection_note" rows="3" class="arena-textarea" required
+                              placeholder="Cuenta que paso de verdad. Lo lee moderacion, no el rival."></textarea>
+                </label>
+                <button type="submit" class="arena-btn-danger px-5 py-2.5">Enviar el rechazo</button>
+            </form>
         </div>
     @endif
 
@@ -199,10 +211,18 @@
             <span class="arena-duel-zone-value">{{ $teamSize }} vs {{ $teamSize }}</span>
         </div>
 
+        {{-- Mientras el enfrentamiento esta vivo no hay boton para irse: lo
+             unico que queda por hacer es reportar y responder, y las dos cosas
+             estan aqui arriba. El historial completo se consulta despues, desde
+             "Mis combates". --}}
         <div class="arena-duel-actions">
-            <a href="{{ route('matches.show', $match) }}" class="arena-btn-secondary px-6 py-2.5">
-                Ver el enfrentamiento
-            </a>
+            <span class="arena-duel-zone-key">
+                @if($reportPending)
+                    El resultado ya viaja al rival
+                @else
+                    El enfrentamiento se cierra en cuanto reportes
+                @endif
+            </span>
         </div>
     </footer>
 </section>
@@ -221,6 +241,18 @@
 
             button.disabled = true;
             button.textContent = 'Subiendo el reporte…';
+        });
+    })();
+
+    /* Rechazar pide un motivo, y ese motivo no puede estar en otra pagina. */
+    (function () {
+        var toggle = document.querySelector('[data-reject-toggle]');
+        var rejectForm = document.querySelector('[data-reject-form]');
+        if (!toggle || !rejectForm) { return; }
+
+        toggle.addEventListener('click', function () {
+            rejectForm.hidden = !rejectForm.hidden;
+            if (!rejectForm.hidden) { rejectForm.querySelector('textarea').focus(); }
         });
     })();
 </script>

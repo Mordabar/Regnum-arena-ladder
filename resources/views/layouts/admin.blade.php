@@ -33,7 +33,7 @@
     <aside class="ap-sidebar" id="ap-sidebar" data-open="false">
         <div class="ap-sidebar-head">
             <a href="{{ route('admin.dashboard') }}" class="ap-brand">
-                <span class="ap-brand-mark" aria-hidden="true">RA</span>
+                <img class="ap-brand-mark" src="/images/logo-arena-ladder.png" alt="" aria-hidden="true">
                 <span class="ap-brand-text">
                     <strong>Arena Ladder</strong>
                     <span>Panel de control</span>

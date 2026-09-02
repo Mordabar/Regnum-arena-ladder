@@ -238,8 +238,11 @@ class ArenaMatchController extends Controller
             return back()->withErrors(['error' => $e->getMessage()]);
         }
 
-        return redirect()->route('matches.show', $match)
-            ->with('success', 'Reporte enviado. El equipo rival ya puede confirmarlo o rechazarlo.');
+        // De vuelta al lobby, que es donde ocurre el combate entero. Mandar a
+        // la pagina del enfrentamiento sacaba al jugador del flujo justo en el
+        // paso que lo cierra.
+        return redirect()->route('lobby', ['mode' => $match->arena_mode])
+            ->with('success', 'Reporte enviado con las capturas. Falta que el rival lo confirme para que el ladder lo cuente.');
     }
 
     public function confirmReport(Request $request, ArenaMatchResultService $resultService)
@@ -262,8 +265,8 @@ class ArenaMatchController extends Controller
             return back()->withErrors(['error' => $e->getMessage()]);
         }
 
-        return redirect()->route('matches.show', $report->match)
-            ->with('success', 'Reporte confirmado. El ladder ya fue actualizado.');
+        return redirect()->route('lobby', ['mode' => $report->match->arena_mode])
+            ->with('success', 'Resultado confirmado. El ladder ya reparte los puntos de este enfrentamiento.');
     }
 
     public function rejectReport(Request $request, ArenaMatchResultService $resultService)
@@ -287,8 +290,8 @@ class ArenaMatchController extends Controller
             return back()->withErrors(['error' => $e->getMessage()]);
         }
 
-        return redirect()->route('matches.show', $report->match)
-            ->with('warning', 'Reporte rechazado. El match paso a disputa.');
+        return redirect()->route('lobby', ['mode' => $report->match->arena_mode])
+            ->with('warning', 'Reporte rechazado. El enfrentamiento pasa a disputa y lo revisa moderacion.');
     }
 
     public function evidence(MatchReport $report, string $slot)

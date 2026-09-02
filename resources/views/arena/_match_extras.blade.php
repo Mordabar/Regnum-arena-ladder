@@ -19,7 +19,10 @@
 @endif
 
 <script>
-    /* ── Tab switching ── */
+    /* ── Pestanas de modo ──
+       Viven sobre la figura, en el escenario. Antes el script reescribia a mano
+       una docena de clases de Tailwind con expresiones regulares; ahora solo
+       enciende y apaga una clase. */
     (function() {
         const tabs = {
             random: { btn: document.getElementById('tabBtnRandom'), panel: document.getElementById('tab-random') },
@@ -31,32 +34,20 @@
         const activate = (key) => {
             Object.entries(tabs).forEach(([k, { btn, panel }]) => {
                 const isActive = k === key;
-                panel.classList.toggle('hidden', !isActive);
-                if (isActive) panel.style.animation = 'arenaFadeIn 0.25s ease-out';
-                btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
-                btn.className = btn.className
-                    .replace(/bg-\[linear-gradient[^\]]*\]/g, '')
-                    .replace(/text-\[color:var\(--arena-gold-soft\)\]/g, '')
-                    .replace(/shadow-\[[^\]]*\]/g, '')
-                    .replace(/text-\[color:var\(--arena-muted\)\]/g, '')
-                    .replace(/hover:text-\[color:var\(--arena-sand\)\]/g, '')
-                    .replace(/hover:bg-white\/\[0\.04\]/g, '')
-                    .replace(/\s+/g, ' ').trim();
-                if (isActive) {
-                    btn.classList.add('bg-[linear-gradient(180deg,rgba(63,45,31,0.85),rgba(22,15,11,0.95))]', 'text-[color:var(--arena-gold-soft)]', 'shadow-[0_4px_16px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,215,134,0.12)]');
-                    localStorage.setItem('arena_queue_active_tab', key); /* Save to localStorage */
-                } else {
-                    btn.classList.add('text-[color:var(--arena-muted)]', 'hover:text-[color:var(--arena-sand)]', 'hover:bg-white/[0.04]');
+                if (panel) {
+                    panel.classList.toggle('hidden', !isActive);
+                    if (isActive) panel.style.animation = 'arenaFadeIn 0.25s ease-out';
                 }
+                btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                btn.classList.toggle('is-active', isActive);
             });
+            localStorage.setItem('arena_queue_active_tab', key);
         };
 
         tabs.random.btn.addEventListener('click', () => activate('random'));
         tabs.premade.btn.addEventListener('click', () => activate('premade'));
 
-        /* Load from localStorage or defaults */
-        const savedTab = localStorage.getItem('arena_queue_active_tab') || 'random';
-        if (savedTab === 'premade') {
+        if (localStorage.getItem('arena_queue_active_tab') === 'premade') {
             activate('premade');
         }
     })();

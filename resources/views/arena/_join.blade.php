@@ -6,7 +6,6 @@
     @if($canJoinQueue)
         <div id="queue-modes" class="mt-5 flex flex-col gap-5 arena-animate-in arena-stagger-2">
             <section class="arena-panel p-6">
-                <p class="arena-kicker">Elige tu modo</p>
 
                 @if(isset($pendingInvites) && $pendingInvites->isNotEmpty())
                     <div class="mb-6 space-y-3">
@@ -36,27 +35,13 @@
                     </div>
                 @endif
 
-                {{-- Tab bar --}}
-                <div class="mt-4 flex rounded-2xl border border-[color:var(--arena-line)] bg-[rgba(12,8,6,0.7)] p-1" role="tablist">
-                    <button type="button" role="tab" aria-selected="true" aria-controls="tab-random" id="tabBtnRandom" class="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all bg-[linear-gradient(180deg,rgba(63,45,31,0.85),rgba(22,15,11,0.95))] text-[color:var(--arena-gold-soft)] shadow-[0_4px_16px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,215,134,0.12)]">
-                        <x-admin.icon name="play" class="h-4 w-4 inline-block -mt-0.5" /> Random {{ $arenaMode }}
-                    </button>
-                    <button type="button" role="tab" aria-selected="false" aria-controls="tab-premade" id="tabBtnPremade" class="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all text-[color:var(--arena-muted)] hover:text-[color:var(--arena-sand)] hover:bg-white/[0.04]">
-                        <x-admin.icon name="users" class="h-4 w-4 inline-block -mt-0.5" /> Premade {{ $arenaMode }}
-                    </button>
-                </div>
+                {{-- Las pestanas viven sobre la figura, en el escenario. --}}
 
                 {{-- Random tab --}}
                 <div id="tab-random" role="tabpanel" class="mt-6" style="animation: arenaFadeIn 0.25s ease-out">
-                    <div class="flex items-start justify-between gap-4 mb-4">
-                        <div>
-                            <h2 class="text-xl font-semibold text-white">Random {{ $arenaMode }}</h2>
-                            <p class="mt-1 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                                Entras con un solo personaje. El sistema busca {{ $teamSize - 1 }} aliado(s) de tu reino.
-                            </p>
-                        </div>
-                        <span class="arena-chip text-[color:var(--arena-gold-soft)]">1 slot</span>
-                    </div>
+                    <p class="mb-4 text-sm text-[color:var(--arena-muted)] arena-body-text">
+                        Entras con un solo personaje. El sistema busca {{ $teamSize - 1 }} aliado(s) de tu reino.
+                    </p>
 
                     @if(!$modesAreOpen)
                         <p class="arena-card p-4 text-sm text-[color:var(--arena-muted)] arena-body-text">
@@ -109,15 +94,10 @@
 
                 {{-- Premade tab --}}
                 <div id="tab-premade" role="tabpanel" class="mt-6 hidden">
-                    <div class="flex items-start justify-between gap-4 mb-4">
-                        <div>
-                            <h2 class="text-xl font-semibold text-white">Premade / Party {{ $arenaMode }}</h2>
-                            <p class="mt-1 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                                Forma tu escuadra con {{ $teamSize - 1 }} aliado(s) y lánzate a la arena.
-                            </p>
-                        </div>
+                    <p class="mb-4 flex flex-wrap items-center gap-x-3 text-sm text-[color:var(--arena-muted)] arena-body-text">
+                        <span>Forma tu escuadra con {{ $teamSize - 1 }} aliado(s) y lánzate a la arena.</span>
                         <span class="arena-chip text-[color:var(--arena-ice)]">{{ $premadeDailyLimit }}/día</span>
-                    </div>
+                    </p>
 
                     @if(isset($activeParty) && $activeParty)
                         <div class="arena-card p-6 border border-[color:var(--arena-gold-soft)]/30">
@@ -205,9 +185,12 @@
 
                         {{-- Leader --}}
                         <div class="arena-card p-4">
+                            {{-- Arranca con el guerrero que se ve en el
+                                 escenario: armar party empezaba pidiendo elegir
+                                 personaje otra vez, con el mismo que ya estaba
+                                 elegido arriba. --}}
                             <label for="partyLeaderSelect" class="mb-2 block text-sm font-medium text-[color:var(--arena-text)] arena-body-text">Slot 1 — Tu líder</label>
-                            <select id="partyLeaderSelect" name="party_player_ids[]" class="arena-select" required>
-                                <option value="">Selecciona tu personaje líder</option>
+                            <select id="partyLeaderSelect" name="party_player_ids[]" class="arena-select" data-party-leader-select required>
                                 @foreach($players as $player)
                                     <option
                                         value="{{ $player->id }}"
@@ -218,6 +201,7 @@
                                         data-subclass-label="{{ \App\Models\Player::SUBCLASSES[$player->subclass] ?? ucfirst($player->subclass) }}"
                                         data-character-name="{{ $player->character_name }}"
                                         data-owner-label="{{ auth()->user()->discord_username }}"
+                                        @selected($featured && $player->id === $featured->id)
                                         @disabled($player->isQueueLocked())
                                     >
                                         {{ $player->character_name }} · {{ \App\Models\Player::REALMS[$player->realm] ?? ucfirst($player->realm) }} · {{ \App\Models\Player::SUBCLASSES[$player->subclass] ?? ucfirst($player->subclass) }}{{ $player->isQueueLocked() ? ' · BLOQUEADO' : '' }}
@@ -282,19 +266,26 @@
             </section>
 
             {{-- La escuadra no se repite aqui: vive en el rail de la izquierda. --}}
-                <details class="arena-panel group">
-                    <summary class="cursor-pointer p-5 flex items-center justify-between">
-                        <h2 class="text-sm font-semibold text-white arena-body-text">Reglas de la cola</h2>
-                        <svg class="h-4 w-4 text-[color:var(--arena-muted)] transition-transform group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
-                    </summary>
-                    <div class="px-5 pb-5">
-                        <ul class="space-y-2 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                            <li>• <strong class="text-white">Random:</strong> 1 personaje, el sistema completa tu equipo.</li>
-                            <li>• <strong class="text-white">Premade:</strong> {{ $teamSize }} exactos, mismo reino, {{ $teamSize }} usuarios, {{ $premadeDailyLimit }}/día.</li>
-                            <li>• Si un random cruza vs premade, el random gana más o pierde menos.</li>
-                            <li>• Solo un conjurador soporte por equipo.</li>
-                        </ul>
-                    </div>
-                </details>
+                {{-- Las reglas no tienen que ocupar sitio todo el rato: se
+                     abren cuando hacen falta. --}}
+                <div>
+                    <button type="button" class="arena-btn-ghost px-4 py-2 text-sm" data-modal-open="modal-arena-rules">
+                        <x-admin.icon name="sliders" class="h-4 w-4" />
+                        Ver reglas de juego
+                    </button>
+                </div>
+
+                <x-arena-modal id="modal-arena-rules" title="Reglas de juego">
+                    <ul class="space-y-3 text-sm text-[color:var(--arena-muted)] arena-body-text">
+                        <li><strong class="text-white">Random:</strong> entras con 1 personaje y el sistema completa tu equipo con gente de tu reino.</li>
+                        <li><strong class="text-white">Premade:</strong> {{ $teamSize }} personajes exactos, todos del mismo reino y de {{ $teamSize }} usuarios distintos. Maximo {{ $premadeDailyLimit }} al dia por equipo.</li>
+                        <li><strong class="text-white">Random contra premade:</strong> el equipo random gana mas puntos si vence, y pierde menos si cae.</li>
+                        <li><strong class="text-white">Conjuradores:</strong> solo puede haber uno de soporte por equipo.</li>
+                        <li><strong class="text-white">Anonimato:</strong> del rival ves reino y subclase, nunca el nombre, hasta que el enfrentamiento se cierra.</li>
+                        <li><strong class="text-white">Reporte:</strong> quien reporta sube entre 1 y 3 capturas. El rival confirma o rechaza; si deja pasar el plazo sin decir nada, el reporte se da por bueno.</li>
+                        <li><strong class="text-white">Sin reporte:</strong> si nadie reporta antes de que se agote el reloj, el enfrentamiento se anula y no reparte puntos.</li>
+                        <li><strong class="text-white">Abandonos:</strong> rechazar cruces a menudo o abandonar partidas baja tu confianza y bloquea la cola un tiempo.</li>
+                    </ul>
+                </x-arena-modal>
         </div>
     @endif

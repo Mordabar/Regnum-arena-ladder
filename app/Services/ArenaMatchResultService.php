@@ -1027,6 +1027,15 @@ class ArenaMatchResultService
         return $updatedRows;
     }
 
+    /**
+     * Cierra los enfrentamientos que se quedaron sin reporte.
+     *
+     * Nadie reporto dentro de la ventana: no hay capturas, no hay version de
+     * nadie y no hay nada que juzgar. Antes esto abria una disputa, o sea una
+     * cola que solo un administrador podia vaciar, para un caso en el que ni
+     * siquiera hay algo que decidir. Se anula: la partida queda en cero y nadie
+     * gana ni pierde puntos.
+     */
     private function expireInProgressMatchesWithoutReport(): int
     {
         $expiredMatches = ArenaMatch::query()
@@ -1037,19 +1046,14 @@ class ArenaMatchResultService
             ->get();
 
         foreach ($expiredMatches as $match) {
-            DB::transaction(function () use ($match) {
-                $match->update([
-                    'status' => 'disputed',
-                    'expires_at' => null,
-                    'notes' => $this->appendNote($match->notes, 'Hunt window expired without report submission'),
+            try {
+                $this->markVoid($match, null, 'Nadie reporto dentro del plazo para pelear');
+            } catch (\Throwable $exception) {
+                Log::warning('No se pudo anular un enfrentamiento sin reporte.', [
+                    'match_id' => $match->id,
+                    'message' => $exception->getMessage(),
                 ]);
-
-                $this->closeMatchQueues($match);
-            });
-        }
-
-        if ($expiredMatches->isNotEmpty()) {
-            $this->ladderCacheService->forgetRecentMatches();
+            }
         }
 
         return $expiredMatches->count();

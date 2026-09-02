@@ -260,6 +260,24 @@
                                     <div class="arena-stat-pill"><span>V/D</span><b data-champion-record>{{ $featured->wins }}/{{ $featured->losses }}</b></div>
                                 </div>
 
+                                {{-- El modo se elige sobre la figura, junto al
+                                     nombre: es la otra mitad de "con quien y
+                                     como entro", y estaba a media pagina. --}}
+                                @if($canJoinQueue && $modesAreOpen)
+                                    <div class="arena-console-modes" role="tablist" aria-label="Modo de entrada">
+                                        <button type="button" role="tab" aria-selected="true" aria-controls="tab-random" id="tabBtnRandom"
+                                                class="arena-console-mode is-active">
+                                            <x-admin.icon name="play" class="h-4 w-4" />
+                                            Random {{ $arenaMode }}
+                                        </button>
+                                        <button type="button" role="tab" aria-selected="false" aria-controls="tab-premade" id="tabBtnPremade"
+                                                class="arena-console-mode">
+                                            <x-admin.icon name="users" class="h-4 w-4" />
+                                            Premade {{ $arenaMode }}
+                                        </button>
+                                    </div>
+                                @endif
+
                                 <div class="arena-console-ident" aria-live="polite">
                                     <div class="flex flex-wrap items-center gap-3">
                                         <h2 class="arena-champion-name" data-champion-name>{{ $featured->cleanName() }}</h2>
@@ -411,6 +429,14 @@
                 select.value = String(id);
                 select.dataset.subclass = c.subclass;
                 select.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            // El lider de la premade tambien es el guerrero del escenario:
+            // armar party empezaba pidiendo elegir personaje otra vez.
+            var leader = document.querySelector('[data-party-leader-select]');
+            if (leader && leader.value !== String(id)) {
+                leader.value = String(id);
+                leader.dispatchEvent(new Event('change', { bubbles: true }));
             }
 
             // El rol de conjurador depende de la subclase que se acaba de

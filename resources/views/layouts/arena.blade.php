@@ -703,6 +703,9 @@
         .arena-report-inline[open] > summary::after { transform: rotate(-135deg); }
         .arena-report-inline-hint { font-size: 12px; font-weight: 400; color: var(--arena-muted); }
         .arena-report-inline-body { display: flex; flex-direction: column; gap: 14px; padding: 4px 16px 16px; }
+        .arena-report-reject { display: flex; flex-direction: column; gap: 12px; }
+        .arena-report-reject[hidden] { display: none; }
+
         .arena-report-inline.is-answer { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
         .arena-report-inline-lead { margin: 0; font-size: 13.5px; color: var(--arena-sand); }
         .arena-report-inline-lead b { color: var(--arena-gold-soft); }
@@ -782,6 +785,41 @@
 
         .arena-console-ident { position: absolute; inset-inline: 20px; bottom: 18px; }
 
+        /* El selector de modo, sobre la figura. */
+        .arena-console-modes {
+            position: absolute;
+            right: 16px;
+            bottom: 18px;
+            display: flex;
+            gap: 6px;
+            padding: 5px;
+            border-radius: 13px;
+            border: 1px solid var(--arena-line);
+            background: rgba(8, 5, 4, 0.78);
+            backdrop-filter: blur(8px);
+        }
+        .arena-console-mode {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 8px 14px;
+            border-radius: 9px;
+            border: 1px solid transparent;
+            background: transparent;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--arena-muted);
+            cursor: pointer;
+            white-space: nowrap;
+            transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+        }
+        .arena-console-mode:hover { color: var(--arena-sand); }
+        .arena-console-mode.is-active {
+            border-color: var(--arena-line-strong);
+            background: linear-gradient(180deg, rgba(63, 45, 31, 0.9), rgba(22, 15, 11, 0.95));
+            color: var(--arena-gold-soft);
+        }
+
         /* Las cifras van sobre la figura en pantalla ancha y debajo en movil,
            donde encima le taparian la cara. */
         .arena-console .arena-champion-stats-inside {
@@ -835,7 +873,49 @@
             .arena-console-tools { top: 10px; left: 10px; }
             .arena-console-tool span { display: none; }
             .arena-console-tool { padding: 8px; }
-            .arena-console-ident { inset-inline: 14px; bottom: 14px; }
+            .arena-console-ident { inset-inline: 14px; bottom: 62px; }
+            /* En movil el selector no cabe al lado del nombre: va debajo, a lo
+               ancho, y el nombre sube. */
+            .arena-console-modes { left: 14px; right: 14px; bottom: 14px; }
+            .arena-console-mode { flex: 1; justify-content: center; padding: 9px 8px; }
+        }
+
+        /* ── Paginacion ────────────────────────────────────────────────── */
+        .arena-pagination {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+        }
+        .arena-pagination-count { margin: 0; font-size: 12.5px; color: var(--arena-muted); }
+        .arena-pagination-pages { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+        .arena-pagination-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 38px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--arena-line);
+            background: rgba(10, 7, 5, 0.55);
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--arena-sand);
+            transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+        }
+        .arena-pagination-link:hover { border-color: var(--arena-line-strong); color: var(--arena-gold-soft); }
+        .arena-pagination-link.is-current {
+            border-color: var(--arena-line-strong);
+            background: linear-gradient(180deg, rgba(63, 45, 31, 0.9), rgba(22, 15, 11, 0.95));
+            color: var(--arena-gold-soft);
+        }
+        .arena-pagination-link.is-disabled { opacity: 0.4; }
+        .arena-pagination-gap { padding: 0 4px; color: var(--arena-muted); }
+
+        @media (max-width: 560px) {
+            .arena-pagination { justify-content: center; }
+            .arena-pagination-count { width: 100%; text-align: center; }
         }
 
         .arena-home-champion { display: block; }
@@ -1275,17 +1355,51 @@
             color: var(--arena-gold);
             opacity: 0.75;
         }
+        /* Opciones con marca: una fila de icono y texto se lee mucho mas rapido
+           que doce titulos sueltos, que es lo que eran las razas. */
+        .arena-choice-body-row {
+            flex-direction: row;
+            align-items: flex-start;
+            gap: 11px;
+            text-align: left;
+        }
+        .arena-choice-mark {
+            display: grid;
+            place-items: center;
+            width: 34px;
+            height: 34px;
+            flex: none;
+            border-radius: 10px;
+            border: 1px solid var(--arena-line);
+            background: rgba(0, 0, 0, 0.35);
+            color: var(--choice-color, var(--arena-gold));
+        }
+        .arena-choice input:checked + .arena-choice-body .arena-choice-mark {
+            border-color: var(--choice-color, var(--arena-gold));
+            background: rgba(216, 177, 92, 0.14);
+        }
+        .arena-choice-body-row .arena-choice-title,
+        .arena-choice-body-row .arena-choice-note,
+        .arena-choice-body-row .arena-choice-realm { display: block; }
+
         /* En movil la vista previa se queda pegada arriba y encoge, para que
            siga viendose mientras se rellenan los pasos de abajo. */
         .arena-preview-dock {
-            --preview-height: clamp(320px, 44vh, 500px);
-            background: var(--arena-night);
+            /* Alta de verdad en pantalla ancha: la columna se queda pegada
+               mientras se rellenan los pasos, y con 500px dejaba media pantalla
+               de vacio debajo del guerrero. */
+            --preview-height: clamp(360px, 62vh, 640px);
         }
         @media (max-width: 1023px) {
             .arena-preview-dock {
                 --preview-height: 180px;
                 padding-bottom: 8px;
                 margin-bottom: 4px;
+                /* Solo aqui hace falta tapar lo que pasa por detras al quedarse
+                   pegada. En pantalla ancha ese fondo plano dibujaba un marco de
+                   otro color alrededor del visor, sobre el degradado de la
+                   pagina. */
+                background: var(--arena-night);
             }
             .arena-preview-dock .arena-champion-name { font-size: 20px; }
             .arena-preview-dock .arena-champion-caption { display: none; }

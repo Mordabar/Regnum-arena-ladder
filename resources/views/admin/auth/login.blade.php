@@ -15,7 +15,7 @@
 <main class="ap-login">
     <section class="ap-card ap-rise p-6" style="width: 100%; max-width: 380px">
         <div class="flex items-center gap-2.5 mb-5">
-            <span class="ap-brand-mark" aria-hidden="true">RA</span>
+            <img class="ap-brand-mark" src="/images/logo-arena-ladder.png" alt="" aria-hidden="true">
             <span class="ap-brand-text">
                 <strong>Arena Ladder</strong>
                 <span>Panel de control</span>

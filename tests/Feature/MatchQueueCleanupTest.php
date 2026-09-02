@@ -163,7 +163,9 @@ it('sets a confirmation deadline when a player report is submitted', function ()
     expect($match->expires_at->between(now()->addMinutes(11), now()->addMinutes(12)->addSeconds(5)))->toBeTrue();
 });
 
-it('moves expired in progress matches without report to dispute', function () {
+it('un enfrentamiento sin reporte se anula, no abre una disputa', function () {
+    // Nadie reporto: no hay capturas ni version de nadie, asi que no hay nada
+    // que juzgar. Antes esto llenaba la bandeja de moderacion de casos vacios.
     $match = makeActiveMatchWithAcceptedQueues();
     $match->update([
         'expires_at' => now()->subMinute(),
@@ -172,8 +174,9 @@ it('moves expired in progress matches without report to dispute', function () {
     $result = app(ArenaMatchResultService::class)->sweepPostMatchState();
 
     expect($result['expired_hunts'])->toBe(1);
-    expect($match->fresh()->status)->toBe('disputed');
+    expect($match->fresh()->status)->toBe('void');
     expect($match->fresh()->expires_at)->toBeNull();
+    expect($match->fresh()->results()->count())->toBe(0);
 });
 
 it('el silencio del rival da el reporte por bueno en vez de abrir una disputa', function () {
@@ -253,10 +256,7 @@ it('ningun enfrentamiento activo se queda sin un cierre automatico', function ()
 
     $service = app(ArenaMatchResultService::class);
 
-    // El primer barrido manda el silencioso a disputa y cierra el reportado.
-    $service->sweepPostMatchState();
-    // El segundo, con la disputa ya vencida, la anula.
-    ArenaMatch::query()->whereKey($silent->id)->update(['updated_at' => now()->subHours(2)]);
+    // Un solo barrido: el silencioso se anula y el reportado se cierra.
     $service->sweepPostMatchState();
 
     expect($silent->fresh()->status)->toBe('void')
