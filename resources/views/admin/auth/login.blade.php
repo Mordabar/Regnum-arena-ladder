@@ -8,7 +8,8 @@
     <link rel="stylesheet" href="{{ asset('css/admin.css') }}?v={{ @filemtime(public_path('css/admin.css')) ?: '1' }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    {{-- La misma serif de titulos que el resto del producto. --}}
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&display=swap">
 </head>
 <body>
 <main class="ap-login">
@@ -21,7 +22,7 @@
             </span>
         </div>
 
-        <h1 class="ap-section-title" style="font-size: 15px">Entrar al panel</h1>
+        <h1 class="ap-section-title" style="font-size: 17px">Entrar al panel</h1>
         <p class="ap-section-note mb-4">
             Esta sesion es independiente de la de Discord. Tras varios intentos fallidos
             el acceso se bloquea un rato.

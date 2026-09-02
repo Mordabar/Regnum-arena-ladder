@@ -235,12 +235,14 @@
                                              class="arena-console-tools-set"
                                              @if(!$featured || $player->id !== $featured->id) hidden @endif>
                                             @if($player->is_active && !$hasActiveState)
-                                                <button type="button" class="arena-console-tool" data-modal-open="modal-rename-{{ $player->id }}" title="Editar nombre">
+                                                <button type="button" class="arena-console-tool" data-modal-open="modal-rename-{{ $player->id }}"
+                                                        aria-label="Editar el nombre de {{ $player->cleanName() }}" title="Editar nombre">
                                                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                                                     <span>Nombre</span>
                                                 </button>
                                                 @if($players->count() > 1)
-                                                    <button type="button" class="arena-console-tool is-danger" data-modal-open="modal-delete-{{ $player->id }}" title="Eliminar guerrero">
+                                                    <button type="button" class="arena-console-tool is-danger" data-modal-open="modal-delete-{{ $player->id }}"
+                                                            aria-label="Eliminar a {{ $player->cleanName() }}" title="Eliminar guerrero">
                                                         <x-admin.icon name="trash" class="h-4 w-4" />
                                                         <span>Eliminar</span>
                                                     </button>

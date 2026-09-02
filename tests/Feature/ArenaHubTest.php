@@ -196,3 +196,35 @@ it('quien todavia no ha reportado ve el formulario en el lobby', function () {
         ->assertSee('action="' . route('matches.report') . '"', false)
         ->assertSee('name="evidence_files[]"', false);
 });
+
+it('el rail cambia de guerrero sin JavaScript y el formulario le sigue', function () {
+    // Los slots son enlaces con ?player, no botones que solo pinta un script:
+    // sin JavaScript se tenia que poder cambiar de guerrero igual.
+    $user = hubUser('rail');
+    $primero = hubPlayer($user, 'Primera', 'syrtis', 'hunter');
+    $segundo = hubPlayer($user, 'Segunda', 'alsius', 'conjurer');
+
+    $this->actingAs($user)->get(route('lobby'))
+        ->assertOk()
+        // El & del enlace viaja escapado en el HTML.
+        ->assertSee('player=' . $segundo->id . '"', false)
+        ->assertSee('data-subclass="hunter"', false)
+        ->assertSee('value="' . $primero->id . '"', false);
+
+    $this->actingAs($user)->get(route('lobby', ['player' => $segundo->id]))
+        ->assertOk()
+        ->assertSee('data-subclass="conjurer"', false)
+        ->assertSee('value="' . $segundo->id . '"', false)
+        ->assertSee('data-champion-subclass="conjurer"', false);
+});
+
+it('un guerrero de otro usuario no se puede colar por la url', function () {
+    $user = hubUser('rail-mio');
+    $mio = hubPlayer($user, 'Mio');
+    $ajeno = hubPlayer(hubUser('rail-ajeno'), 'Ajeno', 'ignis', 'warlock');
+
+    $this->actingAs($user)->get(route('lobby', ['player' => $ajeno->id]))
+        ->assertOk()
+        ->assertSee('value="' . $mio->id . '"', false)
+        ->assertDontSee('Ajeno');
+});
