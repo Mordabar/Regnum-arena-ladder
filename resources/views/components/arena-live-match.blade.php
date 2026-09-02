@@ -23,6 +23,24 @@
     $urgent = $secondsLeft !== null && $secondsLeft <= 300;
 
     $realmVar = fn ($realm) => 'var(--arena-' . ($realm === 'ignis' ? 'fire' : ($realm === 'alsius' ? 'ice' : 'forest')) . ')';
+
+    // Que le toca hacer a quien mira: subir el reporte, contestar al del rival,
+    // o solo esperar. Todo ocurre en esta misma pantalla.
+    $report = $match->report;
+    $viewerCanReport = $lineup && $match->status === 'in_progress' && !$report;
+    $viewerCanAnswerReport = $lineup
+        && $report
+        && $report->status === 'pending_confirmation'
+        && $lineup['own_side'] !== $report->reporting_team;
+    // Abierto de entrada: si el combate ya termino, subirlo es lo unico que
+    // queda por hacer.
+    $reportOpen = $viewerCanReport;
+
+    $claimedWinnerLabel = match ($report?->claimed_winner_team) {
+        'draw' => 'nadie, fue empate',
+        $lineup['own_side'] ?? null => 'tu equipo',
+        default => 'su equipo',
+    };
 @endphp
 
 {{-- Combate en curso, dentro del sitio.
@@ -105,6 +123,70 @@
         </div>
     @endif
 
+    @if($lineup && $viewerCanReport)
+        {{-- El reporte se sube aqui.
+             Antes "Subir el reporte" saltaba a otra pagina, con otra cabecera y
+             otro contador de pasos: el jugador sentia que cambiaba de
+             aplicacion justo en el paso que cierra la partida. --}}
+        <details class="arena-report-inline" @if($reportOpen) open @endif>
+            <summary>
+                <span>Subir el reporte del combate</span>
+                <span class="arena-report-inline-hint">1 a 3 capturas y quien gano</span>
+            </summary>
+
+            <form method="POST" action="{{ route('matches.report') }}" enctype="multipart/form-data" class="arena-report-inline-body" data-report-form>
+                @csrf
+                <input type="hidden" name="match_id" value="{{ $match->id }}">
+                <input type="hidden" name="player_id" value="{{ $lineup['viewer_player_id'] }}">
+
+                <label class="block">
+                    <span class="mb-2 block text-sm font-medium arena-body-text">Equipo ganador</span>
+                    <select name="claimed_winner_team" class="arena-select">
+                        <option value="{{ $lineup['own_side'] }}">Tu equipo ({{ PlayerModel::REALMS[$lineup['own_realm']] ?? $lineup['own_realm'] }})</option>
+                        <option value="{{ $lineup['rival_side'] }}">Rival ({{ PlayerModel::REALMS[$lineup['rival_realm']] ?? $lineup['rival_realm'] }})</option>
+                        <option value="draw">Empate, sin ganador</option>
+                    </select>
+                </label>
+
+                <label class="block">
+                    <span class="mb-2 block text-sm font-medium arena-body-text">Capturas del combate terminado</span>
+                    <input type="file" name="evidence_files[]" accept="image/*" class="arena-field text-sm" required multiple>
+                    <span class="mt-2 block text-xs text-[color:var(--arena-muted)] arena-body-text">
+                        Entre 1 y 3 imagenes. JPG, PNG, WEBP, GIF, BMP, AVIF o HEIC, hasta 10 MB cada una.
+                    </span>
+                </label>
+
+                <label class="block">
+                    <span class="mb-2 block text-sm font-medium arena-body-text">Nota opcional</span>
+                    <textarea name="reporter_note" rows="2" class="arena-textarea" placeholder="Contexto extra para el rival o el admin"></textarea>
+                </label>
+
+                <button type="submit" class="arena-btn w-full" data-report-submit>Enviar reporte</button>
+            </form>
+        </details>
+    @endif
+
+    @if($lineup && $viewerCanAnswerReport)
+        {{-- Y al otro lado, la respuesta: tambien aqui. --}}
+        <div class="arena-report-inline is-answer">
+            <p class="arena-report-inline-lead">
+                El rival reporto que gano
+                <b>{{ $claimedWinnerLabel }}</b>.
+                Confirma si es correcto, o rechazalo y explica por que.
+            </p>
+
+            <div class="arena-duel-actions">
+                <form method="POST" action="{{ route('matches.report.confirm') }}">
+                    @csrf
+                    <input type="hidden" name="match_id" value="{{ $match->id }}">
+                    <input type="hidden" name="player_id" value="{{ $lineup['viewer_player_id'] }}">
+                    <button type="submit" class="arena-btn px-5 py-2.5">Confirmar resultado</button>
+                </form>
+                <a href="{{ route('matches.show', $match) }}" class="arena-btn-danger-ghost px-5 py-2.5">Rechazar y explicar</a>
+            </div>
+        </div>
+    @endif
+
     <footer class="arena-duel-panel-foot">
         <div class="arena-duel-zone">
             <span class="arena-duel-zone-key">Zona</span>
@@ -118,9 +200,28 @@
         </div>
 
         <div class="arena-duel-actions">
-            <a href="{{ route('matches.show', $match) }}" class="{{ $reportPending ? 'arena-btn-secondary' : 'arena-btn' }} px-6 py-2.5">
-                {{ $reportPending ? 'Ver el enfrentamiento' : 'Subir el reporte' }}
+            <a href="{{ route('matches.show', $match) }}" class="arena-btn-secondary px-6 py-2.5">
+                Ver el enfrentamiento
             </a>
         </div>
     </footer>
 </section>
+
+@push('scripts')
+<script>
+    /* Subir 3 imagenes tarda. Sin senal el jugador vuelve a pulsar y manda el
+       reporte dos veces. */
+    (function () {
+        var form = document.querySelector('[data-report-form]');
+        if (!form) { return; }
+
+        form.addEventListener('submit', function () {
+            var button = form.querySelector('[data-report-submit]');
+            if (!button) { return; }
+
+            button.disabled = true;
+            button.textContent = 'Subiendo el reporte…';
+        });
+    })();
+</script>
+@endpush

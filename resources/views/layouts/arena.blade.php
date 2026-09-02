@@ -669,6 +669,175 @@
             color: var(--arena-gold);
             font-variant-numeric: tabular-nums;
         }
+        /* El reporte, dentro del panel de combate. */
+        .arena-report-inline {
+            margin: 0 22px 16px;
+            border: 1px solid var(--arena-line-strong);
+            border-radius: 14px;
+            background: rgba(10, 7, 5, 0.6);
+            overflow: hidden;
+        }
+        .arena-report-inline > summary {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 13px 16px;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--arena-gold-soft);
+            list-style: none;
+        }
+        .arena-report-inline > summary::-webkit-details-marker { display: none; }
+        .arena-report-inline > summary::after {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-right: 2px solid currentColor;
+            border-bottom: 2px solid currentColor;
+            transform: rotate(45deg);
+            transition: transform 0.2s ease;
+            opacity: 0.7;
+        }
+        .arena-report-inline[open] > summary::after { transform: rotate(-135deg); }
+        .arena-report-inline-hint { font-size: 12px; font-weight: 400; color: var(--arena-muted); }
+        .arena-report-inline-body { display: flex; flex-direction: column; gap: 14px; padding: 4px 16px 16px; }
+        .arena-report-inline.is-answer { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+        .arena-report-inline-lead { margin: 0; font-size: 13.5px; color: var(--arena-sand); }
+        .arena-report-inline-lead b { color: var(--arena-gold-soft); }
+
+        @media (max-width: 720px) {
+            .arena-report-inline { margin: 0 16px 14px; }
+        }
+
+        /* ── Consola del lobby ─────────────────────────────────────────────
+           Elegir guerrero, verlo y entrar a la cola ocurren en el mismo panel.
+           Antes el guerrero se elegia dos veces (el rail y un desplegable a
+           media pagina) y sus acciones vivian en una tarjeta suelta entre
+           medias, asi que la vista se leia como tres cosas distintas. */
+        .arena-console {
+            display: grid;
+            grid-template-columns: 250px minmax(0, 1fr);
+            gap: 0;
+            border: 1px solid var(--arena-line-strong);
+            border-radius: 22px;
+            overflow: hidden;
+            background: var(--arena-panel);
+            box-shadow: 0 18px 44px rgba(0, 0, 0, 0.4);
+        }
+
+        .arena-console-rail {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 16px 14px;
+            border-right: 1px solid var(--arena-line);
+            background: rgba(10, 7, 5, 0.5);
+        }
+        .arena-console-rail-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 0 4px;
+        }
+        .arena-console-count { font-size: 11.5px; color: var(--arena-muted); font-variant-numeric: tabular-nums; }
+        .arena-console-note {
+            margin: 0;
+            border: 1px solid var(--arena-line);
+            border-radius: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px 10px;
+            font-size: 11.5px;
+            color: var(--arena-muted);
+        }
+        .arena-console-slots { display: flex; flex-direction: column; gap: 8px; }
+        .arena-roster-slot.is-locked { opacity: 0.45; pointer-events: none; }
+
+        .arena-console-main { display: flex; flex-direction: column; gap: 16px; padding: 16px; min-width: 0; }
+        .arena-console-stage { display: flex; flex-direction: column; gap: 10px; }
+
+        /* Las acciones del guerrero, sobre su propia figura. */
+        .arena-console-tools { position: absolute; top: 14px; left: 14px; display: flex; gap: 8px; }
+        .arena-console-tools-set { display: flex; gap: 8px; }
+        .arena-console-tool {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 11px;
+            border-radius: 10px;
+            border: 1px solid var(--arena-line);
+            background: rgba(8, 5, 4, 0.72);
+            backdrop-filter: blur(6px);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--arena-sand);
+            cursor: pointer;
+            transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+        }
+        .arena-console-tool:hover { border-color: var(--arena-line-strong); color: var(--arena-gold-soft); }
+        .arena-console-tool.is-danger:hover { border-color: rgba(200, 90, 80, 0.5); color: #e8927c; }
+        .arena-console-tool.is-muted { cursor: default; color: var(--arena-muted); }
+
+        .arena-console-ident { position: absolute; inset-inline: 20px; bottom: 18px; }
+
+        /* Las cifras van sobre la figura en pantalla ancha y debajo en movil,
+           donde encima le taparian la cara. */
+        .arena-console .arena-champion-stats-inside {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+        .arena-console .arena-champion-stats-outside { display: none; }
+
+        /* Dentro de la consola no hay tarjetas dentro de tarjetas: el panel
+           ya es el marco, y repetir borde y fondo dibuja cajas anidadas. */
+        .arena-console-main > .arena-panel,
+        .arena-console-main > div > .arena-panel,
+        .arena-console-main > div > details.arena-panel {
+            border: 0;
+            background: transparent;
+            box-shadow: none;
+            padding: 0;
+        }
+        .arena-console-main > div > details.arena-panel > summary { padding: 12px 0; }
+        .arena-console-main > div > details.arena-panel > div { padding: 0 0 8px; }
+        .arena-console-main > div { display: flex; flex-direction: column; gap: 16px; }
+
+        .arena-queue-with {
+            margin: 0;
+            font-size: 13.5px;
+            color: var(--arena-muted);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 8px;
+        }
+        .arena-queue-with b { font-size: 15px; color: var(--arena-gold-soft); }
+
+        @media (max-width: 900px) {
+            .arena-console { grid-template-columns: 1fr; border-radius: 18px; }
+            /* El escenario primero: en movil lo que se mira es el guerrero, y
+               la escuadra se consulta al cambiar, no todo el rato. */
+            .arena-console-rail {
+                order: 2;
+                border-right: 0;
+                border-top: 1px solid var(--arena-line);
+            }
+            .arena-console-main { order: 1; padding: 14px; }
+            .arena-console .arena-champion-stats-inside { display: none; }
+            .arena-console .arena-champion-stats-outside { display: block; padding: 0 2px; }
+            .arena-console-tools { top: 10px; left: 10px; }
+            .arena-console-tool span { display: none; }
+            .arena-console-tool { padding: 8px; }
+            .arena-console-ident { inset-inline: 14px; bottom: 14px; }
+        }
+
         .arena-champion-podium { display: block; }
         .arena-champion-podium-stage {
             border-radius: 12px;

@@ -37,7 +37,11 @@
     // combate, no el escaparate: dos escenarios 3D compitiendo por la atencion
     // en la misma columna es ruido, y en movil es scroll muerto.
     $showStage = !$hasActiveState;
-    $featured = $players->firstWhere('id', $activePlayerId) ?? $players->first();
+    // Con cola o combate activo manda el personaje que esta jugando; si no, el
+    // que pida la URL; si tampoco, el primero.
+    $featured = $players->firstWhere('id', $activePlayerId)
+        ?? $requestedPlayer
+        ?? $players->first();
     $lockedToPlayer = $hasActiveState;
 
     $championData = $players->mapWithKeys(fn ($p) => [$p->id => [
@@ -155,38 +159,37 @@
             <a href="{{ route('player.create') }}" class="arena-btn mt-6 inline-flex px-6 py-3">Crear mi primer guerrero</a>
         </section>
     @else
-        <div class="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)] items-start">
-
-            {{-- ── RAÍL DE GUERREROS ── --}}
-            <section class="arena-panel p-4 arena-animate-in arena-stagger-1 order-2 lg:order-1">
-                <div class="flex items-baseline justify-between gap-3 px-1 pb-3">
-                    <div>
-                        <p class="arena-kicker">Tu escuadra</p>
-                        <h2 class="mt-1 text-lg font-semibold text-white">Guerreros</h2>
-                    </div>
-                    <span class="text-xs text-[color:var(--arena-muted)]">{{ $players->count() }}/5</span>
+        {{-- ── CONSOLA ────────────────────────────────────────────────────
+             Un solo panel. El rail elige guerrero, el escenario lo ensena y
+             debajo se entra a la cola: antes elegir personaje pasaba dos veces,
+             una en el rail y otra en un desplegable a media pagina de
+             distancia, y las acciones del guerrero vivian en una tarjeta
+             suelta entre medias. --}}
+        <section class="arena-console arena-animate-in arena-stagger-1">
+            <aside class="arena-console-rail">
+                <div class="arena-console-rail-head">
+                    <p class="arena-kicker">Tu escuadra</p>
+                    <span class="arena-console-count">{{ $players->count() }}/5</span>
                 </div>
 
                 @if($lockedToPlayer)
-                    <p class="mb-3 rounded-xl border border-[color:var(--arena-line)] bg-black/30 px-3 py-2 text-xs text-[color:var(--arena-muted)] arena-body-text">
-                        Mientras tengas cola o combate activo no puedes cambiar de guerrero.
+                    <p class="arena-console-note">
+                        Con cola o combate activo no puedes cambiar de guerrero.
                     </p>
                 @endif
 
-                <div class="flex flex-col gap-2">
+                <div class="arena-console-slots">
                     @foreach($players as $player)
                         @php($isFeatured = $featured && $player->id === $featured->id)
-                        <button type="button"
-                                class="arena-roster-slot"
-                                data-champion-slot
-                                data-player-id="{{ $player->id }}"
-                                data-realm="{{ $player->realm }}"
-                                data-subclass="{{ $player->subclass }}"
-                                data-race="{{ $player->race }}"
-                                data-gender="{{ $player->gender }}"
-                                aria-pressed="{{ $isFeatured ? 'true' : 'false' }}"
-                                @disabled($lockedToPlayer && !$isFeatured)
-                                style="--slot-realm: var(--arena-{{ $player->realm === 'ignis' ? 'fire' : ($player->realm === 'alsius' ? 'ice' : 'forest') }})">
+                        {{-- Enlaces de verdad, no botones: sin JavaScript el rail
+                             sigue cambiando de guerrero, recargando con ?player. --}}
+                        <a href="{{ route('lobby', ['mode' => $arenaMode, 'player' => $player->id]) }}"
+                           class="arena-roster-slot {{ $lockedToPlayer && !$isFeatured ? 'is-locked' : '' }}"
+                           data-champion-slot
+                           data-player-id="{{ $player->id }}"
+                           aria-pressed="{{ $isFeatured ? 'true' : 'false' }}"
+                           @if($lockedToPlayer && !$isFeatured) aria-disabled="true" tabindex="-1" @endif
+                           style="--slot-realm: var(--arena-{{ $player->realm === 'ignis' ? 'fire' : ($player->realm === 'alsius' ? 'ice' : 'forest') }})">
                             <span class="arena-roster-crest">
                                 <x-arena-realm-icon :realm="$player->realm" size="sm" />
                             </span>
@@ -203,53 +206,80 @@
                                     <span class="arena-roster-lock" title="Bloqueado para la cola hasta {{ $player->queue_locked_until?->format('d/m H:i') }}">Bloqueado</span>
                                 @endif
                             </span>
-                        </button>
+                        </a>
                     @endforeach
 
                     @if($players->count() < 5)
                         <a href="{{ route('player.create') }}" class="arena-roster-slot arena-roster-empty">+ Crear guerrero</a>
                     @endif
                 </div>
-            </section>
+            </aside>
 
-            {{-- ── ESCENARIO Y ESTADO ── --}}
-            <div class="flex flex-col gap-5 order-1 lg:order-2">
+            <div class="arena-console-main">
                 @if($showStage)
-                    <x-arena-champion
-                        id="hub-stage"
-                        :realm="$featured->realm"
-                        :subclass="$featured->subclass"
-                        :race="$featured->race"
-                        :gender="$featured->gender"
-                        height="clamp(320px, 42vh, 480px)"
-                        class="arena-animate-in arena-stagger-2">
+                    <div class="arena-console-stage">
+                        <x-arena-champion
+                            id="hub-stage"
+                            :realm="$featured->realm"
+                            :subclass="$featured->subclass"
+                            :race="$featured->race"
+                            :gender="$featured->gender"
+                            height="clamp(300px, 40vh, 440px)">
 
-                        <div class="arena-champion-overlay">
-                            <div class="arena-champion-stats-inside arena-stats-row absolute right-4 top-4 hidden sm:flex flex-wrap justify-end gap-2">
+                            <div class="arena-champion-overlay">
+                                {{-- Las acciones del guerrero viven con el
+                                     guerrero, no en una tarjeta aparte. --}}
+                                <div class="arena-console-tools">
+                                    @foreach($players as $player)
+                                        <div data-champion-panel data-player-id="{{ $player->id }}"
+                                             class="arena-console-tools-set"
+                                             @if(!$featured || $player->id !== $featured->id) hidden @endif>
+                                            @if($player->is_active && !$hasActiveState)
+                                                <button type="button" class="arena-console-tool" data-modal-open="modal-rename-{{ $player->id }}" title="Editar nombre">
+                                                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                                                    <span>Nombre</span>
+                                                </button>
+                                                @if($players->count() > 1)
+                                                    <button type="button" class="arena-console-tool is-danger" data-modal-open="modal-delete-{{ $player->id }}" title="Eliminar guerrero">
+                                                        <x-admin.icon name="trash" class="h-4 w-4" />
+                                                        <span>Eliminar</span>
+                                                    </button>
+                                                @endif
+                                            @elseif(!$player->is_active)
+                                                <span class="arena-console-tool is-muted">Deshabilitado por un administrador</span>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </div>
+
+                                <div class="arena-champion-stats-inside arena-stats-row">
+                                    <div class="arena-stat-pill"><span>PL</span><b data-champion-pl>{{ number_format((float) $featured->pl_points, 1) }}</b></div>
+                                    <div class="arena-stat-pill"><span>MMR</span><b data-champion-mmr>{{ $featured->mmr }}</b></div>
+                                    <div class="arena-stat-pill"><span>V/D</span><b data-champion-record>{{ $featured->wins }}/{{ $featured->losses }}</b></div>
+                                </div>
+
+                                <div class="arena-console-ident" aria-live="polite">
+                                    <div class="flex flex-wrap items-center gap-3">
+                                        <h2 class="arena-champion-name" data-champion-name>{{ $featured->cleanName() }}</h2>
+                                        <span class="arena-champion-status" data-champion-status @if($featured->is_active) hidden @endif>{{ $featured->statusLabel() }}</span>
+                                    </div>
+                                    <p class="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[color:var(--arena-muted)] arena-body-text">
+                                        <span class="arena-champion-realm" data-champion-realm-name>{{ PlayerModel::REALMS[$featured->realm] ?? $featured->realm }}</span>
+                                        <span data-champion-race-name>{{ $featured->raceName() }}</span>
+                                        <span data-champion-subclass-name>{{ PlayerModel::SUBCLASSES[$featured->subclass] ?? $featured->subclass }}</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </x-arena-champion>
+
+                        {{-- En movil las cifras no caben sobre la figura sin
+                             taparle la cara: van justo debajo. --}}
+                        <div class="arena-champion-stats-outside">
+                            <div class="arena-stats-row">
                                 <div class="arena-stat-pill"><span>PL</span><b data-champion-pl>{{ number_format((float) $featured->pl_points, 1) }}</b></div>
                                 <div class="arena-stat-pill"><span>MMR</span><b data-champion-mmr>{{ $featured->mmr }}</b></div>
                                 <div class="arena-stat-pill"><span>V/D</span><b data-champion-record>{{ $featured->wins }}/{{ $featured->losses }}</b></div>
                             </div>
-
-                            <div class="absolute inset-x-5 bottom-5" aria-live="polite">
-                                <div class="flex flex-wrap items-center gap-3">
-                                    <h2 class="arena-champion-name" data-champion-name>{{ $featured->cleanName() }}</h2>
-                                    <span class="arena-champion-status" data-champion-status @if($featured->is_active) hidden @endif>{{ $featured->statusLabel() }}</span>
-                                </div>
-                                <p class="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                                    <span class="arena-champion-realm" data-champion-realm-name>{{ PlayerModel::REALMS[$featured->realm] ?? $featured->realm }}</span>
-                                    <span data-champion-race-name>{{ $featured->raceName() }}</span>
-                                    <span data-champion-subclass-name>{{ PlayerModel::SUBCLASSES[$featured->subclass] ?? $featured->subclass }}</span>
-                                </p>
-                            </div>
-                        </div>
-                    </x-arena-champion>
-
-                    <div class="arena-champion-stats-outside sm:hidden">
-                        <div class="arena-stats-row">
-                            <div class="arena-stat-pill"><span>PL</span><b data-champion-pl>{{ number_format((float) $featured->pl_points, 1) }}</b></div>
-                            <div class="arena-stat-pill"><span>MMR</span><b data-champion-mmr>{{ $featured->mmr }}</b></div>
-                            <div class="arena-stat-pill"><span>V/D</span><b data-champion-record>{{ $featured->wins }}/{{ $featured->losses }}</b></div>
                         </div>
                     </div>
                 @endif
@@ -263,68 +293,58 @@
                     @include('arena._queue_state')
                 @endif
 
-                {{-- Acciones del guerrero elegido: solo cuando no esta peleando. --}}
-                @if(!$hasActiveState)
-                    @foreach($players as $player)
-                        <section class="arena-panel p-5"
-                                 data-champion-panel
-                                 data-player-id="{{ $player->id }}"
-                                 @if(!$featured || $player->id !== $featured->id) hidden @endif>
-                            @if($player->is_active)
-                                <div class="flex flex-wrap items-center gap-3">
-                                    <details class="arena-details">
-                                        <summary>Editar nombre</summary>
-                                        <form method="POST" action="{{ route('player.update', $player) }}" class="mt-4 space-y-3">
-                                            @csrf
-                                            @method('PUT')
-                                            <label class="block">
-                                                <span class="mb-2 block text-sm arena-body-text">Nombre del personaje</span>
-                                                <input type="text" name="character_name" value="{{ $player->character_name }}" class="arena-field" required>
-                                            </label>
-                                            <p class="text-xs text-[color:var(--arena-muted)] arena-body-text">
-                                                Reino, raza, sexo y subclase no se pueden cambiar.
-                                            </p>
-                                            <button type="submit" class="arena-btn-secondary px-4 py-2">Guardar cambios</button>
-                                        </form>
-                                    </details>
-
-                                    @if($players->count() > 1)
-                                        <button type="button" class="arena-btn-ghost px-4 py-2 text-sm" data-modal-open="modal-delete-{{ $player->id }}">Eliminar</button>
-                                        <x-arena-modal :id="'modal-delete-'.$player->id" :title="'Eliminar a ' . $player->cleanName()" variant="danger">
-                                            <p class="text-sm text-[color:var(--arena-muted)] arena-body-text">
-                                                @if($player->matches_played > 0)
-                                                    Este personaje tiene {{ $player->matches_played }} partidas registradas.
-                                                    Su historial se conserva para no falsear las partidas ya jugadas, pero
-                                                    saldrá del ranking y de este lobby, y el nombre quedará libre. Si más
-                                                    adelante lo quieres de vuelta, tendrás que pedírselo a un administrador.
-                                                @else
-                                                    Este personaje será eliminado permanentemente. No tiene partidas jugadas.
-                                                @endif
-                                            </p>
-                                            <div class="mt-5 flex gap-3">
-                                                <form method="POST" action="{{ route('player.destroy', $player) }}">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" class="arena-btn-danger">Eliminar definitivamente</button>
-                                                </form>
-                                                <button type="button" class="arena-btn-ghost" data-modal-close="modal-delete-{{ $player->id }}">Cancelar</button>
-                                            </div>
-                                        </x-arena-modal>
-                                    @endif
-                                </div>
-                            @else
-                                <p class="text-sm text-amber-200/80 arena-body-text">
-                                    Un administrador deshabilitó este personaje. Escribe al soporte del Discord
-                                    si crees que es un error.
-                                </p>
-                            @endif
-                        </section>
-                    @endforeach
-                @endif
-
                 @include('arena._join')
             </div>
-        </div>
+        </section>
+
+        {{-- Los formularios de nombre y borrado, fuera del panel para que sus
+             capas no queden atrapadas por el recorte del escenario. --}}
+        @if(!$hasActiveState)
+            @foreach($players as $player)
+                @if($player->is_active)
+                    <x-arena-modal :id="'modal-rename-'.$player->id" :title="'Cambiar el nombre de ' . $player->cleanName()">
+                        <form method="POST" action="{{ route('player.update', $player) }}" class="space-y-3">
+                            @csrf
+                            @method('PUT')
+                            <label class="block">
+                                <span class="mb-2 block text-sm arena-body-text">Nombre del personaje</span>
+                                <input type="text" name="character_name" value="{{ $player->character_name }}" class="arena-field" required>
+                            </label>
+                            <p class="text-xs text-[color:var(--arena-muted)] arena-body-text">
+                                Reino, raza, sexo y subclase no se pueden cambiar.
+                            </p>
+                            <div class="flex gap-3 pt-1">
+                                <button type="submit" class="arena-btn-secondary px-4 py-2">Guardar</button>
+                                <button type="button" class="arena-btn-ghost px-4 py-2" data-modal-close="modal-rename-{{ $player->id }}">Cancelar</button>
+                            </div>
+                        </form>
+                    </x-arena-modal>
+
+                    @if($players->count() > 1)
+                        <x-arena-modal :id="'modal-delete-'.$player->id" :title="'Eliminar a ' . $player->cleanName()" variant="danger">
+                            <p class="text-sm text-[color:var(--arena-muted)] arena-body-text">
+                                @if($player->matches_played > 0)
+                                    Este personaje tiene {{ $player->matches_played }} partidas registradas.
+                                    Su historial se conserva para no falsear las partidas ya jugadas, pero
+                                    saldrá del ranking y de este lobby, y el nombre quedará libre. Si más
+                                    adelante lo quieres de vuelta, tendrás que pedírselo a un administrador.
+                                @else
+                                    Este personaje será eliminado permanentemente. No tiene partidas jugadas.
+                                @endif
+                            </p>
+                            <div class="mt-5 flex gap-3">
+                                <form method="POST" action="{{ route('player.destroy', $player) }}">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="arena-btn-danger">Eliminar definitivamente</button>
+                                </form>
+                                <button type="button" class="arena-btn-ghost" data-modal-close="modal-delete-{{ $player->id }}">Cancelar</button>
+                            </div>
+                        </x-arena-modal>
+                    @endif
+                @endif
+            @endforeach
+        @endif
     @endif
 </div>
 
@@ -385,26 +405,37 @@
             });
 
             var select = document.querySelector('[data-queue-player-select]');
-            if (select && select.value !== String(id)) {
+            if (select) {
                 select.value = String(id);
+                select.dataset.subclass = c.subclass;
                 select.dispatchEvent(new Event('change', { bubbles: true }));
             }
+
+            // El rol de conjurador depende de la subclase que se acaba de
+            // elegir, y ese bloque vive en otro archivo.
+            document.dispatchEvent(new CustomEvent('arena:champion-changed', { detail: { id: id } }));
         }
 
         slots.forEach(function (slot) {
-            slot.addEventListener('click', function () {
-                if (slot.disabled) { return; }
+            slot.addEventListener('click', function (event) {
+                if (slot.getAttribute('aria-disabled') === 'true') {
+                    event.preventDefault();
+                    return;
+                }
+
+                // Con JavaScript se repinta en el sitio; el enlace sigue ahi
+                // por si no lo hay, y para poder abrirlo en otra pestana.
+                if (event.metaKey || event.ctrlKey || event.shiftKey) { return; }
+                event.preventDefault();
                 paint(slot.dataset.playerId);
+
+                // La URL acompana a lo que se ve, para que recargar no devuelva
+                // al primer guerrero de la lista.
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState({}, '', slot.getAttribute('href'));
+                }
             });
         });
-
-        // Y al reves: quien use el desplegable tambien mueve el escenario.
-        var select = document.querySelector('[data-queue-player-select]');
-        if (select) {
-            select.addEventListener('change', function () {
-                if (select.value) { paint(select.value); }
-            });
-        }
     })();
 </script>
 @endif

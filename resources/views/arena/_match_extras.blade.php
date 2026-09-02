@@ -62,13 +62,14 @@
     })();
 
     /* ── Conjurer role toggle ── */
+    /* El personaje se elige en el rail, asi que aqui solo queda un campo oculto
+       con su subclase: ya no hay desplegable del que leer la opcion marcada. */
     function toggleConjurerRole() {
         const select = document.getElementById('playerSelect');
         const roleDiv = document.getElementById('conjurerRoleDiv');
         const roleSelect = document.getElementById('randomConjurerRole');
         if (!select || !roleDiv || !roleSelect) return;
-        const selectedOption = select.options[select.selectedIndex];
-        const isConjurer = selectedOption && selectedOption.dataset.subclass === 'conjurer';
+        const isConjurer = select.dataset.subclass === 'conjurer';
         roleDiv.classList.toggle('hidden', !isConjurer);
         roleSelect.disabled = !isConjurer;
         if (!isConjurer) roleSelect.value = 'offensive';
@@ -238,6 +239,7 @@
         initializePremadeBuilder();
         const randomSelect = document.getElementById('playerSelect');
         if (randomSelect) randomSelect.addEventListener('change', toggleConjurerRole);
+        document.addEventListener('arena:champion-changed', toggleConjurerRole);
     });
 </script>
 

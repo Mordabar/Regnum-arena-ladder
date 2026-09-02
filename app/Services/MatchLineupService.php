@@ -29,6 +29,8 @@ class MatchLineupService
      *     rival: array<int, array{name: string, subclass: string, subclass_name: string, race: string, gender: string, accepted: bool, is_viewer: bool}>,
      *     own_realm: string|null,
      *     rival_realm: string|null,
+     *     own_side: string,
+     *     rival_side: string,
      *     accepted_count: int,
      *     player_count: int,
      *     names_revealed: bool
@@ -64,6 +66,8 @@ class MatchLineupService
             'rival' => $rival,
             'own_realm' => $ownRealm,
             'rival_realm' => $rivalRealm,
+            'own_side' => $ownSide,
+            'rival_side' => $rivalSide,
             'accepted_count' => $accepted->count(),
             'player_count' => (int) $match->player_count,
             'names_revealed' => $revealed,

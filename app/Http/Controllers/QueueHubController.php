@@ -127,6 +127,14 @@ class QueueHubController extends Controller
                 : null;
         }
 
+        // El guerrero elegido viaja en la URL para que el rail funcione tambien
+        // sin JavaScript: cada slot es un enlace de verdad, no solo un boton
+        // que el script pinta.
+        $requestedPlayerId = (int) $request->query('player', 0);
+        $requestedPlayer = $requestedPlayerId > 0
+            ? $players->firstWhere('id', $requestedPlayerId)
+            : null;
+
         return view('arena.hub', compact(
             'players',
             'premadeDailyLimit',
@@ -140,7 +148,8 @@ class QueueHubController extends Controller
             'queuePulse',
             'matchLineup',
             'matchPlayer',
-            'matchIsPendingAcceptance'
+            'matchIsPendingAcceptance',
+            'requestedPlayer'
         ));
     }
 

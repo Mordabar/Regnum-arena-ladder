@@ -68,19 +68,27 @@
                         <input type="hidden" name="queue_type" value="random">
                         <input type="hidden" name="arena_mode" value="{{ $arenaMode }}">
 
-                        <label class="block">
-                            <span class="mb-2 block text-sm font-medium text-[color:var(--arena-text)] arena-body-text">Personaje</span>
-                            <select id="playerSelect" name="player_id" class="arena-select" data-queue-player-select required>
-                                @foreach($players as $player)
-                                    <option value="{{ $player->id }}"
-                                            data-subclass="{{ $player->subclass }}"
-                                            @selected($featured && $player->id === $featured->id)
-                                            @disabled($player->isQueueLocked())>
-                                        {{ $player->character_name }} · {{ \App\Models\Player::REALMS[$player->realm] ?? ucfirst($player->realm) }} · {{ number_format((float) $player->pl_points, 1) }} PL{{ $player->isQueueLocked() ? ' · BLOQUEADO' : '' }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </label>
+                        {{-- El personaje ya se eligio arriba, en el rail y en el
+                             escenario. Repetir aqui un desplegable con los
+                             mismos nombres obligaba a elegir dos veces y dejaba
+                             la duda de cual mandaba. Va oculto, siguiendo al
+                             guerrero que se ve. --}}
+                        <input type="hidden" id="playerSelect" name="player_id" data-queue-player-select
+                               data-subclass="{{ $featured?->subclass }}"
+                               value="{{ $featured?->id }}">
+
+                        <p class="arena-queue-with">
+                            Entras con
+                            <b data-champion-name>{{ $featured?->cleanName() }}</b>
+                            <span data-champion-subclass-name>{{ $featured ? (\App\Models\Player::SUBCLASSES[$featured->subclass] ?? $featured->subclass) : '' }}</span>
+                        </p>
+
+                        @if($featured?->isQueueLocked())
+                            <p class="rounded-2xl border border-rose-500/30 bg-rose-900/20 px-4 py-3 text-sm text-rose-200 arena-body-text">
+                                Este guerrero está bloqueado para la cola hasta
+                                {{ $featured->queue_locked_until?->format('d/m H:i') }}. Elige otro en tu escuadra.
+                            </p>
+                        @endif
 
                         <div id="conjurerRoleDiv" class="hidden arena-card p-4">
                             <label for="randomConjurerRole" class="mb-2 block text-sm font-medium text-[color:var(--arena-text)] arena-body-text">Rol del conjurador</label>
@@ -91,7 +99,7 @@
                             <p class="mt-2 text-xs text-[color:var(--arena-muted)] arena-body-text">Solo un conjurador soporte por equipo.</p>
                         </div>
 
-                        <button type="submit" class="arena-btn-safe w-full">
+                        <button type="submit" class="arena-btn-safe w-full" @disabled($featured?->isQueueLocked())>
                             <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
                             Entrar a Random {{ $arenaMode }}
                         </button>

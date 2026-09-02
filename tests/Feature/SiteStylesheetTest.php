@@ -70,7 +70,7 @@ it('publica la hoja del sitio con base, utilidades y variantes', function () {
     // Valores arbitrarios, que es donde vive buena parte de este diseno. Los
     // selectores van escapados como los genera Tailwind: la coma es "\2c ".
     expect($css)->toContain('grid-cols-\[1\.08fr\2c 0\.92fr\]');
-    expect($css)->toContain('lg\:grid-cols-\[260px_minmax\(0\2c 1fr\)\]');
+    expect($css)->toContain('xl\:grid-cols-\[0\.75fr\2c 1\.25fr\]');
     expect($css)->toContain('bg-\[color\:var\(--arena-line\)\]');
     expect($css)->toContain('text-\[color\:var\(--arena-gold-soft\)\]');
     expect($css)->toContain('shadow-\[0_25px_60px_rgba\(0\2c 0\2c 0\2c 0\.5\)\]');
