@@ -7,42 +7,10 @@
         <div id="queue-modes" class="mt-5 flex flex-col gap-5 arena-animate-in arena-stagger-2">
             <section class="arena-panel p-6">
 
-                @if(isset($pendingInvites) && $pendingInvites->isNotEmpty())
-                    <div class="mb-6 space-y-3">
-                        @foreach($pendingInvites as $invite)
-                            <div class="arena-card p-4 border border-[color:var(--arena-gold-soft)]/50 bg-[color:var(--arena-gold-soft)]/5">
-                                <div class="flex items-start justify-between flex-wrap gap-4">
-                                    <div>
-                                        <p class="text-sm font-semibold text-white"><x-admin.icon name="inbox" class="h-4 w-4 inline-block -mt-0.5" /> Invitación a Party</p>
-                                        <p class="mt-1 text-sm text-[color:var(--arena-muted)]">
-                                            <span class="text-[color:var(--arena-sand)]">{{ $invite->party->leader->character_name }}</span> 
-                                            ha invitado a tu personaje <strong class="text-white">{{ $invite->player->character_name }}</strong>.
-                                        </p>
-                                    </div>
-                                    <div class="flex gap-2">
-                                        <form method="POST" action="{{ route('party.accept', ['party' => $invite->party_id, 'member' => $invite->id]) }}">
-                                            @csrf
-                                            <button class="arena-btn-safe px-4 py-2">Aceptar</button>
-                                        </form>
-                                        <form method="POST" action="{{ route('party.reject', ['party' => $invite->party_id, 'member' => $invite->id]) }}">
-                                            @csrf
-                                            <button class="arena-btn-danger px-4 py-2">Rechazar</button>
-                                        </form>
-                                    </div>
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                @endif
-
-                {{-- Las pestanas viven sobre la figura, en el escenario. --}}
-
-                {{-- Random tab --}}
-                <div id="tab-random" role="tabpanel" class="mt-6" style="animation: arenaFadeIn 0.25s ease-out">
-                    <p class="mb-4 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                        Entras con un solo personaje. El sistema busca {{ $teamSize - 1 }} aliado(s) de tu reino.
-                    </p>
-
+                {{-- Dos acciones, no dos pestanas: entrar solo, o armar grupo.
+                     Una pestana obliga a entender que hay algo escondido detras;
+                     un boton dice lo que hace. --}}
+                <div id="tab-random" class="arena-queue-actions">
                     @if(!$modesAreOpen)
                         <p class="arena-card p-4 text-sm text-[color:var(--arena-muted)] arena-body-text">
                             Las colas están cerradas por el momento.
@@ -84,92 +52,73 @@
                             <p class="mt-2 text-xs text-[color:var(--arena-muted)] arena-body-text">Solo un conjurador soporte por equipo.</p>
                         </div>
 
-                        <button type="submit" class="arena-btn-safe w-full" @disabled($featured?->isQueueLocked())>
-                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
-                            Entrar a Random {{ $arenaMode }}
-                        </button>
+                        <div class="arena-queue-buttons">
+                            <button type="submit" class="arena-btn-safe" @disabled($featured?->isQueueLocked())>
+                                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
+                                Entrar a Random {{ $arenaMode }}
+                            </button>
+                            <button type="button" class="arena-btn-secondary" data-premade-toggle
+                                    aria-controls="tab-premade" aria-expanded="false">
+                                <x-admin.icon name="users" class="h-4 w-4" />
+                                Armar grupo premade {{ $arenaMode }}
+                            </button>
+                        </div>
+
+                        <p class="arena-queue-hint">
+                            Random entra con un solo personaje y el sistema busca {{ $teamSize - 1 }} aliado(s) de tu reino.
+                            Premade lo eliges tu, {{ $teamSize }} del mismo reino.
+                        </p>
                     </form>
                     @endif
                 </div>
 
-                {{-- Premade tab --}}
-                <div id="tab-premade" role="tabpanel" class="mt-6 hidden">
+                {{-- El constructor de grupo, plegado hasta que se pide. --}}
+                <div id="tab-premade" class="arena-premade-builder mt-5" data-has-party="{{ $activeParty ? '1' : '0' }}" hidden>
                     <p class="mb-4 flex flex-wrap items-center gap-x-3 text-sm text-[color:var(--arena-muted)] arena-body-text">
                         <span>Forma tu escuadra con {{ $teamSize - 1 }} aliado(s) y lánzate a la arena.</span>
                         <span class="arena-chip text-[color:var(--arena-ice)]">{{ $premadeDailyLimit }}/día</span>
                     </p>
 
                     @if(isset($activeParty) && $activeParty)
-                        <div class="arena-card p-6 border border-[color:var(--arena-gold-soft)]/30">
-                            <h3 class="text-xl font-bold text-white mb-2 flex items-center gap-2">
-                                <x-admin.icon name="swords" class="h-5 w-5" /> Party Activa {{ \App\Support\ArenaMode::label($activePartyMode) }}
-                                ({{ \App\Models\Player::REALMS[$activeParty->realm] ?? strtoupper($activeParty->realm) }})
-                            </h3>
-                            @unless($activePartyModeIsOpen)
-                                <p class="mb-4 rounded-2xl border border-amber-700/40 bg-amber-900/20 px-4 py-3 text-sm text-amber-200 arena-body-text">
-                                    La modalidad {{ \App\Support\ArenaMode::label($activePartyMode) }} está apagada ahora mismo.
-                                    Esta party queda guardada y podrá buscar match cuando vuelva a activarse.
-                                </p>
-                            @endunless
-                            <p class="text-sm text-[color:var(--arena-muted)] mb-5">
-                                Estado: 
-                                @if($activeParty->status === 'queued') <span class="text-emerald-400">Buscando oponente...</span>
-                                @elseif($activeParty->status === 'ready') <span class="text-amber-400">Lista para buscar match</span>
-                                @else <span class="text-amber-400">Esperando que los aliados acepten la invitación</span>
+                        {{-- La party ya se ve arriba, dentro del escenario, con
+                             la figura de cada uno. Aqui solo queda el estado y
+                             lo que se puede hacer con ella: repetir la lista de
+                             nombres era la misma informacion dos veces, en dos
+                             sitios distintos de la misma pantalla. --}}
+                        @php
+                            $isLeader = $players->contains(fn ($p) => $p->id === $activeParty->leader_player_id);
+                            $partyReady = $activeParty->status === 'ready';
+                            $partyQueued = $activeParty->status === 'queued';
+                        @endphp
+
+                        <div class="arena-party-state">
+                            <p class="arena-party-state-line">
+                                @if($partyQueued)
+                                    <span class="arena-party-dot is-live"></span> Tu party busca rival.
+                                @elseif($partyReady)
+                                    <span class="arena-party-dot is-ready"></span> Party completa: ya puedes entrar a la cola.
+                                @else
+                                    <span class="arena-party-dot"></span> Esperando a que tus aliados acepten la invitacion.
                                 @endif
                             </p>
-                            
-                            <div class="space-y-3">
-                                @foreach($activeParty->members as $member)
-                                    <div class="flex items-center justify-between bg-black/40 p-4 rounded-xl border border-[color:var(--arena-line)]">
-                                        <div>
-                                            <p class="font-semibold text-white">{{ $member->player->character_name }} {!! $member->is_leader ? '<span class="ml-2 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-500 text-[10px] uppercase font-bold tracking-wider">Líder</span>' : '' !!}</p>
-                                            <p class="text-xs text-[color:var(--arena-muted)] mt-1">{{ \App\Models\Player::SUBCLASSES[$member->player->subclass] ?? ucfirst($member->player->subclass) }}</p>
-                                        </div>
-                                        <div>
-                                            @if($member->is_accepted_invite)
-                                                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-900/30 px-2 py-1 text-xs font-semibold text-emerald-300">
-                                                    <svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> En Party
-                                                </span>
-                                            @else
-                                                <span class="inline-flex items-center gap-1 rounded-full bg-amber-900/30 px-2 py-1 text-xs font-semibold text-amber-300">
-                                                    Invitado
-                                                </span>
-                                            @endif
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
 
-                            <div class="mt-6 flex flex-wrap gap-4 pt-4 border-t border-[color:var(--arena-line)]">
-                                @php
-                                    // Check if the current user owns the leader player object
-                                    $isLeader = false;
-                                    foreach($players as $p) {
-                                        if ($p->id === $activeParty->leader_player_id) $isLeader = true;
-                                    }
-                                @endphp
-                                @if($isLeader)
-                                    @if($activeParty->status === 'ready')
-                                        @if($activePartyModeIsOpen)
-                                            <form method="POST" action="{{ route('party.enqueue', $activeParty) }}" class="flex-1 w-full md:w-auto">
-                                                @csrf
-                                                <button class="arena-btn-safe w-full justify-center py-3">▶ Iniciar Búsqueda Matchmaking</button>
-                                            </form>
-                                        @else
-                                            <div class="flex-1 w-full text-sm text-[color:var(--arena-muted)] bg-black/20 p-3 rounded-lg border border-[color:var(--arena-line)] text-center">
-                                                Búsqueda no disponible mientras {{ \App\Support\ArenaMode::label($activePartyMode) }} esté apagada.
-                                            </div>
-                                        @endif
-                                    @elseif($activeParty->status === 'forming')
-                                        <div class="flex-1 w-full text-sm text-[color:var(--arena-sand)] bg-[color:var(--arena-gold-soft)]/10 p-3 rounded-lg border border-[color:var(--arena-gold-soft)]/20 text-center">
-                                            Debes esperar a que tus amigos acepten la invitación.
-                                        </div>
-                                    @endif
+                            @unless($activePartyModeIsOpen)
+                                <p class="arena-queue-hint">
+                                    La modalidad {{ \App\Support\ArenaMode::label($activePartyMode) }} esta apagada.
+                                    La party queda guardada y podra buscar cuando vuelva a abrirse.
+                                </p>
+                            @endunless
+
+                            <div class="arena-queue-buttons">
+                                @if($isLeader && $partyReady && $activePartyModeIsOpen)
+                                    <form method="POST" action="{{ route('party.enqueue', $activeParty) }}">
+                                        @csrf
+                                        <button class="arena-btn-safe">Entrar a Premade {{ \App\Support\ArenaMode::label($activePartyMode) }}</button>
+                                    </form>
                                 @endif
-                                <form method="POST" action="{{ route('party.leave', $activeParty) }}" class="flex-none basis-full md:basis-auto">
+                                <form method="POST" action="{{ route('party.leave', $activeParty) }}">
                                     @csrf
-                                    <button class="arena-btn-danger w-full justify-center">{{ $activeParty->status === 'queued' ? 'Cancelar Búsqueda y Abandonar' : 'Abandonar Party' }}</button>
+                                    <button class="arena-btn-danger-ghost">{{ $partyQueued ? 'Cancelar y abandonar' : 'Abandonar party' }}</button>
                                 </form>
                             </div>
                         </div>

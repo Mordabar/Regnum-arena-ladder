@@ -112,21 +112,6 @@
                     @endif
                 </p>
 
-                @if(count($enabledModes) > 1 && $canJoinQueue)
-                    <div class="mt-4 inline-flex rounded-2xl border border-[color:var(--arena-line)] bg-black/20 p-1" role="tablist" aria-label="Modalidad de arena">
-                        @foreach($enabledModes as $mode)
-                            <a href="{{ route('lobby', ['mode' => $mode]) }}"
-                               role="tab"
-                               aria-selected="{{ $mode === $arenaMode ? 'true' : 'false' }}"
-                               class="rounded-xl px-5 py-2 text-sm font-semibold transition-all {{ $mode === $arenaMode
-                                    ? 'bg-[linear-gradient(180deg,rgba(63,45,31,0.85),rgba(22,15,11,0.95))] text-[color:var(--arena-gold-soft)] shadow-[0_4px_16px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,215,134,0.12)]'
-                                    : 'text-[color:var(--arena-muted)] hover:text-[color:var(--arena-sand)] hover:bg-white/[0.04]' }}">
-                                {{ $mode }}
-                            </a>
-                        @endforeach
-                    </div>
-                @endif
-
                 @if(!$modesAreOpen)
                     <p class="mt-4 rounded-2xl border border-amber-700/40 bg-amber-900/20 px-4 py-3 text-sm text-amber-200 arena-body-text">
                         Las colas están cerradas por el momento. Vuelve más tarde.
@@ -218,6 +203,20 @@
             <div class="arena-console-main">
                 @if($showStage)
                     <div class="arena-console-stage">
+                        @if(count($enabledModes) > 1)
+                            {{-- La modalidad manda sobre todo lo de abajo, asi
+                                 que se elige antes de mirar al guerrero. --}}
+                            <div class="arena-console-arenas" role="tablist" aria-label="Modalidad de arena">
+                                <span class="arena-console-arenas-key">Arena</span>
+                                @foreach($enabledModes as $mode)
+                                    <a href="{{ route('lobby', ['mode' => $mode, 'player' => $featured?->id]) }}"
+                                       role="tab"
+                                       aria-selected="{{ $mode === $arenaMode ? 'true' : 'false' }}"
+                                       class="arena-console-arena {{ $mode === $arenaMode ? 'is-active' : '' }}">{{ $mode }}</a>
+                                @endforeach
+                            </div>
+                        @endif
+
                         <x-arena-champion
                             id="hub-stage"
                             :realm="$featured->realm"
@@ -260,21 +259,38 @@
                                     <div class="arena-stat-pill"><span>V/D</span><b data-champion-record>{{ $featured->wins }}/{{ $featured->losses }}</b></div>
                                 </div>
 
-                                {{-- El modo se elige sobre la figura, junto al
-                                     nombre: es la otra mitad de "con quien y
-                                     como entro", y estaba a media pagina. --}}
-                                @if($canJoinQueue && $modesAreOpen)
-                                    <div class="arena-console-modes" role="tablist" aria-label="Modo de entrada">
-                                        <button type="button" role="tab" aria-selected="true" aria-controls="tab-random" id="tabBtnRandom"
-                                                class="arena-console-mode is-active">
-                                            <x-admin.icon name="play" class="h-4 w-4" />
-                                            Random {{ $arenaMode }}
-                                        </button>
-                                        <button type="button" role="tab" aria-selected="false" aria-controls="tab-premade" id="tabBtnPremade"
-                                                class="arena-console-mode">
-                                            <x-admin.icon name="users" class="h-4 w-4" />
-                                            Premade {{ $arenaMode }}
-                                        </button>
+                                {{-- La party, dentro del escenario: un grupo se
+                                     entiende viendolo junto, no leyendo una
+                                     lista de nombres en otra tarjeta. --}}
+                                @if($activeParty)
+                                    <div class="arena-console-party">
+                                        <span class="arena-console-party-key">
+                                            Party {{ ArenaMode::label($activePartyMode) }}
+                                        </span>
+                                        <div class="arena-console-party-slots">
+                                            @foreach($activeParty->members as $member)
+                                                @continue(!$member->player)
+                                                <span class="arena-console-party-slot {{ $member->is_accepted_invite ? 'is-in' : '' }}"
+                                                      title="{{ $member->player->character_name }}{{ $member->is_leader ? ' · lider' : '' }}{{ $member->is_accepted_invite ? '' : ' · invitado, sin responder' }}">
+                                                    <x-arena-champion
+                                                        :id="'party-' . $member->id"
+                                                        :realm="$member->player->realm"
+                                                        :subclass="$member->player->subclass"
+                                                        :race="$member->player->race"
+                                                        :gender="$member->player->gender"
+                                                        :parallax="false"
+                                                        height="64px"
+                                                        class="arena-console-party-portrait" />
+                                                    <b>{{ $member->player->cleanName() }}</b>
+                                                </span>
+                                            @endforeach
+                                            @for($i = $activeParty->members->count(); $i < $teamSize; $i++)
+                                                <span class="arena-console-party-slot is-empty">
+                                                    <span class="arena-console-party-portrait is-empty">+</span>
+                                                    <b>Libre</b>
+                                                </span>
+                                            @endfor
+                                        </div>
                                     </div>
                                 @endif
 
@@ -367,6 +383,8 @@
         @endif
     @endif
 </div>
+
+<x-arena-party-invites :invites="$pendingInvites" />
 
 @include('arena._match_extras')
 @endsection

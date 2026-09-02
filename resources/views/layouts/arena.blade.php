@@ -607,7 +607,9 @@
         }
         .arena-stat-pill span {
             display: block;
-            font-size: 9.5px;
+            /* 10px es el minimo que se lee de verdad en un movil: por debajo la
+               etiqueta se convierte en decoracion. */
+            font-size: 10px;
             letter-spacing: 0.2em;
             text-transform: uppercase;
             color: var(--arena-muted);
@@ -714,6 +716,27 @@
             .arena-report-inline { margin: 0 16px 14px; }
         }
 
+        /* ── Ventanas ──────────────────────────────────────────────────────
+           Se pintan al final del documento. Antes vivian donde estaban
+           escritas, y dentro de la consola del lobby (que recorta) salian
+           cortadas y ancladas en medio del escenario. */
+        .arena-modal-panel {
+            display: flex;
+            flex-direction: column;
+            max-height: min(82vh, 720px);
+        }
+        .arena-modal-body {
+            margin-top: 16px;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            padding-right: 4px;
+        }
+        .arena-modal-body::-webkit-scrollbar { width: 8px; }
+        .arena-modal-body::-webkit-scrollbar-thumb {
+            background: var(--arena-line-strong);
+            border-radius: 999px;
+        }
+
         /* ── Consola del lobby ─────────────────────────────────────────────
            Elegir guerrero, verlo y entrar a la cola ocurren en el mismo panel.
            Antes el guerrero se elegia dos veces (el rail y un desplegable a
@@ -793,41 +816,6 @@
             max-width: min(55%, 420px);
         }
 
-        /* El selector de modo, sobre la figura. */
-        .arena-console-modes {
-            position: absolute;
-            right: 16px;
-            bottom: 18px;
-            display: flex;
-            gap: 6px;
-            padding: 5px;
-            border-radius: 13px;
-            border: 1px solid var(--arena-line);
-            background: rgba(8, 5, 4, 0.78);
-            backdrop-filter: blur(8px);
-        }
-        .arena-console-mode {
-            display: inline-flex;
-            align-items: center;
-            gap: 7px;
-            padding: 8px 14px;
-            border-radius: 9px;
-            border: 1px solid transparent;
-            background: transparent;
-            font-size: 12.5px;
-            font-weight: 600;
-            color: var(--arena-muted);
-            cursor: pointer;
-            white-space: nowrap;
-            transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
-        }
-        .arena-console-mode:hover { color: var(--arena-sand); }
-        .arena-console-mode.is-active {
-            border-color: var(--arena-line-strong);
-            background: linear-gradient(180deg, rgba(63, 45, 31, 0.9), rgba(22, 15, 11, 0.95));
-            color: var(--arena-gold-soft);
-        }
-
         /* Las cifras van sobre la figura en pantalla ancha y debajo en movil,
            donde encima le taparian la cara. */
         .arena-console .arena-champion-stats-inside {
@@ -855,6 +843,205 @@
         .arena-console-main > div > details.arena-panel > div { padding: 0 0 8px; }
         .arena-console-main > div { display: flex; flex-direction: column; gap: 16px; }
 
+        /* ── Invitaciones flotantes ────────────────────────────────────── */
+        .arena-invites {
+            position: fixed;
+            right: 18px;
+            bottom: 18px;
+            z-index: 55;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: min(340px, calc(100vw - 36px));
+            pointer-events: none;
+        }
+        .arena-invite {
+            pointer-events: auto;
+            border: 1px solid var(--arena-line-strong);
+            border-radius: 16px;
+            background: linear-gradient(180deg, rgba(40, 28, 20, 0.97), rgba(14, 10, 8, 0.98));
+            box-shadow: 0 20px 44px rgba(0, 0, 0, 0.5);
+            padding: 13px 15px;
+            animation: arenaInviteIn 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+        }
+        @keyframes arenaInviteIn {
+            from { opacity: 0; transform: translateY(14px) scale(0.97); }
+            to { opacity: 1; transform: none; }
+        }
+        .arena-invite header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .arena-invite-kicker {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 10px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--arena-gold);
+        }
+        .arena-invite-hide {
+            border: 0;
+            background: transparent;
+            color: var(--arena-muted);
+            cursor: pointer;
+            padding: 2px;
+            border-radius: 6px;
+        }
+        .arena-invite-hide:hover { color: var(--arena-text); background: rgba(255, 255, 255, 0.08); }
+        .arena-invite-body { margin: 8px 0 0; font-size: 13px; color: var(--arena-sand); }
+        .arena-invite-body b { color: var(--arena-gold-soft); }
+        .arena-invite-actions { display: flex; gap: 8px; margin-top: 11px; }
+        .arena-invite-actions > * { flex: 1; }
+        .arena-invite-actions button { width: 100%; justify-content: center; }
+
+        @media (max-width: 560px) {
+            .arena-invites { right: 12px; left: 12px; bottom: 12px; width: auto; }
+        }
+
+        /* Modalidad de arena, encima del escenario: manda sobre todo lo que
+           viene debajo, asi que se elige antes de mirar al guerrero. */
+        .arena-console-arenas {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px;
+            border-radius: 13px;
+            border: 1px solid var(--arena-line);
+            background: rgba(10, 7, 5, 0.55);
+            align-self: flex-start;
+        }
+        .arena-console-arenas-key {
+            padding: 0 8px 0 6px;
+            font-size: 10px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--arena-muted);
+        }
+        .arena-console-arena {
+            padding: 7px 16px;
+            border-radius: 9px;
+            border: 1px solid transparent;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--arena-muted);
+            transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+        }
+        .arena-console-arena:hover { color: var(--arena-sand); }
+        .arena-console-arena.is-active {
+            border-color: var(--arena-line-strong);
+            background: linear-gradient(180deg, rgba(63, 45, 31, 0.9), rgba(22, 15, 11, 0.95));
+            color: var(--arena-gold-soft);
+        }
+
+        /* La party, dentro del escenario. */
+        .arena-console-party {
+            position: absolute;
+            right: 16px;
+            bottom: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: flex-end;
+            padding: 10px 12px;
+            border-radius: 14px;
+            border: 1px solid var(--arena-line);
+            background: rgba(8, 5, 4, 0.72);
+            backdrop-filter: blur(8px);
+        }
+        .arena-console-party-key {
+            font-size: 10px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--arena-gold);
+        }
+        .arena-console-party-slots { display: flex; gap: 8px; }
+        .arena-console-party-slot {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            width: 62px;
+        }
+        .arena-console-party-slot b {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 10.5px;
+            font-weight: 600;
+            color: var(--arena-sand);
+        }
+        .arena-console-party-slot.is-empty b { color: var(--arena-muted); font-weight: 400; }
+        .arena-console-party-portrait {
+            width: 54px;
+            border-radius: 10px;
+            border: 1px dashed var(--arena-line);
+            background: rgba(0, 0, 0, 0.45);
+        }
+        .arena-console-party-slot.is-in .arena-console-party-portrait {
+            border-style: solid;
+            border-color: rgba(95, 174, 106, 0.5);
+        }
+        .arena-console-party-portrait.is-empty {
+            display: grid;
+            place-items: center;
+            height: 64px;
+            font-size: 20px;
+            color: var(--arena-muted);
+        }
+
+        /* Las dos acciones del lobby. */
+        .arena-queue-actions { display: flex; flex-direction: column; gap: 14px; }
+        .arena-queue-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .arena-queue-buttons > * { width: 100%; justify-content: center; }
+        .arena-btn-secondary.is-active {
+            border-color: var(--arena-line-strong);
+            color: var(--arena-gold-soft);
+        }
+        .arena-queue-hint { margin: 0; font-size: 12.5px; color: var(--arena-muted); }
+
+        .arena-party-state {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            border: 1px solid var(--arena-line);
+            border-radius: 14px;
+            background: rgba(10, 7, 5, 0.5);
+            padding: 14px 16px;
+        }
+        .arena-party-state-line {
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            font-size: 13.5px;
+            color: var(--arena-sand);
+        }
+        .arena-party-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex: none;
+            background: var(--arena-gold);
+        }
+        .arena-party-dot.is-ready { background: #7cc98a; }
+        .arena-party-dot.is-live { background: var(--arena-ice); animation: arenaPulseDot 1.6s ease-in-out infinite; }
+        @keyframes arenaPulseDot { 50% { opacity: 0.35; } }
+
+        @media (max-width: 720px) {
+            .arena-queue-buttons { grid-template-columns: 1fr; }
+            .arena-console-party {
+                position: static;
+                align-items: flex-start;
+                margin: 10px 0 0;
+                background: rgba(8, 5, 4, 0.55);
+            }
+        }
+
         .arena-queue-with {
             margin: 0;
             font-size: 13.5px;
@@ -879,9 +1066,10 @@
             .arena-console .arena-champion-stats-inside { display: none; }
             .arena-console .arena-champion-stats-outside { display: block; padding: 0 2px; }
             .arena-console-tools { top: 10px; left: 10px; }
+            .arena-console-arenas { align-self: stretch; }
             .arena-console-tool span { display: none; }
             .arena-console-tool { padding: 8px; }
-            .arena-console-ident { left: 14px; right: 14px; bottom: 70px; max-width: none; }
+            .arena-console-ident { left: 14px; right: 14px; bottom: 14px; max-width: none; }
             /* En movil el selector no cabe al lado del nombre: va debajo, a lo
                ancho, y el nombre sube. */
             .arena-console-modes { left: 14px; right: 14px; bottom: 14px; }
@@ -897,6 +1085,16 @@
             gap: 14px;
         }
         .arena-pagination-count { margin: 0; font-size: 12.5px; color: var(--arena-muted); }
+
+        /* Area tactil en el pie: en movil sus enlaces median 15px de alto, que
+           es la altura del texto, no la de algo que se pueda pulsar. */
+        @media (max-width: 720px) {
+            .arena-footer-nav a {
+                display: inline-flex;
+                align-items: center;
+                min-height: 40px;
+            }
+        }
         .arena-pagination-pages { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
         .arena-pagination-link {
             display: inline-flex;
@@ -1390,27 +1588,28 @@
         .arena-choice-body-row .arena-choice-note,
         .arena-choice-body-row .arena-choice-realm { display: block; }
 
-        /* En movil la vista previa se queda pegada arriba y encoge, para que
-           siga viendose mientras se rellenan los pasos de abajo. */
+        /* La vista previa se queda pegada mientras se rellenan los pasos. El
+           desfase es la barra de navegacion, que tambien esta pegada: sin
+           contarla el guerrero quedaba medio tapado por la cabecera y solo se
+           le veia de cintura para abajo. */
         .arena-preview-dock {
-            /* Alta de verdad en pantalla ancha: la columna se queda pegada
-               mientras se rellenan los pasos, y con 500px dejaba media pantalla
-               de vacio debajo del guerrero. */
+            position: sticky;
+            top: calc(var(--arena-navbar-height, 72px) + 10px);
             --preview-height: clamp(360px, 62vh, 640px);
         }
         @media (max-width: 1023px) {
             .arena-preview-dock {
-                --preview-height: 180px;
+                /* Alto suficiente para que el guerrero entre entero: con 180px
+                   se le cortaba la cabeza. */
+                --preview-height: 240px;
                 padding-bottom: 8px;
                 margin-bottom: 4px;
-                /* Solo aqui hace falta tapar lo que pasa por detras al quedarse
-                   pegada. En pantalla ancha ese fondo plano dibujaba un marco de
-                   otro color alrededor del visor, sobre el degradado de la
-                   pagina. */
                 background: var(--arena-night);
             }
-            .arena-preview-dock .arena-champion-name { font-size: 20px; }
+            .arena-preview-dock .arena-champion-name { font-size: 18px; }
             .arena-preview-dock .arena-champion-caption { display: none; }
+            /* El rotulo, mas pegado al borde: en 240px cada pixel cuenta. */
+            .arena-preview-dock .arena-champion-overlay > div { inset-inline: 14px !important; bottom: 10px !important; }
         }
 
         .arena-choice-hint {
@@ -1447,7 +1646,7 @@
 @endphp
 <body class="arena-shell min-h-screen">
     {{-- ── NAVBAR ── --}}
-    <nav class="arena-navbar sticky top-0 z-40">
+    <nav class="arena-navbar sticky top-0 z-40" data-arena-navbar>
         <div class="mx-auto max-w-7xl px-4 py-3">
             <div class="flex items-center justify-between gap-4">
                 <a href="{{ route('home') }}" class="shrink-0">
@@ -1455,7 +1654,7 @@
                 </a>
 
                 {{-- Desktop nav --}}
-                <div class="hidden items-center gap-2 md:flex">
+                <div class="hidden items-center gap-2 lg:flex">
                     @if(request()->routeIs('admin.*') && $arenaAdminSessionActive)
                         {{-- Contexto Administrativo --}}
                         <a href="{{ route('admin.dashboard') }}" class="arena-nav-link {{ request()->routeIs('admin.dashboard') ? 'arena-nav-link-active' : '' }}">Dashboard</a>
@@ -1518,7 +1717,7 @@
                 </div>
 
                 {{-- Mobile hamburger --}}
-                <button type="button" class="md:hidden rounded-xl border border-[color:var(--arena-line)] bg-[rgba(15,10,8,0.7)] p-2.5 text-[color:var(--arena-sand)] transition hover:bg-white/10" id="arenaMenuOpen" aria-label="Abrir menú">
+                <button type="button" class="lg:hidden rounded-xl border border-[color:var(--arena-line)] bg-[rgba(15,10,8,0.7)] p-2.5 text-[color:var(--arena-sand)] transition hover:bg-white/10" id="arenaMenuOpen" aria-label="Abrir menú">
                     <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
                 </button>
             </div>
@@ -1660,16 +1859,77 @@
         })();
 
         /* ── Modal system ── */
-        window.arenaModal = {
-            open(id) {
-                const el = document.getElementById(id);
-                if (el) { el.style.display = 'flex'; }
-            },
-            close(id) {
-                const el = document.getElementById(id);
-                if (el) { el.style.display = 'none'; }
+        window.arenaModal = (function () {
+            /* Una ventana abierta se cierra con Escape, devuelve el foco a donde
+               estaba y no deja que el tabulador se escape por detras. Sin esto
+               quien navega con teclado se quedaba dando vueltas por la pagina de
+               abajo sin poder cerrar lo que tenia delante. */
+            var abierta = null;
+            var focoPrevio = null;
+
+            function enfocables(el) {
+                return [...el.querySelectorAll('a[href],button:not([disabled]),select,textarea,input:not([type=hidden]):not([disabled]),[tabindex]:not([tabindex="-1"])')]
+                    .filter(function (n) { return n.offsetParent !== null; });
             }
-        };
+
+            document.addEventListener('keydown', function (event) {
+                if (!abierta) { return; }
+
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    api.close(abierta.id);
+                    return;
+                }
+
+                if (event.key !== 'Tab') { return; }
+
+                var items = enfocables(abierta);
+                if (!items.length) { return; }
+
+                var primero = items[0];
+                var ultimo = items[items.length - 1];
+
+                if (event.shiftKey && document.activeElement === primero) {
+                    event.preventDefault();
+                    ultimo.focus();
+                } else if (!event.shiftKey && document.activeElement === ultimo) {
+                    event.preventDefault();
+                    primero.focus();
+                }
+            });
+
+            var api = {
+                open(id) {
+                    const el = document.getElementById(id);
+                    if (!el) { return; }
+
+                    focoPrevio = document.activeElement;
+                    el.style.display = 'flex';
+                    abierta = el;
+                    document.body.style.overflow = 'hidden';
+
+                    var items = enfocables(el);
+                    if (items.length) {
+                        try { items[0].focus({ preventScroll: true }); } catch (e) { items[0].focus(); }
+                    }
+                },
+                close(id) {
+                    const el = document.getElementById(id);
+                    if (!el) { return; }
+
+                    el.style.display = 'none';
+                    document.body.style.overflow = '';
+
+                    if (abierta === el) { abierta = null; }
+                    if (focoPrevio && focoPrevio.focus) {
+                        try { focoPrevio.focus({ preventScroll: true }); } catch (e) { focoPrevio.focus(); }
+                        focoPrevio = null;
+                    }
+                }
+            };
+
+            return api;
+        })();
         document.addEventListener('click', (e) => {
             const closer = e.target.closest('[data-modal-close]');
             if (closer) {
@@ -2085,6 +2345,35 @@
             @endif
         });
     </script>
+
+    {{-- Las ventanas, al final del documento y fuera de todo panel. Dentro de
+         la consola del lobby quedaban recortadas por su overflow. --}}
+    <script>
+        /* La altura real de la barra de navegacion, para que lo que se queda
+           pegado debajo no acabe tapado por ella. Cambia con el ancho: en movil
+           es mas alta cuando el nombre del sitio salta de linea. */
+        (function () {
+            var navbar = document.querySelector('[data-arena-navbar]');
+            if (!navbar) { return; }
+
+            var publish = function () {
+                document.documentElement.style.setProperty(
+                    '--arena-navbar-height',
+                    Math.round(navbar.getBoundingClientRect().height) + 'px'
+                );
+            };
+
+            publish();
+
+            if (window.ResizeObserver) {
+                new ResizeObserver(publish).observe(navbar);
+            } else {
+                window.addEventListener('resize', publish);
+            }
+        })();
+    </script>
+
+    @stack('arena-modals')
 
     @stack('champion-boot')
 

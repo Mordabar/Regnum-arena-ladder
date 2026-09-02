@@ -229,17 +229,19 @@ it('un guerrero de otro usuario no se puede colar por la url', function () {
         ->assertDontSee('Ajeno');
 });
 
-it('el modo se elige sobre la figura y la premade arranca con ese guerrero', function () {
+it('entrar y armar grupo son dos botones, y el grupo arranca con el guerrero del escenario', function () {
     // Elegir personaje pasaba dos veces y armar party pedia elegirlo una
-    // tercera. Ahora el rail manda sobre las tres cosas.
+    // tercera. Ahora el rail manda sobre las tres cosas, y no hay pestanas que
+    // obliguen a descubrir que hay algo escondido detras.
     $user = hubUser('modos');
     $primero = hubPlayer($user, 'Lider', 'syrtis', 'knight');
     hubPlayer($user, 'Companiera', 'syrtis', 'conjurer');
 
     $this->actingAs($user)->get(route('lobby'))
         ->assertOk()
-        ->assertSee('class="arena-console-modes"', false)
-        ->assertSee('id="tabBtnPremade"', false)
+        ->assertSee('Entrar a Random 2v2')
+        ->assertSee('Armar grupo premade 2v2')
+        ->assertSee('data-premade-toggle', false)
         ->assertSee('data-party-leader-select', false)
         // El lider viene marcado con el guerrero del escenario.
         ->assertSee('value="' . $primero->id . '"' . "\n" . '                                        data-user', false);
@@ -254,4 +256,43 @@ it('las reglas se abren en una ventana, no ocupan sitio todo el rato', function 
         ->assertSee('Ver reglas de juego')
         ->assertSee('id="modal-arena-rules"', false)
         ->assertSee('el enfrentamiento se anula y no reparte puntos');
+});
+
+it('las ventanas se pintan fuera de los paneles que recortan', function () {
+    // Dentro de la consola del lobby, que recorta su contenido, la ventana de
+    // reglas salia cortada y anclada en medio del escenario.
+    $user = hubUser('ventanas');
+    hubPlayer($user, 'Lectora');
+
+    $html = $this->actingAs($user)->get(route('lobby'))->getContent();
+
+    $consolaEmpieza = strpos($html, 'class="arena-console ');
+    $ventanaEmpieza = strpos($html, 'id="modal-arena-rules"');
+
+    expect($consolaEmpieza)->not->toBeFalse()
+        ->and($ventanaEmpieza)->not->toBeFalse()
+        // La ventana se pinta despues de que la consola haya cerrado.
+        ->and($ventanaEmpieza)->toBeGreaterThan(strpos($html, '</section>', $consolaEmpieza));
+});
+
+it('la invitacion a party flota y dice a que modalidad te invitan', function () {
+    $lider = hubPlayer(hubUser('inv-lider'), 'Capitana', 'ignis', 'knight');
+    $invitado = hubPlayer(hubUser('inv-mio'), 'Invitada', 'ignis', 'hunter');
+
+    $party = \App\Models\Party::create([
+        'leader_player_id' => $lider->id,
+        'realm' => 'ignis',
+        'arena_mode' => '3v3',
+        'status' => 'forming',
+    ]);
+
+    \App\Models\PartyMember::create(['party_id' => $party->id, 'player_id' => $lider->id, 'is_leader' => true, 'is_accepted_invite' => true]);
+    \App\Models\PartyMember::create(['party_id' => $party->id, 'player_id' => $invitado->id, 'is_leader' => false, 'is_accepted_invite' => false]);
+
+    $this->actingAs($invitado->user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('class="arena-invites"', false)
+        ->assertSee('Invitacion a party 3v3')
+        ->assertSee('Capitana')
+        ->assertSee('Invitada');
 });

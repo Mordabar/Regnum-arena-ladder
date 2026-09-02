@@ -1444,6 +1444,64 @@ class QueueHubController extends Controller
         );
     }
 
+    /**
+     * Hace que un bot conteste al reporte que subio la persona.
+     *
+     * Es la otra mitad del ensayo. Se podia hacer que un bot reportara para
+     * confirmarlo tu, pero al reves no: subias tu reporte y no habia forma de
+     * que el rival contestara, asi que la prueba se quedaba a medias esperando
+     * a que venciera el plazo.
+     */
+    public function sandboxBotConfirm(Request $request, ArenaMatch $match, ArenaMatchResultService $resultService, TestingLabService $testingLabService)
+    {
+        $this->ensureSandboxAccess();
+
+        $validated = $request->validate([
+            'decision' => 'nullable|in:confirm,reject',
+        ]);
+
+        $match->loadMissing('report');
+        $report = $match->report;
+
+        if (!$report || $report->status !== 'pending_confirmation') {
+            return back()->withErrors(['error' => 'Este enfrentamiento no tiene un reporte esperando respuesta.']);
+        }
+
+        $botPlayerIds = $testingLabService->testPlayerIds();
+
+        // Contesta un bot del equipo que NO reporto: es el unico lado que puede.
+        $rivalSide = $report->reporting_team === 'team_a' ? 'team_b' : 'team_a';
+
+        $responderEntry = collect($match->getTeamBySide($rivalSide))
+            ->first(fn ($player) => $botPlayerIds->contains((int) ($player['player_id'] ?? 0)));
+
+        if (!$responderEntry) {
+            return back()->withErrors([
+                'error' => 'El equipo que tiene que contestar no tiene ningun bot. Contesta tu desde el lobby.',
+            ]);
+        }
+
+        $responder = Player::find((int) $responderEntry['player_id']);
+
+        if (!$responder) {
+            return back()->withErrors(['error' => 'El bot que iba a contestar ya no existe.']);
+        }
+
+        try {
+            if (($validated['decision'] ?? 'confirm') === 'reject') {
+                $resultService->rejectReport($report, $responder, 'Rechazo de prueba generado desde el laboratorio');
+                $message = 'El bot ' . $responder->character_name . ' rechazo el reporte: el enfrentamiento pasa a disputa.';
+            } else {
+                $resultService->confirmReport($report, $responder);
+                $message = 'El bot ' . $responder->character_name . ' confirmo el reporte y el ladder ya repartio los puntos.';
+            }
+        } catch (\Throwable $exception) {
+            return back()->withErrors(['error' => 'No se pudo contestar: ' . $exception->getMessage()]);
+        }
+
+        return back()->with('success', $message);
+    }
+
     public function sandboxResolveAll(ArenaMatchResultService $resultService, TestingLabService $testingLabService)
     {
         $this->ensureSandboxAccess();
@@ -1594,6 +1652,24 @@ class QueueHubController extends Controller
                 ->all(),
             'reportedMatchIds' => $relatedMatches
                 ->filter(fn (ArenaMatch $match) => $match->report !== null)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all(),
+            // Enfrentamientos donde el reporte espera respuesta y quien tiene
+            // que contestar es un bot: son los que se pueden empujar desde aqui.
+            'botCanAnswerMatchIds' => $relatedMatches
+                ->filter(function (ArenaMatch $match) use ($botPlayerIds) {
+                    $report = $match->report;
+
+                    if (!$report || $report->status !== 'pending_confirmation') {
+                        return false;
+                    }
+
+                    $rivalSide = $report->reporting_team === 'team_a' ? 'team_b' : 'team_a';
+
+                    return collect($match->getTeamBySide($rivalSide))
+                        ->contains(fn ($player) => $botPlayerIds->contains((int) ($player['player_id'] ?? 0)));
+                })
                 ->pluck('id')
                 ->map(fn ($id) => (int) $id)
                 ->all(),

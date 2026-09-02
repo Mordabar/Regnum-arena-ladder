@@ -344,3 +344,58 @@ it('un bot puede reportar para que la persona ensaye la confirmacion', function 
         ->and($report->status)->toBe('pending_confirmation')
         ->and($report->reporting_team)->toBe('team_b');
 });
+
+it('un bot puede contestar al reporte que subio la persona', function () {
+    // La otra mitad del ensayo. Se podia hacer que un bot reportara, pero al
+    // reves no: subias tu reporte y no habia forma de que el rival contestara.
+    \Illuminate\Support\Facades\Storage::fake('arena_reports');
+
+    $lab = app(\App\Services\TestingLabService::class);
+    $lab->seedRoster(['ignis' => 1, 'syrtis' => 2]);
+    $bots = $lab->testPlayersQuery()->get();
+
+    $human = \App\Models\Player::create([
+        'user_id' => \App\Models\User::create([
+            'discord_id' => 'lab-human-2', 'discord_username' => 'lab_human_2',
+            'name' => 'Lab Human 2', 'email' => 'lab-human-2@example.com',
+        ])->id,
+        'character_name' => 'Persona2', 'subclass' => 'knight', 'realm' => 'ignis',
+        'pl_points' => 0, 'mmr' => 1000, 'trust_score' => 100, 'is_active' => true,
+    ]);
+
+    $pack = fn (\App\Models\Player $p) => [
+        'player_id' => $p->id, 'character_name' => $p->character_name,
+        'subclass' => $p->subclass, 'realm' => $p->realm, 'discord_id' => (string) $p->user_id,
+    ];
+
+    $mate = $bots->firstWhere('realm', 'ignis');
+    $foes = $bots->where('realm', 'syrtis')->take(2)->values();
+
+    $match = \App\Models\ArenaMatch::create([
+        'match_code' => 'LAB-2', 'report_token' => 'LABTOKN2',
+        'queue_mode' => 'random', 'arena_mode' => '2v2',
+        'team_a_realm' => 'ignis', 'team_b_realm' => 'syrtis',
+        'team_a' => [$pack($human), $pack($mate)],
+        'team_b' => [$pack($foes[0]), $pack($foes[1])],
+        'zone' => 'frozen_bridge', 'status' => 'in_progress',
+        'estimated_mmr_avg' => 1000, 'player_count' => 4,
+        'started_at' => now(), 'expires_at' => now()->addMinutes(30),
+    ]);
+
+    // La persona reporta.
+    app(\App\Services\ArenaMatchResultService::class)
+        ->submitSyntheticReport($match, $human, 'team_a', 'reporte de la persona');
+
+    $admin = [
+        'arena_admin.authenticated' => true, 'arena_admin.account_id' => 1,
+        'arena_admin.username' => 'admin', 'arena_admin.display_name' => 'admin',
+    ];
+
+    $this->withSession($admin)
+        ->post(route('admin.testing.bot-confirm', $match), ['decision' => 'confirm'])
+        ->assertSessionHas('success');
+
+    expect($match->fresh()->status)->toBe('completed')
+        ->and($match->fresh()->winner_team)->toBe('team_a')
+        ->and($match->fresh()->results()->count())->toBeGreaterThan(0);
+});

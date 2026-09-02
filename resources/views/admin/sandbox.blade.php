@@ -17,6 +17,7 @@
     $inProgressMatches = $sandbox['inProgressMatches'];
     $botOnlyMatchIds = $sandbox['botOnlyMatchIds'];
     $reportedMatchIds = $sandbox['reportedMatchIds'];
+    $botCanAnswerMatchIds = $sandbox['botCanAnswerMatchIds'];
     $recentMatches = $sandbox['recentMatches'];
     $enabledModes = \App\Support\ArenaMode::enabled();
 
@@ -295,6 +296,23 @@
                                 <button type="submit" class="ap-btn ap-btn-sm">Gana {{ \App\Models\ArenaMatch::REALMS[$sideRealm] ?? ucfirst((string) $sideRealm) }}</button>
                             </form>
                         @endforeach
+                    @elseif(in_array((int) $match->id, $botCanAnswerMatchIds, true))
+                        {{-- El reporte lo subiste tu y quien tiene que contestar
+                             es un bot: sin esto la prueba se quedaba a medias
+                             esperando a que venciera el plazo. --}}
+                        <form method="POST" action="{{ route('admin.testing.bot-confirm', $match) }}">
+                            @csrf
+                            <input type="hidden" name="decision" value="confirm">
+                            <button type="submit" class="ap-btn ap-btn-sm">
+                                <x-admin.icon name="check" class="h-3.5 w-3.5" />
+                                Que un bot confirme
+                            </button>
+                        </form>
+                        <form method="POST" action="{{ route('admin.testing.bot-confirm', $match) }}">
+                            @csrf
+                            <input type="hidden" name="decision" value="reject">
+                            <button type="submit" class="ap-btn ap-btn-sm">Que un bot rechace</button>
+                        </form>
                     @elseif($hasReport)
                         <span class="ap-badge ap-badge-info">Reportado · te toca confirmar</span>
                     @else

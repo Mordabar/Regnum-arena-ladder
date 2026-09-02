@@ -79,7 +79,7 @@
                  subclase el guerrero quedaba mil pixeles mas arriba y la
                  promesa de "vas viendo a tu guerrero mientras eliges" no se
                  cumplia justo en el formato donde mas gente lo va a usar. --}}
-            <div class="arena-preview-dock order-1 sticky top-2 z-10 lg:top-6">
+            <div class="arena-preview-dock order-1 z-10">
                 <x-arena-champion
                     id="create-preview"
                     :realm="$oldRealm"

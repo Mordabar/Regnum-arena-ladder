@@ -19,36 +19,28 @@
 @endif
 
 <script>
-    /* ── Pestanas de modo ──
-       Viven sobre la figura, en el escenario. Antes el script reescribia a mano
-       una docena de clases de Tailwind con expresiones regulares; ahora solo
-       enciende y apaga una clase. */
+    /* ── Armar grupo ──
+       Ya no hay pestanas: entrar a random es un boton y armar grupo despliega
+       su constructor debajo. Un desplegable dice lo que hace; una pestana
+       obliga a descubrir que hay algo detras. */
     (function() {
-        const tabs = {
-            random: { btn: document.getElementById('tabBtnRandom'), panel: document.getElementById('tab-random') },
-            premade: { btn: document.getElementById('tabBtnPremade'), panel: document.getElementById('tab-premade') },
+        const toggle = document.querySelector('[data-premade-toggle]');
+        const builder = document.getElementById('tab-premade');
+        if (!toggle || !builder) return;
+
+        const setOpen = (open) => {
+            builder.hidden = !open;
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            toggle.classList.toggle('is-active', open);
+            localStorage.setItem('arena_premade_open', open ? '1' : '0');
         };
 
-        if (!tabs.random.btn || !tabs.premade.btn) return;
+        toggle.addEventListener('click', () => setOpen(builder.hidden));
 
-        const activate = (key) => {
-            Object.entries(tabs).forEach(([k, { btn, panel }]) => {
-                const isActive = k === key;
-                if (panel) {
-                    panel.classList.toggle('hidden', !isActive);
-                    if (isActive) panel.style.animation = 'arenaFadeIn 0.25s ease-out';
-                }
-                btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
-                btn.classList.toggle('is-active', isActive);
-            });
-            localStorage.setItem('arena_queue_active_tab', key);
-        };
-
-        tabs.random.btn.addEventListener('click', () => activate('random'));
-        tabs.premade.btn.addEventListener('click', () => activate('premade'));
-
-        if (localStorage.getItem('arena_queue_active_tab') === 'premade') {
-            activate('premade');
+        // Con una party ya montada el constructor se abre solo: es lo que el
+        // jugador estaba haciendo cuando dejo la pagina.
+        if (localStorage.getItem('arena_premade_open') === '1' || builder.dataset.hasParty === '1') {
+            setOpen(true);
         }
     })();
 
