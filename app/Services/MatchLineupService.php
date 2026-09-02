@@ -25,8 +25,8 @@ class MatchLineupService
      * @return array{
      *     viewer_player_id: int|null,
      *     viewer_accepted: bool,
-     *     own: array<int, array{name: string, subclass: string, subclass_name: string, accepted: bool, is_viewer: bool}>,
-     *     rival: array<int, array{name: string, subclass: string, subclass_name: string, accepted: bool, is_viewer: bool}>,
+     *     own: array<int, array{name: string, subclass: string, subclass_name: string, race: string, gender: string, accepted: bool, is_viewer: bool}>,
+     *     rival: array<int, array{name: string, subclass: string, subclass_name: string, race: string, gender: string, accepted: bool, is_viewer: bool}>,
      *     own_realm: string|null,
      *     rival_realm: string|null,
      *     accepted_count: int,
@@ -51,16 +51,19 @@ class MatchLineupService
         $accepted = $this->acceptedPlayerIds($match);
         $revealed = in_array($match->status, self::REVEAL_STATUSES, true);
 
-        $own = $this->line($match->getTeamBySide($ownSide), $accepted, $viewerPlayerId, true, $revealed);
-        $rival = $this->line($match->getTeamBySide($rivalSide), $accepted, $viewerPlayerId, false, $revealed);
+        $ownRealm = $ownSide === 'team_a' ? $match->team_a_realm : $match->team_b_realm;
+        $rivalRealm = $rivalSide === 'team_a' ? $match->team_a_realm : $match->team_b_realm;
+
+        $own = $this->line($match->getTeamBySide($ownSide), $accepted, $viewerPlayerId, true, $revealed, $ownRealm);
+        $rival = $this->line($match->getTeamBySide($rivalSide), $accepted, $viewerPlayerId, false, $revealed, $rivalRealm);
 
         return [
             'viewer_player_id' => $viewerPlayerId,
             'viewer_accepted' => $accepted->contains($viewerPlayerId),
             'own' => $own,
             'rival' => $rival,
-            'own_realm' => $ownSide === 'team_a' ? $match->team_a_realm : $match->team_b_realm,
-            'rival_realm' => $rivalSide === 'team_a' ? $match->team_a_realm : $match->team_b_realm,
+            'own_realm' => $ownRealm,
+            'rival_realm' => $rivalRealm,
             'accepted_count' => $accepted->count(),
             'player_count' => (int) $match->player_count,
             'names_revealed' => $revealed,
@@ -70,21 +73,39 @@ class MatchLineupService
     /**
      * @param  array<int, array<string, mixed>>  $team
      */
-    private function line(array $team, Collection $accepted, int $viewerPlayerId, bool $isOwnTeam, bool $revealed): array
+    private function line(array $team, Collection $accepted, int $viewerPlayerId, bool $isOwnTeam, bool $revealed, ?string $realm = null): array
     {
-        return collect($team)->map(function ($player) use ($accepted, $viewerPlayerId, $isOwnTeam, $revealed) {
+        // El aspecto (raza y sexo) no viaja en el equipo guardado del
+        // enfrentamiento, asi que se consulta. Solo para los propios: al rival
+        // se le dibuja con el maniqui neutro del reino.
+        $looks = collect();
+
+        if ($isOwnTeam || $revealed) {
+            $ids = collect($team)->pluck('player_id')->filter()->all();
+            $looks = Player::query()->whereIn('id', $ids)->get(['id', 'race', 'gender'])->keyBy('id');
+        }
+
+        return collect($team)->map(function ($player) use ($accepted, $viewerPlayerId, $isOwnTeam, $revealed, $looks, $realm) {
             $playerId = (int) ($player['player_id'] ?? 0);
             $subclass = (string) ($player['subclass'] ?? 'knight');
+            $playerRealm = (string) ($player['realm'] ?? $realm ?? 'ignis');
 
             // La subclase del rival si se ve (hace falta para preparar la
             // pelea); el nombre no, hasta el final.
             $showName = $isOwnTeam || $revealed;
+            $look = $looks->get($playerId);
 
             return [
                 'player_id' => $playerId,
                 'name' => $showName ? (string) ($player['character_name'] ?? 'Sin nombre') : 'Guerrero Anónimo',
                 'subclass' => $subclass,
                 'subclass_name' => Player::SUBCLASSES[$subclass] ?? ucfirst($subclass),
+                // La raza y el sexo del rival NO se publican: son rasgos que,
+                // sumados al reino y la subclase que ya se ven, ayudarian a
+                // ponerle nombre a quien todavia debe ser anonimo. Su figura se
+                // dibuja con el maniqui humano del reino.
+                'race' => $look?->race ?? Player::defaultRace($playerRealm),
+                'gender' => $look?->gender ?? 'male',
                 'accepted' => $accepted->contains($playerId),
                 'is_viewer' => $playerId === $viewerPlayerId,
             ];

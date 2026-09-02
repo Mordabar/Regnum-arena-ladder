@@ -13,8 +13,7 @@
                     <li><a href="{{ route('home') }}" class="text-[color:var(--arena-muted)] transition-colors hover:text-[color:var(--arena-gold-soft)]">Inicio</a></li>
                     <li><a href="{{ route('ladder.index') }}" class="text-[color:var(--arena-muted)] transition-colors hover:text-[color:var(--arena-gold-soft)]">Ladder</a></li>
                     @auth
-                        <li><a href="{{ route('lobby') }}" class="text-[color:var(--arena-muted)] transition-colors hover:text-[color:var(--arena-gold-soft)]">Lobby</a></li>
-                        <li><a href="{{ route('queue.index') }}" class="text-[color:var(--arena-muted)] transition-colors hover:text-[color:var(--arena-gold-soft)]">Buscar combate</a></li>
+                        <li><a href="{{ route('lobby') }}" class="text-[color:var(--arena-muted)] transition-colors hover:text-[color:var(--arena-gold-soft)]">Lobby y arena</a></li>
                         <li><a href="{{ route('matches.index') }}" class="text-[color:var(--arena-muted)] transition-colors hover:text-[color:var(--arena-gold-soft)]">Mis matches</a></li>
                     @endauth
                 </ul>

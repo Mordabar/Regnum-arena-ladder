@@ -22,6 +22,12 @@
         'arrow-right' => '<path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>',
         'external' => '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
         'search' => '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+        'trash' => '<path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M5 7l1 13a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-13"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/>',
+        'shield' => '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/>',
+        'bow' => '<path d="M5 19 19 5"/><path d="M17 3a10 10 0 0 1 4 4"/><path d="M3 17a10 10 0 0 0 4 4"/><path d="M18 6 6 18"/>',
+        'wand' => '<path d="m6 18 9-9"/><path d="M15 4v3"/><path d="M18.5 5.5 17 7"/><path d="M20 10h-3"/><circle cx="16" cy="8" r="2.5"/>',
+        'axe' => '<path d="m4 20 8-8"/><path d="M13 3 21 11l-4 3-7-7Z"/>',
+        'sparkle' => '<path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><path d="m6 6 2.5 2.5"/><path d="m15.5 15.5 2.5 2.5"/><path d="m18 6-2.5 2.5"/><path d="m8.5 15.5-2.5 2.5"/>',
         'dot' => '<circle cx="12" cy="12" r="4"/>',
     ];
 @endphp

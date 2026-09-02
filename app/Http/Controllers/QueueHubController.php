@@ -68,6 +68,15 @@ class QueueHubController extends Controller
 
             if ($currentQueue?->match_id) {
                 $currentMatch = ArenaMatch::find($currentQueue->match_id);
+
+                // Una cola puede quedar colgada de un enfrentamiento ya
+                // terminado (cancelado, resuelto o anulado). Sin esto la
+                // pantalla anuncia "combate en curso" sobre algo que acabo
+                // hace horas, con un reloj a cero y sin alineaciones.
+                if ($currentMatch && !$currentMatch->isActive()) {
+                    $currentMatch = null;
+                    $currentQueue = null;
+                }
             }
 
             $partyMember = PartyMember::query()
@@ -100,20 +109,25 @@ class QueueHubController extends Controller
             ?? $players->first()?->realm;
         $queuePulse = app(QueuePulseService::class)->forMode($arenaMode, $pulseRealm);
 
-        // Alineaciones del cruce pendiente. Se calculan aqui para que el aviso
-        // pueda mostrarse encima de la cola sin obligar al jugador a abrir otra
-        // pagina: el reloj corre mientras navega.
+        // Alineaciones del enfrentamiento. Se calculan aqui, y no solo para el
+        // cruce pendiente, porque el combate entero ocurre en esta pantalla: el
+        // jugador acepta, pelea y reporta sin cambiar de pagina, y en los tres
+        // momentos tiene que ver quien esta a su lado y quien enfrente.
         $matchLineup = null;
         $matchPlayer = null;
+        $matchIsPendingAcceptance = false;
 
-        if ($currentMatch && $currentMatch->status === 'pending_acceptance' && !$currentMatch->isExpired()) {
+        if ($currentMatch && $currentMatch->isActive()) {
+            $matchIsPendingAcceptance = $currentMatch->status === 'pending_acceptance'
+                && !$currentMatch->isExpired();
+
             $matchLineup = app(MatchLineupService::class)->forViewer($currentMatch, $players->pluck('id')->all());
             $matchPlayer = $matchLineup
                 ? $players->firstWhere('id', $matchLineup['viewer_player_id'])
                 : null;
         }
 
-        return view('queue.index_v3', compact(
+        return view('arena.hub', compact(
             'players',
             'premadeDailyLimit',
             'currentQueue',
@@ -125,7 +139,8 @@ class QueueHubController extends Controller
             'enabledModes',
             'queuePulse',
             'matchLineup',
-            'matchPlayer'
+            'matchPlayer',
+            'matchIsPendingAcceptance'
         ));
     }
 
@@ -316,7 +331,7 @@ class QueueHubController extends Controller
                 ->first();
 
             if ($playerQueue?->match_id) {
-                return redirect()->route('queue.index', ['mode' => $arenaMode])
+                return redirect()->route('lobby', ['mode' => $arenaMode])
                     ->with('success', $player->character_name . ' entro a cola y ya tiene un match real.');
             }
 
@@ -971,16 +986,9 @@ class QueueHubController extends Controller
             return back()->withErrors(['error' => 'Debes crear al menos un bot de prueba.']);
         }
 
-        if ($request->boolean('replace_existing', true)) {
-            $mixedMatches = $this->collectMixedSandboxMatches($testingLabService->testPlayerIds(), $testingLabService);
-
-            if ($mixedMatches->isNotEmpty()) {
-                return back()->withErrors([
-                    'error' => 'No puedes regenerar reemplazando el sandbox mientras existan matches mixtos con personajes reales.',
-                ]);
-            }
-        }
-
+        // Regenerar reemplazando ya no se bloquea por tener enfrentamientos
+        // mixtos: seedRoster limpia el rastro entero antes de crear, y esa
+        // limpieza devuelve a los jugadores reales los puntos de las pruebas.
         $createdPlayers = $testingLabService->seedRoster([
             'ignis' => (int) $validated['ignis_count'],
             'syrtis' => (int) $validated['syrtis_count'],
@@ -1372,44 +1380,64 @@ class QueueHubController extends Controller
         return back()->with('success', 'Se resolvieron ' . $resolved . ' matches del sandbox integrado.');
     }
 
+    /**
+     * Deja los bots a cero sin borrarlos, y quita todo lo que jugaron.
+     *
+     * Ya no se niega cuando hay enfrentamientos mixtos: probar el flujo de
+     * verdad obliga a jugar con tu propio personaje, asi que siempre habia
+     * alguno y el boton no servia nunca. Lo que se hace ahora es deshacer los
+     * puntos que esas pruebas repartieron.
+     */
     public function sandboxReset(TestingLabService $testingLabService)
     {
         $this->ensureSandboxAccess();
 
-        $botPlayerIds = $testingLabService->testPlayerIds();
-        $mixedActiveMatches = $this->collectMixedSandboxMatches(
-            $botPlayerIds,
-            $testingLabService,
-            ['pending_acceptance', 'accepted', 'in_progress']
-        );
+        $result = $testingLabService->purgeTrace(false);
 
-        if ($mixedActiveMatches->isNotEmpty()) {
-            return back()->withErrors([
-                'error' => 'Hay matches activos entre bots y personajes reales. Resuelvelos o cancelalos antes de resetear el sandbox.',
-            ]);
-        }
-
-        $result = $testingLabService->purge(false, true);
-
-        return back()->with('success', 'Sandbox reseteado. ' . $result['queues_deleted'] . ' colas, ' . $result['matches_deleted'] . ' matches bot-only y ' . $result['players_reset'] . ' bots quedaron listos.');
+        return back()->with('success', $this->describePurge('Laboratorio reiniciado.', $result));
     }
 
+    /** Lo mismo, pero ademas se lleva por delante a los bots y sus cuentas. */
     public function sandboxDestroy(TestingLabService $testingLabService)
     {
         $this->ensureSandboxAccess();
 
-        $botPlayerIds = $testingLabService->testPlayerIds();
-        $mixedMatches = $this->collectMixedSandboxMatches($botPlayerIds, $testingLabService);
+        $result = $testingLabService->purgeTrace(true);
 
-        if ($mixedMatches->isNotEmpty()) {
-            return back()->withErrors([
-                'error' => 'No se puede eliminar el sandbox mientras existan matches mixtos con personajes reales. Usa un personaje de pruebas dedicado o limpia primero ese historial manualmente.',
-            ]);
+        return back()->with('success', $this->describePurge('Rastro de pruebas eliminado.', $result));
+    }
+
+    /** Un resumen honesto de lo que se ha borrado y de lo que se ha devuelto. */
+    private function describePurge(string $headline, array $result): string
+    {
+        $parts = [];
+
+        if ($result['matches_deleted'] > 0) {
+            $parts[] = $result['matches_deleted'] . ' enfrentamientos';
+        }
+        if ($result['queues_deleted'] > 0) {
+            $parts[] = $result['queues_deleted'] . ' colas';
+        }
+        if ($result['players_deleted'] > 0) {
+            $parts[] = $result['players_deleted'] . ' bots';
+        }
+        if ($result['evidence_deleted'] > 0) {
+            $parts[] = $result['evidence_deleted'] . ' capturas';
         }
 
-        $result = $testingLabService->purge(true, false);
+        $message = $headline;
 
-        return back()->with('success', 'Sandbox eliminado. ' . $result['users_deleted'] . ' usuarios bot y ' . $result['players_deleted'] . ' personajes de prueba fueron removidos.');
+        if ($parts !== []) {
+            $message .= ' Se borraron ' . implode(', ', $parts) . '.';
+        }
+
+        if ($result['real_players_restored'] > 0) {
+            $message .= ' A ' . $result['real_players_restored'] . ' personaje(s) real(es) se les devolvieron '
+                . number_format(abs($result['pl_reverted']), 1) . ' PL y '
+                . abs($result['mmr_reverted']) . ' MMR de las pruebas.';
+        }
+
+        return $message;
     }
 
     private function buildSandboxData(
@@ -1554,25 +1582,6 @@ class QueueHubController extends Controller
         return $playerIds->first();
     }
 
-    private function collectMixedSandboxMatches(
-        Collection $botPlayerIds,
-        TestingLabService $testingLabService,
-        array $statuses = []
-    ): Collection {
-        if ($botPlayerIds->isEmpty()) {
-            return collect();
-        }
-
-        $matches = $testingLabService->collectMatchesInvolvingPlayers($botPlayerIds, 120)
-            ->filter(fn (ArenaMatch $match) => !$testingLabService->matchUsesOnlyPlayerPool($match, $botPlayerIds))
-            ->values();
-
-        if ($statuses === []) {
-            return $matches;
-        }
-
-        return $matches->whereIn('status', $statuses)->values();
-    }
 
 
     private function isSandboxPlayer(Player $player, TestingLabService $testingLabService): bool

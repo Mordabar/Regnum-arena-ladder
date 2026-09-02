@@ -88,9 +88,9 @@ function duelScenario(string $status = 'pending_acceptance'): array
 it('el aviso de cruce sale sobre la cola, sin abrir otra pagina', function () {
     $s = duelScenario();
 
-    $this->actingAs($s['mine']->user)->get(route('queue.index'))
+    $this->actingAs($s['mine']->user)->get(route('lobby'))
         ->assertOk()
-        ->assertSee('data-duel-overlay', false)
+        ->assertSee('data-duel-panel', false)
         ->assertSee('¡Combate encontrado!')
         ->assertSee('ARENA-4242')
         ->assertSee('Zona 1 - Frozen Bridge');
@@ -101,7 +101,7 @@ it('el aviso respeta el anonimato del rival', function () {
     // no, hasta que termina el enfrentamiento.
     $s = duelScenario();
 
-    $response = $this->actingAs($s['mine']->user)->get(route('queue.index'));
+    $response = $this->actingAs($s['mine']->user)->get(route('lobby'));
 
     $response->assertSee('Nyxaria')
         ->assertSee('Selharil')
@@ -121,7 +121,7 @@ it('aceptar desde el aviso deja al jugador en la cola', function () {
             'player_id' => $s['mine']->id,
             'from' => 'queue',
         ])
-        ->assertRedirect(route('queue.index', ['mode' => '2v2']));
+        ->assertRedirect(route('lobby', ['mode' => '2v2']));
 
     expect(Queue::where('player_id', $s['mine']->id)->first()->status)->toBe('accepted');
 });
@@ -142,7 +142,7 @@ it('quien ya acepto ve a quien falta, no otro boton de aceptar', function () {
     $s = duelScenario();
     Queue::where('player_id', $s['mine']->id)->update(['status' => 'accepted']);
 
-    $this->actingAs($s['mine']->user)->get(route('queue.index'))
+    $this->actingAs($s['mine']->user)->get(route('lobby'))
         ->assertOk()
         ->assertSee('Esperando a los demás')
         // Ojo con buscar "data-duel-accept" a secas: el contador de aceptados
@@ -154,9 +154,9 @@ it('quien ya acepto ve a quien falta, no otro boton de aceptar', function () {
 it('no hay aviso cuando el cruce ya arranco', function () {
     $s = duelScenario('in_progress');
 
-    $this->actingAs($s['mine']->user)->get(route('queue.index'))
+    $this->actingAs($s['mine']->user)->get(route('lobby'))
         ->assertOk()
-        ->assertDontSee('data-duel-overlay', false);
+        ->assertDontSee('data-duel-panel', false);
 });
 
 it('no hay aviso cuando el cruce ya expiro', function () {
@@ -165,9 +165,9 @@ it('no hay aviso cuando el cruce ya expiro', function () {
     $s = duelScenario();
     $s['match']->update(['expires_at' => now()->subMinute()]);
 
-    $this->actingAs($s['mine']->user)->get(route('queue.index'))
+    $this->actingAs($s['mine']->user)->get(route('lobby'))
         ->assertOk()
-        ->assertDontSee('data-duel-overlay', false);
+        ->assertDontSee('data-duel-panel', false);
 });
 
 it('se puede aceptar y rechazar sin javascript', function () {
@@ -175,7 +175,7 @@ it('se puede aceptar y rechazar sin javascript', function () {
     // no ejecuta scripts, el jugador no se queda atrapado en el aviso.
     $s = duelScenario();
 
-    $html = $this->actingAs($s['mine']->user)->get(route('queue.index'))->getContent();
+    $html = $this->actingAs($s['mine']->user)->get(route('lobby'))->getContent();
 
     expect($html)->toContain('action="' . route('matches.accept') . '"')
         ->and($html)->toContain('action="' . route('matches.reject') . '"')

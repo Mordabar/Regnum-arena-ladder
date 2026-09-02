@@ -669,6 +669,15 @@
             color: var(--arena-gold);
             font-variant-numeric: tabular-nums;
         }
+        .arena-roster-lock {
+            display: block;
+            margin-top: 3px;
+            font-size: 9.5px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #e0888a;
+            font-weight: 600;
+        }
         .arena-roster-empty {
             justify-content: center;
             color: var(--arena-muted);
@@ -856,6 +865,153 @@
             .arena-duel-foot { padding: 14px 16px 18px; }
         }
 
+        /* ── Panel de combate en el sitio ──────────────────────────────────
+           El cruce y el combate vivian en una capa a pantalla completa. Un
+           combate no es una interrupcion de lo que estabas haciendo: ES lo que
+           estabas haciendo, asi que ocupa su sitio en la columna, con el mismo
+           lenguaje (anillo, alineaciones, figuras) en las tres fases: aceptar,
+           pelear y reportar. */
+        .arena-duel-panel {
+            border: 1px solid var(--arena-line-strong);
+            border-radius: 20px;
+            overflow: hidden;
+            background: linear-gradient(180deg, rgba(32, 22, 17, 0.96), rgba(14, 10, 7, 0.97));
+            box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42);
+            animation: arenaDuelPop 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+            /* La franja de la izquierda dice de un vistazo en que fase estas
+               sin tener que leer el titulo. */
+            border-left: 4px solid var(--arena-gold);
+        }
+        .arena-duel-panel.is-waiting { border-left-color: var(--arena-ice); }
+        .arena-duel-panel.is-live { border-left-color: var(--arena-emerald, #5faE6a); }
+
+        .arena-duel-panel-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 20px 22px 16px;
+            border-bottom: 1px solid var(--arena-line);
+        }
+        .arena-duel-panel-title {
+            margin: 6px 0 0;
+            font-size: clamp(20px, 2.6vw, 26px);
+            font-weight: 700;
+            color: var(--arena-gold-soft);
+            text-wrap: balance;
+        }
+        .arena-duel-panel-sub {
+            margin: 6px 0 0;
+            max-width: 52ch;
+            font-size: 13.5px;
+            color: var(--arena-muted);
+        }
+
+        .arena-duel-clock { position: relative; width: 78px; flex: none; text-align: center; }
+        .arena-duel-clock svg { transform: rotate(-90deg); display: block; margin: 0 auto; }
+        .arena-duel-clock circle { fill: none; stroke-width: 5; stroke-linecap: round; }
+        .arena-duel-clock .bg { stroke: rgba(222, 185, 99, 0.14); }
+        .arena-duel-clock .fg {
+            stroke: var(--arena-gold);
+            transition: stroke-dashoffset 0.95s linear, stroke 0.3s ease;
+        }
+        .arena-duel-clock.is-urgent .fg { stroke: #c4553f; }
+        .arena-duel-clock b {
+            position: absolute;
+            inset: 0 0 auto;
+            height: 70px;
+            display: grid;
+            place-items: center;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--arena-gold-soft);
+            font-variant-numeric: tabular-nums;
+        }
+        .arena-duel-clock.is-urgent b { color: #e8927c; }
+        /* El reloj de la cola cuenta hacia arriba: no hay anillo que llenar,
+           asi que el numero se coloca solo. */
+        .arena-duel-clock.is-elapsed b { position: static; height: auto; display: block; }
+        .arena-duel-clock-note {
+            display: block;
+            margin-top: 6px;
+            font-size: 10.5px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--arena-muted);
+        }
+
+        .arena-duel-panel .arena-duel-lineups { padding: 18px 22px; }
+        .arena-duel-portrait {
+            width: 56px;
+            flex: none;
+            border-radius: 10px;
+            border: 1px solid var(--arena-line);
+            background: rgba(0, 0, 0, 0.45);
+        }
+        .arena-duel-portrait::after { display: none; }
+
+        .arena-duel-panel-foot {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 0 22px 20px;
+        }
+        .arena-duel-panel-foot .arena-duel-zone { flex: 1 1 240px; justify-content: flex-start; gap: 10px; }
+        .arena-duel-panel-foot .arena-duel-zone-value { margin: 0; font-size: 14px; }
+        .arena-duel-zone-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid rgba(222, 185, 99, 0.3);
+            background: rgba(222, 185, 99, 0.1);
+            border-radius: 9px;
+            padding: 5px 10px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        .arena-duel-zone-btn:hover { background: rgba(222, 185, 99, 0.2); }
+        .arena-duel-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+
+        .arena-queue-body {
+            display: grid;
+            grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
+            gap: 18px;
+            padding: 18px 22px;
+            align-items: start;
+        }
+        .arena-queue-portrait { border-radius: 14px; }
+        .arena-queue-pulse {
+            border: 1px solid var(--arena-line);
+            border-radius: 14px;
+            background: rgba(10, 7, 5, 0.6);
+            padding: 14px 16px;
+        }
+        .arena-queue-realm {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            border: 1px solid var(--arena-line);
+            border-radius: 11px;
+            padding: 8px 12px;
+        }
+
+        @media (max-width: 720px) {
+            .arena-duel-panel-head { flex-direction: column-reverse; align-items: flex-start; gap: 12px; padding: 16px 16px 14px; }
+            .arena-duel-clock { display: flex; align-items: center; gap: 10px; width: auto; text-align: left; }
+            .arena-duel-clock b { position: absolute; left: 0; width: 70px; }
+            .arena-duel-clock.is-elapsed b { position: static; width: auto; }
+            .arena-duel-clock-note { margin: 0; }
+            .arena-duel-panel .arena-duel-lineups { grid-template-columns: 1fr; padding: 16px; }
+            .arena-duel-versus { text-align: center; }
+            .arena-duel-panel-foot { padding: 0 16px 16px; }
+            .arena-duel-actions { width: 100%; }
+            .arena-duel-actions > *, .arena-duel-actions form, .arena-duel-actions button, .arena-duel-actions a { width: 100%; justify-content: center; }
+            .arena-queue-body { grid-template-columns: 1fr; padding: 16px; }
+        }
+
         /* ── Asistente de creacion ── */
         .arena-wizard-step {
             border: 1px solid var(--arena-line);
@@ -1013,13 +1169,9 @@
                             Ladder
                         </a>
                         @auth
-                            <a href="{{ route('lobby') }}" class="arena-nav-link {{ request()->routeIs('lobby') ? 'arena-nav-link-active' : '' }}">
-                                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/></svg>
-                                Lobby
-                            </a>
-                            <a href="{{ route('queue.index') }}" class="arena-nav-link relative {{ request()->routeIs('queue.*') ? 'arena-nav-link-active' : '' }}">
+                            <a href="{{ route('lobby') }}" class="arena-nav-link relative {{ request()->routeIs('lobby') ? 'arena-nav-link-active' : '' }}">
                                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
-                                Arena
+                                Lobby
                             </a>
                             <a href="{{ route('matches.index') }}" class="arena-nav-link {{ request()->routeIs('matches.*') ? 'arena-nav-link-active' : '' }}">
                                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/></svg>
@@ -1098,7 +1250,6 @@
                     <a href="{{ route('ladder.index') }}" class="arena-nav-link block w-full {{ request()->routeIs('ladder.*') ? 'arena-nav-link-active' : '' }}">Ladder</a>
                     @auth
                         <a href="{{ route('lobby') }}" class="arena-nav-link block w-full {{ request()->routeIs('lobby') ? 'arena-nav-link-active' : '' }}">Lobby</a>
-                        <a href="{{ route('queue.index') }}" class="arena-nav-link block w-full {{ request()->routeIs('queue.*') ? 'arena-nav-link-active' : '' }}">Arena</a>
                         <a href="{{ route('matches.index') }}" class="arena-nav-link block w-full {{ request()->routeIs('matches.*') ? 'arena-nav-link-active' : '' }}">Matches</a>
                         <button type="button" class="arena-btn-ghost mt-3 w-full justify-center" data-arena-alert-toggle>
                             <span class="inline-block h-2 w-2 rounded-full bg-emerald-400" data-arena-alert-indicator></span>
@@ -1663,6 +1814,73 @@
     @endif
 
     @stack('arena-map-scripts')
+    <script>
+        /* Relojes de la arena.
+           Un solo motor para los tres: el plazo para aceptar el cruce, el plazo
+           para pelear y reportar, y el tiempo que llevas en cola. El servidor ya
+           pinta el valor correcto; esto solo lo mantiene vivo, asi que sin
+           JavaScript la pagina sigue diciendo algo cierto. */
+        (function () {
+            var clocks = document.querySelectorAll('[data-arena-clock]');
+            if (!clocks.length) { return; }
+
+            var reloaded = false;
+            // Solo se recarga si el reloj llega a cero MIENTRAS la pagina esta
+            // abierta. Si ya llego a cero antes de cargar, recargar solo
+            // encadenaria recargas infinitas sobre un estado que el servidor
+            // todavia no ha limpiado.
+            var startedRunning = false;
+
+            function format(total) {
+                var m = Math.floor(total / 60);
+                var s = total % 60;
+                return m + ':' + (s < 10 ? '0' : '') + s;
+            }
+
+            function tick() {
+                var now = Math.floor(Date.now() / 1000);
+
+                clocks.forEach(function (clock) {
+                    var value = clock.querySelector('[data-clock-value]');
+                    if (!value) { return; }
+
+                    var since = parseInt(clock.dataset.clockSince || '0', 10);
+                    if (since) {
+                        value.textContent = format(Math.max(0, now - since));
+                        return;
+                    }
+
+                    var expires = parseInt(clock.dataset.clockExpires || '0', 10);
+                    if (!expires) { return; }
+
+                    var left = Math.max(0, expires - now);
+                    var total = Math.max(1, parseInt(clock.dataset.clockTotal || '300', 10));
+                    var urgentAt = parseInt(clock.dataset.clockUrgent || '20', 10);
+
+                    value.textContent = format(left);
+                    clock.classList.toggle('is-urgent', left <= urgentAt);
+
+                    var arc = clock.querySelector('[data-clock-arc]');
+                    if (arc) {
+                        var circumference = parseFloat(arc.style.strokeDasharray) || 0;
+                        arc.style.strokeDashoffset = (circumference * (1 - Math.min(1, left / total))).toFixed(2);
+                    }
+
+                    // Al agotarse, el servidor ya ha decidido: se recarga una vez
+                    // para ensenar lo que paso en vez de un reloj clavado en cero.
+                    if (left > 0) { startedRunning = true; }
+
+                    if (left === 0 && startedRunning && clock.dataset.clockReload === '1' && !reloaded) {
+                        reloaded = true;
+                        window.setTimeout(function () { window.location.reload(); }, 1500);
+                    }
+                });
+            }
+
+            tick();
+            window.setInterval(tick, 1000);
+        })();
+    </script>
     @stack('scripts')
 </body>
 </html>

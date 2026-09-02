@@ -5,7 +5,7 @@
 @section('page-subtitle', 'Bots para ensayar el flujo completo sin esperar a que haya gente en cola')
 
 @section('page-actions')
-    <a href="{{ route('queue.index') }}" class="ap-btn ap-btn-sm ap-btn-quiet" target="_blank" rel="noopener">Abrir la cola real</a>
+    <a href="{{ route('lobby') }}" class="ap-btn ap-btn-sm ap-btn-quiet" target="_blank" rel="noopener">Abrir la cola real</a>
 @endsection
 
 @section('content')
@@ -203,16 +203,27 @@
 
             <div class="ap-actions-group ap-actions-danger">
                 <p class="ap-actions-title" style="color: var(--ap-danger)">Limpiar</p>
+                <p class="ap-section-note" style="margin: 0 0 8px">
+                    Las dos opciones borran los enfrentamientos de prueba, tambien los que
+                    jugaste con tu propio personaje, y le devuelven los puntos que ganó o
+                    perdió en ellos.
+                </p>
                 <div class="flex flex-wrap gap-2">
                     <form method="POST" action="{{ route('admin.testing.reset') }}"
-                          data-ap-confirm="Se sacan los bots de la cola y se cancelan sus partidas sin repartir puntos.">
+                          data-ap-confirm="Se borran las partidas y las colas de prueba, y los bots vuelven a cero. Los bots siguen existiendo. ¿Seguir?">
                         @csrf
-                        <button type="submit" class="ap-btn ap-btn-sm">Vaciar el estado</button>
+                        <button type="submit" class="ap-btn ap-btn-sm">
+                            <x-admin.icon name="refresh" class="h-4 w-4" />
+                            Vaciar el estado
+                        </button>
                     </form>
                     <form method="POST" action="{{ route('admin.testing.destroy') }}"
-                          data-ap-confirm="Se borran los bots de prueba. No se borra nada si alguno comparte partida con un personaje real.">
+                          data-ap-confirm="Se borra TODO el rastro de las pruebas: bots, sus cuentas, sus partidas, los reportes y las capturas subidas. A los personajes reales se les devuelven los puntos de esas partidas. ¿Seguir?">
                         @csrf
-                        <button type="submit" class="ap-btn ap-btn-sm ap-btn-danger">Borrar los bots</button>
+                        <button type="submit" class="ap-btn ap-btn-sm ap-btn-danger">
+                            <x-admin.icon name="trash" class="h-4 w-4" />
+                            Borrar todo el rastro
+                        </button>
                     </form>
                 </div>
             </div>

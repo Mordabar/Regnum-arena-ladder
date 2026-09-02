@@ -253,11 +253,11 @@
                     <h2 class="text-xl font-bold text-rose-300">Encuentro Cancelado</h2>
                     <p class="mt-1 text-sm text-rose-200/80 arena-body-text">El combate se deshizo porque alguien se ausentó o rechazó. Serás redirigido al lobby...</p>
                 </div>
-                <a href="{{ route('queue.index') }}" class="arena-btn-danger mt-3 sm:mt-0 whitespace-nowrap">Volver al Lobby</a>
+                <a href="{{ route('lobby') }}" class="arena-btn-danger mt-3 sm:mt-0 whitespace-nowrap">Volver al Lobby</a>
             </div>
             <script>
                 setTimeout(() => {
-                    window.location.href = '{{ route('queue.index') }}';
+                    window.location.href = '{{ route('lobby') }}';
                 }, 3500);
             </script>
         </section>

@@ -133,6 +133,28 @@ class PlayerController extends Controller
             return redirect()->route('lobby')->with('error', 'No puedes eliminar tu ultimo personaje');
         }
 
+        // Con un enfrentamiento vivo no se borra: los demas ya cuentan con el
+        // para pelear, y dejarlo desaparecer a media partida rompe el cruce.
+        $liveQueue = \App\Models\Queue::query()
+            ->where('player_id', $player->id)
+            ->whereIn('status', ['waiting', 'matched', 'accepted'])
+            ->get();
+
+        $inMatch = $liveQueue->contains(fn ($queue) => (bool) $queue->match_id);
+
+        if ($inMatch) {
+            return redirect()->route('lobby')->with(
+                'error',
+                'Este personaje tiene un enfrentamiento en marcha. Termina o reporta la partida antes de eliminarlo.'
+            );
+        }
+
+        // Solo esta en cola esperando: se sale de la cola y se borra. Sin esto
+        // quedaba una fila de cola apuntando a un personaje que ya no existe.
+        if ($liveQueue->isNotEmpty()) {
+            \App\Models\Queue::query()->whereIn('id', $liveQueue->pluck('id'))->delete();
+        }
+
         $characterName = $player->character_name;
 
         if ($player->matches_played > 0) {

@@ -285,7 +285,7 @@ it('la pagina de cola cae a una modalidad activa si piden una apagada', function
     $player = makeModePlayer('view-fallback', 'ignis');
 
     $this->actingAs($player->user)
-        ->get(route('queue.index', ['mode' => '3v3']))
+        ->get(route('lobby', ['mode' => '3v3']))
         ->assertOk()
         ->assertSee('Arena 2v2');
 });

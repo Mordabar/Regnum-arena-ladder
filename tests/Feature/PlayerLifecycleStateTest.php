@@ -269,3 +269,64 @@ it('el backfill reetiqueta a los que quedaron marcados como INACTIVO', function 
         ->and($apagado->fresh()->deactivated_reason)->toBe(Player::DEACTIVATED_BY_ADMIN)
         ->and($apagado->fresh()->character_name)->toBe('PorAdmin');
 });
+
+it('salir de la cola es parte de borrar el personaje', function () {
+    // Sin esto quedaba una fila de cola apuntando a un personaje que ya no
+    // existe, y el matchmaking la seguia considerando.
+    $user = lifecycleUser('queue-delete');
+    $victim = lifecyclePlayer($user, 'EnCola');
+    lifecyclePlayer($user, 'Suplente');
+
+    \App\Models\Queue::create([
+        'player_id' => $victim->id,
+        'queue_type' => 'random',
+        'arena_mode' => '2v2',
+        'status' => 'waiting',
+        'estimated_mmr' => $victim->mmr,
+        'joined_at' => now(),
+        'expires_at' => now()->addMinutes(30),
+    ]);
+
+    $this->actingAs($user)->delete(route('player.destroy', $victim));
+
+    expect(\App\Models\Queue::where('player_id', $victim->id)->count())->toBe(0)
+        ->and(\App\Models\Player::find($victim->id))->toBeNull();
+});
+
+it('no se borra un personaje con enfrentamiento en marcha', function () {
+    $user = lifecycleUser('match-delete');
+    $victim = lifecyclePlayer($user, 'Peleando');
+    lifecyclePlayer($user, 'Reserva');
+
+    $match = \App\Models\ArenaMatch::create([
+        'match_code' => 'LOCK-1',
+        'report_token' => 'LOCKTOK1',
+        'queue_mode' => 'random',
+        'arena_mode' => '2v2',
+        'team_a_realm' => $victim->realm,
+        'team_b_realm' => 'alsius',
+        'team_a' => [['player_id' => $victim->id, 'character_name' => $victim->character_name, 'subclass' => $victim->subclass, 'realm' => $victim->realm, 'discord_id' => (string) $user->id]],
+        'team_b' => [],
+        'zone' => 'frozen_bridge',
+        'status' => 'in_progress',
+        'estimated_mmr_avg' => 1000,
+        'player_count' => 2,
+        'expires_at' => now()->addMinutes(20),
+    ]);
+
+    \App\Models\Queue::create([
+        'player_id' => $victim->id,
+        'queue_type' => 'random',
+        'arena_mode' => '2v2',
+        'status' => 'accepted',
+        'match_id' => (string) $match->id,
+        'estimated_mmr' => $victim->mmr,
+        'joined_at' => now(),
+        'expires_at' => now()->addMinutes(20),
+    ]);
+
+    $this->actingAs($user)->delete(route('player.destroy', $victim))
+        ->assertSessionHas('error');
+
+    expect(\App\Models\Player::find($victim->id))->not->toBeNull();
+});

@@ -125,7 +125,7 @@ it('la pagina de cola muestra el recuento por reino a quien esta esperando', fun
     pulseWaiting(pulsePlayer('b', 'syrtis'));
     pulseWaiting(pulsePlayer('c', 'syrtis'));
 
-    $response = $this->actingAs($player->user)->get(route('queue.index'));
+    $response = $this->actingAs($player->user)->get(route('lobby'));
 
     $response->assertOk()
         ->assertSee('data-queue-pulse-total', false)

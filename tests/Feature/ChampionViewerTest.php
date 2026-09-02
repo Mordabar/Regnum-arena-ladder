@@ -39,7 +39,7 @@ it('el lobby monta el visor con el reino y la subclase del guerrero', function (
     $this->actingAs($user)->get(route('lobby'))
         ->assertOk()
         ->assertSee('data-champion-viewer', false)
-        ->assertSee('data-champion-id="lobby-stage"', false)
+        ->assertSee('data-champion-id="hub-stage"', false)
         ->assertSee('data-champion-realm="alsius"', false)
         ->assertSee('data-champion-subclass="conjurer"', false);
 });
@@ -52,7 +52,7 @@ it('sin guerreros el lobby no monta ningun visor', function () {
     $this->actingAs(viewerUser('b'))->get(route('lobby'))
         ->assertOk()
         ->assertDontSee('class="arena-champion', false)
-        ->assertDontSee('lobby-stage', false)
+        ->assertDontSee('hub-stage', false)
         ->assertSee('Crear mi primer guerrero');
 });
 
@@ -120,7 +120,7 @@ it('la cola muestra en 3d al guerrero que esta esperando', function () {
         'expires_at' => now()->addMinutes(30),
     ]);
 
-    $this->actingAs($user)->get(route('queue.index'))
+    $this->actingAs($user)->get(route('lobby'))
         ->assertOk()
         ->assertSee('data-champion-id="queue-stage"', false)
         ->assertSee('data-champion-realm="syrtis"', false)

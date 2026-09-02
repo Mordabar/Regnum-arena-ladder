@@ -1,6 +1,6 @@
 {{--
     x-arena-state-poller
-    Encapsulates the shared state polling used by queue/index_v3 and matches/show_v3.
+    Encapsulates the shared state polling used by arena/hub y matches/show_v3.
 
     Props:
       :active   (bool)   - Whether polling should be initialized. Renders nothing when false.

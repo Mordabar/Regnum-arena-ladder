@@ -5,7 +5,6 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ArenaMatchController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\LadderController;
-use App\Http\Controllers\LobbyController;
 use App\Http\Controllers\PlayerController;
 use App\Http\Controllers\QueueHubController;
 use Illuminate\Support\Facades\Route;
@@ -24,7 +23,6 @@ Route::get('/auth/discord', [AuthController::class, 'redirectToDiscord'])->name(
 Route::get('/auth/discord/callback', [AuthController::class, 'handleDiscordCallback'])->name('auth.discord.callback');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-Route::get('/lobby', [LobbyController::class, 'index'])->middleware('auth')->name('lobby');
 Route::get('/ladder', [LadderController::class, 'index'])->name('ladder.index');
 Route::get('/ladder/player/{player}', [LadderController::class, 'show'])->name('ladder.show');
 
@@ -34,7 +32,15 @@ Route::put('/player/{player}/update', [PlayerController::class, 'update'])->name
 Route::delete('/player/{player}', [PlayerController::class, 'destroy'])->name('player.destroy');
 
 Route::middleware(['auth', 'arena.maintenance'])->group(function () {
-    Route::get('/queue', [QueueHubController::class, 'index'])->name('queue.index');
+    // El lobby y la arena eran dos paginas que ensenaban lo mismo, y desde el
+    // lobby "Pelear" llevaba a la otra en vez de a la cola. Ahora son una: se
+    // elige guerrero y se entra a combatir en la misma pantalla.
+    Route::get('/lobby', [QueueHubController::class, 'index'])->name('lobby');
+
+    // /queue sigue existiendo por los enlaces viejos, pero solo apunta al lobby.
+    Route::get('/queue', function (\Illuminate\Http\Request $request) {
+        return redirect()->route('lobby', array_filter(['mode' => $request->query('mode')]));
+    })->name('queue.index');
     Route::get('/matches', [ArenaMatchController::class, 'index'])->name('matches.index');
     Route::get('/matches/{match}', [ArenaMatchController::class, 'show'])
         ->whereNumber('match')
@@ -110,6 +116,7 @@ Route::prefix('/' . $arenaAdminPath)->group(function () {
         });
     });
 });
+
 
 
 
