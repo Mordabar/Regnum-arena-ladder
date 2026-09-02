@@ -783,7 +783,15 @@
         .arena-console-tool.is-danger:hover { border-color: rgba(200, 90, 80, 0.5); color: #e8927c; }
         .arena-console-tool.is-muted { cursor: default; color: var(--arena-muted); }
 
-        .arena-console-ident { position: absolute; inset-inline: 20px; bottom: 18px; }
+        /* El nombre ocupa solo su mitad: estirado de lado a lado tapaba el
+           selector de modo y no dejaba pulsarlo. */
+        .arena-console-ident {
+            position: absolute;
+            left: 20px;
+            right: 20px;
+            bottom: 18px;
+            max-width: min(55%, 420px);
+        }
 
         /* El selector de modo, sobre la figura. */
         .arena-console-modes {
@@ -873,7 +881,7 @@
             .arena-console-tools { top: 10px; left: 10px; }
             .arena-console-tool span { display: none; }
             .arena-console-tool { padding: 8px; }
-            .arena-console-ident { inset-inline: 14px; bottom: 62px; }
+            .arena-console-ident { left: 14px; right: 14px; bottom: 70px; max-width: none; }
             /* En movil el selector no cabe al lado del nombre: va debajo, a lo
                ancho, y el nombre sube. */
             .arena-console-modes { left: 14px; right: 14px; bottom: 14px; }

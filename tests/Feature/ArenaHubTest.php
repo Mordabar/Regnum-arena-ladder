@@ -228,3 +228,30 @@ it('un guerrero de otro usuario no se puede colar por la url', function () {
         ->assertSee('value="' . $mio->id . '"', false)
         ->assertDontSee('Ajeno');
 });
+
+it('el modo se elige sobre la figura y la premade arranca con ese guerrero', function () {
+    // Elegir personaje pasaba dos veces y armar party pedia elegirlo una
+    // tercera. Ahora el rail manda sobre las tres cosas.
+    $user = hubUser('modos');
+    $primero = hubPlayer($user, 'Lider', 'syrtis', 'knight');
+    hubPlayer($user, 'Companiera', 'syrtis', 'conjurer');
+
+    $this->actingAs($user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('class="arena-console-modes"', false)
+        ->assertSee('id="tabBtnPremade"', false)
+        ->assertSee('data-party-leader-select', false)
+        // El lider viene marcado con el guerrero del escenario.
+        ->assertSee('value="' . $primero->id . '"' . "\n" . '                                        data-user', false);
+});
+
+it('las reglas se abren en una ventana, no ocupan sitio todo el rato', function () {
+    $user = hubUser('reglas');
+    hubPlayer($user, 'Curiosa');
+
+    $this->actingAs($user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('Ver reglas de juego')
+        ->assertSee('id="modal-arena-rules"', false)
+        ->assertSee('el enfrentamiento se anula y no reparte puntos');
+});
