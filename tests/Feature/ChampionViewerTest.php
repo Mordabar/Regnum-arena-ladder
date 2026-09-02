@@ -140,8 +140,10 @@ it('el visor se sirve desde este dominio, nunca desde un CDN', function () {
         ->and($module)->not->toContain('jsdelivr')
         ->and($module)->toContain("'/js/three.min.js'");
 
-    $layout = file_get_contents(resource_path('views/layouts/arena.blade.php'));
-    expect($layout)->toContain("asset('js/arena-champion.js')");
+    // El arranque vive en el componente, no en el layout: asi una pagina
+    // publica con visor tambien lo carga, y una sin visor no paga nada.
+    $component = file_get_contents(resource_path('views/components/arena-champion.blade.php'));
+    expect($component)->toContain("asset('js/arena-champion.js')");
 });
 
 it('el listado de modelos solo nombra los archivos que existen de verdad', function () {
@@ -175,4 +177,23 @@ it('el emblema del reino se ve sin javascript y sin webgl', function () {
     // Y arranca en 'idle': el aviso de "no disponible" solo aparece cuando el
     // visor da el 3D por imposible, no mientras descarga la libreria.
     expect($html)->toContain('data-champion-state="idle"');
+});
+
+it('el ladder publico ensena en 3d al primero de cada reino', function () {
+    // El podio es publico: el arranque del visor no puede depender de tener
+    // sesion, como dependia cuando vivia en el layout.
+    $user = viewerUser('podio');
+    viewerPlayer($user, 'Reina', 'alsius', 'warlock')->update(['pl_points' => 500]);
+
+    $this->get(route('ladder.index'))
+        ->assertOk()
+        ->assertSee('data-champion-id="podium-alsius"', false)
+        ->assertSee('js/arena-champion.js', false);
+});
+
+it('una pagina sin guerreros no descarga el visor', function () {
+    // Three.js son 146 KB comprimidos: una pagina sin figura no los paga.
+    $this->get(route('home'))
+        ->assertOk()
+        ->assertDontSee('js/arena-champion.js', false);
 });

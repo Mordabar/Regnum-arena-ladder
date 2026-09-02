@@ -111,6 +111,8 @@ it('las hojas y los scripts llevan version en la URL', function () {
     // vieja hasta que vacie la cache.
     $layout = file_get_contents(resource_path('views/layouts/arena.blade.php'));
 
+    $champion = file_get_contents(resource_path('views/components/arena-champion.blade.php'));
+
     expect($layout)->toContain("asset('css/site.css') }}?v=")
-        ->and($layout)->toContain("asset('js/arena-champion.js') }}?v=");
+        ->and($champion)->toContain("asset('js/arena-champion.js') }}?v=");
 });

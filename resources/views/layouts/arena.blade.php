@@ -669,6 +669,13 @@
             color: var(--arena-gold);
             font-variant-numeric: tabular-nums;
         }
+        .arena-champion-podium { display: block; }
+        .arena-champion-podium-stage {
+            border-radius: 12px;
+            border: 1px solid var(--arena-line);
+            background: rgba(0, 0, 0, 0.35);
+        }
+
         .arena-profile-portrait {
             width: 118px;
             flex: none;
@@ -1781,46 +1788,7 @@
         });
     </script>
 
-    {{-- Visores 3D.
-         El modulo solo se descarga si la pagina tiene algun visor, y el propio
-         modulo se encarga de traer Three.js. Una pagina sin guerreros no paga
-         ni un byte por esto. --}}
-    @if(auth()->check())
-        <script>
-            /* Las rutas de Three.js y del cargador de modelos, con su version.
-               El modulo las lee de aqui en vez de escribirlas a mano: asi el
-               cacheo de un ano no impide actualizar la libreria. */
-            window.arenaChampionAssets = {
-                three: "{{ asset('js/three.min.js') }}?v={{ @filemtime(public_path('js/three.min.js')) ?: '1' }}",
-                loader: "{{ asset('js/three-gltf-loader.js') }}?v={{ @filemtime(public_path('js/three-gltf-loader.js')) ?: '1' }}"
-            };
-        </script>
-        <script src="{{ asset('js/arena-champion.js') }}?v={{ @filemtime(public_path('js/arena-champion.js')) ?: '1' }}" defer></script>
-        <script>
-            /* Monta todos los [data-champion-viewer] de la pagina y los deja
-               accesibles por id para que cada vista pueda cambiarlos en vivo
-               (elegir otro personaje, cambiar de reino en el formulario...). */
-            /* Los modelos que existen se listan aqui una sola vez: el visor no
-               tiene que preguntarle al servidor por cada guerrero. */
-            window.arenaChampionModels = @json(\App\Support\ChampionModels::available());
-            window.arenaChampionViewers = {};
-            document.addEventListener('DOMContentLoaded', function () {
-                if (!window.ArenaChampion) { return; }
-                document.querySelectorAll('[data-champion-viewer]').forEach(function (host) {
-                    var canvas = host.querySelector('canvas');
-                    if (!canvas) { return; }
-                    window.arenaChampionViewers[host.dataset.championId] = window.ArenaChampion.mount(canvas, {
-                        realm: host.dataset.championRealm,
-                        subclass: host.dataset.championSubclass,
-                        race: host.dataset.championRace,
-                        gender: host.dataset.championGender,
-                        parallax: host.dataset.championParallax !== '0'
-                    });
-                });
-                document.dispatchEvent(new CustomEvent('arena:champions-ready'));
-            });
-        </script>
-    @endif
+    @stack('champion-boot')
 
     @stack('arena-map-scripts')
     <script>

@@ -75,11 +75,7 @@
             <div class="arena-card p-4 arena-animate-in arena-stagger-4">
                 <p class="arena-kicker">Posición</p>
                 <p class="mt-1 text-2xl font-semibold {{ $player->ranking_position <= 3 ? 'arena-medal-' . $player->ranking_position : 'text-white' }}">
-                    @if($player->ranking_position <= 3)
-                        {{ ['','🥇','🥈','🥉'][$player->ranking_position] }} #{{ $player->ranking_position }}
-                    @else
-                        #{{ $player->ranking_position }}
-                    @endif
+                    #{{ $player->ranking_position }}
                 </p>
             </div>
         </div>

@@ -548,7 +548,7 @@
                                 <x-arena-realm-icon :realm="$claimedWinnerRealm" size="xs" />
                                 <span class="font-semibold text-white arena-body-text">{{ \App\Models\ArenaMatch::REALMS[$claimedWinnerRealm] ?? strtoupper((string) $claimedWinnerRealm) }}</span>
                             @else
-                                <span class="font-semibold text-amber-300 arena-body-text">⚔️ Empate</span>
+                                <span class="font-semibold text-amber-300 arena-body-text">Empate</span>
                             @endif
                         </div>
                     </div>
