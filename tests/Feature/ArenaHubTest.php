@@ -240,7 +240,7 @@ it('entrar y armar grupo son dos botones, y el grupo arranca con el guerrero del
     $this->actingAs($user)->get(route('lobby'))
         ->assertOk()
         ->assertSee('Entrar a Random 2v2')
-        ->assertSee('Armar grupo premade 2v2')
+        ->assertSee('Invitar aliado 2v2')
         // Armar grupo abre una ventana de invitacion, no despliega otro
         // formulario donde volver a elegir personaje.
         ->assertSee('data-modal-open="modal-premade"', false)
@@ -257,7 +257,7 @@ it('las reglas se abren en una ventana, no ocupan sitio todo el rato', function 
 
     $this->actingAs($user)->get(route('lobby'))
         ->assertOk()
-        ->assertSee('Ver reglas de juego')
+        ->assertSee('data-modal-open="modal-arena-rules"', false)
         ->assertSee('id="modal-arena-rules"', false)
         ->assertSee('el enfrentamiento se anula y no reparte puntos');
 });
@@ -331,4 +331,45 @@ it('el editor del guerrero deja cambiar raza y sexo', function () {
         ->assertDontSee('value="molok"', false)
         ->assertSee('name="gender" value="female"', false)
         ->assertSee('El reino y la subclase no se pueden cambiar.');
+});
+
+it('la escuadra se puede abrir y cerrar como cajon, y no se ofrece durante un combate', function () {
+    // En movil colgaba del final de la pagina, visible todo el rato, tambien
+    // durante un combate en el que ya no se puede cambiar de guerrero.
+    $user = hubUser('cajon');
+    hubPlayer($user, 'Primera');
+    hubPlayer($user, 'Segunda', 'ignis', 'warlock');
+
+    $this->actingAs($user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('data-roster-rail', false)
+        ->assertSee('data-roster-open', false)
+        ->assertSee('Cambiar guerrero');
+
+    $foe = hubPlayer(hubUser('cajon-rival'), 'Rival', 'syrtis', 'knight');
+    hubLiveMatch($user->players()->first(), $foe);
+
+    $this->actingAs($user)->get(route('lobby'))
+        ->assertOk()
+        ->assertDontSee('Cambiar guerrero');
+});
+
+it('el grupo se cuenta como un lobby: primero invitas y luego se arma', function () {
+    $lider = hubPlayer(hubUser('lobby-lider'), 'Capitan', 'ignis', 'knight');
+    $aliado = hubPlayer(hubUser('lobby-aliado'), 'Aliado', 'ignis', 'hunter');
+
+    $party = \App\Models\Party::create([
+        'leader_player_id' => $lider->id,
+        'realm' => 'ignis',
+        'arena_mode' => '2v2',
+        'status' => 'forming',
+    ]);
+    \App\Models\PartyMember::create(['party_id' => $party->id, 'player_id' => $lider->id, 'is_leader' => true, 'is_accepted_invite' => true]);
+    \App\Models\PartyMember::create(['party_id' => $party->id, 'player_id' => $aliado->id, 'is_leader' => false, 'is_accepted_invite' => false]);
+
+    $this->actingAs($lider->user)->get(route('lobby'))
+        ->assertOk()
+        // Dice a quien falta por nombre, no un generico "esperando aliados".
+        ->assertSee('Invitacion enviada. Falta que Aliado la acepte.')
+        ->assertSee('Deshacer el grupo');
 });

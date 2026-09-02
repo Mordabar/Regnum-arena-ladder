@@ -98,7 +98,7 @@
                         </span>
                     @endif
                 </div>
-                <h1 class="mt-2 text-3xl font-bold text-[color:var(--arena-gold-soft)] md:text-4xl">
+                <h1 class="arena-console-title mt-2 text-3xl font-bold text-[color:var(--arena-gold-soft)] md:text-4xl">
                     @if($matchIsPendingAcceptance)
                         Cruce encontrado
                     @elseif($currentMatch)
@@ -106,10 +106,10 @@
                     @elseif($currentQueue)
                         Buscando combate…
                     @else
-                        Bienvenido, {{ auth()->user()->discord_username }}
+                        <span class="arena-hide-mobile">Bienvenido, </span>{{ auth()->user()->discord_username }}
                     @endif
                 </h1>
-                <p class="mt-2 max-w-2xl text-[color:var(--arena-sand)] arena-body-text">
+                <p class="arena-console-lede mt-2 max-w-2xl text-[color:var(--arena-sand)] arena-body-text">
                     @if($matchIsPendingAcceptance)
                         Confirma abajo antes de que se agote el reloj. Si alguien no acepta, el cruce se cancela.
                     @elseif($currentMatch)
@@ -160,10 +160,17 @@
              distancia, y las acciones del guerrero vivian en una tarjeta
              suelta entre medias. --}}
         <section class="arena-console arena-animate-in arena-stagger-1">
-            <aside class="arena-console-rail">
+            {{-- En movil este rail es un cajon: en una pantalla estrecha la
+                 escuadra entera colgaba del final de la pagina, visible todo el
+                 rato incluso durante un combate, y era la parte mas larga de un
+                 lobby que ya tenia demasiado a la vista. --}}
+            <aside class="arena-console-rail" data-roster-rail>
                 <div class="arena-console-rail-head">
                     <p class="arena-kicker">Tu escuadra</p>
                     <span class="arena-console-count">{{ $players->count() }}/5</span>
+                    <button type="button" class="arena-roster-close" data-roster-close aria-label="Cerrar la escuadra">
+                        <x-admin.icon name="close" class="h-4 w-4" />
+                    </button>
                 </div>
 
                 @if($lockedToPlayer)
@@ -354,17 +361,25 @@
                                             @csrf
                                             <button class="arena-console-action is-primary">
                                                 <x-admin.icon name="users" class="h-4 w-4" />
-                                                Entrar a Premade {{ ArenaMode::label($activePartyMode) }}
+                                                Entrar con el grupo {{ ArenaMode::label($activePartyMode) }}
                                             </button>
                                         </form>
                                     @else
+                                        @php
+                                            $sinResponder = $activeParty->members
+                                                ->filter(fn ($m) => !$m->is_accepted_invite && $m->player)
+                                                ->map(fn ($m) => $m->player->cleanName());
+                                        @endphp
                                         <p class="arena-console-actions-note">
                                             @if($partyQueued)
-                                                <span class="arena-party-dot is-live"></span> Tu party busca rival.
+                                                <span class="arena-party-dot is-live"></span> Tu grupo busca rival.
                                             @elseif(!$activePartyModeIsOpen)
-                                                <span class="arena-party-dot"></span> {{ ArenaMode::label($activePartyMode) }} esta apagada: la party espera.
+                                                <span class="arena-party-dot"></span> {{ ArenaMode::label($activePartyMode) }} esta apagada: el grupo espera.
+                                            @elseif($sinResponder->isNotEmpty())
+                                                <span class="arena-party-dot"></span>
+                                                Invitacion enviada. Falta que {{ $sinResponder->join(' y ') }} la acepte.
                                             @else
-                                                <span class="arena-party-dot"></span> Esperando a que tus aliados acepten.
+                                                <span class="arena-party-dot"></span> Esperando a tus aliados.
                                             @endif
                                         </p>
                                     @endif
@@ -372,7 +387,7 @@
                                     <form method="POST" action="{{ route('party.leave', $activeParty) }}">
                                         @csrf
                                         <button class="arena-console-action is-danger">
-                                            {{ $partyQueued ? 'Cancelar busqueda' : 'Abandonar party' }}
+                                            {{ $partyQueued ? 'Cancelar busqueda' : 'Deshacer el grupo' }}
                                         </button>
                                     </form>
                                 @else
@@ -392,7 +407,7 @@
 
                                     <button type="button" class="arena-console-action" data-modal-open="modal-premade">
                                         <x-admin.icon name="users" class="h-4 w-4" />
-                                        Armar grupo premade {{ $arenaMode }}
+                                        Invitar aliado {{ $arenaMode }}
                                     </button>
                                 @endif
                             </div>
@@ -410,10 +425,18 @@
                                     <b data-champion-name>{{ $featured?->cleanName() }}</b>
                                     <span data-champion-subclass-name>{{ $featured ? (PlayerModel::SUBCLASSES[$featured->subclass] ?? $featured->subclass) : '' }}</span>
                                 </p>
-                                <button type="button" class="arena-btn-ghost px-4 py-2 text-sm" data-modal-open="modal-arena-rules">
-                                    <x-admin.icon name="sliders" class="h-4 w-4" />
-                                    Ver reglas de juego
-                                </button>
+                                <div class="arena-console-foot-actions">
+                                    @unless($lockedToPlayer)
+                                        <button type="button" class="arena-btn-ghost px-4 py-2 text-sm arena-roster-open" data-roster-open>
+                                            <x-admin.icon name="users" class="h-4 w-4" />
+                                            Cambiar guerrero
+                                        </button>
+                                    @endunless
+                                    <button type="button" class="arena-btn-ghost px-4 py-2 text-sm" data-modal-open="modal-arena-rules">
+                                        <x-admin.icon name="sliders" class="h-4 w-4" />
+                                        Reglas
+                                    </button>
+                                </div>
                             </div>
                         @endif
                     </div>
@@ -430,6 +453,7 @@
 
                 @include('arena._join')
             </div>
+            <div class="arena-roster-scrim" data-roster-close hidden></div>
         </section>
 
         {{-- Los formularios de nombre y borrado, fuera del panel para que sus
@@ -603,6 +627,34 @@
             // elegir, y ese bloque vive en otro archivo.
             document.dispatchEvent(new CustomEvent('arena:champion-changed', { detail: { id: id } }));
         }
+
+        /* El cajon de la escuadra en movil. En escritorio el rail siempre se
+           ve y estas clases no pintan nada. */
+        (function () {
+            var rail = document.querySelector('[data-roster-rail]');
+            var scrim = document.querySelector('.arena-roster-scrim');
+            if (!rail) { return; }
+
+            var abrir = function (open) {
+                rail.classList.toggle('is-open', open);
+                if (scrim) { scrim.hidden = !open; }
+                document.body.classList.toggle('arena-roster-locked', open);
+            };
+
+            document.addEventListener('click', function (event) {
+                if (event.target.closest('[data-roster-open]')) { abrir(true); return; }
+                if (event.target.closest('[data-roster-close]')) { abrir(false); }
+            });
+
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape') { abrir(false); }
+            });
+
+            // Elegir guerrero cierra el cajon: es lo que se venia a hacer.
+            rail.addEventListener('click', function (event) {
+                if (event.target.closest('[data-champion-slot]')) { abrir(false); }
+            });
+        })();
 
         slots.forEach(function (slot) {
             slot.addEventListener('click', function (event) {

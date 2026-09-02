@@ -996,6 +996,65 @@
             color: var(--arena-muted);
         }
 
+        /* Menos texto en movil: el lobby tenia demasiado a la vista y lo
+           primero que sobra es lo que ya se sabe. */
+        @media (max-width: 720px) {
+            .arena-hide-mobile { display: none; }
+            .arena-console-title { font-size: 24px; }
+            .arena-console-lede { font-size: 13.5px; }
+        }
+
+        /* ── Escuadra como cajon en movil ──────────────────────────────────
+           En una pantalla estrecha la lista entera colgaba del final de la
+           pagina, visible todo el rato incluso durante un combate, y era la
+           parte mas larga de un lobby que ya tenia demasiado a la vista. */
+        .arena-roster-close { display: none; }
+        .arena-roster-scrim { display: none; }
+        .arena-console-foot-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+        .arena-roster-open { display: none; }
+
+        @media (max-width: 900px) {
+            .arena-roster-open { display: inline-flex; }
+            .arena-console-rail {
+                position: fixed;
+                inset: auto 0 0 0;
+                z-index: 60;
+                max-height: 76vh;
+                overflow-y: auto;
+                border: 1px solid var(--arena-line-strong);
+                border-bottom: 0;
+                border-radius: 20px 20px 0 0;
+                background: linear-gradient(180deg, rgba(32, 22, 17, 0.99), rgba(14, 10, 8, 0.99));
+                box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.6);
+                transform: translateY(102%);
+                transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.05);
+                padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+            }
+            .arena-console-rail.is-open { transform: none; }
+            .arena-roster-close {
+                display: inline-grid;
+                place-items: center;
+                margin-left: auto;
+                width: 32px;
+                height: 32px;
+                border-radius: 9px;
+                border: 1px solid var(--arena-line);
+                background: rgba(0, 0, 0, 0.35);
+                color: var(--arena-muted);
+                cursor: pointer;
+            }
+            .arena-roster-scrim {
+                display: block;
+                position: fixed;
+                inset: 0;
+                z-index: 59;
+                background: rgba(5, 3, 2, 0.72);
+                backdrop-filter: blur(3px);
+            }
+            .arena-roster-scrim[hidden] { display: none; }
+            body.arena-roster-locked { overflow: hidden; }
+        }
+
         /* ── Barra de acciones del guerrero ────────────────────────────────
            Pegada al pie del escenario, como el menu de accion de un juego: lo
            que se puede hacer con el guerrero que estas viendo vive en su propio
@@ -2259,18 +2318,27 @@
             };
 
             const installUnlockListeners = () => {
-                const tryUnlock = async () => {
-                    const didUnlock = await unlock();
-                    if (didUnlock) {
-                        unlockEvents.forEach((eventName) => {
-                            document.removeEventListener(eventName, tryUnlock, true);
-                        });
+                /* Los oyentes NO se quitan tras el primer exito. En iOS el
+                   contexto se interrumpe al bloquear la pantalla, al cambiar de
+                   app o al entrar una llamada, y se queda suspendido para
+                   siempre: quien deja el movil un momento y vuelve ya no oye
+                   nada, aunque el interruptor diga "alertas activas". */
+                const tryUnlock = () => {
+                    if (!audioContext || audioContext.state !== 'running') {
+                        unlock();
                     }
                 };
 
                 unlockEvents.forEach((eventName) => {
                     document.addEventListener(eventName, tryUnlock, true);
                 });
+
+                // Volver a primer plano cuenta como oportunidad de reanudar.
+                document.addEventListener('visibilitychange', () => {
+                    if (!document.hidden) { tryUnlock(); }
+                });
+                window.addEventListener('pageshow', tryUnlock);
+                window.addEventListener('focus', tryUnlock);
             };
 
             const shouldEmit = (eventKey) => {
@@ -2364,8 +2432,20 @@
                     // aun no lo permite, los listeners de gesto lo resuelven en
                     // la siguiente interaccion sin molestar al usuario.
                     await unlock();
+
                     if (!options.silent) {
-                        arenaToast('Alertas sonoras activadas.', 'success', 3500);
+                        // Un toque de prueba al encender: es la unica forma de
+                        // saber si de verdad va a sonar. En un iPhone con el
+                        // interruptor lateral en silencio no suena nada, y eso
+                        // no lo puede saltar ninguna pagina web.
+                        playPattern('generic');
+                        arenaToast(
+                            unlocked
+                                ? 'Alertas sonoras activadas. Si no has oido el toque, revisa el interruptor de silencio del movil.'
+                                : 'Alertas activadas. Tu navegador todavia no deja sonar: toca cualquier parte de la pagina.',
+                            unlocked ? 'success' : 'warning',
+                            5000
+                        );
                     }
                 } else if (!options.silent) {
                     arenaToast('Alertas sonoras silenciadas.', 'info', 3000);

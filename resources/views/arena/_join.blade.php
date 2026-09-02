@@ -5,10 +5,12 @@
      falta. --}}
 
 @if($canJoinQueue && $modesAreOpen && !$activeParty)
-    <x-arena-modal id="modal-premade" :title="'Invitar a tu party ' . $arenaMode">
+    <x-arena-modal id="modal-premade" :title="'Invitar aliado ' . $arenaMode">
         <p class="arena-queue-hint mb-4">
             Juegas con el guerrero que tienes elegido. Busca a
-            {{ $teamSize - 1 }} companero(s) de tu reino y les llega la invitacion.
+            {{ $teamSize - 1 }} aliado(s) de tu reino y les llega la invitacion:
+            el grupo se arma cuando la acepten, y hasta entonces tu hueco y el
+            suyo se ven en el escenario.
         </p>
 
                 <form method="POST" action="{{ route('party.create') }}" class="space-y-4" id="premadeForm">
