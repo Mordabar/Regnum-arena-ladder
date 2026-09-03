@@ -200,11 +200,40 @@
 
             // El lider de la premade tambien es el guerrero del escenario:
             // armar party empezaba pidiendo elegir personaje otra vez.
+            //
+            // Y no basta con el numero: el buscador filtra companeros por el
+            // reino del lider, que sale de estos data. Sin actualizarlos, la
+            // ventana de invitacion seguia diciendo el reino del primer
+            // guerrero de la lista y buscaba en el reino equivocado.
             var leader = document.querySelector('[data-party-leader-select]');
             if (leader && leader.value !== String(id)) {
                 leader.value = String(id);
+                leader.dataset.user = c.userId;
+                leader.dataset.realm = c.realm;
+                leader.dataset.realmLabel = c.realmName;
+                leader.dataset.subclass = c.subclass;
+                leader.dataset.subclassLabel = c.subclassName;
+                leader.dataset.characterName = c.name;
                 leader.dispatchEvent(new Event('change', { bubbles: true }));
             }
+
+            // Cambiar de modalidad tiene que respetar el guerrero que se esta
+            // viendo: estos enlaces se pintaron con el de la primera carga.
+            document.querySelectorAll('.arena-console-arena').forEach(function (tab) {
+                try {
+                    var url = new URL(tab.href, window.location.origin);
+                    url.searchParams.set('player', id);
+                    tab.href = url.pathname + url.search;
+                } catch (e) { /* Sin URL valida se queda como estaba. */ }
+            });
+
+            // El reino que se lee en la ficha del lider, y su figura.
+            document.querySelectorAll('[data-leader-realm-name]').forEach(function (n) {
+                n.textContent = c.realmName;
+            });
+
+            var retrato = window.arenaChampionViewers && window.arenaChampionViewers['premade-leader'];
+            if (retrato) { retrato.set(c.realm, c.subclass, c.race, c.gender); }
 
             // El rol de conjurador depende de la subclase que se acaba de
             // elegir, y ese bloque vive en otro archivo.

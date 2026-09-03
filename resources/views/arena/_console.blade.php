@@ -76,20 +76,6 @@
             <div class="arena-console-main">
                 @if($showStage)
                     <div class="arena-console-stage">
-                        @if(count($enabledModes) > 1)
-                            {{-- La modalidad manda sobre todo lo de abajo, asi
-                                 que se elige antes de mirar al guerrero. --}}
-                            <div class="arena-console-arenas" role="tablist" aria-label="Modalidad de arena">
-                                <span class="arena-console-arenas-key">Arena</span>
-                                @foreach($enabledModes as $mode)
-                                    <a href="{{ route('lobby', ['mode' => $mode, 'player' => $featured?->id]) }}"
-                                       role="tab"
-                                       aria-selected="{{ $mode === $arenaMode ? 'true' : 'false' }}"
-                                       class="arena-console-arena {{ $mode === $arenaMode ? 'is-active' : '' }}">{{ $mode }}</a>
-                                @endforeach
-                            </div>
-                        @endif
-
                         <x-arena-champion
                             id="hub-stage"
                             :realm="$featured->realm"
@@ -99,6 +85,24 @@
                             height="clamp(300px, 40vh, 440px)">
 
                             <div class="arena-champion-overlay">
+                                @if(count($enabledModes) > 1)
+                                    {{-- La modalidad manda sobre todo lo de
+                                         abajo, asi que se elige antes de mirar
+                                         al guerrero. Va sobre la escena y no en
+                                         una barra encima: fuera del cuadro
+                                         dibujaba un segundo marco dentro del
+                                         panel, dos bordes para una sola cosa. --}}
+                                    <div class="arena-console-arenas" role="tablist" aria-label="Modalidad de arena">
+                                        <span class="arena-console-arenas-key">Arena</span>
+                                        @foreach($enabledModes as $mode)
+                                            <a href="{{ route('lobby', ['mode' => $mode, 'player' => $featured?->id]) }}"
+                                               role="tab"
+                                               aria-selected="{{ $mode === $arenaMode ? 'true' : 'false' }}"
+                                               class="arena-console-arena {{ $mode === $arenaMode ? 'is-active' : '' }}">{{ $mode }}</a>
+                                        @endforeach
+                                    </div>
+                                @endif
+
                                 {{-- Las acciones del guerrero viven con el
                                      guerrero, no en una tarjeta aparte. --}}
                                 <div class="arena-console-tools">

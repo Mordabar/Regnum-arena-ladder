@@ -295,7 +295,7 @@
             if (payload.reload || !payload.html) { return false; }
 
             const holder = document.createElement('div');
-            holder.innerHTML = (payload.head ?? '') + payload.html;
+            holder.innerHTML = (payload.head ?? '') + payload.html + (payload.invites ?? '');
 
             const fresh = holder.querySelector('.arena-console');
             if (!fresh) { return false; }
@@ -307,6 +307,12 @@
             const head = document.querySelector('[data-console-head]');
             const freshHead = holder.querySelector('[data-console-head]');
             if (head && freshHead) { head.replaceWith(freshHead); }
+
+            // Las invitaciones a party flotan fuera del panel y son la razon
+            // principal por la que el jugador esta mirando: llegan por aqui.
+            const invites = document.querySelector('[data-console-invites]');
+            const freshInvites = holder.querySelector('[data-console-invites]');
+            if (invites && freshInvites) { invites.replaceWith(freshInvites); }
 
             if (typeof window.arenaDisposeOrphanChampions === 'function') {
                 window.arenaDisposeOrphanChampions();

@@ -85,3 +85,65 @@ it('el lobby le dice al sondeo donde pedir el panel', function () {
         ->assertSee(str_replace('/', '\\/', route('lobby.console')), false)
         ->assertSee('data-console-modals', false);
 });
+
+it('la nube de invitaciones viaja con el panel', function () {
+    // El bug: llegaba una invitacion, sonaba el aviso, y la tarjeta no
+    // aparecia hasta recargar la pagina porque la nube vive fuera del panel.
+    $anfitrion = fragmentUser('e');
+    $lider = fragmentPlayer($anfitrion, 'Lider');
+
+    $invitado = fragmentUser('f');
+    $companero = fragmentPlayer($invitado, 'Companero');
+
+    $this->actingAs($anfitrion)
+        ->from(route('lobby'))
+        ->post(route('party.create'), [
+            'party_player_ids' => [$lider->id, $companero->id],
+            'party_conjurer_roles' => [null, null],
+        ])
+        ->assertRedirect(route('lobby'));
+
+    $invites = $this->actingAs($invitado)->getJson(route('lobby.console'))->assertOk()->json('invites');
+
+    expect($invites)->toContain('data-arena-invite')
+        ->and($invites)->toContain('Lider');
+});
+
+it('el hueco de las invitaciones existe aunque no haya ninguna', function () {
+    // Sin hueco no hay donde poner la que llegue: el sondeo cambia lo de
+    // dentro, no crea el contenedor.
+    $user = fragmentUser('g');
+    fragmentPlayer($user, 'Solitario');
+
+    $this->actingAs($user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('data-console-invites', false);
+
+    expect($this->actingAs($user)->getJson(route('lobby.console'))->json('invites'))
+        ->toContain('data-console-invites');
+});
+
+it('plegar una invitacion no la contesta', function () {
+    // La aspa de antes borraba la tarjeta y dejaba la invitacion viva: el
+    // jugador se quedaba sin poder contestarla y sin poder recibir otra party.
+    $anfitrion = fragmentUser('h');
+    $lider = fragmentPlayer($anfitrion, 'Anfitrion');
+
+    $invitado = fragmentUser('i');
+    $companero = fragmentPlayer($invitado, 'Invitado');
+
+    $this->actingAs($anfitrion)
+        ->from(route('lobby'))
+        ->post(route('party.create'), [
+            'party_player_ids' => [$lider->id, $companero->id],
+            'party_conjurer_roles' => [null, null],
+        ]);
+
+    $this->actingAs($invitado)->get(route('lobby'))
+        ->assertOk()
+        // Plegar es un boton del navegador, no un envio: aceptar y rechazar
+        // siguen siendo las dos unicas formas de contestar.
+        ->assertSee('data-invite-fold', false)
+        ->assertSee('data-invite-unfold', false)
+        ->assertSee(route('party.reject', ['party' => $companero->partyMembers()->first()->party_id, 'member' => $companero->partyMembers()->first()->id]), false);
+});

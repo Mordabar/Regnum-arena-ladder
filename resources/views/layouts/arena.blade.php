@@ -781,11 +781,19 @@
         .arena-console-slots { display: flex; flex-direction: column; gap: 8px; }
         .arena-roster-slot.is-locked { opacity: 0.45; pointer-events: none; }
 
-        .arena-console-main { display: flex; flex-direction: column; gap: 16px; padding: 16px; min-width: 0; }
-        .arena-console-stage { display: flex; flex-direction: column; gap: 10px; }
+        /* El escenario llega hasta el borde del panel. Con un margen alrededor
+           y un marco propio se veian dos bordes concentricos para una sola
+           cosa, y en pantalla estrecha quedaba todo pegado al borde exterior.
+           Lo que viene despues del escenario si respira. */
+        .arena-console-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+        .arena-console-main > *:not(.arena-console-stage) { margin: 0 16px; }
+        .arena-console-main > *:last-child:not(.arena-console-stage) { margin-bottom: 16px; }
+        .arena-console-stage { display: flex; flex-direction: column; }
 
         /* Las acciones del guerrero, sobre su propia figura. */
-        .arena-console-tools { position: absolute; top: 14px; left: 14px; display: flex; gap: 8px; }
+        .arena-console-tools { position: absolute; top: 62px; left: 14px; display: flex; gap: 8px; }
+        /* Sin selector de modalidad no hay nada encima: las acciones suben. */
+        .arena-champion-overlay:not(:has(.arena-console-arenas)) .arena-console-tools { top: 14px; }
         .arena-console-tools-set { display: flex; gap: 8px; }
         .arena-console-tool {
             display: inline-flex;
@@ -897,6 +905,21 @@
         .arena-invite-actions { display: flex; gap: 8px; margin-top: 11px; }
         .arena-invite-actions > * { flex: 1; }
         .arena-invite-actions button { width: 100%; justify-content: center; }
+        .arena-invite-folded {
+            display: block;
+            width: 100%;
+            margin-top: 8px;
+            padding: 7px 10px;
+            border: 1px dashed var(--arena-line-strong);
+            border-radius: 10px;
+            background: transparent;
+            color: var(--arena-sand);
+            font-size: 12px;
+            text-align: left;
+            cursor: pointer;
+        }
+        .arena-invite-folded:hover { background: rgba(255, 255, 255, 0.05); color: var(--arena-text); }
+        .arena-invite.is-folded { padding: 10px 13px; }
 
         @media (max-width: 560px) {
             .arena-invites { right: 12px; left: 12px; bottom: 12px; width: auto; }
@@ -905,14 +928,17 @@
         /* Modalidad de arena, encima del escenario: manda sobre todo lo que
            viene debajo, asi que se elige antes de mirar al guerrero. */
         .arena-console-arenas {
+            position: absolute;
+            top: 14px;
+            left: 14px;
             display: flex;
             align-items: center;
-            gap: 6px;
-            padding: 5px;
-            border-radius: 13px;
+            gap: 4px;
+            padding: 4px;
+            border-radius: 12px;
             border: 1px solid var(--arena-line);
-            background: rgba(10, 7, 5, 0.55);
-            align-self: flex-start;
+            background: rgba(8, 5, 4, 0.72);
+            backdrop-filter: blur(6px);
         }
         .arena-console-arenas-key {
             padding: 0 8px 0 6px;
@@ -1060,8 +1086,6 @@
            que se puede hacer con el guerrero que estas viendo vive en su propio
            panel, no en una tarjeta suelta mas abajo. */
         .arena-console-stage {
-            border: 1px solid var(--arena-line-strong);
-            border-radius: 18px;
             overflow: hidden;
             background: linear-gradient(180deg, rgba(30, 21, 15, 0.6), rgba(14, 10, 8, 0.75));
         }
@@ -1262,11 +1286,17 @@
                 border-right: 0;
                 border-top: 1px solid var(--arena-line);
             }
-            .arena-console-main { order: 1; padding: 14px; }
+            .arena-console-main { order: 1; }
+            .arena-console-main > *:not(.arena-console-stage) { margin: 0 14px; }
+            .arena-console-main > *:last-child:not(.arena-console-stage) { margin-bottom: 14px; }
             .arena-console .arena-champion-stats-inside { display: none; }
-            .arena-console .arena-champion-stats-outside { display: block; padding: 0 2px; }
-            .arena-console-tools { top: 10px; left: 10px; }
-            .arena-console-arenas { align-self: stretch; }
+            .arena-console .arena-champion-stats-outside { display: block; padding: 0 16px; }
+            /* La modalidad manda la esquina de arriba y las acciones se
+               apartan a la derecha: en estrecho no caben una sobre otra sin
+               taparse. */
+            .arena-console-arenas { top: 10px; left: 10px; }
+            .arena-console-tools { top: 10px; left: auto; right: 10px; }
+            .arena-champion-overlay:not(:has(.arena-console-arenas)) .arena-console-tools { top: 10px; }
             .arena-console-tool span { display: none; }
             .arena-console-tool { padding: 8px; }
             .arena-console-ident { left: 14px; right: 14px; bottom: 14px; max-width: none; }
@@ -2737,6 +2767,52 @@
                     var note = rejectForm.querySelector('textarea');
                     if (note) { note.focus(); }
                 }
+            });
+
+            /* Invitaciones a party.
+               Plegar no contesta: la invitacion sigue viva y se puede volver a
+               abrir. Antes la aspa borraba la tarjeta, y como la invitacion
+               seguia pendiente en el servidor el jugador se quedaba sin poder
+               contestarla y sin poder recibir otra party. */
+            var plegadas = new Set();
+
+            var pintarPlegado = function (card, plegada) {
+                var detalle = card.querySelector('[data-invite-detail]');
+                var resumen = card.querySelector('[data-invite-unfold]');
+                var boton = card.querySelector('[data-invite-fold]');
+
+                card.classList.toggle('is-folded', plegada);
+                if (detalle) { detalle.hidden = plegada; }
+                if (resumen) { resumen.hidden = !plegada; }
+                if (boton) {
+                    boton.hidden = plegada;
+                    boton.setAttribute('aria-expanded', plegada ? 'false' : 'true');
+                }
+            };
+
+            document.addEventListener('click', function (event) {
+                var card = event.target.closest('[data-arena-invite]');
+                if (!card) { return; }
+
+                if (event.target.closest('[data-invite-fold]')) {
+                    plegadas.add(card.dataset.inviteId);
+                    pintarPlegado(card, true);
+                    return;
+                }
+
+                if (event.target.closest('[data-invite-unfold]')) {
+                    plegadas.delete(card.dataset.inviteId);
+                    pintarPlegado(card, false);
+                }
+            });
+
+            // Tras un repintado las tarjetas son nodos nuevos: las que estaban
+            // plegadas tienen que seguir plegadas, o volverian a abrirse solas
+            // cada pocos segundos.
+            window.ArenaBoot.register(function (root) {
+                (root || document).querySelectorAll('[data-arena-invite]').forEach(function (card) {
+                    pintarPlegado(card, plegadas.has(card.dataset.inviteId));
+                });
             });
 
             /* El cruce tiene un reloj corriendo y puede aparecer con la pagina

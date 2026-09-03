@@ -65,6 +65,10 @@ class QueueHubController extends Controller
         try {
             $head = view('arena._console_head', $state)->render();
             $html = view('arena._console', $state)->render();
+            // La nube de invitaciones vive fuera del panel, pero cambia con el
+            // mismo sondeo: sin esto una invitacion nueva sonaba y no se veia
+            // hasta recargar la pagina.
+            $invites = view('components.arena-party-invites', ['invites' => $state['pendingInvites']])->render();
             $modals = $factory->yieldPushContent('arena-modals');
         } finally {
             $factory->decrementRender();
@@ -74,6 +78,7 @@ class QueueHubController extends Controller
         return response()->json([
             'head' => $head,
             'html' => $html,
+            'invites' => $invites,
             'modals' => $modals,
             'title' => $state['pageTitle'] . ' — Regnum Arena Ladder',
         ]);
@@ -290,6 +295,8 @@ class QueueHubController extends Controller
             'raceIcons' => $raceIcons,
             'championData' => $players->mapWithKeys(fn (Player $p) => [$p->id => [
                 'name' => $p->cleanName(),
+                // El buscador de companeros descarta a los del mismo usuario.
+                'userId' => $p->user_id,
                 'realm' => $p->realm,
                 'realmName' => Player::REALMS[$p->realm] ?? ucfirst($p->realm),
                 'subclass' => $p->subclass,

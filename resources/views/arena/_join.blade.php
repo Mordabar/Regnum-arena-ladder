@@ -44,7 +44,7 @@
                     <span class="min-w-0">
                         <b data-champion-name>{{ $featured?->cleanName() }}</b>
                         <span>
-                            {{ $featured ? (\App\Models\Player::REALMS[$featured->realm] ?? $featured->realm) : '' }}
+                            <span data-leader-realm-name>{{ $featured ? (\App\Models\Player::REALMS[$featured->realm] ?? $featured->realm) : '' }}</span>
                             · <span data-champion-subclass-name>{{ $featured ? (\App\Models\Player::SUBCLASSES[$featured->subclass] ?? $featured->subclass) : '' }}</span>
                         </span>
                     </span>
