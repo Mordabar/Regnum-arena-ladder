@@ -1845,6 +1845,35 @@
     $arenaAdminDisplayName = session('arena_admin.display_name', 'admin');
 @endphp
 <body class="arena-shell min-h-screen">
+    <script>
+        /* Registro de arranques.
+           El panel del lobby ya no obliga a recargar la pagina: el sondeo trae
+           su HTML y lo cambia en su sitio. Eso deja sin efecto a los scripts
+           que buscaban sus nodos una sola vez, asi que en vez de correr sueltos
+           se apuntan aqui y se vuelven a pasar sobre el trozo nuevo. Cada uno
+           tiene que poder ejecutarse dos veces sin duplicar nada. */
+        window.ArenaBoot = (function () {
+            var inits = [];
+
+            function runOne(fn, root) {
+                try { fn(root || document); } catch (error) { console.error(error); }
+            }
+
+            return {
+                register: function (fn) {
+                    inits.push(fn);
+                    if (document.readyState === 'loading') {
+                        document.addEventListener('DOMContentLoaded', function () { runOne(fn, document); });
+                    } else {
+                        runOne(fn, document);
+                    }
+                },
+                run: function (root) {
+                    inits.forEach(function (fn) { runOne(fn, root); });
+                }
+            };
+        })();
+    </script>
     {{-- ── NAVBAR ── --}}
     <nav class="arena-navbar sticky top-0 z-40" data-arena-navbar>
         <div class="mx-auto max-w-7xl px-4 py-3">
@@ -2112,6 +2141,11 @@
                     if (items.length) {
                         try { items[0].focus({ preventScroll: true }); } catch (e) { items[0].focus(); }
                     }
+                },
+                // El sondeo lo consulta: cambiar el panel debajo de una ventana
+                // abierta la haria desaparecer a media lectura.
+                isOpen() {
+                    return !!abierta;
                 },
                 close(id) {
                     const el = document.getElementById(id);
@@ -2596,6 +2630,11 @@
 
     @stack('arena-modals')
 
+    {{-- Los modales que llegan con el panel repintado. Van fuera de la consola
+         porque esta recorta lo que sobresale, y en su propio hueco para poder
+         cambiarlos sin tocar los del resto de la pagina. --}}
+    <div data-console-modals></div>
+
     @stack('champion-boot')
 
     @stack('arena-map-scripts')
@@ -2606,9 +2645,6 @@
            pinta el valor correcto; esto solo lo mantiene vivo, asi que sin
            JavaScript la pagina sigue diciendo algo cierto. */
         (function () {
-            var clocks = document.querySelectorAll('[data-arena-clock]');
-            if (!clocks.length) { return; }
-
             var reloaded = false;
             // Solo se recarga si el reloj llega a cero MIENTRAS la pagina esta
             // abierta. Si ya llego a cero antes de cargar, recargar solo
@@ -2625,7 +2661,10 @@
             function tick() {
                 var now = Math.floor(Date.now() / 1000);
 
-                clocks.forEach(function (clock) {
+                // Se consultan en cada vuelta, no una sola vez al cargar: el
+                // panel del lobby se repinta entero cuando cambia el estado y
+                // los relojes de dentro son nodos nuevos.
+                document.querySelectorAll('[data-arena-clock]').forEach(function (clock) {
                     var value = clock.querySelector('[data-clock-value]');
                     if (!value) { return; }
 
@@ -2666,6 +2705,58 @@
             window.setInterval(tick, 1000);
         })();
     </script>
+    <script>
+        /* Comportamientos del panel del lobby.
+           Viven aqui, y no en cada componente, porque el panel se repinta solo:
+           un script que llegara dentro del trozo nuevo no se ejecutaria, y uno
+           atado a los nodos viejos se iria con ellos. */
+        (function () {
+            /* Subir 3 imagenes tarda. Sin senal el jugador vuelve a pulsar y
+               manda el reporte dos veces. */
+            document.addEventListener('submit', function (event) {
+                var form = event.target.closest('[data-report-form]');
+                if (!form) { return; }
+
+                var button = form.querySelector('[data-report-submit]');
+                if (!button) { return; }
+
+                button.disabled = true;
+                button.textContent = 'Subiendo el reporte…';
+            });
+
+            /* Rechazar pide un motivo, y ese motivo no puede estar en otra
+               pagina. */
+            document.addEventListener('click', function (event) {
+                if (!event.target.closest('[data-reject-toggle]')) { return; }
+
+                var rejectForm = document.querySelector('[data-reject-form]');
+                if (!rejectForm) { return; }
+
+                rejectForm.hidden = !rejectForm.hidden;
+                if (!rejectForm.hidden) {
+                    var note = rejectForm.querySelector('textarea');
+                    if (note) { note.focus(); }
+                }
+            });
+
+            /* El cruce tiene un reloj corriendo y puede aparecer con la pagina
+               ya desplazada. Se lleva la vista hasta el y se deja el foco en
+               aceptar, sin arrastrar el scroll por el enfoque. */
+            window.ArenaBoot.register(function (root) {
+                var panel = (root || document).querySelector('section.arena-duel-panel');
+                if (!panel || panel.dataset.duelAnnounced === '1') { return; }
+
+                panel.dataset.duelAnnounced = '1';
+                panel.scrollIntoView({ block: 'center', behavior: 'smooth' });
+
+                var accept = panel.querySelector('button[data-duel-accept]');
+                if (accept) {
+                    try { accept.focus({ preventScroll: true }); } catch (error) { accept.focus(); }
+                }
+            });
+        })();
+    </script>
+
     @stack('scripts')
 </body>
 </html>

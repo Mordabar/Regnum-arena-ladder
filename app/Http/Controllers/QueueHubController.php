@@ -28,6 +28,62 @@ class QueueHubController extends Controller
             return redirect()->route('auth.discord');
         }
 
+        return view('arena.hub', $this->buildHubState($request));
+    }
+
+    /**
+     * Solo el panel del lobby, en HTML suelto.
+     *
+     * El sondeo detectaba un cambio de estado y recargaba la pagina entera: se
+     * perdia el scroll, parpadeaba todo y los escenarios 3D se volvian a
+     * descargar. Ahora pide este trozo y lo cambia en su sitio.
+     */
+    public function consoleFragment(Request $request)
+    {
+        if (!Auth::check()) {
+            abort(403);
+        }
+
+        $state = $this->buildHubState($request);
+
+        // Sin guerreros no hay panel que repintar: el hub ensena otra cosa y el
+        // navegador tiene que recargar para verla.
+        if (!$state['hasRoster']) {
+            return response()->json(['reload' => true]);
+        }
+
+        // Los modales del panel (invitar a premade, reglas de cola) se empujan a
+        // una pila que en la pagina completa vuelca el layout. Aqui no hay
+        // layout, asi que se recogen a mano y viajan aparte.
+        //
+        // El contador de renderizados se sube a mano porque al terminar el
+        // ultimo render Blade vacia las pilas: sin esto los modales llegarian
+        // siempre vacios.
+        $factory = app('view');
+        $factory->incrementRender();
+
+        try {
+            $head = view('arena._console_head', $state)->render();
+            $html = view('arena._console', $state)->render();
+            $modals = $factory->yieldPushContent('arena-modals');
+        } finally {
+            $factory->decrementRender();
+            $factory->flushStateIfDoneRendering();
+        }
+
+        return response()->json([
+            'head' => $head,
+            'html' => $html,
+            'modals' => $modals,
+            'title' => $state['pageTitle'] . ' — Regnum Arena Ladder',
+        ]);
+    }
+
+    /**
+     * Todo lo que necesitan el hub y su panel, calculado una sola vez.
+     */
+    private function buildHubState(Request $request): array
+    {
         $enabledModes = ArenaMode::enabled();
 
         // La modalidad pedida manda, salvo que este apagada: en ese caso se cae
@@ -135,7 +191,7 @@ class QueueHubController extends Controller
             ? $players->firstWhere('id', $requestedPlayerId)
             : null;
 
-        return view('arena.hub', compact(
+        return $this->deriveHubView(compact(
             'players',
             'premadeDailyLimit',
             'currentQueue',
@@ -151,6 +207,108 @@ class QueueHubController extends Controller
             'matchIsPendingAcceptance',
             'requestedPlayer'
         ));
+    }
+
+    /**
+     * Lo que antes se calculaba en un @php gigante al principio de la vista.
+     *
+     * Vive aqui porque ahora hay dos entradas -la pagina y el fragmento del
+     * panel- y las dos tienen que ver exactamente lo mismo; con la logica
+     * dentro del Blade la parcial se quedaba sin la mitad de las variables.
+     */
+    private function deriveHubView(array $data): array
+    {
+        /** @var \Illuminate\Support\Collection $players */
+        $players = $data['players'];
+        $currentQueue = $data['currentQueue'];
+        $currentMatch = $data['currentMatch'];
+        $activeParty = $data['activeParty'];
+        $pendingInvites = $data['pendingInvites'];
+        $matchLineup = $data['matchLineup'];
+        $requestedPlayer = $data['requestedPlayer'];
+
+        $hasRoster = $players->isNotEmpty();
+        $hasActiveState = (bool) ($currentQueue || $currentMatch);
+        $modesAreOpen = !empty($data['enabledModes']);
+
+        // Ojo: $canJoinQueue NO depende de $modesAreOpen. El bloque de abajo
+        // tambien tiene las invitaciones y el panel de party (con "Abandonar
+        // Party"), y con las modalidades apagadas el jugador igual tiene que
+        // poder salir.
+        $canJoinQueue = $hasRoster && !$hasActiveState;
+        $activePartyMode = $activeParty->arena_mode ?? null;
+        $queueReportPendingConfirmation = (bool) ($currentMatch?->report
+            && $currentMatch->report->status === 'pending_confirmation');
+
+        // El guerrero del escenario: el que esta jugando manda sobre el resto.
+        $activePlayerId = $currentQueue?->player_id ?? $matchLineup['viewer_player_id'] ?? null;
+
+        // Mismo criterio que en el creador: cada raza por el rasgo que la
+        // distingue, no por un adorno cualquiera.
+        $raceIcons = [
+            'nordo' => 'human', 'esquelio' => 'human', 'alturian' => 'human',
+            'utghar' => 'horns', 'dwarf' => 'beard', 'molok' => 'hulk',
+            'dark_elf' => 'ears', 'wood_elf' => 'ears', 'half_elf' => 'ears-short',
+            'lamai' => 'ears-big',
+        ];
+
+        return array_merge($data, [
+            'hasRoster' => $hasRoster,
+            'hasActiveState' => $hasActiveState,
+            'modesAreOpen' => $modesAreOpen,
+            'canJoinQueue' => $canJoinQueue,
+            'activePartyMode' => $activePartyMode,
+            'activePartyModeIsOpen' => $activeParty ? ArenaMode::isEnabled($activePartyMode) : false,
+            'queueTypeLabel' => $currentQueue
+                ? trim((Queue::QUEUE_TYPES[$currentQueue->queue_type] ?? ucfirst($currentQueue->queue_type)) . ' ' . ArenaMode::label($currentQueue->arena_mode))
+                : null,
+            'premadeSlots' => range(2, $data['teamSize']),
+            'queueReportPendingConfirmation' => $queueReportPendingConfirmation,
+            'shouldPoll' => $hasRoster,
+            'shouldAutoRefresh' => (bool) ($hasActiveState || $activeParty || $pendingInvites->isNotEmpty()),
+            'stepperCurrent' => match (true) {
+                !$hasRoster => 1,
+                $canJoinQueue => 2,
+                (bool) ($currentMatch && $currentMatch->status === 'pending_acceptance') => 3,
+                (bool) $currentQueue && !$currentMatch => 3,
+                (bool) $currentMatch && $currentMatch->status === 'in_progress' && !$currentMatch->report => 4,
+                $queueReportPendingConfirmation => 4,
+                default => 2,
+            },
+            'activePlayerId' => $activePlayerId,
+            // Con un enfrentamiento en marcha las figuras que importan son las
+            // del combate, no el escaparate: dos escenarios 3D compitiendo por
+            // la atencion en la misma columna es ruido, y en movil es scroll
+            // muerto.
+            'showStage' => !$hasActiveState,
+            // Con cola o combate activo manda el personaje que esta jugando; si
+            // no, el que pida la URL; si tampoco, el primero.
+            'featured' => $players->firstWhere('id', $activePlayerId)
+                ?? $requestedPlayer
+                ?? $players->first(),
+            'lockedToPlayer' => $hasActiveState,
+            'raceIcons' => $raceIcons,
+            'championData' => $players->mapWithKeys(fn (Player $p) => [$p->id => [
+                'name' => $p->cleanName(),
+                'realm' => $p->realm,
+                'realmName' => Player::REALMS[$p->realm] ?? ucfirst($p->realm),
+                'subclass' => $p->subclass,
+                'subclassName' => Player::SUBCLASSES[$p->subclass] ?? ucfirst($p->subclass),
+                'race' => $p->race,
+                'raceName' => $p->raceName(),
+                'gender' => $p->gender ?: 'male',
+                'pl' => number_format((float) $p->pl_points, 1),
+                'mmr' => $p->mmr,
+                'wins' => $p->wins,
+                'losses' => $p->losses,
+                'status' => $p->statusLabel(),
+                'active' => (bool) $p->is_active,
+                'locked' => $p->isQueueLocked(),
+            ]]),
+            'pageTitle' => $currentMatch
+                ? ($currentMatch->status === 'pending_acceptance' ? 'Combate encontrado' : 'Combate activo')
+                : ($currentQueue ? 'Buscando combate…' : 'Lobby'),
+        ]);
     }
 
     public function premadeCandidates(Request $request)

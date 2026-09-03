@@ -13,6 +13,7 @@
     'active' => false,
     'endpoint' => null,
     'interval' => 3000,
+    'refreshUrl' => null,
 ])
 
 @if($active)
@@ -27,6 +28,10 @@
     const _idleAfterStablePolls = 10;
     const _stateStorageKey = 'arena:poll-state:' + window.location.pathname;
     const _reloadDelayMs = 650;
+    // Con una direccion aqui, un cambio de estado trae solo el panel y lo cambia
+    // en su sitio. Sin ella (o si la peticion falla) se recarga la pagina, que
+    // es lo que se hacia siempre.
+    const _refreshUrl = @json($refreshUrl);
 
     function initializeStatePolling() {
         let lastHash = null;
@@ -36,6 +41,7 @@
         let currentInterval = _baseInterval;
         let timerId = null;
         let isReloading = false;
+        let isRefreshing = false;
 
         function readStoredState() {
             try {
@@ -243,6 +249,128 @@
             }, _reloadDelayMs);
         };
 
+        // Quita del documento los modales que vienen otra vez en el trozo nuevo.
+        // Sin esto quedarian dos con el mismo id y abrir uno sacaria el viejo,
+        // con el estado de hace un minuto.
+        const swapConsoleModals = (markup) => {
+            const host = document.querySelector('[data-console-modals]');
+            if (!host) { return; }
+
+            const holder = document.createElement('div');
+            holder.innerHTML = markup ?? '';
+
+            holder.querySelectorAll('[id]').forEach((node) => {
+                document.querySelectorAll('[id="' + node.id + '"]').forEach((old) => {
+                    if (!host.contains(old)) { old.remove(); }
+                });
+            });
+
+            host.innerHTML = '';
+            while (holder.firstChild) {
+                host.appendChild(holder.firstChild);
+            }
+        };
+
+        // El repintado del panel. Antes de tocar el DOM se sueltan los visores
+        // 3D que se van: el navegador solo aguanta unos pocos contextos WebGL y
+        // dejarlos vivos hacia desaparecer las figuras a los pocos cambios.
+        const refreshConsole = async () => {
+            const host = document.querySelector('.arena-console');
+            if (!host) { return false; }
+
+            // La consulta de la pagina viaja con la peticion: lleva el guerrero
+            // elegido y la modalidad, y sin ella el panel repintado volveria al
+            // primero de la lista.
+            const params = new URLSearchParams(window.location.search);
+            params.set('t', String(Date.now()));
+
+            const r = await fetch(_refreshUrl + '?' + params.toString(), {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                cache: 'no-store',
+            });
+
+            if (!r.ok) { return false; }
+
+            const payload = await r.json();
+            if (payload.reload || !payload.html) { return false; }
+
+            const holder = document.createElement('div');
+            holder.innerHTML = (payload.head ?? '') + payload.html;
+
+            const fresh = holder.querySelector('.arena-console');
+            if (!fresh) { return false; }
+
+            host.replaceWith(fresh);
+
+            // La cabecera dice en que punto esta el jugador. Sin cambiarla, el
+            // panel ensena el lobby y el titulo sigue diciendo "buscando".
+            const head = document.querySelector('[data-console-head]');
+            const freshHead = holder.querySelector('[data-console-head]');
+            if (head && freshHead) { head.replaceWith(freshHead); }
+
+            if (typeof window.arenaDisposeOrphanChampions === 'function') {
+                window.arenaDisposeOrphanChampions();
+            }
+
+            swapConsoleModals(payload.modals);
+
+            if (payload.title) { document.title = payload.title; }
+
+            document.dispatchEvent(new CustomEvent('arena:dom-updated', { detail: { root: document } }));
+            if (window.ArenaBoot) { window.ArenaBoot.run(document); }
+
+            return true;
+        };
+
+        // Cambiar el panel debajo de alguien que esta escribiendo le borraria lo
+        // escrito, y bajo una ventana abierta la haria desaparecer a media
+        // lectura. En esos dos casos se deja para la siguiente vuelta: el hash
+        // ya cambio, asi que el proximo sondeo lo vuelve a intentar.
+        const isBusy = () => {
+            if (window.arenaModal && typeof window.arenaModal.isOpen === 'function' && window.arenaModal.isOpen()) {
+                return true;
+            }
+
+            const active = document.activeElement;
+            if (!active || !active.closest || !active.closest('.arena-console')) { return false; }
+
+            const tag = active.tagName;
+            if (tag === 'TEXTAREA' || tag === 'SELECT') { return true; }
+            if (tag === 'INPUT') { return active.type !== 'checkbox' && active.type !== 'radio' && active.type !== 'submit'; }
+
+            return false;
+        };
+
+        // El hash solo se da por visto cuando la pantalla llego a cambiar. Si el
+        // cambio se pospone, se queda pendiente y la vuelta siguiente lo intenta
+        // de nuevo en vez de dejar al jugador con un estado viejo para siempre.
+        const applyStateChange = async (hash) => {
+            if (isRefreshing || isBusy()) { return; }
+
+            // Sin direccion del panel no hay nada que cambiar en su sitio: se
+            // recarga, que es lo que se hacia siempre.
+            if (!_refreshUrl) {
+                lastHash = hash;
+                queueReload();
+                return;
+            }
+
+            isRefreshing = true;
+            try {
+                if (await refreshConsole()) {
+                    lastHash = hash;
+                    return;
+                }
+            } catch (_) {
+                // Cualquier fallo cae en la recarga de siempre.
+            } finally {
+                isRefreshing = false;
+            }
+
+            lastHash = hash;
+            queueReload();
+        };
+
         const pollNow = async () => {
             if (isPolling || isReloading) {
                 return;
@@ -275,11 +403,16 @@
                         } else if (lastHash !== data.hash) {
                             const events = detectAlertEvents(lastState, nextState);
                             emitAlerts(events);
-                            lastHash = data.hash;
                             lastState = nextState;
                             storeState(nextState);
-                            queueReload();
-                            return;
+                            resetCadence();
+
+                            // El hash se da por visto dentro, y solo si el panel
+                            // llego a cambiar: si el repintado se pospuso (una
+                            // ventana abierta, algo a medio escribir), la vuelta
+                            // siguiente lo intenta otra vez en vez de quedarse
+                            // con una pantalla vieja para siempre.
+                            applyStateChange(data.hash);
                         } else {
                             lastState = nextState;
                             storeState(nextState);

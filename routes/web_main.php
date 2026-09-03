@@ -44,6 +44,12 @@ Route::middleware(['auth', 'arena.maintenance'])->group(function () {
     // elige guerrero y se entra a combatir en la misma pantalla.
     Route::get('/lobby', [QueueHubController::class, 'index'])->name('lobby');
 
+    // Solo el panel, para que el sondeo lo cambie en su sitio en vez de
+    // recargar la pagina entera y tirar el scroll y los escenarios 3D.
+    Route::get('/lobby/console', [QueueHubController::class, 'consoleFragment'])
+        ->middleware('throttle:60,1')
+        ->name('lobby.console');
+
     // /queue sigue existiendo por los enlaces viejos, pero solo apunta al lobby.
     Route::get('/queue', function (\Illuminate\Http\Request $request) {
         return redirect()->route('lobby', array_filter(['mode' => $request->query('mode')]));

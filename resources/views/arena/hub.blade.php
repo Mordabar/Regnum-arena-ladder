@@ -3,77 +3,6 @@
 @php
     use App\Models\Player as PlayerModel;
     use App\Support\ArenaMode;
-
-    $hasRoster = $players->isNotEmpty();
-    $hasActiveState = (bool) ($currentQueue || $currentMatch);
-    $modesAreOpen = !empty($enabledModes);
-    // Ojo: $canJoinQueue NO depende de $modesAreOpen. El bloque de abajo tambien
-    // tiene las invitaciones y el panel de party (con "Abandonar Party"), y con
-    // las modalidades apagadas el jugador igual tiene que poder salir.
-    $canJoinQueue = $hasRoster && !$hasActiveState;
-    $activePartyMode = $activeParty->arena_mode ?? null;
-    $activePartyModeIsOpen = $activeParty ? ArenaMode::isEnabled($activePartyMode) : false;
-    $queueTypeLabel = $currentQueue
-        ? trim((\App\Models\Queue::QUEUE_TYPES[$currentQueue->queue_type] ?? ucfirst($currentQueue->queue_type)) . ' ' . ArenaMode::label($currentQueue->arena_mode))
-        : null;
-    $premadeSlots = range(2, $teamSize);
-    $queueReportPendingConfirmation = $currentMatch?->report && $currentMatch->report->status === 'pending_confirmation';
-    $shouldPoll = $hasRoster;
-    $shouldAutoRefresh = $hasActiveState || $activeParty || $pendingInvites->isNotEmpty();
-
-    $stepperCurrent = match(true) {
-        !$hasRoster => 1,
-        $canJoinQueue => 2,
-        (bool)($currentMatch && $currentMatch->status === 'pending_acceptance') => 3,
-        (bool)$currentQueue && !$currentMatch => 3,
-        (bool)$currentMatch && $currentMatch->status === 'in_progress' && !$currentMatch->report => 4,
-        $queueReportPendingConfirmation => 4,
-        default => 2,
-    };
-
-    // El guerrero del escenario: el que esta jugando manda sobre el resto.
-    $activePlayerId = $currentQueue?->player_id ?? $matchLineup['viewer_player_id'] ?? null;
-    // Con un enfrentamiento en marcha las figuras que importan son las del
-    // combate, no el escaparate: dos escenarios 3D compitiendo por la atencion
-    // en la misma columna es ruido, y en movil es scroll muerto.
-    $showStage = !$hasActiveState;
-    // Con cola o combate activo manda el personaje que esta jugando; si no, el
-    // que pida la URL; si tampoco, el primero.
-    $featured = $players->firstWhere('id', $activePlayerId)
-        ?? $requestedPlayer
-        ?? $players->first();
-    $lockedToPlayer = $hasActiveState;
-
-    // Mismo criterio que en el creador: cada raza por el rasgo que la
-    // distingue, no por un adorno cualquiera.
-    $raceIcons = [
-        'nordo' => 'human', 'esquelio' => 'human', 'alturian' => 'human',
-        'utghar' => 'horns', 'dwarf' => 'beard', 'molok' => 'hulk',
-        'dark_elf' => 'ears', 'wood_elf' => 'ears', 'half_elf' => 'ears-short',
-        'lamai' => 'ears-big',
-    ];
-
-    $championData = $players->mapWithKeys(fn ($p) => [$p->id => [
-        'name' => $p->cleanName(),
-        'realm' => $p->realm,
-        'realmName' => PlayerModel::REALMS[$p->realm] ?? ucfirst($p->realm),
-        'subclass' => $p->subclass,
-        'subclassName' => PlayerModel::SUBCLASSES[$p->subclass] ?? ucfirst($p->subclass),
-        'race' => $p->race,
-        'raceName' => $p->raceName(),
-        'gender' => $p->gender ?: 'male',
-        'pl' => number_format((float) $p->pl_points, 1),
-        'mmr' => $p->mmr,
-        'wins' => $p->wins,
-        'losses' => $p->losses,
-        'status' => $p->statusLabel(),
-        'active' => (bool) $p->is_active,
-        'locked' => $p->isQueueLocked(),
-    ]]);
-
-    $pageTitle = $currentMatch
-        ? ($currentMatch->status === 'pending_acceptance' ? 'Combate encontrado' : 'Combate activo')
-        : ($currentQueue ? 'Buscando combate…' : 'Lobby');
 @endphp
 
 @section('title', $pageTitle . ' — Regnum Arena Ladder')
@@ -86,61 +15,7 @@
          El lobby y la arena eran dos paginas que ensenaban lo mismo, y desde
          el lobby "Pelear" te llevaba a otra pantalla en vez de a la cola. Ahora
          son una sola: aqui se elige guerrero Y se entra a combatir. --}}
-    <section class="arena-panel-strong mb-5 p-6 md:p-7 arena-animate-in">
-        <div class="flex flex-wrap items-start justify-between gap-5">
-            <div class="min-w-0">
-                <div class="flex flex-wrap items-center gap-3">
-                    <p class="arena-kicker">Arena {{ $arenaMode }}</p>
-                    @if($shouldAutoRefresh)
-                        <span id="statePollingActive" class="arena-chip text-xs bg-black/40 border border-emerald-500/30 text-emerald-300 px-2 py-1">
-                            <span class="inline-block h-2 w-2 rounded-full bg-emerald-400 mr-1 animate-pulse"></span>
-                            En vivo
-                        </span>
-                    @endif
-                </div>
-                <h1 class="arena-console-title mt-2 text-3xl font-bold text-[color:var(--arena-gold-soft)] md:text-4xl">
-                    @if($matchIsPendingAcceptance)
-                        Cruce encontrado
-                    @elseif($currentMatch)
-                        Tu combate
-                    @elseif($currentQueue)
-                        Buscando combate…
-                    @else
-                        <span class="arena-hide-mobile">Bienvenido, </span>{{ auth()->user()->discord_username }}
-                    @endif
-                </h1>
-                <p class="arena-console-lede mt-2 max-w-2xl text-[color:var(--arena-sand)] arena-body-text">
-                    @if($matchIsPendingAcceptance)
-                        Confirma abajo antes de que se agote el reloj. Si alguien no acepta, el cruce se cancela.
-                    @elseif($currentMatch)
-                        Sigue el estado del enfrentamiento y reporta el resultado al terminar.
-                    @elseif($currentQueue)
-                        Espera aquí. En cuanto haya rival te avisamos y el combate aparece en esta misma pantalla.
-                    @else
-                        Elige un guerrero y entra a la arena. Todo pasa en esta pantalla.
-                    @endif
-                </p>
-
-                @if(!$modesAreOpen)
-                    <p class="mt-4 rounded-2xl border border-amber-700/40 bg-amber-900/20 px-4 py-3 text-sm text-amber-200 arena-body-text">
-                        Las colas están cerradas por el momento. Vuelve más tarde.
-                    </p>
-                @endif
-            </div>
-
-            <div class="flex flex-wrap gap-3">
-                <a href="{{ route('matches.index') }}" class="arena-btn-secondary px-4 py-2">
-                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/></svg>
-                    Mis combates
-                </a>
-                <a href="{{ route('ladder.index') }}" class="arena-btn-ghost px-4 py-2">Ladder</a>
-            </div>
-        </div>
-
-        <div class="mt-6">
-            <x-arena-stepper :steps="['Registra', 'Elige modo', 'Espera cruce', 'Pelea y reporta']" :current="$stepperCurrent" />
-        </div>
-    </section>
+    @include('arena._console_head')
 
     @if(!$hasRoster)
         {{-- Sin guerreros no hay nada que ensenar ni que hacer. --}}
@@ -159,302 +34,7 @@
              una en el rail y otra en un desplegable a media pagina de
              distancia, y las acciones del guerrero vivian en una tarjeta
              suelta entre medias. --}}
-        <section class="arena-console arena-animate-in arena-stagger-1">
-            {{-- En movil este rail es un cajon: en una pantalla estrecha la
-                 escuadra entera colgaba del final de la pagina, visible todo el
-                 rato incluso durante un combate, y era la parte mas larga de un
-                 lobby que ya tenia demasiado a la vista. --}}
-            <aside class="arena-console-rail" data-roster-rail>
-                <div class="arena-console-rail-head">
-                    <p class="arena-kicker">Tu escuadra</p>
-                    <span class="arena-console-count">{{ $players->count() }}/5</span>
-                    <button type="button" class="arena-roster-close" data-roster-close aria-label="Cerrar la escuadra">
-                        <x-admin.icon name="close" class="h-4 w-4" />
-                    </button>
-                </div>
-
-                @if($lockedToPlayer)
-                    <p class="arena-console-note">
-                        Con cola o combate activo no puedes cambiar de guerrero.
-                    </p>
-                @endif
-
-                <div class="arena-console-slots">
-                    @foreach($players as $player)
-                        {{-- Enlaces de verdad, no botones: sin JavaScript el rail
-                             sigue cambiando de guerrero, recargando con ?player.
-
-                             El bloque de PHP va explicito: la forma corta de una
-                             linea, seguida de un comentario Blade, compila una
-                             apertura sin cerrar y se lleva por delante el resto
-                             del archivo. --}}
-                        @php
-                            $isFeatured = $featured && $player->id === $featured->id;
-                        @endphp
-                        <a href="{{ route('lobby', ['mode' => $arenaMode, 'player' => $player->id]) }}"
-                           class="arena-roster-slot {{ $lockedToPlayer && !$isFeatured ? 'is-locked' : '' }}"
-                           data-champion-slot
-                           data-player-id="{{ $player->id }}"
-                           aria-pressed="{{ $isFeatured ? 'true' : 'false' }}"
-                           @if($lockedToPlayer && !$isFeatured) aria-disabled="true" tabindex="-1" @endif
-                           style="--slot-realm: var(--arena-{{ $player->realm === 'ignis' ? 'fire' : ($player->realm === 'alsius' ? 'ice' : 'forest') }})">
-                            <span class="arena-roster-crest">
-                                <x-arena-realm-icon :realm="$player->realm" size="sm" />
-                            </span>
-                            <span class="min-w-0">
-                                <span class="arena-roster-name">{{ $player->cleanName() }}</span>
-                                <span class="arena-roster-meta">
-                                    {{ PlayerModel::SUBCLASSES[$player->subclass] ?? ucfirst($player->subclass) }}
-                                    · {{ $player->raceName() }}
-                                </span>
-                            </span>
-                            <span class="arena-roster-pl">
-                                {{ number_format((float) $player->pl_points, 1) }}
-                                @if($player->isQueueLocked())
-                                    <span class="arena-roster-lock" title="Bloqueado para la cola hasta {{ $player->queue_locked_until?->format('d/m H:i') }}">Bloqueado</span>
-                                @endif
-                            </span>
-                        </a>
-                    @endforeach
-
-                    @if($players->count() < 5)
-                        <a href="{{ route('player.create') }}" class="arena-roster-slot arena-roster-empty">+ Crear guerrero</a>
-                    @endif
-                </div>
-            </aside>
-
-            <div class="arena-console-main">
-                @if($showStage)
-                    <div class="arena-console-stage">
-                        @if(count($enabledModes) > 1)
-                            {{-- La modalidad manda sobre todo lo de abajo, asi
-                                 que se elige antes de mirar al guerrero. --}}
-                            <div class="arena-console-arenas" role="tablist" aria-label="Modalidad de arena">
-                                <span class="arena-console-arenas-key">Arena</span>
-                                @foreach($enabledModes as $mode)
-                                    <a href="{{ route('lobby', ['mode' => $mode, 'player' => $featured?->id]) }}"
-                                       role="tab"
-                                       aria-selected="{{ $mode === $arenaMode ? 'true' : 'false' }}"
-                                       class="arena-console-arena {{ $mode === $arenaMode ? 'is-active' : '' }}">{{ $mode }}</a>
-                                @endforeach
-                            </div>
-                        @endif
-
-                        <x-arena-champion
-                            id="hub-stage"
-                            :realm="$featured->realm"
-                            :subclass="$featured->subclass"
-                            :race="$featured->race"
-                            :gender="$featured->gender"
-                            height="clamp(300px, 40vh, 440px)">
-
-                            <div class="arena-champion-overlay">
-                                {{-- Las acciones del guerrero viven con el
-                                     guerrero, no en una tarjeta aparte. --}}
-                                <div class="arena-console-tools">
-                                    @foreach($players as $player)
-                                        <div data-champion-panel data-player-id="{{ $player->id }}"
-                                             class="arena-console-tools-set"
-                                             @if(!$featured || $player->id !== $featured->id) hidden @endif>
-                                            @if($player->is_active && !$hasActiveState)
-                                                <button type="button" class="arena-console-tool" data-modal-open="modal-rename-{{ $player->id }}"
-                                                        aria-label="Editar a {{ $player->cleanName() }}" title="Editar guerrero">
-                                                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                                                    <span>Editar</span>
-                                                </button>
-                                                @if($players->count() > 1)
-                                                    <button type="button" class="arena-console-tool is-danger" data-modal-open="modal-delete-{{ $player->id }}"
-                                                            aria-label="Eliminar a {{ $player->cleanName() }}" title="Eliminar guerrero">
-                                                        <x-admin.icon name="trash" class="h-4 w-4" />
-                                                        <span>Eliminar</span>
-                                                    </button>
-                                                @endif
-                                            @elseif(!$player->is_active)
-                                                <span class="arena-console-tool is-muted">Deshabilitado por un administrador</span>
-                                            @endif
-                                        </div>
-                                    @endforeach
-                                </div>
-
-                                <div class="arena-champion-stats-inside arena-stats-row">
-                                    <div class="arena-stat-pill"><span>PL</span><b data-champion-pl>{{ number_format((float) $featured->pl_points, 1) }}</b></div>
-                                    <div class="arena-stat-pill"><span>MMR</span><b data-champion-mmr>{{ $featured->mmr }}</b></div>
-                                    <div class="arena-stat-pill"><span>V/D</span><b data-champion-record>{{ $featured->wins }}/{{ $featured->losses }}</b></div>
-                                </div>
-
-                                {{-- La party, dentro del escenario: un grupo se
-                                     entiende viendolo junto, no leyendo una
-                                     lista de nombres en otra tarjeta. --}}
-                                @if($activeParty)
-                                    <div class="arena-console-party">
-                                        <span class="arena-console-party-key">
-                                            Party {{ ArenaMode::label($activePartyMode) }}
-                                        </span>
-                                        <div class="arena-console-party-slots">
-                                            @foreach($activeParty->members as $member)
-                                                @continue(!$member->player)
-                                                <span class="arena-console-party-slot {{ $member->is_accepted_invite ? 'is-in' : '' }}"
-                                                      title="{{ $member->player->character_name }}{{ $member->is_leader ? ' · lider' : '' }}{{ $member->is_accepted_invite ? '' : ' · invitado, sin responder' }}">
-                                                    <x-arena-champion
-                                                        :id="'party-' . $member->id"
-                                                        :realm="$member->player->realm"
-                                                        :subclass="$member->player->subclass"
-                                                        :race="$member->player->race"
-                                                        :gender="$member->player->gender"
-                                                        :parallax="false"
-                                                        height="64px"
-                                                        class="arena-console-party-portrait" />
-                                                    <b>{{ $member->player->cleanName() }}</b>
-                                                </span>
-                                            @endforeach
-                                            @for($i = $activeParty->members->count(); $i < $teamSize; $i++)
-                                                <span class="arena-console-party-slot is-empty">
-                                                    <span class="arena-console-party-portrait is-empty">+</span>
-                                                    <b>Libre</b>
-                                                </span>
-                                            @endfor
-                                        </div>
-                                    </div>
-                                @endif
-
-                                <div class="arena-console-ident" aria-live="polite">
-                                    <div class="flex flex-wrap items-center gap-3">
-                                        <h2 class="arena-champion-name" data-champion-name>{{ $featured->cleanName() }}</h2>
-                                        <span class="arena-champion-status" data-champion-status @if($featured->is_active) hidden @endif>{{ $featured->statusLabel() }}</span>
-                                    </div>
-                                    <p class="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                                        <span class="arena-champion-realm" data-champion-realm-name>{{ PlayerModel::REALMS[$featured->realm] ?? $featured->realm }}</span>
-                                        <span data-champion-race-name>{{ $featured->raceName() }}</span>
-                                        <span data-champion-subclass-name>{{ PlayerModel::SUBCLASSES[$featured->subclass] ?? $featured->subclass }}</span>
-                                    </p>
-                                </div>
-                            </div>
-                        </x-arena-champion>
-
-                        {{-- En movil las cifras no caben sobre la figura sin
-                             taparle la cara: van justo debajo. --}}
-                        <div class="arena-champion-stats-outside">
-                            <div class="arena-stats-row">
-                                <div class="arena-stat-pill"><span>PL</span><b data-champion-pl>{{ number_format((float) $featured->pl_points, 1) }}</b></div>
-                                <div class="arena-stat-pill"><span>MMR</span><b data-champion-mmr>{{ $featured->mmr }}</b></div>
-                                <div class="arena-stat-pill"><span>V/D</span><b data-champion-record>{{ $featured->wins }}/{{ $featured->losses }}</b></div>
-                            </div>
-                        </div>
-
-                        {{-- ── BARRA DE ACCIONES ──────────────────────────────
-                             Pegada al pie del escenario, como el menu de accion
-                             de un juego: lo que se puede hacer con el guerrero
-                             que estas viendo, dentro de su propio panel. --}}
-                        @if($canJoinQueue)
-                            <div class="arena-console-actions">
-                                @if(!$modesAreOpen)
-                                    <p class="arena-console-actions-note">Las colas estan cerradas por el momento.</p>
-                                @elseif($activeParty)
-                                    @php
-                                        $isLeader = $players->contains(fn ($p) => $p->id === $activeParty->leader_player_id);
-                                        $partyReady = $activeParty->status === 'ready';
-                                        $partyQueued = $activeParty->status === 'queued';
-                                    @endphp
-
-                                    @if($isLeader && $partyReady && $activePartyModeIsOpen)
-                                        <form method="POST" action="{{ route('party.enqueue', $activeParty) }}">
-                                            @csrf
-                                            <button class="arena-console-action is-primary">
-                                                <x-admin.icon name="users" class="h-4 w-4" />
-                                                Entrar con el grupo {{ ArenaMode::label($activePartyMode) }}
-                                            </button>
-                                        </form>
-                                    @else
-                                        @php
-                                            $sinResponder = $activeParty->members
-                                                ->filter(fn ($m) => !$m->is_accepted_invite && $m->player)
-                                                ->map(fn ($m) => $m->player->cleanName());
-                                        @endphp
-                                        <p class="arena-console-actions-note">
-                                            @if($partyQueued)
-                                                <span class="arena-party-dot is-live"></span> Tu grupo busca rival.
-                                            @elseif(!$activePartyModeIsOpen)
-                                                <span class="arena-party-dot"></span> {{ ArenaMode::label($activePartyMode) }} esta apagada: el grupo espera.
-                                            @elseif($sinResponder->isNotEmpty())
-                                                <span class="arena-party-dot"></span>
-                                                Invitacion enviada. Falta que {{ $sinResponder->join(' y ') }} la acepte.
-                                            @else
-                                                <span class="arena-party-dot"></span> Esperando a tus aliados.
-                                            @endif
-                                        </p>
-                                    @endif
-
-                                    <form method="POST" action="{{ route('party.leave', $activeParty) }}">
-                                        @csrf
-                                        <button class="arena-console-action is-danger">
-                                            {{ $partyQueued ? 'Cancelar busqueda' : 'Deshacer el grupo' }}
-                                        </button>
-                                    </form>
-                                @else
-                                    <form method="POST" action="{{ route('queue.join') }}">
-                                        @csrf
-                                        <input type="hidden" name="queue_type" value="random">
-                                        <input type="hidden" name="arena_mode" value="{{ $arenaMode }}">
-                                        {{-- El guerrero ya esta elegido arriba: este campo lo sigue. --}}
-                                        <input type="hidden" id="playerSelect" name="player_id" data-queue-player-select
-                                               data-subclass="{{ $featured?->subclass }}"
-                                               value="{{ $featured?->id }}">
-                                        <button type="submit" class="arena-console-action is-primary" @disabled($featured?->isQueueLocked())>
-                                            <x-admin.icon name="play" class="h-4 w-4" />
-                                            Entrar a Random {{ $arenaMode }}
-                                        </button>
-                                    </form>
-
-                                    <button type="button" class="arena-console-action" data-modal-open="modal-premade">
-                                        <x-admin.icon name="users" class="h-4 w-4" />
-                                        Invitar aliado {{ $arenaMode }}
-                                    </button>
-                                @endif
-                            </div>
-
-                            @if($featured?->isQueueLocked())
-                                <p class="arena-queue-locked">
-                                    {{ $featured->cleanName() }} esta bloqueado para la cola hasta
-                                    {{ $featured->queue_locked_until?->format('d/m H:i') }}. Elige otro guerrero.
-                                </p>
-                            @endif
-
-                            <div class="arena-console-foot">
-                                <p class="arena-queue-with">
-                                    Entras con
-                                    <b data-champion-name>{{ $featured?->cleanName() }}</b>
-                                    <span data-champion-subclass-name>{{ $featured ? (PlayerModel::SUBCLASSES[$featured->subclass] ?? $featured->subclass) : '' }}</span>
-                                </p>
-                                <div class="arena-console-foot-actions">
-                                    @unless($lockedToPlayer)
-                                        <button type="button" class="arena-btn-ghost px-4 py-2 text-sm arena-roster-open" data-roster-open>
-                                            <x-admin.icon name="users" class="h-4 w-4" />
-                                            Cambiar guerrero
-                                        </button>
-                                    @endunless
-                                    <button type="button" class="arena-btn-ghost px-4 py-2 text-sm" data-modal-open="modal-arena-rules">
-                                        <x-admin.icon name="sliders" class="h-4 w-4" />
-                                        Reglas
-                                    </button>
-                                </div>
-                            </div>
-                        @endif
-                    </div>
-                @endif
-
-                {{-- Estado: cruce, combate en curso o cola. Uno solo a la vez. --}}
-                @if($matchIsPendingAcceptance && $matchLineup)
-                    <x-arena-duel-panel :match="$currentMatch" :lineup="$matchLineup" :player="$matchPlayer" />
-                @elseif($currentMatch && $currentMatch->isActive())
-                    <x-arena-live-match :match="$currentMatch" :lineup="$matchLineup" :report-pending="$queueReportPendingConfirmation" />
-                @elseif($currentQueue)
-                    @include('arena._queue_state')
-                @endif
-
-                @include('arena._join')
-            </div>
-            <div class="arena-roster-scrim" data-roster-close hidden></div>
-        </section>
+        @include('arena._console')
 
         {{-- Los formularios de nombre y borrado, fuera del panel para que sus
              capas no queden atrapadas por el recorte del escenario. --}}
@@ -556,17 +136,19 @@
 @endsection
 
 @push('scripts')
-@if($hasRoster && $showStage)
+@if($hasRoster)
 <script>
     /* Raíl de guerreros: cambiar de guerrero repinta el escenario y el panel de
        acciones sin recargar. Con cola o combate activo los demás están
        deshabilitados, porque el estado pertenece a un personaje concreto. */
     (function () {
         var champions = @json($championData);
-        var slots = document.querySelectorAll('[data-champion-slot]');
-        if (!slots.length) { return; }
 
-        var stage = document.querySelector('[data-champion-id="hub-stage"]');
+        // Nada se guarda en una variable de arranque: el panel entero se
+        // repinta cuando cambia el estado, y los nodos de antes ya no estan.
+        var todosLosSlots = function () {
+            return document.querySelectorAll('[data-champion-slot]');
+        };
 
         function paint(id) {
             var c = champions[id];
@@ -589,6 +171,7 @@
                 s.hidden = c.active;
             });
 
+            var stage = document.querySelector('[data-champion-id="' + 'hub-stage' + '"]');
             if (stage) { stage.dataset.championRealm = c.realm; }
 
             var viewer = window.arenaChampionViewers && window.arenaChampionViewers['hub-stage'];
@@ -597,7 +180,7 @@
             document.querySelectorAll('[data-champion-panel]').forEach(function (panel) {
                 panel.hidden = panel.dataset.playerId !== String(id);
             });
-            slots.forEach(function (slot) {
+            todosLosSlots().forEach(function (slot) {
                 slot.setAttribute('aria-pressed', slot.dataset.playerId === String(id) ? 'true' : 'false');
             });
 
@@ -631,11 +214,11 @@
         /* El cajon de la escuadra en movil. En escritorio el rail siempre se
            ve y estas clases no pintan nada. */
         (function () {
-            var rail = document.querySelector('[data-roster-rail]');
-            var scrim = document.querySelector('.arena-roster-scrim');
-            if (!rail) { return; }
-
             var abrir = function (open) {
+                var rail = document.querySelector('[data-roster-rail]');
+                var scrim = document.querySelector('.arena-roster-scrim');
+                if (!rail) { return; }
+
                 rail.classList.toggle('is-open', open);
                 if (scrim) { scrim.hidden = !open; }
                 document.body.classList.toggle('arena-roster-locked', open);
@@ -643,38 +226,47 @@
 
             document.addEventListener('click', function (event) {
                 if (event.target.closest('[data-roster-open]')) { abrir(true); return; }
-                if (event.target.closest('[data-roster-close]')) { abrir(false); }
+                if (event.target.closest('[data-roster-close]')) { abrir(false); return; }
+
+                // Elegir guerrero cierra el cajon: es lo que se venia a hacer.
+                if (event.target.closest('[data-roster-rail] [data-champion-slot]')) { abrir(false); }
             });
 
             document.addEventListener('keydown', function (event) {
                 if (event.key === 'Escape') { abrir(false); }
             });
 
-            // Elegir guerrero cierra el cajon: es lo que se venia a hacer.
-            rail.addEventListener('click', function (event) {
-                if (event.target.closest('[data-champion-slot]')) { abrir(false); }
+            // Un panel nuevo llega siempre con el cajon cerrado; el cuerpo tiene
+            // que enterarse o el scroll se queda bloqueado.
+            document.addEventListener('arena:dom-updated', function () {
+                document.body.classList.remove('arena-roster-locked');
+                var scrim = document.querySelector('.arena-roster-scrim');
+                if (scrim) { scrim.hidden = true; }
             });
         })();
 
-        slots.forEach(function (slot) {
-            slot.addEventListener('click', function (event) {
-                if (slot.getAttribute('aria-disabled') === 'true') {
-                    event.preventDefault();
-                    return;
-                }
+        // Por delegacion en el documento: asi elegir guerrero sigue funcionando
+        // despues de que el sondeo cambie el panel por uno nuevo.
+        document.addEventListener('click', function (event) {
+            var slot = event.target.closest('[data-champion-slot]');
+            if (!slot) { return; }
 
-                // Con JavaScript se repinta en el sitio; el enlace sigue ahi
-                // por si no lo hay, y para poder abrirlo en otra pestana.
-                if (event.metaKey || event.ctrlKey || event.shiftKey) { return; }
+            if (slot.getAttribute('aria-disabled') === 'true') {
                 event.preventDefault();
-                paint(slot.dataset.playerId);
+                return;
+            }
 
-                // La URL acompana a lo que se ve, para que recargar no devuelva
-                // al primer guerrero de la lista.
-                if (window.history && window.history.replaceState) {
-                    window.history.replaceState({}, '', slot.getAttribute('href'));
-                }
-            });
+            // Con JavaScript se repinta en el sitio; el enlace sigue ahi
+            // por si no lo hay, y para poder abrirlo en otra pestana.
+            if (event.metaKey || event.ctrlKey || event.shiftKey) { return; }
+            event.preventDefault();
+            paint(slot.dataset.playerId);
+
+            // La URL acompana a lo que se ve, para que recargar no devuelva
+            // al primer guerrero de la lista.
+            if (window.history && window.history.replaceState) {
+                window.history.replaceState({}, '', slot.getAttribute('href'));
+            }
         });
     })();
 </script>

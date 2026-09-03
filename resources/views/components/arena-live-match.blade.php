@@ -226,34 +226,3 @@
         </div>
     </footer>
 </section>
-
-@push('scripts')
-<script>
-    /* Subir 3 imagenes tarda. Sin senal el jugador vuelve a pulsar y manda el
-       reporte dos veces. */
-    (function () {
-        var form = document.querySelector('[data-report-form]');
-        if (!form) { return; }
-
-        form.addEventListener('submit', function () {
-            var button = form.querySelector('[data-report-submit]');
-            if (!button) { return; }
-
-            button.disabled = true;
-            button.textContent = 'Subiendo el reporte…';
-        });
-    })();
-
-    /* Rechazar pide un motivo, y ese motivo no puede estar en otra pagina. */
-    (function () {
-        var toggle = document.querySelector('[data-reject-toggle]');
-        var rejectForm = document.querySelector('[data-reject-form]');
-        if (!toggle || !rejectForm) { return; }
-
-        toggle.addEventListener('click', function () {
-            rejectForm.hidden = !rejectForm.hidden;
-            if (!rejectForm.hidden) { rejectForm.querySelector('textarea').focus(); }
-        });
-    })();
-</script>
-@endpush

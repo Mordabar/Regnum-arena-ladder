@@ -23,10 +23,11 @@
        Ya no hay pestanas: entrar a random es un boton y armar grupo despliega
        su constructor debajo. Un desplegable dice lo que hace; una pestana
        obliga a descubrir que hay algo detras. */
-    (function() {
+    function initializePremadeToggle() {
         const toggle = document.querySelector('[data-premade-toggle]');
         const builder = document.getElementById('tab-premade');
-        if (!toggle || !builder) return;
+        if (!toggle || !builder || toggle.dataset.premadeBound === '1') return;
+        toggle.dataset.premadeBound = '1';
 
         const setOpen = (open) => {
             builder.hidden = !open;
@@ -42,7 +43,7 @@
         if (localStorage.getItem('arena_premade_open') === '1' || builder.dataset.hasParty === '1') {
             setOpen(true);
         }
-    })();
+    }
 
     /* ── Conjurer role toggle ── */
     /* El personaje se elige en el rail, asi que aqui solo queda un campo oculto
@@ -59,8 +60,25 @@
     }
 
     /* ── Premade builder ── */
+    /* El constructor se vuelve a montar cada vez que el panel se repinta, asi
+       que sus oyentes globales apuntan a lo ultimo montado en vez de
+       registrarse otra vez: si no, cada repintado dejaria una copia mas
+       trabajando sobre nodos que ya no estan en la pagina. */
+    let premadeSync = null;
+    let premadeClick = null;
+    let premadeGlobalsBound = false;
+
+    function bindPremadeGlobals() {
+        if (premadeGlobalsBound) return;
+        premadeGlobalsBound = true;
+        document.addEventListener('arena:champion-changed', () => { if (premadeSync) premadeSync(); });
+        document.addEventListener('click', (event) => { if (premadeClick) premadeClick(event); });
+    }
+
     function initializePremadeBuilder() {
         const leaderSelect = document.getElementById('partyLeaderSelect');
+        if (leaderSelect && leaderSelect.dataset.premadeBound === '1') return;
+        if (leaderSelect) leaderSelect.dataset.premadeBound = '1';
         const hint = document.getElementById('premadeRealmHint');
         const summary = document.getElementById('premadeSummary');
         const submitButton = document.getElementById('premadeSubmitButton');
@@ -203,7 +221,7 @@
         };
 
         leaderSelect.addEventListener('change', syncLeader);
-        document.addEventListener('arena:champion-changed', syncLeader);
+        premadeSync = syncLeader;
 
         companionSlots.forEach(slot => {
             const input = document.getElementById('premadeSearch'+slot);
@@ -216,7 +234,7 @@
             });
         });
 
-        document.addEventListener('click', (e) => {
+        premadeClick = (e) => {
             const cl = e.target.closest('[data-premade-clear]');
             if (cl) { clearMember(Number(cl.getAttribute('data-premade-clear'))); clearResults(Number(cl.getAttribute('data-premade-clear'))); return; }
             const pk = e.target.closest('[data-premade-pick]');
@@ -226,19 +244,25 @@
                 const i = document.getElementById('premadeSearch'+slot);
                 if (r && !r.classList.contains('hidden') && !r.contains(e.target) && !i.contains(e.target)) clearResults(slot);
             });
-        });
+        };
+        bindPremadeGlobals();
 
         syncLeader();
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
+    // Estos tres arrancan cada vez que el panel se repinta, no solo al cargar:
+    // el constructor de grupo vive dentro del panel y llega como nodos nuevos.
+    window.ArenaBoot.register(() => {
         toggleConjurerRole();
+        initializePremadeToggle();
         initializePremadeBuilder();
-        const randomSelect = document.getElementById('playerSelect');
-        if (randomSelect) randomSelect.addEventListener('change', toggleConjurerRole);
-        document.addEventListener('arena:champion-changed', toggleConjurerRole);
     });
+
+    document.addEventListener('change', (event) => {
+        if (event.target && event.target.id === 'playerSelect') toggleConjurerRole();
+    });
+    document.addEventListener('arena:champion-changed', toggleConjurerRole);
 </script>
 
 {{-- Shared state-polling component (replaces inline initializeStatePolling) --}}
-<x-arena-state-poller :active="$shouldPoll" />
+<x-arena-state-poller :active="$shouldPoll" :refresh-url="route('lobby.console')" />

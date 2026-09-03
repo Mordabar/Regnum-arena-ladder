@@ -66,11 +66,39 @@
                tiene que preguntarle al servidor por cada guerrero. */
             window.arenaChampionModels = @json(\App\Support\ChampionModels::available());
             window.arenaChampionViewers = {};
-            document.addEventListener('DOMContentLoaded', function () {
+
+            /* Suelta los visores cuyo hueco ya no esta en la pagina.
+               Un navegador aguanta un punado de contextos WebGL y luego empieza
+               a cerrar los mas viejos: si el panel se repinta y los visores
+               antiguos siguen vivos, a la tercera vez las figuras desaparecen
+               sin decir por que. */
+            window.arenaDisposeOrphanChampions = function () {
+                Object.keys(window.arenaChampionViewers).forEach(function (id) {
+                    var viewer = window.arenaChampionViewers[id];
+                    var host = document.querySelector('[data-champion-id="' + id + '"]');
+                    if (host && host.isConnected) { return; }
+
+                    if (viewer && typeof viewer.dispose === 'function') {
+                        try { viewer.dispose(); } catch (error) { console.error(error); }
+                    }
+                    delete window.arenaChampionViewers[id];
+                });
+            };
+
+            /* Monta los visores que todavia no lo estan. Se puede llamar tantas
+               veces como haga falta: el hueco ya montado lleva su marca. */
+            window.arenaMountChampions = function (root) {
                 if (!window.ArenaChampion) { return; }
-                document.querySelectorAll('[data-champion-viewer]').forEach(function (host) {
+
+                window.arenaDisposeOrphanChampions();
+
+                (root || document).querySelectorAll('[data-champion-viewer]').forEach(function (host) {
+                    if (host.dataset.championMounted === '1') { return; }
+
                     var canvas = host.querySelector('canvas');
                     if (!canvas) { return; }
+
+                    host.dataset.championMounted = '1';
                     window.arenaChampionViewers[host.dataset.championId] = window.ArenaChampion.mount(canvas, {
                         realm: host.dataset.championRealm,
                         subclass: host.dataset.championSubclass,
@@ -79,7 +107,16 @@
                         parallax: host.dataset.championParallax !== '0'
                     });
                 });
+
                 document.dispatchEvent(new CustomEvent('arena:champions-ready'));
+            };
+
+            // El modulo llega con defer, asi que puede montarse despues de que
+            // el documento este listo; por eso se intenta en los dos momentos.
+            document.addEventListener('DOMContentLoaded', function () { window.arenaMountChampions(document); });
+            window.addEventListener('load', function () { window.arenaMountChampions(document); });
+            document.addEventListener('arena:dom-updated', function (event) {
+                window.arenaMountChampions((event.detail && event.detail.root) || document);
             });
         </script>
 @endpush

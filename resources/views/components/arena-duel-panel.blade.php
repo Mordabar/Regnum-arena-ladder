@@ -136,22 +136,3 @@
         </div>
     </footer>
 </section>
-
-@push('scripts')
-<script>
-    /* El cruce tiene un reloj corriendo y puede aparecer con la pagina ya
-       desplazada. Se lleva la vista hasta el y se deja el foco en aceptar, sin
-       arrastrar el scroll por el enfoque. */
-    (function () {
-        var panel = document.querySelector('[data-duel-panel]');
-        if (!panel) { return; }
-
-        panel.scrollIntoView({ block: 'center', behavior: 'smooth' });
-
-        var accept = panel.querySelector('[data-duel-accept]');
-        if (accept) {
-            try { accept.focus({ preventScroll: true }); } catch (e) { accept.focus(); }
-        }
-    })();
-</script>
-@endpush
