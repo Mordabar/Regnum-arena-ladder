@@ -147,3 +147,96 @@ it('plegar una invitacion no la contesta', function () {
         ->assertSee('data-invite-unfold', false)
         ->assertSee(route('party.reject', ['party' => $companero->partyMembers()->first()->party_id, 'member' => $companero->partyMembers()->first()->id]), false);
 });
+
+it('un conjurador ve donde elegir su rol', function () {
+    // El bug: el selector se perdio en el rediseno, asi que entrar a cola con
+    // un conjurador se caia con un error generico y sin nada que tocar.
+    $user = fragmentUser('j');
+    Player::create([
+        'user_id' => $user->id,
+        'character_name' => 'Invocador',
+        'subclass' => 'conjurer',
+        'realm' => 'alsius',
+        'race' => Player::defaultRace('alsius'),
+        'gender' => 'female',
+        'pl_points' => 0,
+        'mmr' => 1000,
+        'trust_score' => 100,
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('name="conjurer_role"', false)
+        ->assertSee('Rol del conjurador', false)
+        // Atado al formulario por su id: dentro de la rejilla de acciones no
+        // cabe sin partirla.
+        ->assertSee('form="randomQueueForm"', false)
+        ->assertSee('id="randomQueueForm"', false);
+});
+
+it('el campo del rol viaja aunque el guerrero elegido no sea conjurador', function () {
+    // Se cambia de guerrero sin recargar: si el campo solo se pintara para
+    // conjuradores, elegir uno despues lo dejaria sin donde escoger.
+    $user = fragmentUser('k');
+    fragmentPlayer($user, 'Tirador');
+
+    $this->actingAs($user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('id="conjurerRoleDiv"', false)
+        ->assertSee('name="conjurer_role"', false);
+});
+
+it('sin rol, el conjurador recibe una explicacion y no un fallo del sistema', function () {
+    $user = fragmentUser('l');
+    $player = Player::create([
+        'user_id' => $user->id,
+        'character_name' => 'Sinrol',
+        'subclass' => 'conjurer',
+        'realm' => 'alsius',
+        'race' => Player::defaultRace('alsius'),
+        'gender' => 'male',
+        'pl_points' => 0,
+        'mmr' => 1000,
+        'trust_score' => 100,
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($user)
+        ->from(route('lobby'))
+        ->post(route('queue.join'), [
+            'player_id' => $player->id,
+            'queue_type' => 'random',
+            'arena_mode' => '2v2',
+        ])
+        ->assertRedirect(route('lobby'))
+        ->assertSessionHasErrors(['error' => 'Elige el rol del conjurador -soporte u ofensivo- antes de entrar a la cola.']);
+});
+
+it('con rol, el conjurador entra a la cola y el rol queda guardado', function () {
+    $user = fragmentUser('m');
+    $player = Player::create([
+        'user_id' => $user->id,
+        'character_name' => 'Conrol',
+        'subclass' => 'conjurer',
+        'realm' => 'alsius',
+        'race' => Player::defaultRace('alsius'),
+        'gender' => 'male',
+        'pl_points' => 0,
+        'mmr' => 1000,
+        'trust_score' => 100,
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($user)
+        ->from(route('lobby'))
+        ->post(route('queue.join'), [
+            'player_id' => $player->id,
+            'queue_type' => 'random',
+            'arena_mode' => '2v2',
+            'conjurer_role' => 'support',
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect(\App\Models\Queue::where('player_id', $player->id)->value('conjurer_role'))->toBe('support');
+});

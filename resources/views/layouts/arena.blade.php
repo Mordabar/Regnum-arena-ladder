@@ -1092,6 +1092,26 @@
         .arena-console-stage > .arena-champion { border-radius: 0; border: 0; }
         .arena-console-stage > .arena-champion::after { border-radius: 0; }
 
+        /* El rol del conjurador, justo encima de las acciones y dentro del
+           mismo marco: es una condicion para entrar, no un ajuste suelto. */
+        .arena-console-role {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 11px 12px;
+            border-top: 1px solid var(--arena-line);
+            background: rgba(8, 5, 4, 0.45);
+        }
+        .arena-console-role label {
+            font-size: 11px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--arena-gold);
+            white-space: nowrap;
+        }
+        .arena-console-role .arena-select { flex: 1; min-width: 0; }
+        .arena-console-role + .arena-console-actions { border-top: 0; }
+
         .arena-console-actions {
             display: grid;
             grid-template-columns: 1fr 1fr;

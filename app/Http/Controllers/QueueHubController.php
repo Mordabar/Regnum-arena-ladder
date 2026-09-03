@@ -457,6 +457,15 @@ class QueueHubController extends Controller
             $player = Player::findOrFail((int) $request->player_id);
             $this->ensurePlayerCanQueueRandom($player);
 
+            // Falta de rol no es una averia del sistema: es algo que el jugador
+            // puede arreglar, asi que se le dice en vez de dejarlo caer en el
+            // "no se pudo crear la cola" de mas abajo.
+            if ($player->subclass === 'conjurer' && !in_array($request->conjurer_role, ['support', 'offensive'], true)) {
+                return back()->withErrors([
+                    'error' => 'Elige el rol del conjurador -soporte u ofensivo- antes de entrar a la cola.',
+                ]);
+            }
+
             $conjurerRole = $this->resolveConjurerRoleForPlayer($player, $request->conjurer_role);
 
             // Comprobar y crear dentro de una transaccion con los personajes de

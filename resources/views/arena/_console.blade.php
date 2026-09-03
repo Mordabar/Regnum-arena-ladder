@@ -200,6 +200,28 @@
                              de un juego: lo que se puede hacer con el guerrero
                              que estas viendo, dentro de su propio panel. --}}
                         @if($canJoinQueue)
+                            @if($modesAreOpen && !$activeParty)
+                                {{-- Un conjurador entra a cola como soporte o
+                                     como ofensivo, y el emparejamiento cuenta
+                                     los dos por separado. El campo se pinta
+                                     siempre y se ensena solo cuando toca: el
+                                     guerrero se cambia sin recargar, asi que no
+                                     puede depender de quien estuviera elegido al
+                                     cargar la pagina.
+
+                                     Vive fuera de la rejilla de acciones y se
+                                     ata al formulario por su id: dentro, la
+                                     rejilla de dos columnas lo partiria. --}}
+                                <div id="conjurerRoleDiv" class="arena-console-role {{ $featured?->subclass === 'conjurer' ? '' : 'hidden' }}">
+                                    <label for="randomConjurerRole">Rol del conjurador</label>
+                                    <select id="randomConjurerRole" name="conjurer_role" form="randomQueueForm"
+                                            class="arena-select" @disabled($featured?->subclass !== 'conjurer')>
+                                        <option value="offensive">Ofensivo</option>
+                                        <option value="support">Soporte</option>
+                                    </select>
+                                </div>
+                            @endif
+
                             <div class="arena-console-actions">
                                 @if(!$modesAreOpen)
                                     <p class="arena-console-actions-note">Las colas estan cerradas por el momento.</p>
@@ -245,7 +267,7 @@
                                         </button>
                                     </form>
                                 @else
-                                    <form method="POST" action="{{ route('queue.join') }}">
+                                    <form method="POST" action="{{ route('queue.join') }}" id="randomQueueForm">
                                         @csrf
                                         <input type="hidden" name="queue_type" value="random">
                                         <input type="hidden" name="arena_mode" value="{{ $arenaMode }}">
