@@ -168,6 +168,7 @@
 </script>
 @stack('scripts')
 @stack('arena-map-scripts')
+@include('partials.arena-map-runtime')
 <script>
     // Modal del panel. Ademas de abrir y cerrar, gestiona el foco: al abrirse
     // lo lleva dentro, no deja que el tabulador salga por detras del velo, y al

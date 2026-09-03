@@ -116,7 +116,11 @@ it('abre el detalle de un match desde el panel', function () {
 
     $this->withSession(adminPanelSession())
         ->get(route('admin.matches.show', $match))
-        ->assertOk();
+        ->assertOk()
+        // El mapa dejo de traer sus propios scripts: ahora los pone el layout,
+        // y el del panel es otro distinto al del sitio.
+        ->assertSee('data-arena-map', false)
+        ->assertSee('window.arenaLoadMap', false);
 });
 
 it('protege el panel de quien no ha iniciado sesion', function (string $route) {

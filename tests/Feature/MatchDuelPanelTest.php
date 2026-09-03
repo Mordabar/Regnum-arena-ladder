@@ -209,3 +209,41 @@ it('el servicio ignora a quien no juega este cruce', function () {
 
     expect(app(MatchLineupService::class)->forViewer($s['match'], [$extrano->id]))->toBeNull();
 });
+
+it('la ventana del mapa llega con el panel, no con la pagina', function () {
+    // El bug: el cruce aparece por el sondeo, sin recargar, y la ventana del
+    // mapa se pintaba fuera del panel. El boton de la zona llegaba solo, sin
+    // nada que abrir, tanto en movil como en escritorio.
+    $s = duelScenario();
+
+    $this->actingAs($s['mine']->user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('data-modal-open="modal-queue-zone-map"', false)
+        ->assertSee('id="modal-queue-zone-map"', false);
+
+    $panel = $this->actingAs($s['mine']->user)->getJson(route('lobby.console'))->assertOk();
+
+    expect($panel->json('html'))->toContain('data-modal-open="modal-queue-zone-map"')
+        ->and($panel->json('modals'))->toContain('id="modal-queue-zone-map"')
+        ->and($panel->json('modals'))->toContain('data-arena-map');
+});
+
+it('sin cruce no hay ventana del mapa que abrir', function () {
+    $solo = duelPlayer('solo', 'syrtis', 'hunter', 'Aranor');
+
+    $this->actingAs($solo->user)->get(route('lobby'))
+        ->assertOk()
+        ->assertDontSee('modal-queue-zone-map', false);
+});
+
+it('el mapa no arrastra a Leaflet en cada visita al lobby', function () {
+    // Se descarga cuando alguien abre un mapa, no al entrar al lobby.
+    $solo = duelPlayer('ligero', 'syrtis', 'knight', 'Belen');
+
+    // La direccion sigue escrita en el cargador; lo que no puede haber es una
+    // etiqueta que la descargue al abrir la pagina.
+    $this->actingAs($solo->user)->get(route('lobby'))
+        ->assertOk()
+        ->assertDontSee('<script src="https://unpkg.com/leaflet', false)
+        ->assertDontSee('<link rel="stylesheet" href="https://unpkg.com/leaflet', false);
+});

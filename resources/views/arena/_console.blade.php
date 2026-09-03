@@ -328,6 +328,17 @@
                 @endif
 
                 @include('arena._join')
+
+                {{-- El mapa de la zona del enfrentamiento. Vive con el panel
+                     porque el cruce aparece por el sondeo, sin recargar: fuera,
+                     el boton de la zona llegaba sin su ventana y no abria
+                     nada. --}}
+                @if($currentMatch)
+                    <x-arena-modal id="modal-queue-zone-map" :title="$currentMatch->zone_name" size="lg">
+                        <p class="arena-kicker mb-3">Zona asignada al enfrentamiento</p>
+                        <x-arena-zone-map :zone-key="$currentMatch->zone_key" height="min(420px, 55vh)" />
+                    </x-arena-modal>
+                @endif
             </div>
             <div class="arena-roster-scrim" data-roster-close hidden></div>
         </section>

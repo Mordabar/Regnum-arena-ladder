@@ -1576,7 +1576,9 @@
             text-transform: uppercase;
             color: var(--arena-muted);
         }
-        .arena-duel-zone-value { margin: 2px 0 0; font-size: 16px; font-weight: 600; color: var(--arena-gold-soft); }
+        /* "2 vs 2" es una sola cosa: partido en dos lineas se lee como dos. */
+        .arena-duel-zone-value { margin: 2px 0 0; font-size: 16px; font-weight: 600; color: var(--arena-gold-soft); white-space: nowrap; }
+        .arena-duel-zone-btn { white-space: normal; text-align: left; }
 
         .arena-duel-foot { display: flex; gap: 10px; flex-wrap: wrap; padding: 16px 24px 22px; }
         .arena-duel-foot > * { min-width: 140px; }
@@ -1700,6 +1702,17 @@
             transition: background 0.2s ease;
         }
         .arena-duel-zone-btn:hover { background: rgba(222, 185, 99, 0.2); }
+
+        @media (max-width: 620px) {
+            .arena-duel-panel-foot .arena-duel-zone {
+                flex-wrap: wrap;
+                row-gap: 8px;
+            }
+            /* El punto separador sobra cuando los dos lados no comparten fila. */
+            .arena-duel-zone-key + .arena-duel-zone-btn + .arena-duel-zone-key { display: none; }
+            .arena-duel-zone-btn { flex: 1 1 100%; justify-content: center; }
+            .arena-duel-panel-foot .arena-duel-zone-value { width: 100%; text-align: center; }
+        }
         .arena-duel-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
         .arena-queue-body {
@@ -2688,6 +2701,7 @@
     @stack('champion-boot')
 
     @stack('arena-map-scripts')
+    @include('partials.arena-map-runtime')
     <script>
         /* Relojes de la arena.
            Un solo motor para los tres: el plazo para aceptar el cruce, el plazo
@@ -2852,6 +2866,7 @@
             });
         })();
     </script>
+
 
     @stack('scripts')
 </body>
