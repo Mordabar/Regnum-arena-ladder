@@ -42,11 +42,9 @@ it('todos los modelos subidos tienen un nombre que el visor sabe pedir', functio
 })->skip(fn () => ChampionModels::available() === [], 'Todavia no hay modelos subidos.');
 
 it('ningun modelo pesa tanto como para castigar al movil', function () {
-    // Tres guerreros a la vez en el lobby. Los que llegan con la malla partida
-    // no bajan de 1,5 MB por mucho que se recorten, asi que el limite esta donde
-    // de verdad empieza a doler y no donde seria bonito.
+    // Tres guerreros a la vez en el lobby: a 900 KB cada uno son menos de 3 MB.
     foreach (ChampionModels::available() as $name) {
         $kb = (int) round(filesize(public_path('models/' . $name . '.glb')) / 1024);
-        expect($kb)->toBeLessThanOrEqual(1700);
+        expect($kb)->toBeLessThanOrEqual(900);
     }
 })->skip(fn () => ChampionModels::available() === [], 'Todavia no hay modelos subidos.');

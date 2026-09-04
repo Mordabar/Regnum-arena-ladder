@@ -20,18 +20,24 @@ la silueta generada por codigo. Se pueden subir de uno en uno sin tocar codigo.
 | `archer`  | `hunter`, `marksman`    |
 | `mage`    | `conjurer`, `warlock`   |
 
-Con 3 arquetipos por raza y sexo quedan cubiertas las 6 subclases: 24 modelos
-por reino en vez de 48.
+Con un modelo por arquetipo quedan cubiertas las dos subclases que cuelgan de
+el, asi que hacen falta la mitad de archivos.
 
-## Razas por reino
+## Cuantos modelos por reino
 
-| Reino  | Razas                                  |
-|--------|----------------------------------------|
-| Alsius | nordo, utghar, dwarf, lamai            |
-| Ignis  | esquelio, dark_elf, molok, lamai       |
-| Syrtis | alturian, wood_elf, half_elf, lamai    |
+No todas las razas pueden ser de todos los arquetipos: en Alsius el utghar no
+tiene arquero y el enano no tiene mago. Son 20 modelos por reino, no 24.
 
-Sexos: `male`, `female`.
+| Reino  | Raza      | Arquetipos que existen   | Modelos |
+|--------|-----------|--------------------------|---------|
+| Alsius | nordo     | warrior, archer, mage    | 6       |
+| Alsius | lamai     | warrior, archer, mage    | 6       |
+| Alsius | utghar    | warrior, mage            | 4       |
+| Alsius | dwarf     | warrior, archer          | 4       |
+| Ignis  | esquelio, dark_elf, molok, lamai   | los que permita el juego | |
+| Syrtis | alturian, wood_elf, half_elf, lamai | los que permita el juego | |
+
+Sexos: `male`, `female`. Alsius esta completo con sus 20.
 
 Ejemplos: `alsius-dwarf-male-warrior.glb`, `alsius-lamai-female-mage.glb`.
 
@@ -54,26 +60,29 @@ los que no sepa leer en vez de adivinar. Por dentro:
   mismo porcentaje a todos dejaba a la mitad pesando el doble;
 - baja el color y las normales a 1024, y el mapa de rugosidad y metalicidad a
   512, todo en WebP;
-- cuantiza los atributos con `KHR_mesh_quantization`.
+- comprime la geometria con Draco.
 
-Se cuantiza y no se comprime con Draco ni con Meshopt a proposito: esos dos
-necesitan un decodificador aparte que habria que vendorizar, y el cargador de
-Three.js que lleva el proyecto entiende la cuantizacion de serie. Si algun dia
-se vendoriza el decodificador de Draco, cambiar `--compress quantize` por
-`draco` en `tools/convertir-modelo.mjs` deja cada modelo en menos de la mitad.
+Three.js trae el enganche de Draco pero no el decodificador, asi que va
+vendorizado en `public/js` como todo lo demas: `arena-draco.js` es el minimo que
+pide GLTFLoader, y se apoya en `draco-decoder.js` y `draco-decoder.wasm`. Se
+piden solo cuando hay un guerrero que dibujar, y se cachean. Si fallan, el
+visor sigue: los modelos sin comprimir cargan igual.
 
 ### Cuando un modelo no adelgaza
 
 Algunos paquetes traen la malla partida en muchas piezas, con una costura de
 textura por cada trozo. El simplificador no puede colapsar un borde que es
 frontera, asi que se atasca a medio camino: los utghar se quedan en 32.000
-triangulos por mucho que se pida menos, y pesan cerca de 1,5 MB. No hay recorte
-que lo arregle desde aqui; se arreglaria en el modelo de origen, uniendo las
-piezas antes de exportarlo, o vendorizando el decodificador de Draco.
+triangulos por mucho que se pida menos, frente a los 9.000 de los demas.
+
+Eso ya no se nota en el peso porque Draco comprime la geometria tal cual esta,
+sin tocar la forma: el utghar mas denso pasa de 1.370 KB a 537 KB. Si algun dia
+importa el numero de triangulos y no el peso, se arregla en el modelo de origen
+uniendo las piezas antes de exportarlo.
 
 ## Que tiene que cumplir cada modelo
 
-- Por debajo de 1,7 MB ya convertido. El importador avisa si se pasa.
+- Por debajo de 900 KB ya convertido. El importador avisa si se pasa.
 - Mirando hacia +Z, de pie sobre el origen (Y = 0 a sus pies).
 - La altura da igual: el visor escala y centra cualquier modelo al encuadrarlo.
 

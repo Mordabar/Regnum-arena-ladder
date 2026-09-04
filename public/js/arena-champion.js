@@ -27,6 +27,9 @@ window.ArenaChampion = (function () {
   var ASSETS = window.arenaChampionAssets || {};
   var THREE_URL = ASSETS.three || '/js/three.min.js';
   var LOADER_URL = ASSETS.loader || '/js/three-gltf-loader.js';
+  var DRACO_URL = ASSETS.draco || '/js/arena-draco.js';
+  var DRACO_MODULE_URL = ASSETS.dracoModule || '/js/draco-decoder.js';
+  var DRACO_WASM_URL = ASSETS.dracoWasm || '/js/draco-decoder.wasm';
 
   var REALM_COLOR = { ignis: 0xd3642f, alsius: 0x79b5d6, syrtis: 0x8eb34a };
   var REALM_GLYPH = { ignis: '◆', alsius: '✹', syrtis: '❀' };
@@ -147,6 +150,31 @@ window.ArenaChampion = (function () {
     if (window.THREE && window.THREE.GLTFLoader) { return Promise.resolve(); }
     if (!loaderPromise) { loaderPromise = loadScript(LOADER_URL); }
     return loaderPromise;
+  }
+
+  /* El decodificador de Draco.
+     Three.js trae el enganche pero no el decodificador, asi que va aparte y
+     solo se pide cuando hace falta: son 250 KB entre el modulo y su wasm, y no
+     tienen por que pagarlos las paginas que no ensenan un guerrero. */
+  var dracoPromise = null;
+  var dracoLoader = null;
+
+  function needDraco() {
+    if (dracoLoader) { return Promise.resolve(dracoLoader); }
+
+    if (!dracoPromise) {
+      dracoPromise = loadScript(DRACO_URL).then(function () {
+        dracoLoader = window.ArenaDracoLoader.create(DRACO_MODULE_URL, DRACO_WASM_URL);
+        return dracoLoader;
+      }).catch(function (error) {
+        // Sin decodificador el modelo no carga y se queda la silueta: es peor
+        // dejarlo sin reintento que volver a probarlo en el siguiente guerrero.
+        dracoPromise = null;
+        throw error;
+      });
+    }
+
+    return dracoPromise;
   }
 
   var webglSupported = null;
@@ -558,9 +586,16 @@ window.ArenaChampion = (function () {
       return Promise.resolve(modelCache[url] ? borrowFromCache(modelCache[url]) : null);
     }
 
-    return needLoader().then(function () {
+    // El decodificador se pide junto al cargador. Si falla, se sigue: los
+    // modelos sin comprimir cargan igual y el guerrero no se queda sin figura
+    // por un problema que solo afecta a algunos archivos.
+    return needLoader()
+      .then(function () { return needDraco().catch(function () { return null; }); })
+      .then(function (draco) {
       return new Promise(function (resolve) {
-        new THREE.GLTFLoader().load(url, function (gltf) {
+        var loader = new THREE.GLTFLoader();
+        if (draco) { loader.setDRACOLoader(draco); }
+        loader.load(url, function (gltf) {
           modelCache[url] = gltf.scene;
           resolve(borrowFromCache(gltf.scene));
         }, undefined, function () {

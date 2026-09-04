@@ -86,15 +86,17 @@ try {
     // Se decima primero: simplificar despues de comprimir no serviria de nada.
     const ligero = join(trabajo, 'ligero.glb');
     const recorte = Math.min(1, TRIANGULOS / contarCaras(obj));
-    // Se cuantiza, no se comprime con Draco ni con Meshopt: esos dos necesitan
-    // un decodificador aparte que habria que descargar, y el cargador de
-    // Three.js que lleva el proyecto entiende la cuantizacion de serie.
+    // Draco. Comprime la geometria tal cual esta, sin tocar la forma, y eso es
+    // lo que salva a los modelos que llegan con la malla partida: el
+    // simplificador se atasca en ellos, pero Draco los deja igual en la cuarta
+    // parte del peso. El decodificador va vendorizado en public/js, como
+    // Three.js: nada se descarga de fuera.
     run(bin('gltf-transform'), ['optimize', crudo, ligero,
         '--simplify-ratio', recorte.toFixed(4),
         '--simplify-error', '1',
         '--texture-size', String(TEXTURA),
         '--texture-compress', 'webp',
-        '--compress', 'quantize',
+        '--compress', 'draco',
         '--no-prune-attributes',
     ]);
 
@@ -106,10 +108,10 @@ try {
 
     // Algunos paquetes llegan con la malla partida en muchas piezas y el
     // simplificador se atasca a medio camino: no puede colapsar un borde que es
-    // frontera. Esos pesan mas y no hay recorte que lo arregle, asi que el aviso
-    // esta donde de verdad empieza a doler en movil.
-    if (kb > 1700) {
-        console.warn(`  Ojo: ${kb} KB es mucho para movil. Mira si la malla venia partida.`);
+    // frontera. Con Draco esos ya no se disparan, pero el aviso queda para
+    // detectarlos.
+    if (kb > 900) {
+        console.warn(`  Ojo: ${kb} KB. Mira si la malla venia partida en muchas piezas.`);
     }
 } finally {
     rmSync(trabajo, { recursive: true, force: true });
