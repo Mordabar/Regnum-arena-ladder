@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AppSetting;
 use App\Models\ArenaMatch;
 use App\Models\MatchReport;
+use App\Models\Party;
 use App\Models\Player;
 use App\Models\Queue;
 use App\Models\User;
@@ -12,6 +13,7 @@ use App\Services\ArenaMatchResultService;
 use App\Services\ArenaMatchmakingService;
 use App\Services\PlayerCleanupService;
 use App\Services\LadderCacheService;
+use App\Support\ArenaMode;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -22,6 +24,10 @@ class AdminController extends Controller
         $stats = [
             'players' => Player::query()->count(),
             'active_players' => Player::query()->where('is_active', true)->count(),
+            // Habilitados pero sin pasar por el ladder desde hace tiempo. Es una
+            // lectura distinta de `is_active`, que solo dice si el personaje
+            // esta habilitado para jugar.
+            'dormant_players' => Player::query()->where('is_active', true)->dormant()->count(),
             'locked_players' => Player::query()->whereNotNull('queue_locked_until')->where('queue_locked_until', '>', now())->count(),
             'waiting_queues' => Queue::query()->where('status', 'waiting')->count(),
             'pending_acceptance' => ArenaMatch::query()->where('status', 'pending_acceptance')->count(),
@@ -33,9 +39,7 @@ class AdminController extends Controller
 
         $recentMatches = ArenaMatch::query()->latest('created_at')->take(8)->get();
         $recentReports = MatchReport::query()->with(['match', 'reporter'])->latest('created_at')->take(8)->get();
-        $recentUsers = User::query()->latest('created_at')->take(8)->get();
-
-        return view('admin.dashboard', compact('stats', 'recentMatches', 'recentReports', 'recentUsers'));
+        return view('admin.dashboard', compact('stats', 'recentMatches', 'recentReports'));
     }
 
     public function matches(Request $request)
@@ -62,9 +66,19 @@ class AdminController extends Controller
             });
         }
 
+        // El filtro por modalidad aparece con 2v2 y 3v3 conviviendo: sin el, la
+        // lista mezcla partidas de 2 y de 3 y no hay forma de auditar una sola.
+        $mode = $request->filled('mode') ? $request->string('mode')->value() : null;
+
+        if ($mode && array_key_exists($mode, ArenaMode::MODES)) {
+            $query->where('arena_mode', $mode);
+        } else {
+            $mode = null;
+        }
+
         $matches = $query->latest('created_at')->paginate(20)->withQueryString();
 
-        return view('admin.matches', compact('matches'));
+        return view('admin.matches', compact('matches', 'status', 'search', 'mode'));
     }
 
     public function moderationInbox()
@@ -97,7 +111,7 @@ class AdminController extends Controller
     public function resolveMatch(Request $request, ArenaMatch $match, ArenaMatchResultService $resultService)
     {
         $validated = $request->validate([
-            'action' => 'required|in:force_complete,void,dispute,lock_player,abandonment_walkover,support_infraction',
+            'action' => 'required|in:confirm_report,force_complete,void,dispute,lock_player,abandonment_walkover,support_infraction',
             'winner_team' => 'nullable|in:team_a,team_b,draw',
             'player_id' => 'nullable|exists:players,id',
             'note' => 'nullable|string|max:1000',
@@ -105,10 +119,29 @@ class AdminController extends Controller
 
         try {
             switch ($validated['action']) {
+                case 'confirm_report':
+                    // Lo mismo que si el rival hubiera pulsado "confirmar", con
+                    // su origen anotado. Sirve para ensayar el flujo entero y
+                    // para desatascar un reporte cuyo rival no va a contestar.
+                    if (!$match->report) {
+                        throw new \RuntimeException('Este match no tiene reporte que confirmar.');
+                    }
+
+                    $resultService->confirmReportForRival($match->report, $validated['note'] ?? null);
+                    $message = 'Reporte confirmado en nombre del rival y ladder actualizado.';
+                    break;
+
                 case 'force_complete':
+                    // Sin ganador explicito se caia en 'team_a' por defecto, es
+                    // decir se repartia PL a favor de un equipo elegido por el
+                    // orden de las columnas. Si no hay reporte del que deducirlo,
+                    // el admin tiene que decirlo.
                     $winnerTeam = $validated['winner_team']
-                        ?? $match->report?->claimed_winner_team
-                        ?? 'team_a';
+                        ?? $match->report?->claimed_winner_team;
+
+                    if (!$winnerTeam) {
+                        throw new \RuntimeException('Indica el resultado: este match no tiene reporte del que deducir el ganador.');
+                    }
 
                     $resultService->forceComplete(
                         $match,
@@ -198,9 +231,38 @@ class AdminController extends Controller
                 $query->whereNotNull('queue_locked_until')->where('queue_locked_until', '>', now());
             } elseif ($status === 'inactive') {
                 $query->where('is_active', false);
+            } elseif ($status === 'deleted') {
+                // Los borro su dueno: la fila sigue ahi para no perder su
+                // historial de enfrentamientos.
+                $query->where('is_active', false)
+                    ->where('deactivated_reason', Player::DEACTIVATED_BY_PLAYER);
+            } elseif ($status === 'disabled') {
+                // Apagados desde el panel. Las filas antiguas, sin motivo
+                // guardado, tambien caen aqui: es lo unico que se sabe de ellas.
+                $query->where('is_active', false)
+                    ->where(fn ($builder) => $builder
+                        ->where('deactivated_reason', Player::DEACTIVATED_BY_ADMIN)
+                        ->orWhereNull('deactivated_reason'));
             } elseif ($status === 'active') {
                 $query->where('is_active', true);
+            } elseif ($status === 'dormant') {
+                // Sin actividad NO es lo mismo que deshabilitado: mide cuanto
+                // hace que su dueno no pasa por el ladder.
+                $query->dormant();
             }
+        }
+
+        // Buscar por nombre: con cientos de personajes, paginar de 25 en 25
+        // hasta dar con uno no es una forma razonable de moderar.
+        $search = trim((string) $request->input('q', ''));
+
+        if ($search !== '') {
+            $query->where(function ($builder) use ($search) {
+                $builder->where('character_name', 'like', '%' . $search . '%')
+                    ->orWhereHas('user', fn ($userQuery) => $userQuery
+                        ->where('discord_username', 'like', '%' . $search . '%')
+                        ->orWhere('discord_id', 'like', '%' . $search . '%'));
+            });
         }
 
         $players = $query
@@ -209,7 +271,9 @@ class AdminController extends Controller
             ->paginate(25)
             ->withQueryString();
 
-        return view('admin.players', compact('players'));
+        $dormancyDays = Player::dormancyDays();
+
+        return view('admin.players', compact('players', 'realm', 'status', 'search', 'dormancyDays'));
     }
 
     public function storePlayer(Request $request)
@@ -251,6 +315,10 @@ class AdminController extends Controller
             'mmr' => isset($validated['mmr']) ? (int) $validated['mmr'] : 800,
             'trust_score' => 100,
             'is_active' => true,
+            // Un personaje creado a mano tambien necesita aspecto: sin raza el
+            // visor no sabria que maniqui dibujar.
+            'race' => Player::defaultRace($validated['realm']),
+            'gender' => 'male',
         ]);
 
         app(LadderCacheService::class)->forgetSummary();
@@ -261,8 +329,9 @@ class AdminController extends Controller
     public function updatePlayer(Request $request, Player $player)
     {
         $validated = $request->validate([
-            'action' => 'required|in:lock_12h,unlock_queue,toggle_active,enqueue_random,remove_from_queue',
+            'action' => 'required|in:lock_12h,unlock_queue,toggle_active,restore_deleted,enqueue_random,remove_from_queue',
             'conjurer_role' => 'nullable|in:support,offensive',
+            'arena_mode' => 'nullable|in:' . implode(',', ArenaMode::all()),
         ]);
         $resultService = app(ArenaMatchResultService::class);
         $matchmakingService = app(ArenaMatchmakingService::class);
@@ -295,14 +364,66 @@ class AdminController extends Controller
                     ]);
                 }
 
-                $player->update(['is_active' => !$player->is_active]);
+                // Al apagarlo queda constancia de que fue decision del panel, no
+                // del jugador: son dos estados distintos y se muestran distinto.
+                $player->update($player->is_active
+                    ? [
+                        'is_active' => false,
+                        'deactivated_reason' => Player::DEACTIVATED_BY_ADMIN,
+                        'deactivated_at' => now(),
+                    ]
+                    : [
+                        'is_active' => true,
+                        'deactivated_reason' => null,
+                        'deactivated_at' => null,
+                    ]);
+
                 app(LadderCacheService::class)->forgetSummary();
-                $message = 'Estado del personaje actualizado.';
+                $message = $player->is_active
+                    ? 'Personaje habilitado.'
+                    : 'Personaje deshabilitado.';
+                break;
+
+            case 'restore_deleted':
+                // Devolver a la vida un personaje que borro su dueno. Es la
+                // unica via: desde el lobby ya no se puede, justamente para que
+                // pase por aqui.
+                if (!$player->isDeletedByOwner()) {
+                    return back()->withErrors([
+                        'error' => 'Este personaje no lo elimino su dueno. Si esta apagado, usa Habilitar.',
+                    ]);
+                }
+
+                $cleanName = $player->cleanName();
+
+                // Mientras estaba fuera, el jugador pudo crear otro personaje
+                // con ese mismo nombre. Devolverselo asi crearia dos iguales.
+                $nameTaken = Player::query()
+                    ->where('character_name', $cleanName)
+                    ->where('realm', $player->realm)
+                    ->where('id', '!=', $player->id)
+                    ->exists();
+
+                if ($nameTaken) {
+                    return back()->withErrors([
+                        'error' => "No se puede recuperar: el nombre '{$cleanName}' ya esta ocupado en " . (Player::REALMS[$player->realm] ?? $player->realm) . '. Renombra primero al que lo ocupa.',
+                    ]);
+                }
+
+                $player->update([
+                    'is_active' => true,
+                    'deactivated_reason' => null,
+                    'deactivated_at' => null,
+                    'character_name' => $cleanName,
+                ]);
+
+                app(LadderCacheService::class)->forgetSummary();
+                $message = "Personaje '{$cleanName}' recuperado y de vuelta en el ranking.";
                 break;
 
             case 'enqueue_random':
                 if (!$player->is_active) {
-                    return back()->withErrors(['error' => 'No puedes encolar un personaje inactivo.']);
+                    return back()->withErrors(['error' => 'No puedes encolar un personaje deshabilitado.']);
                 }
 
                 if ($player->isQueueLocked()) {
@@ -317,9 +438,16 @@ class AdminController extends Controller
                     return back()->withErrors(['error' => 'Debes indicar el rol del conjurador antes de encolarlo.']);
                 }
 
+                $manualMode = ArenaMode::resolve($validated['arena_mode'] ?? null);
+
+                if (!ArenaMode::isEnabled($manualMode)) {
+                    return back()->withErrors(['error' => 'La modalidad ' . $manualMode . ' no esta activa.']);
+                }
+
                 Queue::query()->create([
                     'player_id' => $player->id,
                     'queue_type' => 'random',
+                    'arena_mode' => $manualMode,
                     'status' => 'waiting',
                     'conjurer_role' => $player->subclass === 'conjurer' ? $validated['conjurer_role'] : null,
                     'estimated_mmr' => $player->mmr ?? 800,
@@ -328,7 +456,7 @@ class AdminController extends Controller
                 ]);
 
                 $matchmakingService->processQueue();
-                $message = 'Jugador encolado manualmente en random.';
+                $message = 'Jugador encolado manualmente en random ' . $manualMode . '.';
                 break;
 
             case 'remove_from_queue':
@@ -391,14 +519,17 @@ class AdminController extends Controller
     {
         $settings = [
             'season_name' => AppSetting::getValue('season_name', 'Alpha Season'),
-            'home_tagline' => AppSetting::getValue('home_tagline', 'Conquest PvP 2v2 por reino y subclase'),
-            'rules_excerpt' => AppSetting::getValue('rules_excerpt', 'Random y premade 2v2, anonimato rival y ladder automatico.'),
+            'mode_2v2_enabled' => ArenaMode::isEnabled(ArenaMode::TWO_V_TWO),
+            'mode_3v3_enabled' => ArenaMode::isEnabled(ArenaMode::THREE_V_THREE),
+            'home_tagline' => AppSetting::getValue('home_tagline', 'Conquest PvP por reino y subclase'),
+            'rules_excerpt' => AppSetting::getValue('rules_excerpt', 'Random y premade, anonimato rival y ladder automatico.'),
             'support_contact' => AppSetting::getValue('support_contact', ''),
             'discord_invite_url' => AppSetting::getValue('discord_invite_url', ''),
             'discord_server_label' => AppSetting::getValue('discord_server_label', ''),
             'accept_window_minutes' => AppSetting::getValue('accept_window_minutes', 5),
             'hunt_window_minutes' => AppSetting::getValue('hunt_window_minutes', 30),
             'report_confirmation_window_minutes' => AppSetting::getValue('report_confirmation_window_minutes', 15),
+            'dispute_auto_void_hours' => AppSetting::getValue('dispute_auto_void_hours', 48),
             'premade_daily_limit' => AppSetting::getValue('premade_daily_limit', 3),
             'random_vs_premade_pl_bonus_pct' => AppSetting::getValue('random_vs_premade_pl_bonus_pct', 25),
             'random_vs_premade_mmr_bonus_pct' => AppSetting::getValue('random_vs_premade_mmr_bonus_pct', 18),
@@ -409,6 +540,7 @@ class AdminController extends Controller
             'abandonment_trust_penalty' => AppSetting::getValue('abandonment_trust_penalty', 15),
             'support_infraction_trust_penalty' => AppSetting::getValue('support_infraction_trust_penalty', 25),
             'penalty_max_lock_hours' => AppSetting::getValue('penalty_max_lock_hours', 96),
+            'inactive_after_days' => AppSetting::getValue('inactive_after_days', 14),
         ];
 
         $discordConfig = [
@@ -425,6 +557,8 @@ class AdminController extends Controller
     {
         $validated = $request->validate([
             'season_name' => 'required|string|max:120',
+            'mode_2v2_enabled' => 'nullable|boolean',
+            'mode_3v3_enabled' => 'nullable|boolean',
             'home_tagline' => 'required|string|max:180',
             'rules_excerpt' => 'required|string|max:500',
             'support_contact' => 'nullable|string|max:180',
@@ -433,6 +567,7 @@ class AdminController extends Controller
             'accept_window_minutes' => 'required|integer|min:1|max:30',
             'hunt_window_minutes' => 'required|integer|min:5|max:120',
             'report_confirmation_window_minutes' => 'required|integer|min:1|max:60',
+            'dispute_auto_void_hours' => 'required|integer|min:1|max:336',
             'premade_daily_limit' => 'required|integer|min:1|max:10',
             'random_vs_premade_pl_bonus_pct' => 'required|numeric|min:0|max:50',
             'random_vs_premade_mmr_bonus_pct' => 'required|numeric|min:0|max:50',
@@ -443,6 +578,12 @@ class AdminController extends Controller
             'abandonment_trust_penalty' => 'required|integer|min:1|max:100',
             'support_infraction_trust_penalty' => 'required|integer|min:1|max:100',
             'penalty_max_lock_hours' => 'required|integer|min:1|max:336',
+            'inactive_after_days' => 'required|integer|min:1|max:365',
+        ]);
+
+        $this->applyArenaModeToggles([
+            ArenaMode::TWO_V_TWO => $request->boolean('mode_2v2_enabled'),
+            ArenaMode::THREE_V_THREE => $request->boolean('mode_3v3_enabled'),
         ]);
 
         AppSetting::setValue('season_name', $validated['season_name'], 'branding', 'string', true);
@@ -454,6 +595,7 @@ class AdminController extends Controller
         AppSetting::setValue('accept_window_minutes', $validated['accept_window_minutes'], 'runtime', 'integer', false);
         AppSetting::setValue('hunt_window_minutes', $validated['hunt_window_minutes'], 'runtime', 'integer', false);
         AppSetting::setValue('report_confirmation_window_minutes', $validated['report_confirmation_window_minutes'], 'runtime', 'integer', false);
+        AppSetting::setValue('dispute_auto_void_hours', $validated['dispute_auto_void_hours'], 'runtime', 'integer', false);
         AppSetting::setValue('premade_daily_limit', $validated['premade_daily_limit'], 'runtime', 'integer', false);
         AppSetting::setValue('random_vs_premade_pl_bonus_pct', $validated['random_vs_premade_pl_bonus_pct'], 'runtime', 'float', false);
         AppSetting::setValue('random_vs_premade_mmr_bonus_pct', $validated['random_vs_premade_mmr_bonus_pct'], 'runtime', 'float', false);
@@ -464,8 +606,76 @@ class AdminController extends Controller
         AppSetting::setValue('abandonment_trust_penalty', $validated['abandonment_trust_penalty'], 'runtime', 'integer', false);
         AppSetting::setValue('support_infraction_trust_penalty', $validated['support_infraction_trust_penalty'], 'runtime', 'integer', false);
         AppSetting::setValue('penalty_max_lock_hours', $validated['penalty_max_lock_hours'], 'runtime', 'integer', false);
+        AppSetting::setValue('inactive_after_days', $validated['inactive_after_days'], 'runtime', 'integer', false);
 
         return back()->with('success', 'Configuracion guardada.');
+    }
+
+    /**
+     * Enciende o apaga cada modalidad de forma independiente.
+     *
+     * Apagar una modalidad no toca los matches ya en curso: esos siguen su
+     * flujo normal hasta reportarse. Solo se cierra la puerta a entradas
+     * nuevas y se libera a quien quedo esperando en esa cola.
+     *
+     * @param  array<string, bool>  $desiredStates
+     */
+    private function applyArenaModeToggles(array $desiredStates): void
+    {
+        foreach ($desiredStates as $mode => $shouldBeEnabled) {
+            $wasEnabled = ArenaMode::isEnabled($mode);
+
+            AppSetting::setValue(
+                ArenaMode::settingKey($mode),
+                $shouldBeEnabled ? '1' : '0',
+                'modes',
+                'boolean',
+                true
+            );
+
+            if ($wasEnabled && !$shouldBeEnabled) {
+                $this->releasePlayersWaitingInMode($mode);
+            }
+        }
+    }
+
+    /**
+     * Saca de la cola a quienes esperaban en una modalidad recien apagada, para
+     * que no queden colgados esperando un match que ya no va a llegar.
+     */
+    private function releasePlayersWaitingInMode(string $mode): void
+    {
+        // Solo colas en espera y sin match asignado: si ya tienen match, ese
+        // match sigue vivo y debe resolverse normalmente.
+        Queue::query()
+            ->where('arena_mode', $mode)
+            ->where('status', 'waiting')
+            ->whereNull('match_id')
+            ->update([
+                'status' => 'cancelled',
+                'team_id' => null,
+                'matched_at' => null,
+                'expires_at' => null,
+            ]);
+
+        // Las partys no se disuelven: vuelven al estado previo a la cola, igual
+        // que cuando expira su busqueda. Si se reactiva la modalidad, siguen ahi.
+        // Se excluyen las que ya entraron a un match: ese match sigue vivo y la
+        // party debe seguir reflejandolo hasta que se resuelva.
+        Party::query()
+            ->where('arena_mode', $mode)
+            ->where('status', 'queued')
+            ->whereDoesntHave('members.player.queues', function ($query) {
+                $query->whereIn('status', ['matched', 'accepted']);
+            })
+            ->get()
+            ->each(function (Party $party) {
+                $acceptedCount = (int) $party->members()->where('is_accepted_invite', true)->count();
+
+                $party->update([
+                    'status' => $acceptedCount >= $party->teamSize() ? 'ready' : 'forming',
+                ]);
+            });
     }
 
     public function zones()

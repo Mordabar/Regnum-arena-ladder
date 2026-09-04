@@ -4,12 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'Regnum Arena Ladder')</title>
-    <meta name="description" content="Regnum Arena Ladder — Conquest PvP 2v2. Emparejamiento por reino y subclase, ranking automático PL/MMR, anonimato rival.">
+    <meta name="description" content="Regnum Arena Ladder — Conquest PvP por reino y subclase, ranking automático PL/MMR, anonimato rival.">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Spectral:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         [x-cloak] { display: none !important; }
 
@@ -472,7 +471,1436 @@
         .arena-stagger-4 { animation-delay: 0.2s; }
         .arena-stagger-5 { animation-delay: 0.25s; }
         .arena-stagger-6 { animation-delay: 0.3s; }
+
+        /* ── Visor 3D de guerreros ───────────────────────────────────────────
+           El canvas se posiciona en absoluto sobre el contenedor y el emblema
+           del reino ocupa el mismo sitio: mientras no haya nada que renderizar,
+           la caja ya se ve completa en vez de dejar un agujero. */
+        .arena-champion {
+            /* El reino se nota antes de mirar el nombre: tine el fondo del
+               escenario, no solo el modelo. */
+            --champion-tint: var(--arena-fire);
+            position: relative;
+            overflow: hidden;
+            border-radius: 18px;
+            border: 1px solid var(--arena-line);
+            background:
+                radial-gradient(70% 55% at 50% 78%, color-mix(in srgb, var(--champion-tint) 16%, transparent), transparent 70%),
+                radial-gradient(78% 62% at 50% 30%, rgba(216, 177, 92, 0.07), transparent 68%),
+                linear-gradient(180deg, rgba(28, 20, 16, 0.92), rgba(14, 10, 7, 0.96));
+            transition: --champion-tint 0.3s ease;
+        }
+        .arena-champion[data-champion-realm="alsius"] { --champion-tint: var(--arena-ice); }
+        .arena-champion[data-champion-realm="syrtis"] { --champion-tint: var(--arena-forest); }
+        .arena-champion-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .arena-champion::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background:
+                /* Franja oscura al pie: el nombre y las etiquetas van encima de
+                   una escena viva, y con un guerrero de piel clara el texto se
+                   quedaba en 1.8:1 de contraste. Con esto no baja de 7:1 sea
+                   cual sea el modelo. */
+                linear-gradient(to top, rgba(6, 4, 3, 0.92) 0%, rgba(6, 4, 3, 0.72) 12%, transparent 34%),
+                radial-gradient(72% 62% at 50% 42%, transparent 42%, rgba(6, 4, 3, 0.62) 100%);
+        }
+        .arena-champion-fallback {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 24px;
+            text-align: center;
+            color: var(--arena-muted);
+            font-size: 12.5px;
+        }
+        .arena-champion-fallback p { margin: 0; max-width: 24ch; }
+        /* El aviso solo cuando el visor ha dado el 3D por imposible. Sin JS o
+           mientras carga, se ve el emblema y nada mas. */
+        .arena-champion-fallback-note { display: none; }
+        .arena-champion-fallback[data-champion-state="unsupported"] .arena-champion-fallback-note { display: block; }
+        .arena-champion-fallback[data-champion-state="loading"] .arena-champion-glyph {
+            animation: arenaPulse 1.8s ease-in-out infinite;
+        }
+        .arena-champion-glyph {
+            font-size: 76px;
+            line-height: 1;
+            color: var(--arena-fire);
+            opacity: 0.42;
+        }
+        .arena-champion[data-champion-realm="alsius"] .arena-champion-glyph { color: var(--arena-ice); }
+        .arena-champion[data-champion-realm="syrtis"] .arena-champion-glyph { color: var(--arena-forest); }
+
+        /* Contenido encima del escenario: nombre, cifras, etiquetas. */
+        .arena-champion-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 2;
+        }
+        .arena-champion-overlay > * { pointer-events: auto; }
+
+        .arena-champion-name {
+            margin: 0;
+            font-size: clamp(24px, 4vw, 38px);
+            font-weight: 700;
+            color: var(--arena-gold-soft);
+            text-shadow: 0 3px 24px rgba(0, 0, 0, 0.85);
+            text-wrap: balance;
+        }
+        .arena-champion-realm {
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--arena-fire);
+        }
+        .arena-champion[data-champion-realm="alsius"] .arena-champion-realm { color: var(--arena-ice); }
+        .arena-champion[data-champion-realm="syrtis"] .arena-champion-realm { color: var(--arena-forest); }
+        .arena-champion-status {
+            border-radius: 999px;
+            padding: 2px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            background: rgba(120, 53, 15, 0.45);
+            color: #fcd9a8;
+        }
+
+        /* En movil las cifras no caben dentro del escenario sin taparle la
+           cabeza al guerrero o pisar su nombre. Salen fuera, debajo, donde se
+           leen enteras. Probado: dentro se solapaban 20 px con el rotulo. */
+        @media (max-width: 640px) {
+            /* Ojo con el selector: apuntar a `.arena-champion-overlay
+               .arena-stats-row` tocaba tambien la fila de dentro del escenario
+               y le devolvia el display que la utilidad `hidden` acababa de
+               quitarle. Solo la de fuera. */
+            .arena-champion-stats-outside .arena-stats-row {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 6px;
+            }
+            /* Que se ve y que no lo deciden las utilidades (hidden / sm:flex)
+               en el propio marcado: sus reglas van despues de esta hoja y
+               ganarian igualmente. Aqui solo queda la maquetacion. */
+            .arena-champion-stats-outside { padding: 0 2px; }
+            .arena-stat-pill { min-width: 0; padding: 6px 9px; text-align: center; }
+            .arena-stat-pill b { font-size: 15px; }
+        }
+
+        .arena-stat-pill {
+            min-width: 72px;
+            padding: 7px 12px;
+            border-radius: 11px;
+            border: 1px solid var(--arena-line);
+            background: rgba(9, 6, 4, 0.72);
+        }
+        .arena-stat-pill span {
+            display: block;
+            /* 10px es el minimo que se lee de verdad en un movil: por debajo la
+               etiqueta se convierte en decoracion. */
+            font-size: 10px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--arena-muted);
+        }
+        .arena-stat-pill b {
+            display: block;
+            margin-top: 2px;
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--arena-gold-soft);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ── Rail de personajes ── */
+        .arena-roster-slot {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+            padding: 9px 11px;
+            border-radius: 12px;
+            border: 1px solid transparent;
+            background: rgba(12, 8, 6, 0.45);
+            color: var(--arena-text);
+            font: inherit;
+            transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+        }
+        .arena-roster-slot:hover { background: rgba(36, 26, 20, 0.75); transform: translateX(2px); }
+        .arena-roster-slot:focus-visible { outline: 2px solid var(--arena-gold); outline-offset: 2px; }
+        .arena-roster-slot[aria-pressed="true"] {
+            border-color: var(--arena-line-strong);
+            background: linear-gradient(90deg, rgba(63, 45, 31, 0.85), rgba(30, 21, 16, 0.7));
+        }
+        .arena-roster-crest {
+            width: 34px;
+            height: 34px;
+            border-radius: 9px;
+            flex: none;
+            display: grid;
+            place-items: center;
+            border: 1px solid var(--arena-line);
+            background: rgba(8, 5, 4, 0.8);
+        }
+        .arena-roster-name {
+            display: block;
+            font-weight: 600;
+            font-size: 14px;
+            line-height: 1.2;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .arena-roster-meta { display: block; font-size: 11.5px; color: var(--arena-muted); }
+        .arena-roster-pl {
+            margin-left: auto;
+            font-size: 12.5px;
+            color: var(--arena-gold);
+            font-variant-numeric: tabular-nums;
+        }
+        /* El reporte, dentro del panel de combate. */
+        .arena-report-inline {
+            margin: 0 22px 16px;
+            border: 1px solid var(--arena-line-strong);
+            border-radius: 14px;
+            background: rgba(10, 7, 5, 0.6);
+            overflow: hidden;
+        }
+        .arena-report-inline > summary {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 13px 16px;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--arena-gold-soft);
+            list-style: none;
+        }
+        .arena-report-inline > summary::-webkit-details-marker { display: none; }
+        .arena-report-inline > summary::after {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-right: 2px solid currentColor;
+            border-bottom: 2px solid currentColor;
+            transform: rotate(45deg);
+            transition: transform 0.2s ease;
+            opacity: 0.7;
+        }
+        .arena-report-inline[open] > summary::after { transform: rotate(-135deg); }
+        .arena-report-inline-hint { font-size: 12px; font-weight: 400; color: var(--arena-muted); }
+        .arena-report-inline-body { display: flex; flex-direction: column; gap: 14px; padding: 4px 16px 16px; }
+        .arena-report-reject { display: flex; flex-direction: column; gap: 12px; }
+        .arena-report-reject[hidden] { display: none; }
+
+        .arena-report-inline.is-answer { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+        .arena-report-inline-lead { margin: 0; font-size: 13.5px; color: var(--arena-sand); }
+        .arena-report-inline-lead b { color: var(--arena-gold-soft); }
+
+        @media (max-width: 720px) {
+            .arena-report-inline { margin: 0 16px 14px; }
+        }
+
+        /* ── Ventanas ──────────────────────────────────────────────────────
+           Se pintan al final del documento. Antes vivian donde estaban
+           escritas, y dentro de la consola del lobby (que recorta) salian
+           cortadas y ancladas en medio del escenario. */
+        .arena-modal-panel {
+            display: flex;
+            flex-direction: column;
+            max-height: min(82vh, 720px);
+        }
+        .arena-modal-body {
+            margin-top: 16px;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            padding-right: 4px;
+        }
+        .arena-modal-body::-webkit-scrollbar { width: 8px; }
+        .arena-modal-body::-webkit-scrollbar-thumb {
+            background: var(--arena-line-strong);
+            border-radius: 999px;
+        }
+
+        /* ── Consola del lobby ─────────────────────────────────────────────
+           Elegir guerrero, verlo y entrar a la cola ocurren en el mismo panel.
+           Antes el guerrero se elegia dos veces (el rail y un desplegable a
+           media pagina) y sus acciones vivian en una tarjeta suelta entre
+           medias, asi que la vista se leia como tres cosas distintas. */
+        .arena-console {
+            display: grid;
+            grid-template-columns: 250px minmax(0, 1fr);
+            gap: 0;
+            border: 1px solid var(--arena-line-strong);
+            border-radius: 22px;
+            overflow: hidden;
+            background: var(--arena-panel);
+            box-shadow: 0 18px 44px rgba(0, 0, 0, 0.4);
+        }
+
+        .arena-console-rail {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 16px 14px;
+            border-right: 1px solid var(--arena-line);
+            background: rgba(10, 7, 5, 0.5);
+        }
+        .arena-console-rail-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 0 4px;
+        }
+        .arena-console-count { font-size: 11.5px; color: var(--arena-muted); font-variant-numeric: tabular-nums; }
+        .arena-console-note {
+            margin: 0;
+            border: 1px solid var(--arena-line);
+            border-radius: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px 10px;
+            font-size: 11.5px;
+            color: var(--arena-muted);
+        }
+        .arena-console-slots { display: flex; flex-direction: column; gap: 8px; }
+        .arena-roster-slot.is-locked { opacity: 0.45; pointer-events: none; }
+
+        /* El escenario llega hasta el borde del panel. Con un margen alrededor
+           y un marco propio se veian dos bordes concentricos para una sola
+           cosa, y en pantalla estrecha quedaba todo pegado al borde exterior.
+           Lo que viene despues del escenario si respira. */
+        .arena-console-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+        .arena-console-main > *:not(.arena-console-stage) { margin: 0 16px; }
+        .arena-console-main > *:last-child:not(.arena-console-stage) { margin-bottom: 16px; }
+        .arena-console-stage { display: flex; flex-direction: column; }
+
+        /* Las acciones del guerrero, sobre su propia figura. */
+        .arena-console-tools { position: absolute; top: 62px; left: 14px; display: flex; gap: 8px; }
+        /* Sin selector de modalidad no hay nada encima: las acciones suben. */
+        .arena-champion-overlay:not(:has(.arena-console-arenas)) .arena-console-tools { top: 14px; }
+        .arena-console-tools-set { display: flex; gap: 8px; }
+        .arena-console-tool {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 11px;
+            border-radius: 10px;
+            border: 1px solid var(--arena-line);
+            background: rgba(8, 5, 4, 0.72);
+            backdrop-filter: blur(6px);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--arena-sand);
+            cursor: pointer;
+            transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+        }
+        .arena-console-tool:hover { border-color: var(--arena-line-strong); color: var(--arena-gold-soft); }
+        .arena-console-tool.is-danger:hover { border-color: rgba(200, 90, 80, 0.5); color: #e8927c; }
+        .arena-console-tool.is-muted { cursor: default; color: var(--arena-muted); }
+
+        /* El nombre ocupa solo su mitad: estirado de lado a lado tapaba el
+           selector de modo y no dejaba pulsarlo. */
+        .arena-console-ident {
+            position: absolute;
+            left: 20px;
+            right: 20px;
+            bottom: 18px;
+            max-width: min(55%, 420px);
+        }
+
+        /* Las cifras van sobre la figura en pantalla ancha y debajo en movil,
+           donde encima le taparian la cara. */
+        .arena-console .arena-champion-stats-inside {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+        .arena-console .arena-champion-stats-outside { display: none; }
+
+        /* Dentro de la consola no hay tarjetas dentro de tarjetas: el panel
+           ya es el marco, y repetir borde y fondo dibuja cajas anidadas. */
+        .arena-console-main > .arena-panel,
+        .arena-console-main > div > .arena-panel,
+        .arena-console-main > div > details.arena-panel {
+            border: 0;
+            background: transparent;
+            box-shadow: none;
+            padding: 0;
+        }
+        .arena-console-main > div > details.arena-panel > summary { padding: 12px 0; }
+        .arena-console-main > div > details.arena-panel > div { padding: 0 0 8px; }
+        .arena-console-main > div { display: flex; flex-direction: column; gap: 16px; }
+
+        /* ── Invitaciones flotantes ────────────────────────────────────── */
+        .arena-invites {
+            position: fixed;
+            right: 18px;
+            bottom: 18px;
+            z-index: 55;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: min(340px, calc(100vw - 36px));
+            pointer-events: none;
+        }
+        .arena-invite {
+            pointer-events: auto;
+            border: 1px solid var(--arena-line-strong);
+            border-radius: 16px;
+            background: linear-gradient(180deg, rgba(40, 28, 20, 0.97), rgba(14, 10, 8, 0.98));
+            box-shadow: 0 20px 44px rgba(0, 0, 0, 0.5);
+            padding: 13px 15px;
+            animation: arenaInviteIn 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+        }
+        @keyframes arenaInviteIn {
+            from { opacity: 0; transform: translateY(14px) scale(0.97); }
+            to { opacity: 1; transform: none; }
+        }
+        .arena-invite header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .arena-invite-kicker {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 10px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--arena-gold);
+        }
+        .arena-invite-hide {
+            border: 0;
+            background: transparent;
+            color: var(--arena-muted);
+            cursor: pointer;
+            padding: 2px;
+            border-radius: 6px;
+        }
+        .arena-invite-hide:hover { color: var(--arena-text); background: rgba(255, 255, 255, 0.08); }
+        .arena-invite-body { margin: 8px 0 0; font-size: 13px; color: var(--arena-sand); }
+        .arena-invite-body b { color: var(--arena-gold-soft); }
+        .arena-invite-actions { display: flex; gap: 8px; margin-top: 11px; }
+        .arena-invite-actions > * { flex: 1; }
+        .arena-invite-actions button { width: 100%; justify-content: center; }
+        .arena-invite-folded {
+            display: block;
+            width: 100%;
+            margin-top: 8px;
+            padding: 7px 10px;
+            border: 1px dashed var(--arena-line-strong);
+            border-radius: 10px;
+            background: transparent;
+            color: var(--arena-sand);
+            font-size: 12px;
+            text-align: left;
+            cursor: pointer;
+        }
+        .arena-invite-folded:hover { background: rgba(255, 255, 255, 0.05); color: var(--arena-text); }
+        .arena-invite.is-folded { padding: 10px 13px; }
+
+        @media (max-width: 560px) {
+            .arena-invites { right: 12px; left: 12px; bottom: 12px; width: auto; }
+        }
+
+        /* Modalidad de arena, encima del escenario: manda sobre todo lo que
+           viene debajo, asi que se elige antes de mirar al guerrero. */
+        .arena-console-arenas {
+            position: absolute;
+            top: 14px;
+            left: 14px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px;
+            border-radius: 12px;
+            border: 1px solid var(--arena-line);
+            background: rgba(8, 5, 4, 0.72);
+            backdrop-filter: blur(6px);
+        }
+        .arena-console-arenas-key {
+            padding: 0 8px 0 6px;
+            font-size: 10px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--arena-muted);
+        }
+        .arena-console-arena {
+            padding: 7px 16px;
+            border-radius: 9px;
+            border: 1px solid transparent;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--arena-muted);
+            transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+        }
+        .arena-console-arena:hover { color: var(--arena-sand); }
+        .arena-console-arena.is-active {
+            border-color: var(--arena-line-strong);
+            background: linear-gradient(180deg, rgba(63, 45, 31, 0.9), rgba(22, 15, 11, 0.95));
+            color: var(--arena-gold-soft);
+        }
+
+        /* La party, dentro del escenario. */
+        .arena-console-party {
+            position: absolute;
+            right: 16px;
+            bottom: 16px;
+            box-shadow: 0 14px 32px rgba(0, 0, 0, 0.45);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: flex-end;
+            padding: 10px 12px;
+            border-radius: 14px;
+            border: 1px solid var(--arena-line);
+            background: rgba(8, 5, 4, 0.72);
+            backdrop-filter: blur(8px);
+        }
+        .arena-console-party-key {
+            font-size: 10.5px;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--arena-gold-soft);
+        }
+        .arena-console-party-slots { display: flex; gap: 8px; }
+        .arena-console-party-slot {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            width: 62px;
+        }
+        .arena-console-party-slot b {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 10.5px;
+            font-weight: 600;
+            color: var(--arena-sand);
+        }
+        .arena-console-party-slot.is-empty b { color: var(--arena-muted); font-weight: 400; }
+        .arena-console-party-portrait {
+            width: 58px;
+            border-radius: 10px;
+            border: 1px dashed var(--arena-line-strong);
+            background: rgba(0, 0, 0, 0.45);
+        }
+        .arena-console-party-slot.is-in .arena-console-party-portrait {
+            border-style: solid;
+            border-color: rgba(95, 174, 106, 0.5);
+        }
+        .arena-console-party-portrait.is-empty {
+            display: grid;
+            place-items: center;
+            height: 64px;
+            font-size: 20px;
+            color: var(--arena-muted);
+        }
+
+        /* Menos texto en movil: el lobby tenia demasiado a la vista y lo
+           primero que sobra es lo que ya se sabe. */
+        @media (max-width: 720px) {
+            .arena-hide-mobile { display: none; }
+            .arena-console-title { font-size: 24px; }
+            .arena-console-lede { font-size: 13.5px; }
+        }
+
+        /* ── Escuadra como cajon en movil ──────────────────────────────────
+           En una pantalla estrecha la lista entera colgaba del final de la
+           pagina, visible todo el rato incluso durante un combate, y era la
+           parte mas larga de un lobby que ya tenia demasiado a la vista. */
+        .arena-roster-close { display: none; }
+        .arena-roster-scrim { display: none; }
+        .arena-console-foot-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+        .arena-roster-open { display: none; }
+
+        @media (max-width: 900px) {
+            .arena-roster-open { display: inline-flex; }
+            .arena-console-rail {
+                position: fixed;
+                inset: auto 0 0 0;
+                z-index: 60;
+                max-height: 76vh;
+                overflow-y: auto;
+                border: 1px solid var(--arena-line-strong);
+                border-bottom: 0;
+                border-radius: 20px 20px 0 0;
+                background: linear-gradient(180deg, rgba(32, 22, 17, 0.99), rgba(14, 10, 8, 0.99));
+                box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.6);
+                transform: translateY(102%);
+                transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.05);
+                padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+            }
+            .arena-console-rail.is-open { transform: none; }
+            .arena-roster-close {
+                display: inline-grid;
+                place-items: center;
+                margin-left: auto;
+                width: 32px;
+                height: 32px;
+                border-radius: 9px;
+                border: 1px solid var(--arena-line);
+                background: rgba(0, 0, 0, 0.35);
+                color: var(--arena-muted);
+                cursor: pointer;
+            }
+            .arena-roster-scrim {
+                display: block;
+                position: fixed;
+                inset: 0;
+                z-index: 59;
+                background: rgba(5, 3, 2, 0.72);
+                backdrop-filter: blur(3px);
+            }
+            .arena-roster-scrim[hidden] { display: none; }
+            body.arena-roster-locked { overflow: hidden; }
+        }
+
+        /* ── Barra de acciones del guerrero ────────────────────────────────
+           Pegada al pie del escenario, como el menu de accion de un juego: lo
+           que se puede hacer con el guerrero que estas viendo vive en su propio
+           panel, no en una tarjeta suelta mas abajo. */
+        .arena-console-stage {
+            overflow: hidden;
+            background: linear-gradient(180deg, rgba(30, 21, 15, 0.6), rgba(14, 10, 8, 0.75));
+        }
+        .arena-console-stage > .arena-champion { border-radius: 0; border: 0; }
+        .arena-console-stage > .arena-champion::after { border-radius: 0; }
+
+        /* El rol del conjurador, justo encima de las acciones y dentro del
+           mismo marco: es una condicion para entrar, no un ajuste suelto. */
+        .arena-console-role {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 11px 12px;
+            border-top: 1px solid var(--arena-line);
+            background: rgba(8, 5, 4, 0.45);
+        }
+        .arena-console-role label {
+            font-size: 11px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--arena-gold);
+            white-space: nowrap;
+        }
+        .arena-console-role .arena-select { flex: 1; min-width: 0; }
+        .arena-console-role + .arena-console-actions { border-top: 0; }
+
+        .arena-console-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            padding: 12px;
+            border-top: 1px solid var(--arena-line);
+            background: rgba(8, 5, 4, 0.55);
+        }
+        .arena-console-actions > form { display: contents; }
+        .arena-console-action {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 9px;
+            width: 100%;
+            padding: 13px 16px;
+            border-radius: 12px;
+            border: 1px solid var(--arena-line-strong);
+            background: linear-gradient(180deg, rgba(52, 38, 26, 0.9), rgba(20, 14, 10, 0.95));
+            font-family: "Cinzel", Georgia, serif;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            color: var(--arena-gold-soft);
+            cursor: pointer;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+        .arena-console-action:hover {
+            transform: translateY(-1px);
+            border-color: var(--arena-gold);
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+        }
+        .arena-console-action:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+        .arena-console-action.is-primary {
+            border-color: rgba(95, 174, 106, 0.55);
+            background: linear-gradient(180deg, rgba(58, 122, 74, 0.95), rgba(26, 62, 36, 0.98));
+            color: #eaf7ec;
+        }
+        .arena-console-action.is-primary:hover { border-color: #7cc98a; }
+        .arena-console-action.is-danger {
+            border-color: rgba(190, 84, 76, 0.5);
+            background: linear-gradient(180deg, rgba(78, 32, 30, 0.9), rgba(30, 14, 13, 0.95));
+            color: #f0bdb5;
+        }
+        /* Con un aviso ocupando la fila, el boton que queda tambien la ocupa:
+           medio boton suelto a la izquierda se ve como un descuadre. */
+        .arena-console-actions:has(.arena-console-actions-note) .arena-console-action {
+            grid-column: 1 / -1;
+        }
+        .arena-console-actions-note {
+            grid-column: 1 / -1;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            padding: 11px 14px;
+            border-radius: 11px;
+            border: 1px solid var(--arena-line);
+            background: rgba(0, 0, 0, 0.28);
+            font-size: 13px;
+            color: var(--arena-sand);
+        }
+
+        /* El pie del panel: con quien entras y donde estan las reglas. Dentro
+           del mismo marco que la figura y la barra, no como una tarjeta suelta
+           debajo. */
+        .arena-console-foot {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 14px;
+            border-top: 1px solid var(--arena-line);
+            background: rgba(0, 0, 0, 0.22);
+        }
+        .arena-queue-locked {
+            margin: 12px;
+            border: 1px solid rgba(190, 84, 76, 0.4);
+            border-radius: 12px;
+            background: rgba(78, 32, 30, 0.3);
+            padding: 10px 14px;
+            font-size: 13px;
+            color: #f0bdb5;
+        }
+        .arena-queue-hint { margin: 0; font-size: 12.5px; color: var(--arena-muted); }
+        .arena-queue-with {
+            margin: 0;
+            font-size: 13.5px;
+            color: var(--arena-muted);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 8px;
+        }
+        .arena-queue-with b { font-size: 15px; color: var(--arena-gold-soft); }
+
+        /* El lider de la invitacion, fijo: es el guerrero que ya elegiste. */
+        .arena-invite-leader {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 14px;
+            border: 1px solid var(--arena-line-strong);
+            background: rgba(10, 7, 5, 0.6);
+        }
+        .arena-invite-leader b { display: block; font-size: 14px; color: var(--arena-gold-soft); }
+        .arena-invite-leader > span > span { display: block; font-size: 12px; color: var(--arena-muted); }
+        .arena-invite-leader-tag {
+            margin-left: auto;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--arena-line);
+            font-size: 10px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--arena-gold);
+        }
+
+        /* Las opciones del editor, en dos columnas. */
+        .arena-edit-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+        @media (max-width: 620px) {
+            .arena-console-actions { grid-template-columns: 1fr; }
+            .arena-edit-choices { grid-template-columns: 1fr; }
+        }
+
+        .arena-party-state {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            border: 1px solid var(--arena-line);
+            border-radius: 14px;
+            background: rgba(10, 7, 5, 0.5);
+            padding: 14px 16px;
+        }
+        .arena-party-state-line {
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            font-size: 13.5px;
+            color: var(--arena-sand);
+        }
+        .arena-party-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex: none;
+            background: var(--arena-gold);
+        }
+        .arena-party-dot.is-ready { background: #7cc98a; }
+        .arena-party-dot.is-live { background: var(--arena-ice); animation: arenaPulseDot 1.6s ease-in-out infinite; }
+        @keyframes arenaPulseDot { 50% { opacity: 0.35; } }
+
+        @media (max-width: 720px) {
+            .arena-queue-buttons { grid-template-columns: 1fr; }
+            /* La party se queda arriba a la derecha y encoge: puesta en el
+               flujo se pintaba sobre el guerrero y lo partia por la mitad. */
+            .arena-console-party {
+                top: 56px;
+                right: 10px;
+                bottom: auto;
+                padding: 7px 8px;
+                gap: 5px;
+            }
+            .arena-console-party-slots { gap: 5px; }
+            .arena-console-party-slot { width: 44px; }
+            .arena-console-party-slot b { display: none; }
+            .arena-console-party-portrait { width: 42px; }
+            .arena-console-party-portrait.is-empty { height: 48px; font-size: 15px; }
+        }
+
+        .arena-queue-with {
+            margin: 0;
+            font-size: 13.5px;
+            color: var(--arena-muted);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 8px;
+        }
+        .arena-queue-with b { font-size: 15px; color: var(--arena-gold-soft); }
+
+        @media (max-width: 900px) {
+            .arena-console { grid-template-columns: 1fr; border-radius: 18px; }
+            /* El escenario primero: en movil lo que se mira es el guerrero, y
+               la escuadra se consulta al cambiar, no todo el rato. */
+            .arena-console-rail {
+                order: 2;
+                border-right: 0;
+                border-top: 1px solid var(--arena-line);
+            }
+            .arena-console-main { order: 1; }
+            .arena-console-main > *:not(.arena-console-stage) { margin: 0 14px; }
+            .arena-console-main > *:last-child:not(.arena-console-stage) { margin-bottom: 14px; }
+            .arena-console .arena-champion-stats-inside { display: none; }
+            .arena-console .arena-champion-stats-outside { display: block; padding: 0 16px; }
+            /* La modalidad manda la esquina de arriba y las acciones se
+               apartan a la derecha: en estrecho no caben una sobre otra sin
+               taparse. */
+            .arena-console-arenas { top: 10px; left: 10px; }
+            .arena-console-tools { top: 10px; left: auto; right: 10px; }
+            .arena-champion-overlay:not(:has(.arena-console-arenas)) .arena-console-tools { top: 10px; }
+            .arena-console-tool span { display: none; }
+            .arena-console-tool { padding: 8px; }
+            .arena-console-ident { left: 14px; right: 14px; bottom: 14px; max-width: none; }
+            /* En movil el selector no cabe al lado del nombre: va debajo, a lo
+               ancho, y el nombre sube. */
+            .arena-console-modes { left: 14px; right: 14px; bottom: 14px; }
+            .arena-console-mode { flex: 1; justify-content: center; padding: 9px 8px; }
+        }
+
+        /* ── Paginacion ────────────────────────────────────────────────── */
+        .arena-pagination {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+        }
+        .arena-pagination-count { margin: 0; font-size: 12.5px; color: var(--arena-muted); }
+
+        /* Area tactil en el pie: en movil sus enlaces median 15px de alto, que
+           es la altura del texto, no la de algo que se pueda pulsar. */
+        @media (max-width: 720px) {
+            .arena-footer-nav a {
+                display: inline-flex;
+                align-items: center;
+                min-height: 40px;
+            }
+        }
+        .arena-pagination-pages { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+        .arena-pagination-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 38px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--arena-line);
+            background: rgba(10, 7, 5, 0.55);
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--arena-sand);
+            transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+        }
+        .arena-pagination-link:hover { border-color: var(--arena-line-strong); color: var(--arena-gold-soft); }
+        .arena-pagination-link.is-current {
+            border-color: var(--arena-line-strong);
+            background: linear-gradient(180deg, rgba(63, 45, 31, 0.9), rgba(22, 15, 11, 0.95));
+            color: var(--arena-gold-soft);
+        }
+        .arena-pagination-link.is-disabled { opacity: 0.4; }
+        .arena-pagination-gap { padding: 0 4px; color: var(--arena-muted); }
+
+        @media (max-width: 560px) {
+            .arena-pagination { justify-content: center; }
+            .arena-pagination-count { width: 100%; text-align: center; }
+        }
+
+        .arena-home-champion { display: block; }
+        .arena-home-champion-stage {
+            border-radius: 14px;
+            border: 1px solid var(--arena-line);
+            background: rgba(0, 0, 0, 0.35);
+        }
+
+        .arena-champion-podium { display: block; }
+        .arena-champion-podium-stage {
+            border-radius: 12px;
+            border: 1px solid var(--arena-line);
+            background: rgba(0, 0, 0, 0.35);
+        }
+
+        .arena-profile-portrait {
+            width: 118px;
+            flex: none;
+            border-radius: 14px;
+            border: 1px solid var(--arena-line);
+            background: rgba(0, 0, 0, 0.4);
+        }
+        @media (max-width: 520px) { .arena-profile-portrait { width: 92px; height: 120px !important; } }
+
+        .arena-roster-lock {
+            display: block;
+            margin-top: 3px;
+            font-size: 9.5px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #e0888a;
+            font-weight: 600;
+        }
+        .arena-roster-empty {
+            justify-content: center;
+            color: var(--arena-muted);
+            border: 1px dashed var(--arena-line);
+            background: none;
+            font-size: 13px;
+            text-decoration: none;
+        }
+        .arena-roster-empty:hover { color: var(--arena-gold-soft); border-color: var(--arena-line-strong); transform: none; }
+
+        /* ── Aviso de cruce ─────────────────────────────────────────────────
+           Se apodera de la pantalla a proposito: encontrar rival es el momento
+           que decide la partida y tiene un reloj corriendo. Un panel mas en
+           medio del scroll se pierde. */
+        .arena-duel {
+            position: fixed;
+            inset: 0;
+            z-index: 60;
+            /* Flex con margin:auto en la tarjeta, no place-items:center: cuando
+               el aviso es mas alto que la pantalla, centrar con grid deja la
+               cabecera por encima del borde y no hay forma de subir hasta ella. */
+            display: flex;
+            padding: 20px;
+            background: rgba(5, 3, 2, 0.86);
+            backdrop-filter: blur(7px);
+            overflow-y: auto;
+            animation: arenaDuelIn 0.28s ease-out both;
+        }
+        @keyframes arenaDuelIn { from { opacity: 0 } to { opacity: 1 } }
+
+        .arena-duel-card {
+            width: min(720px, 100%);
+            margin: auto;
+            flex: none;
+            border: 1px solid var(--arena-line-strong);
+            border-radius: 20px;
+            overflow: hidden;
+            background: linear-gradient(180deg, rgba(32, 22, 17, 0.98), rgba(14, 10, 7, 0.98));
+            box-shadow: 0 40px 90px rgba(0, 0, 0, 0.7);
+            animation: arenaDuelPop 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+        }
+        @keyframes arenaDuelPop { from { transform: scale(0.94) } to { transform: scale(1) } }
+
+        .arena-duel-head {
+            padding: 20px 24px 16px;
+            text-align: center;
+            border-bottom: 1px solid var(--arena-line);
+        }
+        .arena-duel-title {
+            margin: 6px 0 0;
+            font-size: clamp(21px, 3.4vw, 27px);
+            font-weight: 700;
+            color: var(--arena-gold-soft);
+            text-wrap: balance;
+        }
+        .arena-duel-sub {
+            margin: 6px auto 0;
+            max-width: 46ch;
+            font-size: 13.5px;
+            color: var(--arena-muted);
+        }
+        .arena-duel-ring { position: relative; width: 78px; height: 78px; margin: 14px auto 0; }
+        .arena-duel-ring svg { transform: rotate(-90deg); display: block; }
+        .arena-duel-ring circle { fill: none; stroke-width: 5; stroke-linecap: round; }
+        .arena-duel-ring .bg { stroke: rgba(222, 185, 99, 0.14); }
+        .arena-duel-ring .fg {
+            stroke: var(--arena-gold);
+            transition: stroke-dashoffset 0.95s linear, stroke 0.3s ease;
+        }
+        .arena-duel-ring.is-urgent .fg { stroke: #c4553f; }
+        .arena-duel-ring b {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            font-size: 21px;
+            font-weight: 700;
+            color: var(--arena-gold-soft);
+            font-variant-numeric: tabular-nums;
+        }
+        .arena-duel-count {
+            margin: 8px 0 0;
+            font-size: 12px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--arena-muted);
+        }
+
+        .arena-duel-body { padding: 18px 24px 4px; display: flex; flex-direction: column; gap: 16px; }
+        /* Retrato, no panoramica: a lo ancho el guerrero se quedaba en un
+           munequito en medio de mucho aire. */
+        .arena-duel-stage {
+            border-radius: 14px;
+            width: min(320px, 100%);
+            margin: 0 auto;
+        }
+
+        .arena-duel-lineups {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 14px;
+            align-items: center;
+        }
+        .arena-duel-team { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+        .arena-duel-team h3 {
+            margin: 0 0 2px;
+            font-size: 10.5px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--team-color, var(--arena-gold));
+        }
+        .arena-duel-fighter {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 11px;
+            background: rgba(10, 7, 5, 0.6);
+            border: 1px solid var(--arena-line);
+            transition: border-color 0.25s ease;
+        }
+        .arena-duel-fighter.is-ready { border-color: rgba(95, 174, 106, 0.45); }
+        .arena-duel-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            flex: none;
+            display: grid;
+            place-items: center;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--arena-line);
+        }
+        .arena-duel-fighter b {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--arena-text);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .arena-duel-fighter > span > span { display: block; font-size: 11px; color: var(--arena-muted); }
+        .arena-duel-ready {
+            margin-left: auto;
+            font-size: 10.5px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--arena-muted);
+            white-space: nowrap;
+        }
+        .arena-duel-fighter.is-ready .arena-duel-ready { color: #7cc98a; }
+        .arena-duel-versus { font-size: 19px; font-weight: 700; color: var(--arena-muted); letter-spacing: 0.08em; }
+
+        .arena-duel-zone {
+            display: flex;
+            gap: 14px;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-radius: 13px;
+            border: 1px solid var(--arena-line);
+            background: rgba(10, 7, 5, 0.6);
+        }
+        .arena-duel-zone-key {
+            margin: 0;
+            font-size: 10px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--arena-muted);
+        }
+        /* "2 vs 2" es una sola cosa: partido en dos lineas se lee como dos. */
+        .arena-duel-zone-value { margin: 2px 0 0; font-size: 16px; font-weight: 600; color: var(--arena-gold-soft); white-space: nowrap; }
+        .arena-duel-zone-btn { white-space: normal; text-align: left; }
+
+        .arena-duel-foot { display: flex; gap: 10px; flex-wrap: wrap; padding: 16px 24px 22px; }
+        .arena-duel-foot > * { min-width: 140px; }
+
+        @media (max-width: 620px) {
+            .arena-duel { padding: 12px; }
+            /* Menos escenario y mas alineaciones: en una pantalla de movil lo
+               que hay que decidir es si aceptas, no admirar el retrato. */
+            .arena-duel-stage { height: 170px !important; width: min(220px, 100%); }
+            .arena-duel-lineups { grid-template-columns: 1fr; }
+            .arena-duel-versus { text-align: center; }
+            .arena-duel-body { padding: 14px 16px 4px; }
+            .arena-duel-head { padding: 16px 16px 14px; }
+            .arena-duel-foot { padding: 14px 16px 18px; }
+        }
+
+        /* ── Panel de combate en el sitio ──────────────────────────────────
+           El cruce y el combate vivian en una capa a pantalla completa. Un
+           combate no es una interrupcion de lo que estabas haciendo: ES lo que
+           estabas haciendo, asi que ocupa su sitio en la columna, con el mismo
+           lenguaje (anillo, alineaciones, figuras) en las tres fases: aceptar,
+           pelear y reportar. */
+        .arena-duel-panel {
+            border: 1px solid var(--arena-line-strong);
+            border-radius: 20px;
+            overflow: hidden;
+            background: linear-gradient(180deg, rgba(32, 22, 17, 0.96), rgba(14, 10, 7, 0.97));
+            box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42);
+            animation: arenaDuelPop 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+            /* La franja de la izquierda dice de un vistazo en que fase estas
+               sin tener que leer el titulo. */
+            border-left: 4px solid var(--arena-gold);
+        }
+        .arena-duel-panel.is-waiting { border-left-color: var(--arena-ice); }
+        .arena-duel-panel.is-live { border-left-color: var(--arena-emerald, #5faE6a); }
+
+        .arena-duel-panel-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 20px 22px 16px;
+            border-bottom: 1px solid var(--arena-line);
+        }
+        .arena-duel-panel-title {
+            margin: 6px 0 0;
+            font-size: clamp(20px, 2.6vw, 26px);
+            font-weight: 700;
+            color: var(--arena-gold-soft);
+            text-wrap: balance;
+        }
+        .arena-duel-panel-sub {
+            margin: 6px 0 0;
+            max-width: 52ch;
+            font-size: 13.5px;
+            color: var(--arena-muted);
+        }
+
+        .arena-duel-clock { position: relative; width: 78px; flex: none; text-align: center; }
+        .arena-duel-clock svg { transform: rotate(-90deg); display: block; margin: 0 auto; }
+        .arena-duel-clock circle { fill: none; stroke-width: 5; stroke-linecap: round; }
+        .arena-duel-clock .bg { stroke: rgba(222, 185, 99, 0.14); }
+        .arena-duel-clock .fg {
+            stroke: var(--arena-gold);
+            transition: stroke-dashoffset 0.95s linear, stroke 0.3s ease;
+        }
+        .arena-duel-clock.is-urgent .fg { stroke: #c4553f; }
+        .arena-duel-clock b {
+            position: absolute;
+            inset: 0 0 auto;
+            height: 70px;
+            display: grid;
+            place-items: center;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--arena-gold-soft);
+            font-variant-numeric: tabular-nums;
+        }
+        .arena-duel-clock.is-urgent b { color: #e8927c; }
+        /* El reloj de la cola cuenta hacia arriba: no hay anillo que llenar,
+           asi que el numero se coloca solo. */
+        .arena-duel-clock.is-elapsed b { position: static; height: auto; display: block; }
+        .arena-duel-clock-note {
+            display: block;
+            margin-top: 6px;
+            font-size: 10.5px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--arena-muted);
+        }
+
+        .arena-duel-panel .arena-duel-lineups { padding: 18px 22px; }
+        .arena-duel-portrait {
+            width: 56px;
+            flex: none;
+            border-radius: 10px;
+            border: 1px solid var(--arena-line);
+            background: rgba(0, 0, 0, 0.45);
+        }
+        .arena-duel-portrait::after { display: none; }
+
+        .arena-duel-panel-foot {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 0 22px 20px;
+        }
+        .arena-duel-panel-foot .arena-duel-zone { flex: 1 1 240px; justify-content: flex-start; gap: 10px; }
+        .arena-duel-panel-foot .arena-duel-zone-value { margin: 0; font-size: 14px; }
+        .arena-duel-zone-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid rgba(222, 185, 99, 0.3);
+            background: rgba(222, 185, 99, 0.1);
+            border-radius: 9px;
+            padding: 5px 10px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        .arena-duel-zone-btn:hover { background: rgba(222, 185, 99, 0.2); }
+
+        @media (max-width: 620px) {
+            .arena-duel-panel-foot .arena-duel-zone {
+                flex-wrap: wrap;
+                row-gap: 8px;
+            }
+            /* El punto separador sobra cuando los dos lados no comparten fila. */
+            .arena-duel-zone-key + .arena-duel-zone-btn + .arena-duel-zone-key { display: none; }
+            .arena-duel-zone-btn { flex: 1 1 100%; justify-content: center; }
+            .arena-duel-panel-foot .arena-duel-zone-value { width: 100%; text-align: center; }
+        }
+        .arena-duel-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+
+        .arena-queue-body {
+            display: grid;
+            grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
+            gap: 18px;
+            padding: 18px 22px;
+            align-items: start;
+        }
+        .arena-queue-portrait { border-radius: 14px; }
+        .arena-queue-pulse {
+            border: 1px solid var(--arena-line);
+            border-radius: 14px;
+            background: rgba(10, 7, 5, 0.6);
+            padding: 14px 16px;
+        }
+        .arena-queue-realm {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            border: 1px solid var(--arena-line);
+            border-radius: 11px;
+            padding: 8px 12px;
+        }
+
+        @media (max-width: 720px) {
+            .arena-duel-panel-head { flex-direction: column-reverse; align-items: flex-start; gap: 12px; padding: 16px 16px 14px; }
+            .arena-duel-clock { display: flex; align-items: center; gap: 10px; width: auto; text-align: left; }
+            .arena-duel-clock b { position: absolute; left: 0; width: 70px; }
+            .arena-duel-clock.is-elapsed b { position: static; width: auto; }
+            .arena-duel-clock-note { margin: 0; }
+            .arena-duel-panel .arena-duel-lineups { grid-template-columns: 1fr; padding: 16px; }
+            .arena-duel-versus { text-align: center; }
+            .arena-duel-panel-foot { padding: 0 16px 16px; }
+            .arena-duel-actions { width: 100%; }
+            .arena-duel-actions > *, .arena-duel-actions form, .arena-duel-actions button, .arena-duel-actions a { width: 100%; justify-content: center; }
+            .arena-queue-body { grid-template-columns: 1fr; padding: 16px; }
+        }
+
+        /* ── Asistente de creacion ── */
+        .arena-wizard-step {
+            border: 1px solid var(--arena-line);
+            border-radius: 16px;
+            padding: 18px;
+            background: rgba(16, 11, 8, 0.6);
+        }
+        .arena-wizard-num {
+            display: inline-grid;
+            place-items: center;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: 700;
+            background: rgba(216, 177, 92, 0.16);
+            color: var(--arena-gold-soft);
+            border: 1px solid var(--arena-line-strong);
+        }
+        .arena-wizard-step[data-done="1"] .arena-wizard-num {
+            background: var(--arena-gold);
+            color: #20160e;
+        }
+        .arena-choice {
+            position: relative;
+            display: block;
+            cursor: pointer;
+        }
+        /* El radio cubre toda la tarjeta en vez de encogerse a cero: sigue
+           siendo un radio de verdad (teclado, lectores, autofill) y ademas se
+           puede pulsar en cualquier punto de la tarjeta. */
+        .arena-choice input {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            opacity: 0;
+            cursor: pointer;
+            z-index: 1;
+        }
+        .arena-choice-body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 10px;
+            border-radius: 14px;
+            border: 1px solid var(--arena-line);
+            background: rgba(9, 6, 4, 0.55);
+            text-align: center;
+            transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+        }
+        .arena-choice:hover .arena-choice-body { transform: translateY(-2px); background: rgba(36, 26, 20, 0.7); }
+        .arena-choice input:focus-visible + .arena-choice-body { outline: 2px solid var(--arena-gold); outline-offset: 2px; }
+        .arena-choice input:checked + .arena-choice-body {
+            border-color: var(--choice-color, var(--arena-gold));
+            background: rgba(63, 45, 31, 0.6);
+            box-shadow: 0 0 0 1px var(--choice-color, var(--arena-gold)) inset;
+        }
+        .arena-choice-title { font-size: 13.5px; font-weight: 600; color: var(--arena-text); }
+        /* Solo hace falta cuando se ven las razas de los tres reinos a la vez,
+           que es lo que pasa sin JavaScript. Con scripts, el paso 1 ya ha
+           filtrado y esta linea sobra. */
+        .arena-choice-realm {
+            font-size: 10.5px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--arena-gold);
+            opacity: 0.75;
+        }
+        /* Opciones con marca: una fila de icono y texto se lee mucho mas rapido
+           que doce titulos sueltos, que es lo que eran las razas. */
+        .arena-choice-body-row {
+            flex-direction: row;
+            align-items: flex-start;
+            gap: 11px;
+            text-align: left;
+        }
+        .arena-choice-mark {
+            display: grid;
+            place-items: center;
+            width: 34px;
+            height: 34px;
+            flex: none;
+            border-radius: 10px;
+            border: 1px solid var(--arena-line);
+            background: rgba(0, 0, 0, 0.35);
+            color: var(--choice-color, var(--arena-gold));
+        }
+        .arena-choice input:checked + .arena-choice-body .arena-choice-mark {
+            border-color: var(--choice-color, var(--arena-gold));
+            background: rgba(216, 177, 92, 0.14);
+        }
+        .arena-choice-body-row .arena-choice-title,
+        .arena-choice-body-row .arena-choice-note,
+        .arena-choice-body-row .arena-choice-realm { display: block; }
+
+        /* La vista previa se queda pegada mientras se rellenan los pasos. El
+           desfase es la barra de navegacion, que tambien esta pegada: sin
+           contarla el guerrero quedaba medio tapado por la cabecera y solo se
+           le veia de cintura para abajo. */
+        .arena-preview-dock {
+            position: sticky;
+            top: calc(var(--arena-navbar-height, 72px) + 10px);
+            --preview-height: clamp(360px, 62vh, 640px);
+        }
+        @media (max-width: 1023px) {
+            .arena-preview-dock {
+                /* Alto suficiente para que el guerrero entre entero: con 180px
+                   se le cortaba la cabeza. */
+                --preview-height: 240px;
+                padding-bottom: 8px;
+                margin-bottom: 4px;
+                background: var(--arena-night);
+            }
+            .arena-preview-dock .arena-champion-name { font-size: 18px; }
+            .arena-preview-dock .arena-champion-caption { display: none; }
+            /* El rotulo, mas pegado al borde: en 240px cada pixel cuenta. */
+            .arena-preview-dock .arena-champion-overlay > div { inset-inline: 14px !important; bottom: 10px !important; }
+        }
+
+        .arena-choice-hint {
+            margin: 0 0 2px;
+            font-size: 12.5px;
+            color: var(--arena-muted);
+        }
+        /* Con JavaScript el filtrado deja un solo reino a la vista, y repetir
+           su nombre en cada tarjeta es ruido. */
+        .arena-wizard-step[data-races-filtered="1"] .arena-choice-realm,
+        .arena-wizard-step[data-races-filtered="1"] .arena-choice-hint { display: none; }
+        .arena-choice-note { font-size: 11.5px; color: var(--arena-muted); line-height: 1.4; }
     </style>
+    {{-- Utilidades de Tailwind, compiladas y servidas desde este dominio.
+
+         Antes esto era <script src="cdn.tailwindcss.com">, que compila Tailwind
+         en el navegador de cada visitante: si ese dominio fallaba, la pagina se
+         quedaba sin una sola clase.
+
+         Va DESPUES del <style> de arriba a proposito. El CDN inyectaba sus
+         reglas al final de la cabecera, asi que las utilidades ganaban a las
+         clases arena-* cuando compartian propiedad. El marcado depende de ello:
+         "arena-field px-4 py-2" o "arena-nav-link block w-full" solo tienen
+         sentido si el px-4 y el block ganan. Moverlo antes del <style> cambia
+         el relleno de campos y botones y rompe el menu movil. Comprobado
+         comparando los estilos calculados de las 1.438 etiquetas de las dos
+         paginas con cada orden. --}}
+    <link rel="stylesheet" href="{{ asset('css/site.css') }}?v={{ @filemtime(public_path('css/site.css')) ?: '1' }}">
     @stack('arena-map-styles')
 </head>
 @php
@@ -480,8 +1908,37 @@
     $arenaAdminDisplayName = session('arena_admin.display_name', 'admin');
 @endphp
 <body class="arena-shell min-h-screen">
+    <script>
+        /* Registro de arranques.
+           El panel del lobby ya no obliga a recargar la pagina: el sondeo trae
+           su HTML y lo cambia en su sitio. Eso deja sin efecto a los scripts
+           que buscaban sus nodos una sola vez, asi que en vez de correr sueltos
+           se apuntan aqui y se vuelven a pasar sobre el trozo nuevo. Cada uno
+           tiene que poder ejecutarse dos veces sin duplicar nada. */
+        window.ArenaBoot = (function () {
+            var inits = [];
+
+            function runOne(fn, root) {
+                try { fn(root || document); } catch (error) { console.error(error); }
+            }
+
+            return {
+                register: function (fn) {
+                    inits.push(fn);
+                    if (document.readyState === 'loading') {
+                        document.addEventListener('DOMContentLoaded', function () { runOne(fn, document); });
+                    } else {
+                        runOne(fn, document);
+                    }
+                },
+                run: function (root) {
+                    inits.forEach(function (fn) { runOne(fn, root); });
+                }
+            };
+        })();
+    </script>
     {{-- ── NAVBAR ── --}}
-    <nav class="arena-navbar sticky top-0 z-40">
+    <nav class="arena-navbar sticky top-0 z-40" data-arena-navbar>
         <div class="mx-auto max-w-7xl px-4 py-3">
             <div class="flex items-center justify-between gap-4">
                 <a href="{{ route('home') }}" class="shrink-0">
@@ -489,7 +1946,7 @@
                 </a>
 
                 {{-- Desktop nav --}}
-                <div class="hidden items-center gap-2 md:flex">
+                <div class="hidden items-center gap-2 lg:flex">
                     @if(request()->routeIs('admin.*') && $arenaAdminSessionActive)
                         {{-- Contexto Administrativo --}}
                         <a href="{{ route('admin.dashboard') }}" class="arena-nav-link {{ request()->routeIs('admin.dashboard') ? 'arena-nav-link-active' : '' }}">Dashboard</a>
@@ -503,7 +1960,7 @@
                         <a href="{{ route('home') }}" class="arena-nav-link text-xs text-[color:var(--arena-muted)] hover:text-white">Cambiar al Juego</a>
                         <button type="button" class="arena-btn-ghost px-3 py-1.5 text-xs" data-arena-alert-toggle>
                             <span class="inline-block h-2 w-2 rounded-full bg-emerald-400" data-arena-alert-indicator></span>
-                            <span data-arena-alert-label>Alertas ON</span>
+                            <span data-arena-alert-label>Alertas activas</span>
                         </button>
                         <span class="arena-chip hidden border-amber-500/30 bg-amber-950/30 text-amber-100 lg:inline-flex">🛡️ {{ $arenaAdminDisplayName }}</span>
                         <form method="POST" action="{{ route('admin.logout') }}">
@@ -517,13 +1974,9 @@
                             Ladder
                         </a>
                         @auth
-                            <a href="{{ route('lobby') }}" class="arena-nav-link {{ request()->routeIs('lobby') ? 'arena-nav-link-active' : '' }}">
-                                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/></svg>
-                                Lobby
-                            </a>
-                            <a href="{{ route('queue.index') }}" class="arena-nav-link relative {{ request()->routeIs('queue.*') ? 'arena-nav-link-active' : '' }}">
+                            <a href="{{ route('lobby') }}" class="arena-nav-link relative {{ request()->routeIs('lobby') ? 'arena-nav-link-active' : '' }}">
                                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
-                                Arena
+                                Lobby
                             </a>
                             <a href="{{ route('matches.index') }}" class="arena-nav-link {{ request()->routeIs('matches.*') ? 'arena-nav-link-active' : '' }}">
                                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/></svg>
@@ -531,7 +1984,7 @@
                             </a>
                             <button type="button" class="arena-btn-ghost px-3 py-1.5 text-xs" data-arena-alert-toggle>
                                 <span class="inline-block h-2 w-2 rounded-full bg-emerald-400" data-arena-alert-indicator></span>
-                                <span data-arena-alert-label>Alertas ON</span>
+                                <span data-arena-alert-label>Alertas activas</span>
                             </button>
                             <span class="arena-chip hidden lg:inline-flex">{{ auth()->user()->discord_username }}</span>
                             <form method="POST" action="{{ route('logout') }}">
@@ -556,7 +2009,7 @@
                 </div>
 
                 {{-- Mobile hamburger --}}
-                <button type="button" class="md:hidden rounded-xl border border-[color:var(--arena-line)] bg-[rgba(15,10,8,0.7)] p-2.5 text-[color:var(--arena-sand)] transition hover:bg-white/10" id="arenaMenuOpen" aria-label="Abrir menú">
+                <button type="button" class="lg:hidden rounded-xl border border-[color:var(--arena-line)] bg-[rgba(15,10,8,0.7)] p-2.5 text-[color:var(--arena-sand)] transition hover:bg-white/10" id="arenaMenuOpen" aria-label="Abrir menú">
                     <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
                 </button>
             </div>
@@ -588,7 +2041,7 @@
                     <a href="{{ route('admin.testing') }}" class="arena-nav-link block w-full {{ request()->routeIs('admin.testing') ? 'arena-nav-link-active' : '' }}">Testing</a>
                     <button type="button" class="arena-btn-ghost mt-3 w-full justify-center" data-arena-alert-toggle>
                         <span class="inline-block h-2 w-2 rounded-full bg-emerald-400" data-arena-alert-indicator></span>
-                        <span data-arena-alert-label>Alertas ON</span>
+                        <span data-arena-alert-label>Alertas activas</span>
                     </button>
                     
                     <div class="my-4 border-t border-[color:var(--arena-line)]"></div>
@@ -602,11 +2055,10 @@
                     <a href="{{ route('ladder.index') }}" class="arena-nav-link block w-full {{ request()->routeIs('ladder.*') ? 'arena-nav-link-active' : '' }}">Ladder</a>
                     @auth
                         <a href="{{ route('lobby') }}" class="arena-nav-link block w-full {{ request()->routeIs('lobby') ? 'arena-nav-link-active' : '' }}">Lobby</a>
-                        <a href="{{ route('queue.index') }}" class="arena-nav-link block w-full {{ request()->routeIs('queue.*') ? 'arena-nav-link-active' : '' }}">Arena</a>
                         <a href="{{ route('matches.index') }}" class="arena-nav-link block w-full {{ request()->routeIs('matches.*') ? 'arena-nav-link-active' : '' }}">Matches</a>
                         <button type="button" class="arena-btn-ghost mt-3 w-full justify-center" data-arena-alert-toggle>
                             <span class="inline-block h-2 w-2 rounded-full bg-emerald-400" data-arena-alert-indicator></span>
-                            <span data-arena-alert-label>Alertas ON</span>
+                            <span data-arena-alert-label>Alertas activas</span>
                         </button>
                         
                         <div class="my-4 border-t border-[color:var(--arena-line)]"></div>
@@ -699,16 +2151,82 @@
         })();
 
         /* ── Modal system ── */
-        window.arenaModal = {
-            open(id) {
-                const el = document.getElementById(id);
-                if (el) { el.style.display = 'flex'; }
-            },
-            close(id) {
-                const el = document.getElementById(id);
-                if (el) { el.style.display = 'none'; }
+        window.arenaModal = (function () {
+            /* Una ventana abierta se cierra con Escape, devuelve el foco a donde
+               estaba y no deja que el tabulador se escape por detras. Sin esto
+               quien navega con teclado se quedaba dando vueltas por la pagina de
+               abajo sin poder cerrar lo que tenia delante. */
+            var abierta = null;
+            var focoPrevio = null;
+
+            function enfocables(el) {
+                return [...el.querySelectorAll('a[href],button:not([disabled]),select,textarea,input:not([type=hidden]):not([disabled]),[tabindex]:not([tabindex="-1"])')]
+                    .filter(function (n) { return n.offsetParent !== null; });
             }
-        };
+
+            document.addEventListener('keydown', function (event) {
+                if (!abierta) { return; }
+
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    api.close(abierta.id);
+                    return;
+                }
+
+                if (event.key !== 'Tab') { return; }
+
+                var items = enfocables(abierta);
+                if (!items.length) { return; }
+
+                var primero = items[0];
+                var ultimo = items[items.length - 1];
+
+                if (event.shiftKey && document.activeElement === primero) {
+                    event.preventDefault();
+                    ultimo.focus();
+                } else if (!event.shiftKey && document.activeElement === ultimo) {
+                    event.preventDefault();
+                    primero.focus();
+                }
+            });
+
+            var api = {
+                open(id) {
+                    const el = document.getElementById(id);
+                    if (!el) { return; }
+
+                    focoPrevio = document.activeElement;
+                    el.style.display = 'flex';
+                    abierta = el;
+                    document.body.style.overflow = 'hidden';
+
+                    var items = enfocables(el);
+                    if (items.length) {
+                        try { items[0].focus({ preventScroll: true }); } catch (e) { items[0].focus(); }
+                    }
+                },
+                // El sondeo lo consulta: cambiar el panel debajo de una ventana
+                // abierta la haria desaparecer a media lectura.
+                isOpen() {
+                    return !!abierta;
+                },
+                close(id) {
+                    const el = document.getElementById(id);
+                    if (!el) { return; }
+
+                    el.style.display = 'none';
+                    document.body.style.overflow = '';
+
+                    if (abierta === el) { abierta = null; }
+                    if (focoPrevio && focoPrevio.focus) {
+                        try { focoPrevio.focus({ preventScroll: true }); } catch (e) { focoPrevio.focus(); }
+                        focoPrevio = null;
+                    }
+                }
+            };
+
+            return api;
+        })();
         document.addEventListener('click', (e) => {
             const closer = e.target.closest('[data-modal-close]');
             if (closer) {
@@ -773,57 +2291,57 @@
             let enabled = safeGet(enabledKey) !== '0';
             let audioContext = null;
             let unlocked = false;
-            let unlockHintShown = false;
 
+            // Dos notas como mucho, separadas, y la ultima con cola larga para
+            // que el aviso se apague solo. Los avisos importantes suben de tono
+            // (match encontrado, caceria); los informativos se quedan planos.
             const patterns = {
                 match_found: {
                     tones: [
-                        { freq: 784, duration: 0.11, delay: 0.00, type: 'triangle' },
-                        { freq: 988, duration: 0.12, delay: 0.15, type: 'triangle' },
-                        { freq: 1319, duration: 0.18, delay: 0.32, type: 'sine' },
+                        { freq: 880, duration: 0.55, delay: 0.00, gain: 0.055 },
+                        { freq: 1318, duration: 1.60, delay: 0.16, gain: 0.055 },
                     ],
                     vibrate: [80, 40, 120],
                 },
                 party_invite: {
                     tones: [
-                        { freq: 740, duration: 0.12, delay: 0.00, type: 'sine' },
-                        { freq: 1047, duration: 0.16, delay: 0.18, type: 'sine' },
+                        { freq: 784, duration: 0.45, delay: 0.00, gain: 0.045 },
+                        { freq: 1046, duration: 1.30, delay: 0.14, gain: 0.045 },
                     ],
                     vibrate: [60, 30, 80],
                 },
                 party_ready: {
                     tones: [
-                        { freq: 660, duration: 0.12, delay: 0.00, type: 'triangle' },
-                        { freq: 880, duration: 0.18, delay: 0.16, type: 'triangle' },
+                        { freq: 659, duration: 0.40, delay: 0.00, gain: 0.045 },
+                        { freq: 988, duration: 1.25, delay: 0.14, gain: 0.045 },
                     ],
                     vibrate: [70],
                 },
                 hunt_start: {
                     tones: [
-                        { freq: 587, duration: 0.14, delay: 0.00, type: 'square' },
-                        { freq: 784, duration: 0.14, delay: 0.16, type: 'square' },
-                        { freq: 1047, duration: 0.24, delay: 0.34, type: 'triangle' },
+                        { freq: 587, duration: 0.40, delay: 0.00, gain: 0.05 },
+                        { freq: 880, duration: 0.40, delay: 0.15, gain: 0.05 },
+                        { freq: 1174, duration: 1.70, delay: 0.30, gain: 0.05 },
                     ],
                     vibrate: [120, 50, 120],
                 },
                 report_submitted: {
                     tones: [
-                        { freq: 698, duration: 0.11, delay: 0.00, type: 'sine' },
-                        { freq: 698, duration: 0.11, delay: 0.16, type: 'sine' },
+                        { freq: 698, duration: 0.35, delay: 0.00, gain: 0.04 },
+                        { freq: 880, duration: 1.10, delay: 0.13, gain: 0.04 },
                     ],
                     vibrate: [50, 25, 50],
                 },
                 report_confirmed: {
                     tones: [
-                        { freq: 523, duration: 0.12, delay: 0.00, type: 'triangle' },
-                        { freq: 659, duration: 0.12, delay: 0.16, type: 'triangle' },
-                        { freq: 784, duration: 0.18, delay: 0.32, type: 'sine' },
+                        { freq: 659, duration: 0.35, delay: 0.00, gain: 0.045 },
+                        { freq: 988, duration: 1.45, delay: 0.14, gain: 0.045 },
                     ],
                     vibrate: [90, 40, 90],
                 },
                 generic: {
                     tones: [
-                        { freq: 740, duration: 0.16, delay: 0.00, type: 'triangle' },
+                        { freq: 880, duration: 1.10, delay: 0.00, gain: 0.04 },
                     ],
                     vibrate: [60],
                 },
@@ -851,21 +2369,25 @@
                 alertButtons().forEach((button) => {
                     const label = button.querySelector('[data-arena-alert-label]');
                     const indicator = button.querySelector('[data-arena-alert-indicator]');
-                    const activeLabel = enabled ? (unlocked ? 'Alertas listas' : 'Activar sonido') : 'Alertas OFF';
+                    // Un solo interruptor: encendido o silenciado. El desbloqueo
+                    // del audio (unlocked) es un requisito del navegador, no una
+                    // decision del usuario, asi que no se muestra como un tercer
+                    // estado: se resuelve solo con el primer gesto en la pagina.
+                    const activeLabel = enabled ? 'Alertas activas' : 'Alertas silenciadas';
 
                     button.classList.toggle('border-emerald-500/30', enabled);
                     button.classList.toggle('text-emerald-200', enabled);
                     button.classList.toggle('border-rose-500/30', !enabled);
                     button.classList.toggle('text-rose-200', !enabled);
                     button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+                    button.setAttribute('title', enabled ? 'Silenciar las alertas sonoras' : 'Activar las alertas sonoras');
 
                     if (label) {
                         label.textContent = activeLabel;
                     }
 
                     if (indicator) {
-                        indicator.classList.toggle('bg-emerald-400', enabled && unlocked);
-                        indicator.classList.toggle('bg-amber-400', enabled && !unlocked);
+                        indicator.classList.toggle('bg-emerald-400', enabled);
                         indicator.classList.toggle('bg-rose-400', !enabled);
                     }
                 });
@@ -893,18 +2415,27 @@
             };
 
             const installUnlockListeners = () => {
-                const tryUnlock = async () => {
-                    const didUnlock = await unlock();
-                    if (didUnlock) {
-                        unlockEvents.forEach((eventName) => {
-                            document.removeEventListener(eventName, tryUnlock, true);
-                        });
+                /* Los oyentes NO se quitan tras el primer exito. En iOS el
+                   contexto se interrumpe al bloquear la pantalla, al cambiar de
+                   app o al entrar una llamada, y se queda suspendido para
+                   siempre: quien deja el movil un momento y vuelve ya no oye
+                   nada, aunque el interruptor diga "alertas activas". */
+                const tryUnlock = () => {
+                    if (!audioContext || audioContext.state !== 'running') {
+                        unlock();
                     }
                 };
 
                 unlockEvents.forEach((eventName) => {
                     document.addEventListener(eventName, tryUnlock, true);
                 });
+
+                // Volver a primer plano cuenta como oportunidad de reanudar.
+                document.addEventListener('visibilitychange', () => {
+                    if (!document.hidden) { tryUnlock(); }
+                });
+                window.addEventListener('pageshow', tryUnlock);
+                window.addEventListener('focus', tryUnlock);
             };
 
             const shouldEmit = (eventKey) => {
@@ -931,10 +2462,12 @@
             const playPattern = (type) => {
                 const context = getAudioContext();
                 if (!context || !unlocked) {
-                    if (enabled && !unlockHintShown) {
-                        unlockHintShown = true;
-                        arenaToast('Haz un toque en la pagina para dejar listas las alertas sonoras.', 'info', 4500);
-                    }
+                    // Silencio en vez de un aviso: el desbloqueo del audio es
+                    // cosa del navegador y se resuelve solo en cuanto la persona
+                    // toca cualquier parte de la pagina. Pedirselo explicitamente
+                    // convertia un detalle tecnico en una tarea para el usuario.
+                    unlock();
+
                     return false;
                 }
 
@@ -942,22 +2475,42 @@
                 const baseTime = context.currentTime + 0.02;
 
                 pattern.tones.forEach((tone) => {
-                    const oscillator = context.createOscillator();
-                    const gainNode = context.createGain();
+                    // Campana, no pitido. El ataque es casi instantaneo (6 ms) y
+                    // luego la cola cae exponencialmente durante todo el resto:
+                    // eso es lo que hace que suene y se vaya apagando solo, en
+                    // vez de cortarse de golpe como antes, cuando la nota entera
+                    // duraba poco mas de una decima de segundo.
+                    //
+                    // Cada nota lleva ademas un armonico agudo mas corto y mas
+                    // bajo de volumen. Es lo que le da el timbre metalico: una
+                    // sinusoide sola suena a tono de prueba.
                     const startAt = baseTime + (tone.delay ?? 0);
-                    const duration = tone.duration ?? 0.15;
-                    const endAt = startAt + duration;
+                    const duration = tone.duration ?? 1.2;
+                    const peak = tone.gain ?? 0.05;
+                    const attack = 0.006;
 
-                    oscillator.type = tone.type ?? 'sine';
-                    oscillator.frequency.setValueAtTime(tone.freq ?? 660, startAt);
-                    gainNode.gain.setValueAtTime(0.0001, startAt);
-                    gainNode.gain.exponentialRampToValueAtTime(0.045, startAt + 0.02);
-                    gainNode.gain.exponentialRampToValueAtTime(0.0001, endAt);
+                    const voices = [
+                        { freq: tone.freq ?? 660, gain: peak, decay: duration, type: tone.type ?? 'sine' },
+                        { freq: (tone.freq ?? 660) * (tone.partial ?? 2.76), gain: peak * 0.22, decay: duration * 0.45, type: 'sine' },
+                    ];
 
-                    oscillator.connect(gainNode);
-                    gainNode.connect(context.destination);
-                    oscillator.start(startAt);
-                    oscillator.stop(endAt + 0.02);
+                    voices.forEach((voice) => {
+                        const oscillator = context.createOscillator();
+                        const gainNode = context.createGain();
+                        const endAt = startAt + voice.decay;
+
+                        oscillator.type = voice.type;
+                        oscillator.frequency.setValueAtTime(voice.freq, startAt);
+
+                        gainNode.gain.setValueAtTime(0.0001, startAt);
+                        gainNode.gain.exponentialRampToValueAtTime(voice.gain, startAt + attack);
+                        gainNode.gain.exponentialRampToValueAtTime(0.0001, endAt);
+
+                        oscillator.connect(gainNode);
+                        gainNode.connect(context.destination);
+                        oscillator.start(startAt);
+                        oscillator.stop(endAt + 0.03);
+                    });
                 });
 
                 if (navigator.vibrate && pattern.vibrate) {
@@ -972,18 +2525,27 @@
                 safeSet(enabledKey, enabled ? '1' : '0');
 
                 if (enabled) {
+                    // Se intenta desbloquear en segundo plano. Si el navegador
+                    // aun no lo permite, los listeners de gesto lo resuelven en
+                    // la siguiente interaccion sin molestar al usuario.
                     await unlock();
+
                     if (!options.silent) {
+                        // Un toque de prueba al encender: es la unica forma de
+                        // saber si de verdad va a sonar. En un iPhone con el
+                        // interruptor lateral en silencio no suena nada, y eso
+                        // no lo puede saltar ninguna pagina web.
+                        playPattern('generic');
                         arenaToast(
                             unlocked
-                                ? 'Alertas sonoras activadas.'
-                                : 'Alertas activadas. Haz un toque para dejar listo el sonido.',
-                            unlocked ? 'success' : 'info',
-                            4500
+                                ? 'Alertas sonoras activadas. Si no has oido el toque, revisa el interruptor de silencio del movil.'
+                                : 'Alertas activadas. Tu navegador todavia no deja sonar: toca cualquier parte de la pagina.',
+                            unlocked ? 'success' : 'warning',
+                            5000
                         );
                     }
                 } else if (!options.silent) {
-                    arenaToast('Alertas sonoras desactivadas.', 'warning', 3500);
+                    arenaToast('Alertas sonoras silenciadas.', 'info', 3000);
                 }
 
                 updateButtons();
@@ -1011,13 +2573,11 @@
                 }
 
                 event.preventDefault();
-                if (enabled && !unlocked) {
-                    unlock().then((didUnlock) => {
-                        arenaToast(didUnlock ? 'Alertas sonoras listas.' : 'No pude activar el sonido todavia. Intenta con otro toque.', didUnlock ? 'success' : 'warning', 4000);
-                    });
-                    return;
-                }
 
+                // El clic siempre hace lo mismo: encender o silenciar. Antes,
+                // cuando el audio no estaba desbloqueado, el primer clic lo
+                // desbloqueaba en vez de conmutar, y el boton parecia moverse
+                // entre tres estados sin logica aparente.
                 setEnabled(!enabled);
             });
 
@@ -1103,6 +2663,211 @@
             @endif
         });
     </script>
+
+    {{-- Las ventanas, al final del documento y fuera de todo panel. Dentro de
+         la consola del lobby quedaban recortadas por su overflow. --}}
+    <script>
+        /* La altura real de la barra de navegacion, para que lo que se queda
+           pegado debajo no acabe tapado por ella. Cambia con el ancho: en movil
+           es mas alta cuando el nombre del sitio salta de linea. */
+        (function () {
+            var navbar = document.querySelector('[data-arena-navbar]');
+            if (!navbar) { return; }
+
+            var publish = function () {
+                document.documentElement.style.setProperty(
+                    '--arena-navbar-height',
+                    Math.round(navbar.getBoundingClientRect().height) + 'px'
+                );
+            };
+
+            publish();
+
+            if (window.ResizeObserver) {
+                new ResizeObserver(publish).observe(navbar);
+            } else {
+                window.addEventListener('resize', publish);
+            }
+        })();
+    </script>
+
+    @stack('arena-modals')
+
+    {{-- Los modales que llegan con el panel repintado. Van fuera de la consola
+         porque esta recorta lo que sobresale, y en su propio hueco para poder
+         cambiarlos sin tocar los del resto de la pagina. --}}
+    <div data-console-modals></div>
+
+    @stack('champion-boot')
+
     @stack('arena-map-scripts')
+    @include('partials.arena-map-runtime')
+    <script>
+        /* Relojes de la arena.
+           Un solo motor para los tres: el plazo para aceptar el cruce, el plazo
+           para pelear y reportar, y el tiempo que llevas en cola. El servidor ya
+           pinta el valor correcto; esto solo lo mantiene vivo, asi que sin
+           JavaScript la pagina sigue diciendo algo cierto. */
+        (function () {
+            var reloaded = false;
+            // Solo se recarga si el reloj llega a cero MIENTRAS la pagina esta
+            // abierta. Si ya llego a cero antes de cargar, recargar solo
+            // encadenaria recargas infinitas sobre un estado que el servidor
+            // todavia no ha limpiado.
+            var startedRunning = false;
+
+            function format(total) {
+                var m = Math.floor(total / 60);
+                var s = total % 60;
+                return m + ':' + (s < 10 ? '0' : '') + s;
+            }
+
+            function tick() {
+                var now = Math.floor(Date.now() / 1000);
+
+                // Se consultan en cada vuelta, no una sola vez al cargar: el
+                // panel del lobby se repinta entero cuando cambia el estado y
+                // los relojes de dentro son nodos nuevos.
+                document.querySelectorAll('[data-arena-clock]').forEach(function (clock) {
+                    var value = clock.querySelector('[data-clock-value]');
+                    if (!value) { return; }
+
+                    var since = parseInt(clock.dataset.clockSince || '0', 10);
+                    if (since) {
+                        value.textContent = format(Math.max(0, now - since));
+                        return;
+                    }
+
+                    var expires = parseInt(clock.dataset.clockExpires || '0', 10);
+                    if (!expires) { return; }
+
+                    var left = Math.max(0, expires - now);
+                    var total = Math.max(1, parseInt(clock.dataset.clockTotal || '300', 10));
+                    var urgentAt = parseInt(clock.dataset.clockUrgent || '20', 10);
+
+                    value.textContent = format(left);
+                    clock.classList.toggle('is-urgent', left <= urgentAt);
+
+                    var arc = clock.querySelector('[data-clock-arc]');
+                    if (arc) {
+                        var circumference = parseFloat(arc.style.strokeDasharray) || 0;
+                        arc.style.strokeDashoffset = (circumference * (1 - Math.min(1, left / total))).toFixed(2);
+                    }
+
+                    // Al agotarse, el servidor ya ha decidido: se recarga una vez
+                    // para ensenar lo que paso en vez de un reloj clavado en cero.
+                    if (left > 0) { startedRunning = true; }
+
+                    if (left === 0 && startedRunning && clock.dataset.clockReload === '1' && !reloaded) {
+                        reloaded = true;
+                        window.setTimeout(function () { window.location.reload(); }, 1500);
+                    }
+                });
+            }
+
+            tick();
+            window.setInterval(tick, 1000);
+        })();
+    </script>
+    <script>
+        /* Comportamientos del panel del lobby.
+           Viven aqui, y no en cada componente, porque el panel se repinta solo:
+           un script que llegara dentro del trozo nuevo no se ejecutaria, y uno
+           atado a los nodos viejos se iria con ellos. */
+        (function () {
+            /* Subir 3 imagenes tarda. Sin senal el jugador vuelve a pulsar y
+               manda el reporte dos veces. */
+            document.addEventListener('submit', function (event) {
+                var form = event.target.closest('[data-report-form]');
+                if (!form) { return; }
+
+                var button = form.querySelector('[data-report-submit]');
+                if (!button) { return; }
+
+                button.disabled = true;
+                button.textContent = 'Subiendo el reporte…';
+            });
+
+            /* Rechazar pide un motivo, y ese motivo no puede estar en otra
+               pagina. */
+            document.addEventListener('click', function (event) {
+                if (!event.target.closest('[data-reject-toggle]')) { return; }
+
+                var rejectForm = document.querySelector('[data-reject-form]');
+                if (!rejectForm) { return; }
+
+                rejectForm.hidden = !rejectForm.hidden;
+                if (!rejectForm.hidden) {
+                    var note = rejectForm.querySelector('textarea');
+                    if (note) { note.focus(); }
+                }
+            });
+
+            /* Invitaciones a party.
+               Plegar no contesta: la invitacion sigue viva y se puede volver a
+               abrir. Antes la aspa borraba la tarjeta, y como la invitacion
+               seguia pendiente en el servidor el jugador se quedaba sin poder
+               contestarla y sin poder recibir otra party. */
+            var plegadas = new Set();
+
+            var pintarPlegado = function (card, plegada) {
+                var detalle = card.querySelector('[data-invite-detail]');
+                var resumen = card.querySelector('[data-invite-unfold]');
+                var boton = card.querySelector('[data-invite-fold]');
+
+                card.classList.toggle('is-folded', plegada);
+                if (detalle) { detalle.hidden = plegada; }
+                if (resumen) { resumen.hidden = !plegada; }
+                if (boton) {
+                    boton.hidden = plegada;
+                    boton.setAttribute('aria-expanded', plegada ? 'false' : 'true');
+                }
+            };
+
+            document.addEventListener('click', function (event) {
+                var card = event.target.closest('[data-arena-invite]');
+                if (!card) { return; }
+
+                if (event.target.closest('[data-invite-fold]')) {
+                    plegadas.add(card.dataset.inviteId);
+                    pintarPlegado(card, true);
+                    return;
+                }
+
+                if (event.target.closest('[data-invite-unfold]')) {
+                    plegadas.delete(card.dataset.inviteId);
+                    pintarPlegado(card, false);
+                }
+            });
+
+            // Tras un repintado las tarjetas son nodos nuevos: las que estaban
+            // plegadas tienen que seguir plegadas, o volverian a abrirse solas
+            // cada pocos segundos.
+            window.ArenaBoot.register(function (root) {
+                (root || document).querySelectorAll('[data-arena-invite]').forEach(function (card) {
+                    pintarPlegado(card, plegadas.has(card.dataset.inviteId));
+                });
+            });
+
+            /* El cruce tiene un reloj corriendo y puede aparecer con la pagina
+               ya desplazada. Se lleva la vista hasta el y se deja el foco en
+               aceptar, sin arrastrar el scroll por el enfoque. */
+            window.ArenaBoot.register(function (root) {
+                var panel = (root || document).querySelector('section.arena-duel-panel');
+                if (!panel || panel.dataset.duelAnnounced === '1') { return; }
+
+                panel.dataset.duelAnnounced = '1';
+                panel.scrollIntoView({ block: 'center', behavior: 'smooth' });
+
+                var accept = panel.querySelector('button[data-duel-accept]');
+                if (accept) {
+                    try { accept.focus({ preventScroll: true }); } catch (error) { accept.focus(); }
+                }
+            });
+        })();
+    </script>
+
+
+    @stack('scripts')
 </body>
 </html>

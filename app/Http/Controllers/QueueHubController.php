@@ -7,6 +7,8 @@ use App\Models\Player;
 use App\Models\Queue;
 use App\Services\ArenaMatchResultService;
 use App\Services\ArenaMatchmakingService;
+use App\Services\MatchLineupService;
+use App\Services\QueuePulseService;
 use App\Services\TestingLabService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -16,16 +18,87 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Models\Party;
 use App\Models\PartyMember;
+use App\Support\ArenaMode;
 
 class QueueHubController extends Controller
 {
-    private const PARTY_SIZE = 2;
-
-    public function index()
+    public function index(Request $request)
     {
         if (!Auth::check()) {
             return redirect()->route('auth.discord');
         }
+
+        return view('arena.hub', $this->buildHubState($request));
+    }
+
+    /**
+     * Solo el panel del lobby, en HTML suelto.
+     *
+     * El sondeo detectaba un cambio de estado y recargaba la pagina entera: se
+     * perdia el scroll, parpadeaba todo y los escenarios 3D se volvian a
+     * descargar. Ahora pide este trozo y lo cambia en su sitio.
+     */
+    public function consoleFragment(Request $request)
+    {
+        if (!Auth::check()) {
+            abort(403);
+        }
+
+        $state = $this->buildHubState($request);
+
+        // Sin guerreros no hay panel que repintar: el hub ensena otra cosa y el
+        // navegador tiene que recargar para verla.
+        if (!$state['hasRoster']) {
+            return response()->json(['reload' => true]);
+        }
+
+        // Los modales del panel (invitar a premade, reglas de cola) se empujan a
+        // una pila que en la pagina completa vuelca el layout. Aqui no hay
+        // layout, asi que se recogen a mano y viajan aparte.
+        //
+        // El contador de renderizados se sube a mano porque al terminar el
+        // ultimo render Blade vacia las pilas: sin esto los modales llegarian
+        // siempre vacios.
+        $factory = app('view');
+        $factory->incrementRender();
+
+        try {
+            $head = view('arena._console_head', $state)->render();
+            $html = view('arena._console', $state)->render();
+            // La nube de invitaciones vive fuera del panel, pero cambia con el
+            // mismo sondeo: sin esto una invitacion nueva sonaba y no se veia
+            // hasta recargar la pagina.
+            $invites = view('components.arena-party-invites', ['invites' => $state['pendingInvites']])->render();
+            $modals = $factory->yieldPushContent('arena-modals');
+        } finally {
+            $factory->decrementRender();
+            $factory->flushStateIfDoneRendering();
+        }
+
+        return response()->json([
+            'head' => $head,
+            'html' => $html,
+            'invites' => $invites,
+            'modals' => $modals,
+            'title' => $state['pageTitle'] . ' — Regnum Arena Ladder',
+        ]);
+    }
+
+    /**
+     * Todo lo que necesitan el hub y su panel, calculado una sola vez.
+     */
+    private function buildHubState(Request $request): array
+    {
+        $enabledModes = ArenaMode::enabled();
+
+        // La modalidad pedida manda, salvo que este apagada: en ese caso se cae
+        // a la que si este activa en vez de dejar al jugador en una pantalla
+        // muerta. Si no hay ninguna encendida, la vista muestra el estado vacio.
+        $requestedMode = ArenaMode::normalize($request->query('mode'));
+        $arenaMode = ($requestedMode !== null && ArenaMode::isEnabled($requestedMode))
+            ? $requestedMode
+            : ArenaMode::default();
+        $teamSize = ArenaMode::teamSize($arenaMode);
 
         $matchmakingService = app(ArenaMatchmakingService::class);
 
@@ -43,15 +116,28 @@ class QueueHubController extends Controller
         if ($players->isNotEmpty()) {
             $playerIds = $players->pluck('id');
 
+            // Ojo: el estado propio del jugador NO se filtra por modalidad. Un
+            // usuario solo puede tener una cola activa a la vez (lo garantiza
+            // join()), asi que filtrar aqui le esconderia su propia cola al
+            // cambiar de pestaña.
             $currentQueue = Queue::query()
                 ->whereIn('status', ['waiting', 'matched', 'accepted'])
                 ->whereIn('player_id', $playerIds)
-                ->select('id', 'player_id', 'queue_type', 'joined_at', 'status', 'match_id', 'team_id', 'expires_at')
+                ->select('id', 'player_id', 'queue_type', 'arena_mode', 'joined_at', 'status', 'match_id', 'team_id', 'expires_at')
                 ->latest('joined_at')
                 ->first();
 
             if ($currentQueue?->match_id) {
                 $currentMatch = ArenaMatch::find($currentQueue->match_id);
+
+                // Una cola puede quedar colgada de un enfrentamiento ya
+                // terminado (cancelado, resuelto o anulado). Sin esto la
+                // pantalla anuncia "combate en curso" sobre algo que acabo
+                // hace horas, con un reloj a cero y sin alineaciones.
+                if ($currentMatch && !$currentMatch->isActive()) {
+                    $currentMatch = null;
+                    $currentQueue = null;
+                }
             }
 
             $partyMember = PartyMember::query()
@@ -77,14 +163,159 @@ class QueueHubController extends Controller
                 ->get();
         }
 
-        return view('queue.index_v3', compact(
+        // Cuanta gente espera ahora mismo, por reino. Se calcula desde el reino
+        // del personaje que el jugador tiene en cola (o el primero que tenga),
+        // para poder decirle que le falta en vez de un numero suelto.
+        $pulseRealm = $players->firstWhere('id', $currentQueue?->player_id)?->realm
+            ?? $players->first()?->realm;
+        $queuePulse = app(QueuePulseService::class)->forMode($arenaMode, $pulseRealm);
+
+        // Alineaciones del enfrentamiento. Se calculan aqui, y no solo para el
+        // cruce pendiente, porque el combate entero ocurre en esta pantalla: el
+        // jugador acepta, pelea y reporta sin cambiar de pagina, y en los tres
+        // momentos tiene que ver quien esta a su lado y quien enfrente.
+        $matchLineup = null;
+        $matchPlayer = null;
+        $matchIsPendingAcceptance = false;
+
+        if ($currentMatch && $currentMatch->isActive()) {
+            $matchIsPendingAcceptance = $currentMatch->status === 'pending_acceptance'
+                && !$currentMatch->isExpired();
+
+            $matchLineup = app(MatchLineupService::class)->forViewer($currentMatch, $players->pluck('id')->all());
+            $matchPlayer = $matchLineup
+                ? $players->firstWhere('id', $matchLineup['viewer_player_id'])
+                : null;
+        }
+
+        // El guerrero elegido viaja en la URL para que el rail funcione tambien
+        // sin JavaScript: cada slot es un enlace de verdad, no solo un boton
+        // que el script pinta.
+        $requestedPlayerId = (int) $request->query('player', 0);
+        $requestedPlayer = $requestedPlayerId > 0
+            ? $players->firstWhere('id', $requestedPlayerId)
+            : null;
+
+        return $this->deriveHubView(compact(
             'players',
             'premadeDailyLimit',
             'currentQueue',
             'currentMatch',
             'activeParty',
-            'pendingInvites'
+            'pendingInvites',
+            'arenaMode',
+            'teamSize',
+            'enabledModes',
+            'queuePulse',
+            'matchLineup',
+            'matchPlayer',
+            'matchIsPendingAcceptance',
+            'requestedPlayer'
         ));
+    }
+
+    /**
+     * Lo que antes se calculaba en un @php gigante al principio de la vista.
+     *
+     * Vive aqui porque ahora hay dos entradas -la pagina y el fragmento del
+     * panel- y las dos tienen que ver exactamente lo mismo; con la logica
+     * dentro del Blade la parcial se quedaba sin la mitad de las variables.
+     */
+    private function deriveHubView(array $data): array
+    {
+        /** @var \Illuminate\Support\Collection $players */
+        $players = $data['players'];
+        $currentQueue = $data['currentQueue'];
+        $currentMatch = $data['currentMatch'];
+        $activeParty = $data['activeParty'];
+        $pendingInvites = $data['pendingInvites'];
+        $matchLineup = $data['matchLineup'];
+        $requestedPlayer = $data['requestedPlayer'];
+
+        $hasRoster = $players->isNotEmpty();
+        $hasActiveState = (bool) ($currentQueue || $currentMatch);
+        $modesAreOpen = !empty($data['enabledModes']);
+
+        // Ojo: $canJoinQueue NO depende de $modesAreOpen. El bloque de abajo
+        // tambien tiene las invitaciones y el panel de party (con "Abandonar
+        // Party"), y con las modalidades apagadas el jugador igual tiene que
+        // poder salir.
+        $canJoinQueue = $hasRoster && !$hasActiveState;
+        $activePartyMode = $activeParty->arena_mode ?? null;
+        $queueReportPendingConfirmation = (bool) ($currentMatch?->report
+            && $currentMatch->report->status === 'pending_confirmation');
+
+        // El guerrero del escenario: el que esta jugando manda sobre el resto.
+        $activePlayerId = $currentQueue?->player_id ?? $matchLineup['viewer_player_id'] ?? null;
+
+        // Mismo criterio que en el creador: cada raza por el rasgo que la
+        // distingue, no por un adorno cualquiera.
+        $raceIcons = [
+            'nordo' => 'human', 'esquelio' => 'human', 'alturian' => 'human',
+            'utghar' => 'horns', 'dwarf' => 'beard', 'molok' => 'hulk',
+            'dark_elf' => 'ears', 'wood_elf' => 'ears', 'half_elf' => 'ears-short',
+            'lamai' => 'ears-big',
+        ];
+
+        return array_merge($data, [
+            'hasRoster' => $hasRoster,
+            'hasActiveState' => $hasActiveState,
+            'modesAreOpen' => $modesAreOpen,
+            'canJoinQueue' => $canJoinQueue,
+            'activePartyMode' => $activePartyMode,
+            'activePartyModeIsOpen' => $activeParty ? ArenaMode::isEnabled($activePartyMode) : false,
+            'queueTypeLabel' => $currentQueue
+                ? trim((Queue::QUEUE_TYPES[$currentQueue->queue_type] ?? ucfirst($currentQueue->queue_type)) . ' ' . ArenaMode::label($currentQueue->arena_mode))
+                : null,
+            'premadeSlots' => range(2, $data['teamSize']),
+            'queueReportPendingConfirmation' => $queueReportPendingConfirmation,
+            'shouldPoll' => $hasRoster,
+            'shouldAutoRefresh' => (bool) ($hasActiveState || $activeParty || $pendingInvites->isNotEmpty()),
+            'stepperCurrent' => match (true) {
+                !$hasRoster => 1,
+                $canJoinQueue => 2,
+                (bool) ($currentMatch && $currentMatch->status === 'pending_acceptance') => 3,
+                (bool) $currentQueue && !$currentMatch => 3,
+                (bool) $currentMatch && $currentMatch->status === 'in_progress' && !$currentMatch->report => 4,
+                $queueReportPendingConfirmation => 4,
+                default => 2,
+            },
+            'activePlayerId' => $activePlayerId,
+            // Con un enfrentamiento en marcha las figuras que importan son las
+            // del combate, no el escaparate: dos escenarios 3D compitiendo por
+            // la atencion en la misma columna es ruido, y en movil es scroll
+            // muerto.
+            'showStage' => !$hasActiveState,
+            // Con cola o combate activo manda el personaje que esta jugando; si
+            // no, el que pida la URL; si tampoco, el primero.
+            'featured' => $players->firstWhere('id', $activePlayerId)
+                ?? $requestedPlayer
+                ?? $players->first(),
+            'lockedToPlayer' => $hasActiveState,
+            'raceIcons' => $raceIcons,
+            'championData' => $players->mapWithKeys(fn (Player $p) => [$p->id => [
+                'name' => $p->cleanName(),
+                // El buscador de companeros descarta a los del mismo usuario.
+                'userId' => $p->user_id,
+                'realm' => $p->realm,
+                'realmName' => Player::REALMS[$p->realm] ?? ucfirst($p->realm),
+                'subclass' => $p->subclass,
+                'subclassName' => Player::SUBCLASSES[$p->subclass] ?? ucfirst($p->subclass),
+                'race' => $p->race,
+                'raceName' => $p->raceName(),
+                'gender' => $p->gender ?: 'male',
+                'pl' => number_format((float) $p->pl_points, 1),
+                'mmr' => $p->mmr,
+                'wins' => $p->wins,
+                'losses' => $p->losses,
+                'status' => $p->statusLabel(),
+                'active' => (bool) $p->is_active,
+                'locked' => $p->isQueueLocked(),
+            ]]),
+            'pageTitle' => $currentMatch
+                ? ($currentMatch->status === 'pending_acceptance' ? 'Combate encontrado' : 'Combate activo')
+                : ($currentQueue ? 'Buscando combate…' : 'Lobby'),
+        ]);
     }
 
     public function premadeCandidates(Request $request)
@@ -127,7 +358,9 @@ class QueueHubController extends Controller
                 $builder->whereNull('queue_locked_until')
                     ->orWhere('queue_locked_until', '<=', now());
             })
-            ->whereDoesntHave('queues', function ($builder) {
+            // Se descarta al candidato si CUALQUIER personaje de su cuenta esta
+            // en cola: seleccionarlo daria un error recien al pulsar "Buscar".
+            ->whereDoesntHave('user.players.queues', function ($builder) {
                 $builder->whereIn('status', ['waiting', 'matched', 'accepted']);
             })
             ->whereNotIn('id', function ($builder) {
@@ -193,29 +426,28 @@ class QueueHubController extends Controller
         try {
             $matchmakingService = app(ArenaMatchmakingService::class);
 
+            $arenaMode = ArenaMode::resolve($request->input('arena_mode'));
+            $teamSize = ArenaMode::teamSize($arenaMode);
+
             $request->validate([
                 'player_id' => 'required|integer|exists:players,id',
+                'arena_mode' => 'nullable|in:' . implode(',', ArenaMode::all()),
                 'queue_type' => 'required|in:random,premade',
                 'conjurer_role' => 'nullable|in:support,offensive',
-                'party_player_ids' => 'nullable|array|size:' . self::PARTY_SIZE,
+                'party_player_ids' => 'nullable|array|size:' . $teamSize,
                 'party_player_ids.*' => 'nullable|exists:players,id',
-                'party_conjurer_roles' => 'nullable|array|size:' . self::PARTY_SIZE,
+                'party_conjurer_roles' => 'nullable|array|size:' . $teamSize,
                 'party_conjurer_roles.*' => 'nullable|in:support,offensive',
             ]);
+
+            if (!ArenaMode::isEnabled($arenaMode)) {
+                return back()->withErrors(['error' => 'La modalidad ' . $arenaMode . ' no esta activa en este momento.']);
+            }
 
             if (!$matchmakingService->isMatchesSchemaReady()) {
                 return back()->withErrors([
                     'error' => 'La tabla matches en produccion no tiene aun el esquema MVP v1. Ejecuta la migracion de compatibilidad antes de usar la cola real.',
                 ]);
-            }
-
-            $existingQueue = Queue::query()
-                ->whereIn('player_id', Auth::user()->players()->pluck('id'))
-                ->whereIn('status', ['waiting', 'matched', 'accepted'])
-                ->first();
-
-            if ($existingQueue) {
-                return back()->withErrors(['error' => 'El usuario ya tiene una cola o match activo.']);
             }
 
             if ($request->queue_type === 'premade') {
@@ -225,17 +457,53 @@ class QueueHubController extends Controller
             $player = Player::findOrFail((int) $request->player_id);
             $this->ensurePlayerCanQueueRandom($player);
 
+            // Falta de rol no es una averia del sistema: es algo que el jugador
+            // puede arreglar, asi que se le dice en vez de dejarlo caer en el
+            // "no se pudo crear la cola" de mas abajo.
+            if ($player->subclass === 'conjurer' && !in_array($request->conjurer_role, ['support', 'offensive'], true)) {
+                return back()->withErrors([
+                    'error' => 'Elige el rol del conjurador -soporte u ofensivo- antes de entrar a la cola.',
+                ]);
+            }
+
             $conjurerRole = $this->resolveConjurerRoleForPlayer($player, $request->conjurer_role);
 
-            Queue::create([
-                'player_id' => $player->id,
-                'queue_type' => 'random',
-                'status' => 'waiting',
-                'conjurer_role' => $conjurerRole,
-                'estimated_mmr' => $player->mmr ?? 800,
-                'joined_at' => now(),
-                'expires_at' => now()->addMinutes(30),
-            ]);
+            // Comprobar y crear dentro de una transaccion con los personajes de
+            // la cuenta bloqueados: sin esto, dos peticiones simultaneas (doble
+            // clic, dos pestañas) leian "sin cola" a la vez y ambas insertaban,
+            // dejando al usuario en dos colas y potencialmente dos matches.
+            $created = DB::transaction(function () use ($player, $arenaMode, $conjurerRole) {
+                $lockedPlayerIds = Player::query()
+                    ->where('user_id', $player->user_id)
+                    ->lockForUpdate()
+                    ->pluck('id');
+
+                $existingQueue = Queue::query()
+                    ->whereIn('player_id', $lockedPlayerIds)
+                    ->whereIn('status', ['waiting', 'matched', 'accepted'])
+                    ->exists();
+
+                if ($existingQueue) {
+                    return false;
+                }
+
+                Queue::create([
+                    'player_id' => $player->id,
+                    'queue_type' => 'random',
+                    'arena_mode' => $arenaMode,
+                    'status' => 'waiting',
+                    'conjurer_role' => $conjurerRole,
+                    'estimated_mmr' => $player->mmr ?? 800,
+                    'joined_at' => now(),
+                    'expires_at' => now()->addMinutes(30),
+                ]);
+
+                return true;
+            });
+
+            if (!$created) {
+                return back()->withErrors(['error' => 'El usuario ya tiene una cola o match activo.']);
+            }
 
             $matchmakingService->processQueue();
 
@@ -246,7 +514,7 @@ class QueueHubController extends Controller
                 ->first();
 
             if ($playerQueue?->match_id) {
-                return redirect()->route('queue.index')
+                return redirect()->route('lobby', ['mode' => $arenaMode])
                     ->with('success', $player->character_name . ' entro a cola y ya tiene un match real.');
             }
 
@@ -332,19 +600,27 @@ class QueueHubController extends Controller
     public function createParty(Request $request, ArenaMatchmakingService $matchmakingService)
     {
         try {
+            $arenaMode = ArenaMode::resolve($request->input('arena_mode'));
+            $teamSize = ArenaMode::teamSize($arenaMode);
+
             $validated = $request->validate([
-                'party_player_ids' => 'required|array|size:' . self::PARTY_SIZE,
+                'arena_mode' => 'nullable|in:' . implode(',', ArenaMode::all()),
+                'party_player_ids' => 'required|array|size:' . $teamSize,
                 'party_player_ids.*' => 'required|integer|distinct|exists:players,id',
-                'party_conjurer_roles' => 'nullable|array|size:' . self::PARTY_SIZE,
+                'party_conjurer_roles' => 'nullable|array|size:' . $teamSize,
                 'party_conjurer_roles.*' => 'nullable|in:support,offensive',
             ]);
+
+            if (!ArenaMode::isEnabled($arenaMode)) {
+                return back()->withErrors(['error' => 'La modalidad ' . $arenaMode . ' no esta activa en este momento.']);
+            }
 
             $selectedIds = collect($validated['party_player_ids'] ?? [])
                 ->map(fn ($id) => (int) $id)
                 ->values();
 
-            if ($selectedIds->count() !== self::PARTY_SIZE || $selectedIds->unique()->count() !== self::PARTY_SIZE) {
-                return back()->withErrors(['error' => 'La party debe tener exactamente 2 personajes distintos.']);
+            if ($selectedIds->count() !== $teamSize || $selectedIds->unique()->count() !== $teamSize) {
+                return back()->withErrors(['error' => 'La party debe tener exactamente ' . $teamSize . ' personajes distintos.']);
             }
 
             $players = Player::query()
@@ -354,7 +630,7 @@ class QueueHubController extends Controller
                 ->sortBy(fn (Player $player) => array_search($player->id, $selectedIds->all(), true))
                 ->values();
 
-            if ($players->count() !== self::PARTY_SIZE) {
+            if ($players->count() !== $teamSize) {
                 return back()->withErrors(['error' => 'No se pudieron cargar los personajes.']);
             }
 
@@ -363,8 +639,8 @@ class QueueHubController extends Controller
                 return back()->withErrors(['error' => 'Debes liderar la party con uno de tus personajes.']);
             }
 
-            if ($players->pluck('user_id')->unique()->count() !== self::PARTY_SIZE) {
-                return back()->withErrors(['error' => 'La party debe tener 2 usuarios distintos.']);
+            if ($players->pluck('user_id')->unique()->count() !== $teamSize) {
+                return back()->withErrors(['error' => 'La party debe tener ' . $teamSize . ' usuarios distintos.']);
             }
 
             $realms = $players->pluck('realm')->unique();
@@ -386,7 +662,7 @@ class QueueHubController extends Controller
             }
 
             // Checks (Queues, Lockouts, Limits)
-            $partyMatchesToday = $matchmakingService->countPartyMatchesTodayForPlayers($selectedIds->all());
+            $partyMatchesToday = $matchmakingService->countPartyMatchesTodayForPlayers($selectedIds->all(), $arenaMode);
             if ($partyMatchesToday >= $matchmakingService->getPremadeDailyLimit()) {
                 return back()->withErrors(['error' => 'Esta party alcanzo su limite diario de ' . $matchmakingService->getPremadeDailyLimit() . ' matches.']);
             }
@@ -396,7 +672,7 @@ class QueueHubController extends Controller
 
             foreach ($players as $index => $player) {
                 /** @var \App\Models\Player $player */
-                if (!$player->is_active) throw new \RuntimeException('Todos los personajes deben estar activos.');
+                if (!$player->is_active) throw new \RuntimeException('Todos los personajes de la party deben estar habilitados.');
                 if ($player->isQueueLocked()) throw new \RuntimeException($player->character_name . ' esta bloqueado de las colas de juego.');
                 
                 $role = $this->resolveConjurerRoleForPlayer($player, $roleInputs->get($index));
@@ -412,11 +688,12 @@ class QueueHubController extends Controller
                 return back()->withErrors(['error' => 'No se permiten 2 conjuradores soporte dentro de la misma party.']);
             }
 
-            DB::transaction(function () use ($leader, $composition) {
+            DB::transaction(function () use ($leader, $composition, $arenaMode) {
                 $party = Party::create([
                     'leader_player_id' => $leader->id,
                     'status' => 'forming',
-                    'realm' => $leader->realm
+                    'realm' => $leader->realm,
+                    'arena_mode' => $arenaMode,
                 ]);
 
                 foreach ($composition as $index => $comp) {
@@ -458,12 +735,10 @@ class QueueHubController extends Controller
             return back()->withErrors(['error' => $this->describePartyConflict($conflictingPartyMember)]);
         }
 
-        $alreadyInQueue = Queue::query()
-            ->where('player_id', $member->player_id)
-            ->whereIn('status', ['waiting', 'matched', 'accepted'])
-            ->exists();
-        if ($alreadyInQueue) {
-            return back()->withErrors(['error' => 'El personaje ya se encuentra en cola independiente, abandonela primero.']);
+        // Por usuario, no por personaje: aceptar con un personaje mientras otro
+        // de la misma cuenta esta en cola llevaria a dos matches simultaneos.
+        if ($this->findQueueConflictForPlayers(collect([$member->player_id]))) {
+            return back()->withErrors(['error' => 'Ya tienes un personaje en cola o en match. Sal de esa cola antes de aceptar la party.']);
         }
 
         $member->update(['is_accepted_invite' => true]);
@@ -530,6 +805,14 @@ class QueueHubController extends Controller
             return back()->withErrors(['error' => 'La party no esta lista o ya esta en cola.']);
         }
 
+        // Una party armada para una modalidad que el admin apago mientras tanto
+        // no puede entrar a la cola.
+        if (!ArenaMode::isEnabled($party->arena_mode)) {
+            return back()->withErrors([
+                'error' => 'La modalidad ' . ArenaMode::label($party->arena_mode) . ' ya no esta activa.',
+            ]);
+        }
+
         $partyPlayers = $party->members()->with('player.user')->get();
 
         $conflictingPartyMember = $this->findPartyConflictForPlayers($partyPlayers->pluck('player_id'), $party->id);
@@ -542,6 +825,40 @@ class QueueHubController extends Controller
             return back()->withErrors([
                 'error' => ($conflictingQueue->player?->character_name ?? 'Uno de los personajes')
                     . ' ya tiene una cola o match activo externamente.',
+            ]);
+        }
+
+        // Entre crear la party y pulsar "Buscar" pueden pasar horas: hay que
+        // revalidar lo que createParty comprobo en su momento.
+        foreach ($partyPlayers as $member) {
+            $memberPlayer = $member->player;
+
+            if (!$memberPlayer || !$memberPlayer->is_active) {
+                return back()->withErrors([
+                    'error' => ($memberPlayer->character_name ?? 'Un integrante') . ' ya no esta activo.',
+                ]);
+            }
+
+            if ($memberPlayer->isQueueLocked()) {
+                $reason = $memberPlayer->queue_lock_reason_name ? ' (' . $memberPlayer->queue_lock_reason_name . ')' : '';
+
+                return back()->withErrors([
+                    'error' => $memberPlayer->character_name . ' esta bloqueado de las colas' . $reason . '.',
+                ]);
+            }
+        }
+
+        // El limite diario tambien se revalida: la party sobrevive a sus
+        // matches, y sin esto entraba a la cola para quedarse ahi en silencio
+        // (buildPremadeTeams la descarta sin avisar a nadie).
+        $partyMatchesToday = $matchmakingService->countPartyMatchesTodayForPlayers(
+            $partyPlayers->pluck('player_id')->all(),
+            $party->arena_mode
+        );
+
+        if ($partyMatchesToday >= $matchmakingService->getPremadeDailyLimit()) {
+            return back()->withErrors([
+                'error' => 'Esta party alcanzo su limite diario de ' . $matchmakingService->getPremadeDailyLimit() . ' matches.',
             ]);
         }
 
@@ -563,6 +880,7 @@ class QueueHubController extends Controller
                 Queue::create([
                     'player_id' => $member->player_id,
                     'queue_type' => 'premade',
+                    'arena_mode' => $party->arena_mode,
                     'status' => 'waiting',
                     'conjurer_role' => $member->conjurer_role,
                     'estimated_mmr' => $member->player->mmr ?? 800,
@@ -641,7 +959,9 @@ class QueueHubController extends Controller
         $activeQueues = Queue::query()
             ->whereIn('player_id', $playerIds)
             ->whereIn('status', ['waiting', 'matched', 'accepted'])
-            ->select('id', 'player_id', 'queue_type', 'status', 'match_id')
+            // arena_mode se selecciona para poder contar el pulso de la cola en
+            // la modalidad que el jugador esta jugando, no en la de por defecto.
+            ->select('id', 'player_id', 'queue_type', 'status', 'match_id', 'arena_mode')
             ->orderBy('id')
             ->get();
 
@@ -699,14 +1019,16 @@ class QueueHubController extends Controller
 
         $pollState = [
             'party' => $party ? [
-                'id' => (int) $party->id,
+                // Party usa UUID: castear a int lo truncaba y hacia que dos
+                // partys distintas parecieran la misma en el poller.
+                'id' => (string) $party->id,
                 'status' => (string) $party->status,
                 'accepted_members_count' => (int) $party->accepted_members_count,
             ] : null,
             'pending_invites' => $pendingInvites
                 ->map(fn (PartyMember $invite) => [
                     'id' => (int) $invite->id,
-                    'party_id' => (int) $invite->party_id,
+                    'party_id' => (string) $invite->party_id,
                     'player_id' => (int) $invite->player_id,
                 ])
                 ->values()
@@ -726,9 +1048,26 @@ class QueueHubController extends Controller
                 : null,
         ];
 
+        // El pulso de cola va DELIBERADAMENTE fuera del hash. Si entrara, cada
+        // vez que cualquier jugador entrase o saliese de la cola cambiaria el
+        // hash y el poller recargaria la pagina entera a todo el mundo. Aqui
+        // fuera, el contador se refresca en vivo sin recargar nada.
+        // El reino desde el que se cuenta es el del personaje que esta en cola.
+        // Quien tiene personajes en varios reinos veria una pista equivocada si
+        // se cogiese siempre el primero de la lista.
+        $queuedPlayerId = $activeQueues->first()?->player_id;
+        $pulseRealm = Player::query()
+            ->when($queuedPlayerId, fn ($query) => $query->where('id', $queuedPlayerId))
+            ->whereIn('id', $playerIds)
+            ->value('realm');
+
         return response()->json([
             'hash' => md5(json_encode($pollState)),
             'state' => $pollState,
+            'queue_pulse' => app(QueuePulseService::class)->forMode(
+                $activeQueues->first()?->arena_mode,
+                $pulseRealm
+            ),
         ]);
     }
 
@@ -785,7 +1124,7 @@ class QueueHubController extends Controller
         }
 
         if (!$player->is_active) {
-            throw new \RuntimeException('El personaje debe estar activo.');
+            throw new \RuntimeException('Este personaje esta deshabilitado: recuperalo desde el lobby para volver a usarlo.');
         }
 
         if ($player->isQueueLocked()) {
@@ -830,16 +1169,9 @@ class QueueHubController extends Controller
             return back()->withErrors(['error' => 'Debes crear al menos un bot de prueba.']);
         }
 
-        if ($request->boolean('replace_existing', true)) {
-            $mixedMatches = $this->collectMixedSandboxMatches($testingLabService->testPlayerIds(), $testingLabService);
-
-            if ($mixedMatches->isNotEmpty()) {
-                return back()->withErrors([
-                    'error' => 'No puedes regenerar reemplazando el sandbox mientras existan matches mixtos con personajes reales.',
-                ]);
-            }
-        }
-
+        // Regenerar reemplazando ya no se bloquea por tener enfrentamientos
+        // mixtos: seedRoster limpia el rastro entero antes de crear, y esa
+        // limpieza devuelve a los jugadores reales los puntos de las pruebas.
         $createdPlayers = $testingLabService->seedRoster([
             'ignis' => (int) $validated['ignis_count'],
             'syrtis' => (int) $validated['syrtis_count'],
@@ -894,9 +1226,16 @@ class QueueHubController extends Controller
             ]);
         }
 
+        $sandboxMode = ArenaMode::resolve($request->input('arena_mode'));
+
+        if (!ArenaMode::isEnabled($sandboxMode)) {
+            return back()->withErrors(['error' => 'La modalidad ' . $sandboxMode . ' no esta activa: la cola no se procesaria.']);
+        }
+
         Queue::create([
             'player_id' => $player->id,
             'queue_type' => 'random',
+            'arena_mode' => $sandboxMode,
             'status' => 'waiting',
             'conjurer_role' => $this->assignSandboxConjurerRole($player),
             'estimated_mmr' => $player->mmr ?? 800,
@@ -914,7 +1253,14 @@ class QueueHubController extends Controller
         $validated = $request->validate([
             'realm' => 'required|in:ignis,syrtis,alsius',
             'count' => 'required|integer|min:1|max:60',
+            'arena_mode' => 'nullable|in:' . implode(',', ArenaMode::all()),
         ]);
+
+        $arenaMode = ArenaMode::resolve($validated['arena_mode'] ?? null);
+
+        if (!ArenaMode::isEnabled($arenaMode)) {
+            return back()->withErrors(['error' => 'La modalidad ' . $arenaMode . ' no esta activa: los bots quedarian esperando sin emparejar.']);
+        }
 
         $players = $testingLabService->testPlayersQuery()
             ->where('realm', $validated['realm'])
@@ -942,6 +1288,7 @@ class QueueHubController extends Controller
             Queue::create([
                 'player_id' => $player->id,
                 'queue_type' => 'random',
+                'arena_mode' => $arenaMode,
                 'status' => 'waiting',
                 'conjurer_role' => $this->assignSandboxConjurerRole($player),
                 'estimated_mmr' => $player->mmr ?? 800,
@@ -949,10 +1296,10 @@ class QueueHubController extends Controller
                 'expires_at' => now()->addMinutes(30),
             ]);
         }
-        
+
         $matchmakingService->processQueue();
 
-        return back()->with('success', 'Se encolaron ' . $players->count() . ' bots de ' . ucfirst($validated['realm']) . ' y se ejecuto el matchmaking auto.');
+        return back()->with('success', 'Se encolaron ' . $players->count() . ' bots de ' . ucfirst($validated['realm']) . ' en ' . $arenaMode . ' y se ejecuto el matchmaking auto.');
     }
 
     public function sandboxProcess(ArenaMatchmakingService $matchmakingService)
@@ -1006,8 +1353,16 @@ class QueueHubController extends Controller
         $acceptedBots = 0;
         $promotedMatches = 0;
 
+        // Antes se exigia que el match fuera SOLO de bots, y eso rompia el uso
+        // documentado del laboratorio: encolar tu personaje por el flujo normal
+        // y completar el cruce con bots. Ese match tiene una persona dentro, asi
+        // que abortaba con un 404 sin explicacion.
+        //
+        // La restriccion no hacia falta aqui: aceptar solo cambia las filas de
+        // cola de los bots (acceptBotParticipants filtra por sus ids) y el match
+        // no arranca hasta que TODOS han aceptado, la persona incluida. No se
+        // reparte ni un punto. Donde si hace falta es al resolver, y ahi sigue.
         foreach ($matches as $match) {
-            $this->ensureSandboxMatch($match, $botPlayerIds, $testingLabService);
             ['accepted_bots' => $acceptedCount, 'promoted' => $promoted] = $this->acceptBotParticipants($match, $botPlayerIds, $resultService);
 
             $acceptedBots += $acceptedCount;
@@ -1015,7 +1370,7 @@ class QueueHubController extends Controller
         }
 
         if ($acceptedBots === 0) {
-            return back()->withErrors(['error' => 'No habia participantes bot pendientes por aceptar en esos matches.']);
+            return back()->withErrors(['error' => 'Ningun bot tenia una aceptacion pendiente en esos enfrentamientos. Si esperas a que acepte tu personaje, hazlo desde la cola normal.']);
         }
 
         return back()->with('success', 'Se aceptaron ' . $acceptedBots . ' jugadores bot. ' . $promotedMatches . ' matches pasaron a in_progress.');
@@ -1056,7 +1411,7 @@ class QueueHubController extends Controller
         return back()->with('success', "Se aceptaron $accepted invitaciones de party por parte de bots.");
     }
 
-    public function sandboxInviteMe(TestingLabService $testingLabService)
+    public function sandboxInviteMe(Request $request, TestingLabService $testingLabService)
     {
         $this->ensureSandboxAccess();
 
@@ -1081,6 +1436,16 @@ class QueueHubController extends Controller
             return back()->withErrors(['error' => 'Tu personaje ya pertenece a una Party (o tiene invitacion pendiente). Abandonala primero.']);
         }
 
+        // La party se completa con el personaje real mas los bots que falten
+        // segun la modalidad: 1 bot en 2v2, 2 bots en 3v3.
+        $arenaMode = ArenaMode::resolve($request->input('arena_mode'));
+
+        if (!ArenaMode::isEnabled($arenaMode)) {
+            return back()->withErrors(['error' => 'La modalidad ' . $arenaMode . ' no esta activa.']);
+        }
+
+        $requiredBots = ArenaMode::teamSize($arenaMode) - 1;
+
         $bots = Player::query()
             ->whereIn('id', $botPlayerIds)
             ->where('realm', $userPlayer->realm)
@@ -1092,27 +1457,45 @@ class QueueHubController extends Controller
                         ->whereIn('status', Party::ACTIVE_STATUSES)
                     );
             })
-            ->take(1)
+            ->take($requiredBots)
             ->get();
-        if ($bots->count() < 1) {
-            return back()->withErrors(['error' => 'No hay bots disponibles del mismo reino que tu personaje real ('.ucfirst($userPlayer->realm).').']);
+        if ($bots->count() < $requiredBots) {
+            return back()->withErrors(['error' => 'No hay suficientes bots disponibles del mismo reino que tu personaje real ('.ucfirst($userPlayer->realm).'). Se necesitan '.$requiredBots.'.']);
         }
 
         $botLeader = $bots->first();
-        
+
         $party = Party::create([
             'leader_player_id' => $botLeader->id,
             'status' => 'forming',
-            'realm' => $botLeader->realm
+            'realm' => $botLeader->realm,
+            'arena_mode' => $arenaMode,
         ]);
 
-        PartyMember::create([
-            'party_id' => $party->id,
-            'player_id' => $botLeader->id,
-            'is_accepted_invite' => true,
-            'is_leader' => true,
-            'conjurer_role' => $this->assignSandboxConjurerRole($botLeader),
-        ]);
+        // Con 2 bots (3v3) los roles se sortean por separado y podrian salir dos
+        // conjuradores soporte, algo que la party real no permite. El primer
+        // soporte se acepta y el resto pasa a ofensivo.
+        $supportTaken = false;
+
+        foreach ($bots as $index => $bot) {
+            $role = $this->assignSandboxConjurerRole($bot);
+
+            if ($role === 'support') {
+                if ($supportTaken) {
+                    $role = 'offensive';
+                } else {
+                    $supportTaken = true;
+                }
+            }
+
+            PartyMember::create([
+                'party_id' => $party->id,
+                'player_id' => $bot->id,
+                'is_accepted_invite' => true,
+                'is_leader' => $index === 0,
+                'conjurer_role' => $role,
+            ]);
+        }
 
         PartyMember::create([
             'party_id' => $party->id,
@@ -1135,10 +1518,162 @@ class QueueHubController extends Controller
         ]);
 
         $botPlayerIds = $testingLabService->testPlayerIds();
-        $this->ensureSandboxMatch($match, $botPlayerIds, $testingLabService);
+
+        // Resolver SI reparte PL y MMR de verdad, asi que un match con personas
+        // dentro no se cierra desde el laboratorio. Antes esto era un abort(404)
+        // que dejaba al moderador mirando una pagina de error sin saber por que.
+        if (!$testingLabService->matchUsesOnlyPlayerPool($match, $botPlayerIds)) {
+            return back()->withErrors([
+                'error' => 'El enfrentamiento ' . $match->match_code . ' tiene jugadores reales, asi que cerrarlo de golpe repartiria puntos saltandose la confirmacion del rival. Usa "Que un bot reporte": el bot sube su reporte y tu lo confirmas o lo rechazas desde el enfrentamiento, que es el flujo de verdad.',
+            ]);
+        }
+
         $this->resolveSandboxMatchInternal($match, $validated['winner_team'], $resultService, $botPlayerIds);
 
         return back()->with('success', 'El match ' . $match->match_code . ' fue resuelto para ' . $validated['winner_team'] . '.');
+    }
+
+    /**
+     * Hace que un bot suba el reporte del enfrentamiento.
+     *
+     * Es la pieza que faltaba para ensayar el flujo entero. Cerrar un match
+     * mixto de golpe se sigue negando, porque repartiria puntos sin que nadie
+     * confirmara; lo que si se puede es empujar la mitad que le toca al bot y
+     * dejar que la persona confirme o rechace desde su propia pantalla, que es
+     * exactamente lo que hara un jugador de verdad.
+     */
+    public function sandboxBotReport(Request $request, ArenaMatch $match, ArenaMatchResultService $resultService, TestingLabService $testingLabService)
+    {
+        $this->ensureSandboxAccess();
+
+        $validated = $request->validate([
+            'winner_team' => 'nullable|in:team_a,team_b,draw',
+        ]);
+
+        if ($match->status !== 'in_progress') {
+            return back()->withErrors(['error' => 'Solo se puede reportar un enfrentamiento en juego.']);
+        }
+
+        if ($match->report) {
+            return back()->withErrors(['error' => 'Este enfrentamiento ya tiene un reporte esperando respuesta.']);
+        }
+
+        $botPlayerIds = $testingLabService->testPlayerIds();
+
+        // El reporte lo firma un bot del equipo CONTRARIO a la persona. Solo el
+        // rival puede confirmar un reporte, asi que un bot del propio equipo
+        // dejaria a quien prueba mirando un "esperando al rival" sin nada que
+        // pulsar, que es justo lo que se queria ensayar.
+        $entries = collect($match->getAllPlayers());
+
+        $humanEntry = $entries->first(fn ($player) => !$botPlayerIds->contains((int) ($player['player_id'] ?? 0)));
+        $humanSide = $humanEntry
+            ? $match->getTeamSideForPlayer((int) $humanEntry['player_id'], $humanEntry['discord_id'] ?? null)
+            : null;
+
+        $reporterEntry = $entries
+            ->filter(fn ($player) => $botPlayerIds->contains((int) ($player['player_id'] ?? 0)))
+            ->sortByDesc(function ($player) use ($match, $humanSide) {
+                if (!$humanSide) {
+                    return 0;
+                }
+
+                $side = $match->getTeamSideForPlayer((int) $player['player_id'], $player['discord_id'] ?? null);
+
+                return $side !== null && $side !== $humanSide ? 1 : 0;
+            })
+            ->first();
+
+        if (!$reporterEntry) {
+            return back()->withErrors(['error' => 'Este enfrentamiento no tiene ningun bot que pueda reportar.']);
+        }
+
+        $reporter = Player::find((int) $reporterEntry['player_id']);
+
+        if (!$reporter) {
+            return back()->withErrors(['error' => 'El bot que iba a reportar ya no existe.']);
+        }
+
+        // Por defecto gana el equipo del bot que reporta: es lo que haria
+        // cualquiera, y deja a la persona en el lado interesante, el de decidir
+        // si confirma o rechaza.
+        $winnerTeam = ($validated['winner_team'] ?? null)
+            ?: ($match->getTeamSideForPlayer($reporter->id, (string) $reporter->user?->discord_id) ?? 'team_a');
+
+        try {
+            $resultService->submitSyntheticReport(
+                $match,
+                $reporter,
+                $winnerTeam,
+                'Reporte de prueba generado desde el laboratorio'
+            );
+        } catch (\Throwable $exception) {
+            return back()->withErrors(['error' => 'No se pudo generar el reporte: ' . $exception->getMessage()]);
+        }
+
+        return back()->with(
+            'success',
+            'El bot ' . $reporter->character_name . ' reporto el enfrentamiento ' . $match->match_code
+            . '. Ahora te toca a ti: entra al enfrentamiento y confirmalo o rechazalo.'
+        );
+    }
+
+    /**
+     * Hace que un bot conteste al reporte que subio la persona.
+     *
+     * Es la otra mitad del ensayo. Se podia hacer que un bot reportara para
+     * confirmarlo tu, pero al reves no: subias tu reporte y no habia forma de
+     * que el rival contestara, asi que la prueba se quedaba a medias esperando
+     * a que venciera el plazo.
+     */
+    public function sandboxBotConfirm(Request $request, ArenaMatch $match, ArenaMatchResultService $resultService, TestingLabService $testingLabService)
+    {
+        $this->ensureSandboxAccess();
+
+        $validated = $request->validate([
+            'decision' => 'nullable|in:confirm,reject',
+        ]);
+
+        $match->loadMissing('report');
+        $report = $match->report;
+
+        if (!$report || $report->status !== 'pending_confirmation') {
+            return back()->withErrors(['error' => 'Este enfrentamiento no tiene un reporte esperando respuesta.']);
+        }
+
+        $botPlayerIds = $testingLabService->testPlayerIds();
+
+        // Contesta un bot del equipo que NO reporto: es el unico lado que puede.
+        $rivalSide = $report->reporting_team === 'team_a' ? 'team_b' : 'team_a';
+
+        $responderEntry = collect($match->getTeamBySide($rivalSide))
+            ->first(fn ($player) => $botPlayerIds->contains((int) ($player['player_id'] ?? 0)));
+
+        if (!$responderEntry) {
+            return back()->withErrors([
+                'error' => 'El equipo que tiene que contestar no tiene ningun bot. Contesta tu desde el lobby.',
+            ]);
+        }
+
+        $responder = Player::find((int) $responderEntry['player_id']);
+
+        if (!$responder) {
+            return back()->withErrors(['error' => 'El bot que iba a contestar ya no existe.']);
+        }
+
+        try {
+            if (($validated['decision'] ?? 'confirm') === 'reject') {
+                $resultService->rejectReport($report, $responder, 'Rechazo de prueba generado desde el laboratorio');
+                $message = 'El bot ' . $responder->character_name . ' rechazo el reporte: el enfrentamiento pasa a disputa.';
+            } else {
+                $resultService->confirmReport($report, $responder);
+                $message = 'El bot ' . $responder->character_name . ' confirmo el reporte y el ladder ya repartio los puntos.';
+            }
+        } catch (\Throwable $exception) {
+            return back()->withErrors(['error' => 'No se pudo contestar: ' . $exception->getMessage()]);
+        }
+
+        return back()->with('success', $message);
     }
 
     public function sandboxResolveAll(ArenaMatchResultService $resultService, TestingLabService $testingLabService)
@@ -1148,8 +1683,11 @@ class QueueHubController extends Controller
         $botPlayerIds = $testingLabService->testPlayerIds();
         $matches = $testingLabService->collectMatchesInvolvingPlayers($botPlayerIds, 40)
             ->filter(function (ArenaMatch $match) use ($testingLabService, $botPlayerIds) {
+                // SOLO bots: con interseccion bastaba un bot para que el
+                // sandbox resolviera un match con jugadores reales dentro,
+                // otorgandoles PL y MMR reales sin que el rival confirmara.
                 return $match->status === 'in_progress'
-                    && $testingLabService->matchIntersectsPlayerPool($match, $botPlayerIds);
+                    && $testingLabService->matchUsesOnlyPlayerPool($match, $botPlayerIds);
             })
             ->values();
 
@@ -1168,44 +1706,64 @@ class QueueHubController extends Controller
         return back()->with('success', 'Se resolvieron ' . $resolved . ' matches del sandbox integrado.');
     }
 
+    /**
+     * Deja los bots a cero sin borrarlos, y quita todo lo que jugaron.
+     *
+     * Ya no se niega cuando hay enfrentamientos mixtos: probar el flujo de
+     * verdad obliga a jugar con tu propio personaje, asi que siempre habia
+     * alguno y el boton no servia nunca. Lo que se hace ahora es deshacer los
+     * puntos que esas pruebas repartieron.
+     */
     public function sandboxReset(TestingLabService $testingLabService)
     {
         $this->ensureSandboxAccess();
 
-        $botPlayerIds = $testingLabService->testPlayerIds();
-        $mixedActiveMatches = $this->collectMixedSandboxMatches(
-            $botPlayerIds,
-            $testingLabService,
-            ['pending_acceptance', 'accepted', 'in_progress']
-        );
+        $result = $testingLabService->purgeTrace(false);
 
-        if ($mixedActiveMatches->isNotEmpty()) {
-            return back()->withErrors([
-                'error' => 'Hay matches activos entre bots y personajes reales. Resuelvelos o cancelalos antes de resetear el sandbox.',
-            ]);
-        }
-
-        $result = $testingLabService->purge(false, true);
-
-        return back()->with('success', 'Sandbox reseteado. ' . $result['queues_deleted'] . ' colas, ' . $result['matches_deleted'] . ' matches bot-only y ' . $result['players_reset'] . ' bots quedaron listos.');
+        return back()->with('success', $this->describePurge('Laboratorio reiniciado.', $result));
     }
 
+    /** Lo mismo, pero ademas se lleva por delante a los bots y sus cuentas. */
     public function sandboxDestroy(TestingLabService $testingLabService)
     {
         $this->ensureSandboxAccess();
 
-        $botPlayerIds = $testingLabService->testPlayerIds();
-        $mixedMatches = $this->collectMixedSandboxMatches($botPlayerIds, $testingLabService);
+        $result = $testingLabService->purgeTrace(true);
 
-        if ($mixedMatches->isNotEmpty()) {
-            return back()->withErrors([
-                'error' => 'No se puede eliminar el sandbox mientras existan matches mixtos con personajes reales. Usa un personaje de pruebas dedicado o limpia primero ese historial manualmente.',
-            ]);
+        return back()->with('success', $this->describePurge('Rastro de pruebas eliminado.', $result));
+    }
+
+    /** Un resumen honesto de lo que se ha borrado y de lo que se ha devuelto. */
+    private function describePurge(string $headline, array $result): string
+    {
+        $parts = [];
+
+        if ($result['matches_deleted'] > 0) {
+            $parts[] = $result['matches_deleted'] . ' enfrentamientos';
+        }
+        if ($result['queues_deleted'] > 0) {
+            $parts[] = $result['queues_deleted'] . ' colas';
+        }
+        if ($result['players_deleted'] > 0) {
+            $parts[] = $result['players_deleted'] . ' bots';
+        }
+        if ($result['evidence_deleted'] > 0) {
+            $parts[] = $result['evidence_deleted'] . ' capturas';
         }
 
-        $result = $testingLabService->purge(true, false);
+        $message = $headline;
 
-        return back()->with('success', 'Sandbox eliminado. ' . $result['users_deleted'] . ' usuarios bot y ' . $result['players_deleted'] . ' personajes de prueba fueron removidos.');
+        if ($parts !== []) {
+            $message .= ' Se borraron ' . implode(', ', $parts) . '.';
+        }
+
+        if ($result['real_players_restored'] > 0) {
+            $message .= ' A ' . $result['real_players_restored'] . ' personaje(s) real(es) se les devolvieron '
+                . number_format(abs($result['pl_reverted']), 1) . ' PL y '
+                . abs($result['mmr_reverted']) . ' MMR de las pruebas.';
+        }
+
+        return $message;
     }
 
     private function buildSandboxData(
@@ -1258,6 +1816,37 @@ class QueueHubController extends Controller
             'activeQueueByPlayer' => $activeQueues->keyBy('player_id'),
             'pendingMatches' => $relatedMatches->where('status', 'pending_acceptance')->values(),
             'inProgressMatches' => $relatedMatches->where('status', 'in_progress')->values(),
+            // Que enfrentamientos son solo de bots. Los mixtos no se pueden
+            // cerrar de golpe (repartirian puntos reales sin confirmacion), asi
+            // que la vista tiene que ofrecerles otro boton, no el mismo.
+            'botOnlyMatchIds' => $relatedMatches
+                ->filter(fn (ArenaMatch $match) => $testingLabService->matchUsesOnlyPlayerPool($match, $botPlayerIds))
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all(),
+            'reportedMatchIds' => $relatedMatches
+                ->filter(fn (ArenaMatch $match) => $match->report !== null)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all(),
+            // Enfrentamientos donde el reporte espera respuesta y quien tiene
+            // que contestar es un bot: son los que se pueden empujar desde aqui.
+            'botCanAnswerMatchIds' => $relatedMatches
+                ->filter(function (ArenaMatch $match) use ($botPlayerIds) {
+                    $report = $match->report;
+
+                    if (!$report || $report->status !== 'pending_confirmation') {
+                        return false;
+                    }
+
+                    $rivalSide = $report->reporting_team === 'team_a' ? 'team_b' : 'team_a';
+
+                    return collect($match->getTeamBySide($rivalSide))
+                        ->contains(fn ($player) => $botPlayerIds->contains((int) ($player['player_id'] ?? 0)));
+                })
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all(),
             'recentMatches' => $relatedMatches->take(12)->values(),
         ];
     }
@@ -1350,36 +1939,7 @@ class QueueHubController extends Controller
         return $playerIds->first();
     }
 
-    private function collectMixedSandboxMatches(
-        Collection $botPlayerIds,
-        TestingLabService $testingLabService,
-        array $statuses = []
-    ): Collection {
-        if ($botPlayerIds->isEmpty()) {
-            return collect();
-        }
 
-        $matches = $testingLabService->collectMatchesInvolvingPlayers($botPlayerIds, 120)
-            ->filter(fn (ArenaMatch $match) => !$testingLabService->matchUsesOnlyPlayerPool($match, $botPlayerIds))
-            ->values();
-
-        if ($statuses === []) {
-            return $matches;
-        }
-
-        return $matches->whereIn('status', $statuses)->values();
-    }
-
-    private function ensureSandboxMatch(
-        ArenaMatch $match,
-        Collection $botPlayerIds,
-        TestingLabService $testingLabService
-    ): void {
-        abort_unless(
-            $testingLabService->matchIntersectsPlayerPool($match, $botPlayerIds),
-            404
-        );
-    }
 
     private function isSandboxPlayer(Player $player, TestingLabService $testingLabService): bool
     {
@@ -1397,15 +1957,35 @@ class QueueHubController extends Controller
         return random_int(1, 100) <= 30 ? 'support' : 'offensive';
     }
 
+    /**
+     * Busca una cola activa que impida encolar a estos personajes.
+     *
+     * El conflicto se evalua por USUARIO, no por personaje: una cuenta puede
+     * tener hasta 5 personajes y una persona solo puede jugar un match a la
+     * vez. Mirando solo el player_id, alguien podia entrar a random con un
+     * personaje y a la vez a una party premade con otro, terminando en dos
+     * matches simultaneos. join() ya lo hacia bien; esto alinea el camino
+     * premade con esa misma regla.
+     */
     private function findQueueConflictForPlayers(Collection $playerIds): ?Queue
     {
         if ($playerIds->isEmpty()) {
             return null;
         }
 
+        $userIds = Player::query()
+            ->whereIn('id', $playerIds->all())
+            ->pluck('user_id')
+            ->filter()
+            ->unique();
+
+        if ($userIds->isEmpty()) {
+            return null;
+        }
+
         return Queue::query()
             ->with('player')
-            ->whereIn('player_id', $playerIds->all())
+            ->whereHas('player', fn ($query) => $query->whereIn('user_id', $userIds->all()))
             ->whereIn('status', ['waiting', 'matched', 'accepted'])
             ->orderBy('id')
             ->first();

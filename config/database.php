@@ -1,8 +1,22 @@
 <?php
 
 return [
-    'default' => 'mysql',
+    // Produccion define DB_CONNECTION=mysql en .env; el fallback mantiene ese
+    // comportamiento. Poder cambiarlo por entorno es lo que permite correr la
+    // suite de tests contra sqlite en memoria.
+    'default' => env('DB_CONNECTION', 'mysql'),
     'connections' => [
+        'sqlite' => [
+            'driver' => 'sqlite',
+            'url' => env('DB_URL'),
+            'database' => env('DB_DATABASE', database_path('database.sqlite')),
+            'prefix' => '',
+            'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
+            'busy_timeout' => null,
+            'journal_mode' => null,
+            'synchronous' => null,
+        ],
+
         'mysql' => [
             'driver' => 'mysql',
             'host' => env('DB_HOST', '127.0.0.1'),

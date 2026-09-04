@@ -24,7 +24,7 @@ class ArenaMatchController extends Controller
         $matchmakingService = app(ArenaMatchmakingService::class);
 
         if (!$matchmakingService->isMatchesSchemaReady()) {
-            return redirect()->route('queue.index')
+            return redirect()->route('lobby')
                 ->withErrors(['error' => 'La tabla matches aun no tiene el esquema MVP v1 en produccion.']);
         }
 
@@ -61,7 +61,7 @@ class ArenaMatchController extends Controller
         $matchmakingService = app(ArenaMatchmakingService::class);
 
         if (!$matchmakingService->isMatchesSchemaReady()) {
-            return redirect()->route('queue.index')
+            return redirect()->route('lobby')
                 ->withErrors(['error' => 'La tabla matches aun no tiene el esquema MVP v1 en produccion.']);
         }
 
@@ -99,13 +99,17 @@ class ArenaMatchController extends Controller
         $matchmakingService = app(ArenaMatchmakingService::class);
 
         if (!$matchmakingService->isMatchesSchemaReady()) {
-            return redirect()->route('queue.index')
+            return redirect()->route('lobby')
                 ->withErrors(['error' => 'La tabla matches aun no tiene el esquema MVP v1 en produccion.']);
         }
 
         $request->validate([
             'match_id' => 'required|exists:matches,id',
             'player_id' => 'required|exists:players,id',
+            // Desde donde se acepto. El aviso de cruce vive encima de la cola,
+            // asi que devolver alli deja al jugador donde estaba, viendo quien
+            // falta por confirmar, en vez de saltarle a otra pagina.
+            'from' => 'nullable|in:queue',
         ]);
 
         $match = ArenaMatch::findOrFail($request->match_id);
@@ -124,7 +128,7 @@ class ArenaMatchController extends Controller
         if ($match->isExpired()) {
             app(ArenaMatchmakingService::class)->cancelMatch($match, 'timeout', null, true);
 
-            return redirect()->route('queue.index')
+            return redirect()->route('lobby', ['mode' => $match->arena_mode])
                 ->withErrors(['error' => 'El tiempo para aceptar este match expiró.']);
         }
 
@@ -147,6 +151,11 @@ class ArenaMatchController extends Controller
             return back()->withErrors(['error' => $e->getMessage()]);
         }
 
+        if ($request->input('from') === 'queue') {
+            return redirect()->route('lobby', ['mode' => $match->arena_mode])
+                ->with('success', '¡Combate aceptado! Esperando a los demás.');
+        }
+
         return redirect()->route('matches.show', $match)
             ->with('success', '¡Match aceptado! Esperando a los demás jugadores...');
     }
@@ -160,7 +169,7 @@ class ArenaMatchController extends Controller
         $matchmakingService = app(ArenaMatchmakingService::class);
 
         if (!$matchmakingService->isMatchesSchemaReady()) {
-            return redirect()->route('queue.index')
+            return redirect()->route('lobby')
                 ->withErrors(['error' => 'La tabla matches aun no tiene el esquema MVP v1 en produccion.']);
         }
 
@@ -178,9 +187,18 @@ class ArenaMatchController extends Controller
             return back()->withErrors(['error' => 'No estás en este match.']);
         }
 
+        // Rechazar solo tiene sentido mientras el match espera aceptaciones.
+        // Sin esta comprobacion, quien fuera perdiendo un match ya empezado (o
+        // en disputa) podia cancelarlo desde aqui y evitar la derrota.
+        if (!$match->isPendingAcceptance()) {
+            return back()->withErrors([
+                'error' => 'Este match ya está en curso: no se puede rechazar. Si hubo un problema, repórtalo para que lo revise un administrador.',
+            ]);
+        }
+
         app(ArenaMatchmakingService::class)->cancelMatch($match, 'player_rejected', $player->id, true);
 
-        return redirect()->route('queue.index')
+        return redirect()->route('lobby', ['mode' => $match->arena_mode])
             ->with('warning', 'Match rechazado. Los demás jugadores fueron reencolados.');
     }
 
@@ -220,8 +238,11 @@ class ArenaMatchController extends Controller
             return back()->withErrors(['error' => $e->getMessage()]);
         }
 
-        return redirect()->route('matches.show', $match)
-            ->with('success', 'Reporte enviado. El equipo rival ya puede confirmarlo o rechazarlo.');
+        // De vuelta al lobby, que es donde ocurre el combate entero. Mandar a
+        // la pagina del enfrentamiento sacaba al jugador del flujo justo en el
+        // paso que lo cierra.
+        return redirect()->route('lobby', ['mode' => $match->arena_mode])
+            ->with('success', 'Reporte enviado con las capturas. Falta que el rival lo confirme para que el ladder lo cuente.');
     }
 
     public function confirmReport(Request $request, ArenaMatchResultService $resultService)
@@ -244,8 +265,8 @@ class ArenaMatchController extends Controller
             return back()->withErrors(['error' => $e->getMessage()]);
         }
 
-        return redirect()->route('matches.show', $report->match)
-            ->with('success', 'Reporte confirmado. El ladder ya fue actualizado.');
+        return redirect()->route('lobby', ['mode' => $report->match->arena_mode])
+            ->with('success', 'Resultado confirmado. El ladder ya reparte los puntos de este enfrentamiento.');
     }
 
     public function rejectReport(Request $request, ArenaMatchResultService $resultService)
@@ -269,8 +290,8 @@ class ArenaMatchController extends Controller
             return back()->withErrors(['error' => $e->getMessage()]);
         }
 
-        return redirect()->route('matches.show', $report->match)
-            ->with('warning', 'Reporte rechazado. El match paso a disputa.');
+        return redirect()->route('lobby', ['mode' => $report->match->arena_mode])
+            ->with('warning', 'Reporte rechazado. El enfrentamiento pasa a disputa y lo revisa moderacion.');
     }
 
     public function evidence(MatchReport $report, string $slot)

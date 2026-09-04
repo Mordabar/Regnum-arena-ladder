@@ -14,9 +14,28 @@ class PlayerController extends Controller
         $this->middleware('auth');
     }
 
+    /**
+     * Asistente de creacion.
+     *
+     * Vive en su propia pagina y no en un formulario lateral del lobby porque
+     * ahora hay una vista previa 3D que necesita sitio, y porque elegir reino y
+     * subclase son decisiones irreversibles: merecen una pantalla propia en vez
+     * de un desplegable al lado de otra cosa.
+     */
+    public function create()
+    {
+        if (auth()->user()->players()->visibleToOwner()->count() >= 5) {
+            return redirect()->route('lobby')->with('error', 'Maximo 5 personajes permitidos por cuenta');
+        }
+
+        return view('players.create');
+    }
+
     public function store(Request $request)
     {
-        if (auth()->user()->players()->count() >= 5) {
+        // Los eliminados no ocupan slot: la idea de borrar es justamente poder
+        // volver a crear ese personaje.
+        if (auth()->user()->players()->visibleToOwner()->count() >= 5) {
             return redirect()->route('lobby')->with('error', 'Maximo 5 personajes permitidos por cuenta');
         }
 
@@ -33,6 +52,15 @@ class PlayerController extends Controller
             ],
             'subclass' => ['required', Rule::in(array_keys(Player::SUBCLASSES))],
             'realm' => ['required', Rule::in(array_keys(Player::REALMS))],
+            // La raza tiene que existir DENTRO del reino elegido: un enano no
+            // es de Ignis. Se valida en el servidor y no solo escondiendo
+            // opciones en el formulario.
+            'race' => ['required', 'string', function ($attribute, $value, $fail) use ($request) {
+                if (!Player::raceBelongsToRealm($value, $request->input('realm'))) {
+                    $fail('Esa raza no pertenece al reino elegido.');
+                }
+            }],
+            'gender' => ['required', Rule::in(array_keys(Player::GENDERS))],
         ], [
             'character_name.required' => 'El nombre del personaje es obligatorio',
             'character_name.min' => 'El nombre debe tener al menos 3 caracteres',
@@ -43,6 +71,8 @@ class PlayerController extends Controller
             'subclass.in' => 'Subclase no valida',
             'realm.required' => 'Debes seleccionar un reino',
             'realm.in' => 'Reino no valido',
+            'race.required' => 'Debes elegir una raza',
+            'gender.required' => 'Debes elegir el sexo del personaje',
         ]);
 
         Player::create([
@@ -50,6 +80,8 @@ class PlayerController extends Controller
             'character_name' => $validated['character_name'],
             'subclass' => $validated['subclass'],
             'realm' => $validated['realm'],
+            'race' => $validated['race'],
+            'gender' => $validated['gender'],
         ]);
 
         app(LadderCacheService::class)->forgetSummary();
@@ -80,10 +112,23 @@ class PlayerController extends Controller
             'character_name.max' => 'El nombre no puede tener mas de 25 caracteres',
             'character_name.regex' => 'Solo se permiten letras, numeros, espacios, guiones y guiones bajos',
             'character_name.unique' => 'Este nombre ya existe en el reino',
+            'race.required' => 'Elige una raza para tu guerrero',
+        ]);
+
+        // La raza si se puede cambiar, como en el juego. El reino y la subclase
+        // no: son lo que decide contra quien peleas y como, y cambiarlos seria
+        // otro personaje con el historial del anterior.
+        $raceValidated = $request->validate([
+            'race' => ['required', 'string', Rule::in(array_keys(Player::RACES[$player->realm] ?? []))],
+            'gender' => ['required', Rule::in(array_keys(Player::GENDERS))],
+        ], [
+            'race.in' => 'Esa raza no pertenece a tu reino',
         ]);
 
         $player->update([
             'character_name' => $validated['character_name'],
+            'race' => $raceValidated['race'],
+            'gender' => $raceValidated['gender'],
         ]);
 
         app(LadderCacheService::class)->forgetSummary();
@@ -97,21 +142,47 @@ class PlayerController extends Controller
             return redirect()->route('lobby')->with('error', 'No tienes permisos para eliminar este personaje');
         }
 
-        if (auth()->user()->players()->count() <= 1) {
+        if (auth()->user()->players()->visibleToOwner()->count() <= 1) {
             return redirect()->route('lobby')->with('error', 'No puedes eliminar tu ultimo personaje');
+        }
+
+        // Con un enfrentamiento vivo no se borra: los demas ya cuentan con el
+        // para pelear, y dejarlo desaparecer a media partida rompe el cruce.
+        $liveQueue = \App\Models\Queue::query()
+            ->where('player_id', $player->id)
+            ->whereIn('status', ['waiting', 'matched', 'accepted'])
+            ->get();
+
+        $inMatch = $liveQueue->contains(fn ($queue) => (bool) $queue->match_id);
+
+        if ($inMatch) {
+            return redirect()->route('lobby')->with(
+                'error',
+                'Este personaje tiene un enfrentamiento en marcha. Termina o reporta la partida antes de eliminarlo.'
+            );
+        }
+
+        // Solo esta en cola esperando: se sale de la cola y se borra. Sin esto
+        // quedaba una fila de cola apuntando a un personaje que ya no existe.
+        if ($liveQueue->isNotEmpty()) {
+            \App\Models\Queue::query()->whereIn('id', $liveQueue->pluck('id'))->delete();
         }
 
         $characterName = $player->character_name;
 
         if ($player->matches_played > 0) {
+            // No se borra la fila: sus partidas ya jugadas siguen contando en el
+            // historial y en los enfrentamientos donde aparece.
             $player->update([
                 'is_active' => false,
-                'character_name' => $player->character_name . ' [INACTIVO]',
+                'deactivated_reason' => Player::DEACTIVATED_BY_PLAYER,
+                'deactivated_at' => now(),
+                'character_name' => $player->character_name . Player::DELETED_NAME_SUFFIX,
             ]);
 
             app(LadderCacheService::class)->forgetSummary();
 
-            return redirect()->route('lobby')->with('warning', "Personaje '{$characterName}' desactivado (tenia {$player->matches_played} partidas). Sus estadisticas se mantienen en el ranking pero no podra usarse mas.");
+            return redirect()->route('lobby')->with('warning', "Personaje '{$characterName}' eliminado. Su historial de enfrentamientos se conserva para no falsear las partidas ya jugadas, pero sale del ranking y de tu lobby, y el nombre queda libre para volver a crearlo. Si necesitas recuperarlo tal cual, pideselo a un administrador.");
         }
 
         $player->delete();
@@ -120,35 +191,4 @@ class PlayerController extends Controller
         return redirect()->route('lobby')->with('success', "Personaje '{$characterName}' eliminado completamente (sin partidas jugadas)");
     }
 
-    public function reactivate(Player $player)
-    {
-        if ($player->user_id !== auth()->id()) {
-            return redirect()->route('lobby')->with('error', 'No tienes permisos para reactivar este personaje');
-        }
-
-        if ($player->is_active) {
-            return redirect()->route('lobby')->with('error', 'Este personaje ya esta activo');
-        }
-
-        $cleanName = str_replace(' [INACTIVO]', '', $player->character_name);
-
-        $nameExists = Player::where('character_name', $cleanName)
-            ->where('realm', $player->realm)
-            ->where('id', '!=', $player->id)
-            ->where('is_active', true)
-            ->exists();
-
-        if ($nameExists) {
-            return redirect()->route('lobby')->with('error', "No se puede reactivar: el nombre '{$cleanName}' ya esta en uso por otro personaje activo");
-        }
-
-        $player->update([
-            'is_active' => true,
-            'character_name' => $cleanName,
-        ]);
-
-        app(LadderCacheService::class)->forgetSummary();
-
-        return redirect()->route('lobby')->with('success', "Personaje '{$cleanName}' reactivado exitosamente");
-    }
 }

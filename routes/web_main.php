@@ -5,7 +5,6 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ArenaMatchController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\LadderController;
-use App\Http\Controllers\LobbyController;
 use App\Http\Controllers\PlayerController;
 use App\Http\Controllers\QueueHubController;
 use Illuminate\Support\Facades\Route;
@@ -13,7 +12,14 @@ use Illuminate\Support\Facades\Route;
 $arenaAdminPath = trim((string) config('arena_admin.path', 'lowly-control-room'), '/');
 
 Route::get('/', function () {
-    return view('home_v2');
+    // La portada de un juego ensena a un guerrero, no solo su logotipo. Se
+    // elige el primero del ladder: es publico y cambia solo.
+    $champion = \App\Models\Player::query()
+        ->where('is_active', true)
+        ->orderByPublicLadder()
+        ->first(['id', 'character_name', 'realm', 'subclass', 'race', 'gender', 'pl_points', 'is_active', 'deactivated_reason']);
+
+    return view('home_v2', compact('champion'));
 })->name('home');
 
 Route::get('/login', function () {
@@ -24,17 +30,30 @@ Route::get('/auth/discord', [AuthController::class, 'redirectToDiscord'])->name(
 Route::get('/auth/discord/callback', [AuthController::class, 'handleDiscordCallback'])->name('auth.discord.callback');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-Route::get('/lobby', [LobbyController::class, 'index'])->middleware('auth')->name('lobby');
 Route::get('/ladder', [LadderController::class, 'index'])->name('ladder.index');
 Route::get('/ladder/player/{player}', [LadderController::class, 'show'])->name('ladder.show');
 
+Route::get('/player/crear', [PlayerController::class, 'create'])->middleware('auth')->name('player.create');
 Route::post('/player/register', [PlayerController::class, 'store'])->name('player.register');
 Route::put('/player/{player}/update', [PlayerController::class, 'update'])->name('player.update');
 Route::delete('/player/{player}', [PlayerController::class, 'destroy'])->name('player.destroy');
-Route::post('/player/{player}/reactivate', [PlayerController::class, 'reactivate'])->name('player.reactivate');
 
 Route::middleware(['auth', 'arena.maintenance'])->group(function () {
-    Route::get('/queue', [QueueHubController::class, 'index'])->name('queue.index');
+    // El lobby y la arena eran dos paginas que ensenaban lo mismo, y desde el
+    // lobby "Pelear" llevaba a la otra en vez de a la cola. Ahora son una: se
+    // elige guerrero y se entra a combatir en la misma pantalla.
+    Route::get('/lobby', [QueueHubController::class, 'index'])->name('lobby');
+
+    // Solo el panel, para que el sondeo lo cambie en su sitio en vez de
+    // recargar la pagina entera y tirar el scroll y los escenarios 3D.
+    Route::get('/lobby/console', [QueueHubController::class, 'consoleFragment'])
+        ->middleware('throttle:60,1')
+        ->name('lobby.console');
+
+    // /queue sigue existiendo por los enlaces viejos, pero solo apunta al lobby.
+    Route::get('/queue', function (\Illuminate\Http\Request $request) {
+        return redirect()->route('lobby', array_filter(['mode' => $request->query('mode')]));
+    })->name('queue.index');
     Route::get('/matches', [ArenaMatchController::class, 'index'])->name('matches.index');
     Route::get('/matches/{match}', [ArenaMatchController::class, 'show'])
         ->whereNumber('match')
@@ -83,6 +102,8 @@ Route::prefix('/' . $arenaAdminPath)->group(function () {
         Route::post('/testing/invite-me', [QueueHubController::class, 'sandboxInviteMe'])->name('testing.invite-me');
         Route::post('/testing/resolve-all', [QueueHubController::class, 'sandboxResolveAll'])->name('testing.resolve-all');
         Route::post('/testing/resolve/{match}', [QueueHubController::class, 'sandboxResolve'])->name('testing.resolve');
+        Route::post('/testing/bot-report/{match}', [QueueHubController::class, 'sandboxBotReport'])->name('testing.bot-report');
+        Route::post('/testing/bot-confirm/{match}', [QueueHubController::class, 'sandboxBotConfirm'])->name('testing.bot-confirm');
         Route::post('/testing/reset', [QueueHubController::class, 'sandboxReset'])->name('testing.reset');
         Route::post('/testing/destroy', [QueueHubController::class, 'sandboxDestroy'])->name('testing.destroy');
 
@@ -110,3 +131,11 @@ Route::prefix('/' . $arenaAdminPath)->group(function () {
         });
     });
 });
+
+
+
+
+
+
+
+

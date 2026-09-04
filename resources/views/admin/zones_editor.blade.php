@@ -1,8 +1,17 @@
-@extends('layouts.arena')
+@extends('layouts.admin')
 
-@section('title', 'Admin - Editor de Zonas de Mapa')
+@section('title', 'Zonas de combate')
+@section('page-title', 'Zonas de combate')
+@section('page-subtitle', 'Los poligonos del mapa donde puede desarrollarse una partida')
 
-@push('arena-map-styles')
+@section('page-actions')
+    <button type="button" class="ap-btn ap-btn-sm ap-btn-quiet" onclick="window.location.reload();">Descartar cambios</button>
+    <button type="button" id="btn-save-db" class="ap-btn ap-btn-sm ap-btn-primary">
+        Publicar zonas
+    </button>
+@endsection
+
+@push('styles')
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
 <style>
     /* Popups */
@@ -43,79 +52,55 @@
 @endpush
 
 @section('content')
-<div class="mx-auto max-w-7xl px-4 py-8">
-    <x-arena-breadcrumbs :items="[
-        ['label' => 'Admin', 'url' => route('admin.dashboard')],
-        ['label' => 'Editor de Zonas PvP'],
-    ]" class="mb-6" />
 
-    <section class="arena-panel-strong mb-8 p-6 md:p-8 flex flex-wrap items-center justify-between gap-4">
-        <div>
-            <p class="arena-kicker">Mapa Global</p>
-            <h1 class="mt-3 text-4xl font-bold text-[color:var(--arena-gold-soft)]">Editor de Zonas</h1>
-            <p class="mt-2 text-sm text-[color:var(--arena-muted)] max-w-xl">
-                Al guardar, esto sobrescribirá el archivo de configuración <code>arena-zones.js</code> afectando a todos los usuarios.
+<div class="ap-flash ap-rise" style="border-color: var(--ap-line-strong)">
+    <x-admin.icon name="alert" class="h-4 w-4 shrink-0" style="color: var(--ap-warn)" />
+    <span>
+        Al publicar se reescribe el mapa para todos los jugadores a la vez. Los cambios que hagas
+        aqui no se guardan hasta que pulses <strong>Publicar zonas</strong>.
+    </span>
+</div>
+
+<form method="POST" action="{{ route('admin.zones.save') }}" id="save-zones-form" class="hidden">
+    @csrf
+    <input type="hidden" name="zones_json" id="zones-json-input">
+</form>
+
+<div class="grid gap-4 lg:grid-cols-[1fr_290px] items-start ap-rise ap-delay-1">
+    <div class="ap-card relative" style="height: 680px; overflow: hidden; padding: 6px">
+        <div id="admin-map-container" class="w-full h-full" style="background-color: #050608; border-radius: var(--ap-radius-sm);"></div>
+
+        <div id="tracing-indicator" class="hidden ap-tracing-badge">
+            Modo dibujo: haz clic en el mapa para marcar cada vertice
+        </div>
+    </div>
+
+    <aside class="ap-card p-4 self-start">
+        <x-admin.section-head title="Editar una zona" icon="map"
+                              note="Elige la zona y vuelve a trazar su contorno." />
+
+        <div class="ap-field mb-3">
+            <label class="ap-label" for="zone-selector">Zona</label>
+            <select id="zone-selector" class="ap-select"></select>
+        </div>
+
+        <div id="action-buttons" class="flex flex-col gap-2">
+            <button id="btn-draw" class="ap-btn ap-btn-block">Redibujar el contorno</button>
+            <p class="ap-hint">
+                Marca al menos tres puntos sobre el mapa. Cuando confirmes la forma, aun tendras
+                que publicar para que sea oficial.
             </p>
         </div>
-        
-        <form method="POST" action="{{ route('admin.zones.save') }}" class="flex items-center gap-3" id="save-zones-form">
-            @csrf
-            <input type="hidden" name="zones_json" id="zones-json-input">
-            <button type="button" onclick="window.location.reload();" class="arena-btn-secondary px-4 py-2">
-                Descartar cambios
-            </button>
-            <button type="button" id="btn-save-db" class="arena-btn-safe px-5 py-2 flex items-center gap-2">
-                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
-                Guardar Zonas Oficialmente
-            </button>
-        </form>
-    </section>
 
-    <div class="grid lg:grid-cols-[1fr_320px] gap-6">
-        <!-- Mapa Container -->
-        <article class="arena-panel p-2 relative h-[700px] overflow-hidden">
-            <div id="admin-map-container" class="w-full h-full rounded-xl" style="background-color: #050608;"></div>
-            
-            <div id="tracing-indicator" class="hidden absolute top-6 left-1/2 -translate-x-1/2 bg-red-600/90 text-white font-bold tracking-widest uppercase text-sm px-4 py-2 rounded shadow-lg animate-pulse" style="z-index: 1000">
-                ✏️ MODO DIBUJO ACTIVO (Haz clics en el mapa)
-            </div>
-        </article>
-
-        <!-- Editor Controls -->
-        <article class="arena-panel p-6 self-start">
-            <h3 class="text-xl font-semibold text-white mb-4 font-['Cinzel'] text-[color:var(--arena-gold)] border-b border-[color:var(--arena-line)] pb-4">
-                Herramientas
-            </h3>
-            
-            <div class="mb-6">
-                <label class="block text-sm text-[color:var(--arena-muted)] mb-2">Selecciona la zona a editar:</label>
-                <select id="zone-selector" class="arena-select w-full"></select>
-            </div>
-
-            <div id="action-buttons" class="space-y-3">
-                <button id="btn-draw" class="arena-btn-danger w-full justify-center">
-                    ✏️ Redibujar polígono
-                </button>
-                <div class="my-4 border-t border-[color:var(--arena-line)]"></div>
-                <p class="text-xs text-[color:var(--arena-muted)] opacity-70">
-                    Al terminar, recuerda dar clic en el botón superior "Guardar Zonas Oficialmente".
-                </p>
-            </div>
-
-            <div id="trace-buttons" class="hidden space-y-3">
-                <button id="btn-finish" class="arena-btn-safe w-full justify-center">
-                    ✅ Confirmar Forma
-                </button>
-                <button id="btn-cancel" class="arena-btn-secondary w-full justify-center">
-                    ❌ Cancelar trazado
-                </button>
-            </div>
-        </article>
-    </div>
+        <div id="trace-buttons" class="hidden flex-col gap-2">
+            <button id="btn-finish" class="ap-btn ap-btn-primary ap-btn-block">Confirmar forma</button>
+            <button id="btn-cancel" class="ap-btn ap-btn-block ap-btn-quiet">Cancelar trazado</button>
+        </div>
+    </aside>
 </div>
 @endsection
 
-@push('arena-map-scripts')
+@push('scripts')
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="{{ asset('js/arena-zones.js') }}?v={{ time() }}"></script>
 <script>
@@ -201,6 +186,7 @@
             
             actionGroup.classList.add('hidden');
             traceGroup.classList.remove('hidden');
+            traceGroup.classList.add('flex');
             indicator.classList.remove('hidden');
             map.getContainer().style.cursor = 'crosshair';
             selector.disabled = true;
@@ -219,7 +205,7 @@
 
         document.getElementById('btn-finish').addEventListener('click', () => {
             if(tracePoints.length < 3) {
-                alert("!Necesitas al menos 3 puntos para hacer un polígono válido!");
+                alert('Necesitas al menos tres puntos para cerrar una zona.');
                 return;
             }
             let zoneIndex = zonesData.findIndex(z => z.id === currentEditingId);
@@ -242,6 +228,7 @@
             
             actionGroup.classList.remove('hidden');
             traceGroup.classList.add('hidden');
+            traceGroup.classList.remove('flex');
             indicator.classList.add('hidden');
             map.getContainer().style.cursor = 'grab';
             selector.disabled = false;
@@ -249,7 +236,7 @@
         }
 
         btnSaveDb.addEventListener('click', () => {
-            if(confirm('¿Seguro quieres sobreescribir las zonas oficiales en toda la app?')) {
+            if (confirm('Vas a publicar estas zonas para todos los jugadores. Se sobrescriben las actuales.')) {
                 inputJson.value = JSON.stringify(zonesData);
                 saveForm.submit();
             }
