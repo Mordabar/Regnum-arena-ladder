@@ -15,7 +15,14 @@ import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 
-const REINOS = { alsirio: 'alsius', alsiria: 'alsius', igneo: 'ignis', ignea: 'ignis', syrtiano: 'syrtis', syrtiana: 'syrtis' };
+// Los plurales aparecen de vez en cuando en los nombres ("UTGHAR_ALSIRIOS"),
+// asi que se aceptan: un nombre que el importador no entiende cuesta una vuelta
+// entera de preguntar y reenviar.
+const REINOS = {
+    alsirio: 'alsius', alsiria: 'alsius', alsirios: 'alsius', alsirias: 'alsius', alsius: 'alsius',
+    igneo: 'ignis', ignea: 'ignis', igneos: 'ignis', igneas: 'ignis', ignis: 'ignis',
+    syrtiano: 'syrtis', syrtiana: 'syrtis', syrtianos: 'syrtis', syrtianas: 'syrtis', syrtis: 'syrtis',
+};
 const RAZAS = {
     enano: 'dwarf', enana: 'dwarf',
     lamai: 'lamai',

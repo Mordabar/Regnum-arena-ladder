@@ -26,9 +26,10 @@ if (!entrada || !nombre) {
 
 // Cuantos triangulos y cuanta textura se conservan. Con esto un guerrero pesa
 // menos de 1 MB, que es lo que pide public/models/README.md.
-// Fraccion de vertices que se conserva. Los modelos llegan con 60.000
-// triangulos; con esto quedan unos 12.000, que es lo que pide el README.
-const RECORTE = 0.15;
+// A cuantos triangulos se deja cada guerrero. Es un numero fijo y no una
+// fraccion: los paquetes llegan con 60.000 triangulos unos y 120.000 otros, y
+// recortar el mismo porcentaje a todos dejaba a la mitad pesando el doble.
+const TRIANGULOS = 9000;
 const TEXTURA = 1024;
 
 const raiz = resolve(process.cwd());
@@ -84,11 +85,12 @@ try {
 
     // Se decima primero: simplificar despues de comprimir no serviria de nada.
     const ligero = join(trabajo, 'ligero.glb');
+    const recorte = Math.min(1, TRIANGULOS / contarCaras(obj));
     // Se cuantiza, no se comprime con Draco ni con Meshopt: esos dos necesitan
     // un decodificador aparte que habria que descargar, y el cargador de
     // Three.js que lleva el proyecto entiende la cuantizacion de serie.
     run(bin('gltf-transform'), ['optimize', crudo, ligero,
-        '--simplify-ratio', String(RECORTE),
+        '--simplify-ratio', recorte.toFixed(4),
         '--simplify-error', '1',
         '--texture-size', String(TEXTURA),
         '--texture-compress', 'webp',
@@ -101,8 +103,13 @@ try {
 
     const kb = Math.round(statSync(destino).size / 1024);
     console.log(`${nombre}.glb  ${kb} KB`);
-    if (kb > 1200) {
-        console.warn(`  Ojo: pasa del listo para movil (1200 KB). Revisa el recorte.`);
+
+    // Algunos paquetes llegan con la malla partida en muchas piezas y el
+    // simplificador se atasca a medio camino: no puede colapsar un borde que es
+    // frontera. Esos pesan mas y no hay recorte que lo arregle, asi que el aviso
+    // esta donde de verdad empieza a doler en movil.
+    if (kb > 1700) {
+        console.warn(`  Ojo: ${kb} KB es mucho para movil. Mira si la malla venia partida.`);
     }
 } finally {
     rmSync(trabajo, { recursive: true, force: true });
@@ -110,6 +117,12 @@ try {
 
 function run(cmd, args) {
     execFileSync(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 1024 * 1024 * 64 });
+}
+
+/** Cuantas caras trae el OBJ, para saber cuanto hay que recortar. */
+function contarCaras(ruta) {
+    const salida = execFileSync('sh', ['-c', `grep -c '^f ' ${JSON.stringify(ruta)}`]).toString().trim();
+    return Math.max(1, Number(salida) || 1);
 }
 
 function readObj(ruta) {

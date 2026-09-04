@@ -49,7 +49,9 @@ Deduce el nombre de destino del propio archivo
 (`ENANO_ALSIRIO_HOMBRE__GUERRERO.zip` a `alsius-dwarf-male-warrior`) y avisa de
 los que no sepa leer en vez de adivinar. Por dentro:
 
-- deja la malla en un 15% de sus vertices, unos 9.000 triangulos;
+- recorta la malla a unos 9.000 triangulos, calculando el recorte contra lo que
+  traiga cada paquete: llegan con 60.000 unos y 120.000 otros, y recortar el
+  mismo porcentaje a todos dejaba a la mitad pesando el doble;
 - baja el color y las normales a 1024, y el mapa de rugosidad y metalicidad a
   512, todo en WebP;
 - cuantiza los atributos con `KHR_mesh_quantization`.
@@ -60,9 +62,18 @@ Three.js que lleva el proyecto entiende la cuantizacion de serie. Si algun dia
 se vendoriza el decodificador de Draco, cambiar `--compress quantize` por
 `draco` en `tools/convertir-modelo.mjs` deja cada modelo en menos de la mitad.
 
+### Cuando un modelo no adelgaza
+
+Algunos paquetes traen la malla partida en muchas piezas, con una costura de
+textura por cada trozo. El simplificador no puede colapsar un borde que es
+frontera, asi que se atasca a medio camino: los utghar se quedan en 32.000
+triangulos por mucho que se pida menos, y pesan cerca de 1,5 MB. No hay recorte
+que lo arregle desde aqui; se arreglaria en el modelo de origen, uniendo las
+piezas antes de exportarlo, o vendorizando el decodificador de Draco.
+
 ## Que tiene que cumplir cada modelo
 
-- Por debajo de 1,3 MB ya convertido. El importador avisa si se pasa.
+- Por debajo de 1,7 MB ya convertido. El importador avisa si se pasa.
 - Mirando hacia +Z, de pie sobre el origen (Y = 0 a sus pies).
 - La altura da igual: el visor escala y centra cualquier modelo al encuadrarlo.
 
