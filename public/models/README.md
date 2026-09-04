@@ -5,16 +5,25 @@ la silueta generada por codigo. Se pueden subir de uno en uno sin tocar codigo.
 
 ## Nombres de archivo, del mas concreto al mas general
 
-1. `{reino}-{raza}-{sexo}-{subclase}.glb` — cuerpo y armadura completos.
-2. `{reino}-{raza}-{sexo}.glb` — **este es el nivel base**: el cuerpo con la
-   ropa del reino. El arma y la armadura de la subclase quedan a cargo de la
-   silueta hasta que exista el nivel 1.
-3. `{reino}-{subclase}.glb` — respaldo antiguo, un modelo por reino y subclase.
+1. `{reino}-{raza}-{sexo}-{subclase}.glb` — cuerpo y equipo de esa subclase.
+2. `{reino}-{raza}-{sexo}-{arquetipo}.glb` — **este es el nivel que se esta
+   usando**: un caballero y un barbaro visten de guerrero, asi que un solo
+   modelo cubre las dos subclases de su arquetipo.
+3. `{reino}-{raza}-{sexo}.glb` — solo el cuerpo, con la ropa del reino.
+4. `{reino}-{arquetipo}.glb` y `{reino}-{subclase}.glb` — respaldos antiguos.
 
-## Los 24 modelos base (nivel 2)
+## Arquetipos
 
-12 combinaciones de reino y raza, por dos sexos. Los humanos son tres razas
-distintas aunque compartan cuerpo, porque la ropa cambia con el reino.
+| Arquetipo | Subclases que cubre     |
+|-----------|-------------------------|
+| `warrior` | `knight`, `barbarian`   |
+| `archer`  | `hunter`, `marksman`    |
+| `mage`    | `conjurer`, `warlock`   |
+
+Con 3 arquetipos por raza y sexo quedan cubiertas las 6 subclases: 24 modelos
+por reino en vez de 48.
+
+## Razas por reino
 
 | Reino  | Razas                                  |
 |--------|----------------------------------------|
@@ -24,24 +33,41 @@ distintas aunque compartan cuerpo, porque la ropa cambia con el reino.
 
 Sexos: `male`, `female`.
 
-Ejemplos: `alsius-dwarf-male.glb`, `ignis-dark_elf-female.glb`,
-`syrtis-wood_elf-male.glb`.
+Ejemplos: `alsius-dwarf-male-warrior.glb`, `alsius-lamai-female-mage.glb`.
 
-## Subclases (para el nivel 1)
+## Como se importan
 
-`knight`, `barbarian`, `hunter`, `marksman`, `conjurer`, `warlock`.
+Los paquetes llegan como los saca el generador: `base.obj` de unos 60.000
+triangulos mas texturas de 2048, cerca de 8 MB por guerrero. En el lobby puede
+haber tres a la vez, asi que hay que recortarlos antes de subirlos:
+
+```
+node tools/importar-modelos.mjs <zip|carpeta de zips> [...]
+```
+
+Deduce el nombre de destino del propio archivo
+(`ENANO_ALSIRIO_HOMBRE__GUERRERO.zip` a `alsius-dwarf-male-warrior`) y avisa de
+los que no sepa leer en vez de adivinar. Por dentro:
+
+- deja la malla en un 15% de sus vertices, unos 9.000 triangulos;
+- baja el color y las normales a 1024, y el mapa de rugosidad y metalicidad a
+  512, todo en WebP;
+- cuantiza los atributos con `KHR_mesh_quantization`.
+
+Se cuantiza y no se comprime con Draco ni con Meshopt a proposito: esos dos
+necesitan un decodificador aparte que habria que vendorizar, y el cargador de
+Three.js que lleva el proyecto entiende la cuantizacion de serie. Si algun dia
+se vendoriza el decodificador de Draco, cambiar `--compress quantize` por
+`draco` en `tools/convertir-modelo.mjs` deja cada modelo en menos de la mitad.
 
 ## Que tiene que cumplir cada modelo
 
-- 8.000 a 15.000 triangulos. Un solo material por modelo.
-- Atlas de textura de 1024x1024 (2048 solo si es un modelo destacado).
-- Comprimido con Draco y las texturas en KTX2: por debajo de 900 KB.
+- Por debajo de 1,3 MB ya convertido. El importador avisa si se pasa.
 - Mirando hacia +Z, de pie sobre el origen (Y = 0 a sus pies).
 - La altura da igual: el visor escala y centra cualquier modelo al encuadrarlo.
-- Una animacion idle de unos 2 segundos, en bucle, si se quiere movimiento.
 
 ## Como comprobar que funciona
 
 Deja el archivo aqui y recarga el lobby. Si el nombre es correcto, la silueta
 se sustituye sola. Si no aparece, revisa que el nombre coincida exactamente con
-las claves de reino, raza, sexo y subclase que usa la base de datos.
+las claves de reino, raza, sexo y arquetipo que usa la base de datos.

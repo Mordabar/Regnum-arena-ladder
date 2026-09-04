@@ -500,18 +500,33 @@ window.ArenaChampion = (function () {
    * general. Asi se puede subir un modelo por raza cuando se tenga, y mientras
    * tanto sirve uno solo para todo el reino y la subclase.
    */
+  /* En Regnum cada subclase cuelga de un arquetipo, y el equipo se parece
+     mucho dentro del mismo: un caballero y un barbaro visten de guerrero. Por
+     eso hay un nivel intermedio, y un solo modelo cubre dos subclases. */
+  var ARCHETYPES = {
+    knight: 'warrior', barbarian: 'warrior',
+    hunter: 'archer', marksman: 'archer',
+    conjurer: 'mage', warlock: 'mage'
+  };
+
   function modelCandidates(realm, subclass, race, gender) {
     var sex = gender || 'male';
+    var archetype = ARCHETYPES[subclass];
     var names = [];
 
     if (race) {
       // Cuerpo y armadura completos, lo mas concreto que puede haber.
       names.push(realm + '-' + race + '-' + sex + '-' + subclass);
+      // El equipo del arquetipo: guerrero, arquero o mago.
+      if (archetype) { names.push(realm + '-' + race + '-' + sex + '-' + archetype); }
       // Solo el cuerpo: la raza y el sexo mandan, y la ropa la pone el reino.
       // Este es el nivel de los 24 modelos base (12 combinaciones de reino y
       // raza, por dos sexos).
       names.push(realm + '-' + race + '-' + sex);
     }
+
+    // Sin raza todavia se puede acertar por arquetipo dentro del reino.
+    if (archetype) { names.push(realm + '-' + archetype); }
 
     // Respaldo antiguo: un modelo por reino y subclase, sin raza ni sexo.
     names.push(realm + '-' + subclass);
