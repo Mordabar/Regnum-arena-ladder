@@ -65,8 +65,14 @@ for (const zip of paquetes) {
 
     const trabajo = mkdtempSync(join(tmpdir(), 'paquete-'));
     try {
-        execFileSync('unzip', ['-o', '-q', zip, '-d', trabajo]);
-        execFileSync('node', [join(raiz, 'tools', 'convertir-modelo.mjs'), trabajo, nombre], { stdio: 'inherit' });
+        if (process.platform === 'win32') {
+            const literal = (value) => "'" + value.replaceAll("'", "''") + "'";
+            execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+                `Expand-Archive -LiteralPath ${literal(zip)} -DestinationPath ${literal(trabajo)}`]);
+        } else {
+            execFileSync('unzip', ['-o', '-q', zip, '-d', trabajo]);
+        }
+        execFileSync(process.execPath, [join(raiz, 'tools', 'convertir-modelo.mjs'), trabajo, nombre], { stdio: 'inherit' });
         hechos += 1;
     } finally {
         rmSync(trabajo, { recursive: true, force: true });
@@ -88,9 +94,9 @@ function deducirNombre(archivo) {
     const limpio = archivo
         .replace(/\.zip$/i, '')
         .replace(/^[0-9a-f]{6,}-/i, '')
-        .toLowerCase();
+        .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-    const piezas = limpio.split(/_+/).filter(Boolean);
+    const piezas = limpio.split(/[_\s]+/).filter(Boolean);
 
     let reino = null, raza = null, sexo = null, arquetipo = null;
 

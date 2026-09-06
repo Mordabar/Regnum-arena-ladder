@@ -43,8 +43,8 @@
             el arma y la armadura.
         </p>
         <p class="mt-3 text-sm text-[color:var(--arena-muted)] arena-body-text">
-            Slot {{ $visible + 1 }} de 5 · Solo el nombre se puede cambiar después: reino,
-            raza, sexo y subclase quedan fijos.
+            Slot {{ $visible + 1 }} de 5 · El reino y la subclase quedan fijos.
+            Después puedes cambiar el nombre, el sexo y elegir otra raza compatible.
         </p>
     </section>
 
@@ -101,7 +101,7 @@
                 </x-arena-champion>
 
                 <p class="arena-champion-caption mt-3 text-center text-xs text-[color:var(--arena-muted)] arena-body-text">
-                    Vista previa. Los modelos definitivos irán sustituyendo a estas siluetas por reino, raza y sexo.
+                    Vista previa de tu personaje según el reino, la raza, el sexo y la subclase.
                 </p>
             </div>
 
@@ -142,8 +142,8 @@
                         <span class="text-base font-semibold text-white">Elige tu raza</span>
                     </legend>
                     <p class="mb-3 mt-1 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                        No da ninguna ventaja en el ladder, solo cambia cómo se ve tu guerrero.
-                        Aun así es para siempre: tampoco se puede cambiar después.
+                        La raza define tu apariencia y las subclases que puedes elegir.
+                        Después podrás cambiarla por otra compatible con tu subclase.
                     </p>
 
                     <div class="grid gap-2.5 sm:grid-cols-2" data-race-options>
@@ -205,7 +205,8 @@
                         <span class="text-base font-semibold text-white">Elige tu subclase</span>
                     </legend>
                     <p class="mb-3 mt-1 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                        Decide cómo peleas. Tampoco se puede cambiar después.
+                        Decide cómo peleas. Solo puedes elegir las subclases disponibles para tu raza.
+                        La subclase no se puede cambiar después.
                     </p>
                     <div class="grid gap-2.5 sm:grid-cols-2">
                         @foreach($subclasses as $key => $label)
@@ -286,6 +287,21 @@
         var realmOut = document.querySelector('[data-preview-realm]');
         var raceOut = document.querySelector('[data-preview-race]');
         var subclassOut = document.querySelector('[data-preview-subclass]');
+        var raceArchetypes = @json(\App\Models\Player::RACE_ARCHETYPES);
+        var subclassArchetypes = @json(\App\Models\Player::SUBCLASS_ARCHETYPES);
+
+        function syncSubclasses(realm, race) {
+            var allowed = (raceArchetypes[realm] || {})[race] || [];
+            var first = null;
+            form.querySelectorAll('input[name="subclass"]').forEach(function (input) {
+                var available = allowed.indexOf(subclassArchetypes[input.value]) !== -1;
+                input.disabled = !available;
+                input.closest('label').hidden = !available;
+                if (!available) { input.checked = false; }
+                if (available && !first) { first = input; }
+            });
+            if (!checked('subclass') && first) { first.checked = true; }
+        }
 
         function checked(name) {
             return form.querySelector('input[name="' + name + '"]:checked');
@@ -326,6 +342,7 @@
             if (realm) { syncRaces(realm.value); }
 
             var race = checked('race');
+            if (realm && race) { syncSubclasses(realm.value, race.value); }
             var gender = checked('gender');
             var subclass = checked('subclass');
             var name = form.querySelector('input[name="character_name"]');

@@ -59,6 +59,7 @@
                                 <span class="mb-2 block text-sm arena-body-text">Raza</span>
                                 <div class="arena-edit-choices">
                                     @foreach(PlayerModel::RACES[$player->realm] ?? [] as $raceKey => $raceLabel)
+                                        @continue(!PlayerModel::raceCanBeSubclass($player->realm, $raceKey, $player->subclass))
                                         <label class="arena-choice">
                                             <input type="radio" name="race" value="{{ $raceKey }}" @checked($player->race === $raceKey) required>
                                             <span class="arena-choice-body arena-choice-body-row">

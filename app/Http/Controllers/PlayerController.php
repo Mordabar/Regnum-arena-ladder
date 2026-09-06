@@ -50,13 +50,18 @@ class PlayerController extends Controller
                     return $query->where('realm', $request->realm);
                 }),
             ],
-            'subclass' => ['required', Rule::in(array_keys(Player::SUBCLASSES))],
+            'subclass' => ['bail', 'required', 'string', Rule::in(array_keys(Player::SUBCLASSES)), function ($attribute, $value, $fail) use ($request) {
+                if (is_string($request->input('realm')) && is_string($request->input('race'))
+                    && !Player::raceCanBeSubclass($request->input('realm'), $request->input('race'), $value)) {
+                    $fail('Esa raza no puede elegir esa subclase.');
+                }
+            }],
             'realm' => ['required', Rule::in(array_keys(Player::REALMS))],
             // La raza tiene que existir DENTRO del reino elegido: un enano no
             // es de Ignis. Se valida en el servidor y no solo escondiendo
             // opciones en el formulario.
-            'race' => ['required', 'string', function ($attribute, $value, $fail) use ($request) {
-                if (!Player::raceBelongsToRealm($value, $request->input('realm'))) {
+            'race' => ['bail', 'required', 'string', function ($attribute, $value, $fail) use ($request) {
+                if (!is_string($request->input('realm')) || !Player::raceBelongsToRealm($value, $request->input('realm'))) {
                     $fail('Esa raza no pertenece al reino elegido.');
                 }
             }],
@@ -119,7 +124,11 @@ class PlayerController extends Controller
         // no: son lo que decide contra quien peleas y como, y cambiarlos seria
         // otro personaje con el historial del anterior.
         $raceValidated = $request->validate([
-            'race' => ['required', 'string', Rule::in(array_keys(Player::RACES[$player->realm] ?? []))],
+            'race' => ['bail', 'required', 'string', Rule::in(array_keys(Player::RACES[$player->realm] ?? [])), function ($attribute, $value, $fail) use ($player) {
+                if (!Player::raceCanBeSubclass($player->realm, $value, $player->subclass)) {
+                    $fail('Esa raza no puede tener la subclase de este personaje.');
+                }
+            }],
             'gender' => ['required', Rule::in(array_keys(Player::GENDERS))],
         ], [
             'race.in' => 'Esa raza no pertenece a tu reino',

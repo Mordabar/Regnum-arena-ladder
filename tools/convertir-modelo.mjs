@@ -12,7 +12,7 @@
  *   node tools/convertir-modelo.mjs /tmp/enano_arquero alsius-dwarf-male-archer
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, copyFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, copyFileSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import sharp from 'sharp';
 import { join, resolve } from 'node:path';
@@ -34,7 +34,8 @@ const TEXTURA = 1024;
 
 const raiz = resolve(process.cwd());
 const destino = join(raiz, 'public', 'models', nombre + '.glb');
-const bin = (cmd) => join(raiz, 'node_modules', '.bin', cmd);
+const bin = (cmd) => join(raiz, 'node_modules', ...(cmd === 'obj2gltf'
+    ? ['obj2gltf', 'bin', 'obj2gltf.js'] : ['@gltf-transform', 'cli', 'bin', 'cli.js']));
 
 const obj = join(entrada, 'base.obj');
 if (!existsSync(obj)) {
@@ -118,15 +119,14 @@ try {
 }
 
 function run(cmd, args) {
-    execFileSync(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 1024 * 1024 * 64 });
+    execFileSync(process.execPath, [cmd, ...args], { stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 1024 * 1024 * 64 });
 }
 
 /** Cuantas caras trae el OBJ, para saber cuanto hay que recortar. */
 function contarCaras(ruta) {
-    const salida = execFileSync('sh', ['-c', `grep -c '^f ' ${JSON.stringify(ruta)}`]).toString().trim();
-    return Math.max(1, Number(salida) || 1);
+    return Math.max(1, (readObj(ruta).match(/^f /gm) || []).length);
 }
 
 function readObj(ruta) {
-    return execFileSync('cat', [ruta], { maxBuffer: 1024 * 1024 * 256 }).toString();
+    return readFileSync(ruta, 'utf8');
 }

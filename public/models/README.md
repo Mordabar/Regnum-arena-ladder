@@ -34,10 +34,17 @@ tiene arquero y el enano no tiene mago. Son 20 modelos por reino, no 24.
 | Alsius | lamai     | warrior, archer, mage    | 6       |
 | Alsius | utghar    | warrior, mage            | 4       |
 | Alsius | dwarf     | warrior, archer          | 4       |
-| Ignis  | esquelio, dark_elf, molok, lamai   | los que permita el juego | |
-| Syrtis | alturian, wood_elf, half_elf, lamai | los que permita el juego | |
+| Ignis  | esquelio, lamai | warrior, archer, mage | 12 |
+| Ignis  | dark_elf | warrior, mage | 4 |
+| Ignis  | molok | warrior, archer | 4 |
+| Syrtis | alturian, lamai | warrior, archer, mage | 12 |
+| Syrtis | wood_elf | archer, mage | 4 |
+| Syrtis | half_elf | warrior, archer | 4 |
 
-Sexos: `male`, `female`. Alsius esta completo con sus 20.
+Sexos: `male`, `female`. Los tres reinos estan completos: 60 modelos.
+Las restricciones se comparten entre formulario y validacion del servidor en
+`Player::RACE_ARCHETYPES`. Tambien se aplican al editar la raza de un personaje.
+La correspondencia de los 40 paquetes nuevos figura en `tools/modelos-manifiesto.json`.
 
 Ejemplos: `alsius-dwarf-male-warrior.glb`, `alsius-lamai-female-mage.glb`.
 

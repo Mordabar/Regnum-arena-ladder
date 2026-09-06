@@ -1776,6 +1776,7 @@
             background: var(--arena-gold);
             color: #20160e;
         }
+        .arena-choice[hidden] { display: none !important; }
         .arena-choice {
             position: relative;
             display: block;

@@ -221,6 +221,40 @@ class Player extends Model
         'female' => 'Femenino',
     ];
 
+    /** Reglas de creación; no dependen de que un archivo 3D se pueda descargar. */
+    const RACE_ARCHETYPES = [
+        'alsius' => [
+            'nordo' => ['warrior', 'archer', 'mage'],
+            'utghar' => ['warrior', 'mage'],
+            'dwarf' => ['warrior', 'archer'],
+            'lamai' => ['warrior', 'archer', 'mage'],
+        ],
+        'ignis' => [
+            'esquelio' => ['warrior', 'archer', 'mage'],
+            'dark_elf' => ['warrior', 'mage'],
+            'molok' => ['warrior', 'archer'],
+            'lamai' => ['warrior', 'archer', 'mage'],
+        ],
+        'syrtis' => [
+            'alturian' => ['warrior', 'archer', 'mage'],
+            'wood_elf' => ['archer', 'mage'],
+            'half_elf' => ['warrior', 'archer'],
+            'lamai' => ['warrior', 'archer', 'mage'],
+        ],
+    ];
+
+    const SUBCLASS_ARCHETYPES = [
+        'knight' => 'warrior', 'barbarian' => 'warrior',
+        'hunter' => 'archer', 'marksman' => 'archer',
+        'conjurer' => 'mage', 'warlock' => 'mage',
+    ];
+
+    public static function raceCanBeSubclass(?string $realm, ?string $race, ?string $subclass): bool
+    {
+        return in_array(self::SUBCLASS_ARCHETYPES[$subclass ?? ''] ?? null,
+            self::RACE_ARCHETYPES[$realm ?? ''][$race ?? ''] ?? [], true);
+    }
+
     /** En que se nota cada raza a simple vista. */
     const RACE_NOTES = [
         'nordo' => 'Humano del norte, complexión corriente.',
