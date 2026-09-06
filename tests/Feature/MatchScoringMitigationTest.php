@@ -98,7 +98,8 @@ it('reduces PL on exact rematches within the anti-farm window', function () {
         MatchResult::query()
             ->where('match_id', $currentMatch->id)
             ->whereIn('player_id', collect($teamA)->pluck('id'))
-            ->avg('pl_change'),
+            ->get()
+            ->avg(fn ($row) => $row->scoring_context['pl_change_theoretical'] ?? $row->pl_change),
         1
     );
 
@@ -106,7 +107,8 @@ it('reduces PL on exact rematches within the anti-farm window', function () {
         MatchResult::query()
             ->where('match_id', $currentMatch->id)
             ->whereIn('player_id', collect($teamB)->pluck('id'))
-            ->avg('pl_change'),
+            ->get()
+            ->avg(fn ($row) => $row->scoring_context['pl_change_theoretical'] ?? $row->pl_change),
         1
     );
 

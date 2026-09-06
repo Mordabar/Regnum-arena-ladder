@@ -399,3 +399,66 @@ it('un bot puede contestar al reporte que subio la persona', function () {
         ->and($match->fresh()->winner_team)->toBe('team_a')
         ->and($match->fresh()->results()->count())->toBeGreaterThan(0);
 });
+
+it('deshacer una derrota que nunca resto puntos no los regala', function () {
+    // El bug que lo motivo: un jugador a cero PL pierde contra bots. Nadie baja
+    // de cero, asi que no se le quito nada, pero la fila anotaba la resta
+    // entera. Al purgar se le devolvia lo que nunca perdio y aparecia en el
+    // ladder con puntos sin haber ganado una sola partida.
+    $bot = purgeBot('regalo');
+    $humano = purgeHuman('regalo', ['pl_points' => 0.0, 'mmr' => 1000, 'wins' => 0, 'losses' => 1, 'matches_played' => 1]);
+
+    $match = ArenaMatch::create([
+        'match_code' => 'ARENA-9100',
+        'report_token' => 'REGALO0001',
+        'queue_mode' => 'random',
+        'arena_mode' => '2v2',
+        'team_a_realm' => $bot->realm,
+        'team_b_realm' => $humano->realm,
+        'team_a' => [purgePack($bot)],
+        'team_b' => [purgePack($humano)],
+        'zone' => 'frozen_bridge',
+        'status' => 'completed',
+        'estimated_mmr_avg' => 1000,
+        'player_count' => 2,
+    ]);
+
+    MatchResult::create([
+        'match_id' => $match->id,
+        'player_id' => $humano->id,
+        'result' => 'loss',
+        // El movimiento real fue cero: estaba a cero y ahi se quedo.
+        'pl_change' => 0.0,
+        'mmr_change' => -15,
+        'pl_before' => 0.0,
+        'pl_after' => 0.0,
+        'mmr_before' => 1015,
+        'mmr_after' => 1000,
+        'created_at' => now(),
+    ]);
+
+    app(TestingLabService::class)->purgeTrace(true);
+    $humano->refresh();
+
+    expect((float) $humano->pl_points)->toBe(0.0)
+        ->and($humano->mmr)->toBe(1015)
+        ->and($humano->losses)->toBe(0)
+        ->and($humano->matches_played)->toBe(0);
+});
+
+it('la purga vacia el resumen del ladder, que va cacheado', function () {
+    // El podio y el top por reino salen de una cache de cinco minutos. Sin
+    // vaciarla, la portada seguia contando lo de antes de la purga y el mismo
+    // jugador aparecia con dos puntuaciones distintas en la misma pagina.
+    $bot = purgeBot('cache');
+    $humano = purgeHuman('cache');
+
+    $cache = app(\App\Services\LadderCacheService::class);
+    $cache->getTopByRealm();
+
+    expect(\Illuminate\Support\Facades\Cache::has('ladder:top-by-realm:v2'))->toBeTrue();
+
+    app(TestingLabService::class)->purgeTrace(true);
+
+    expect(\Illuminate\Support\Facades\Cache::has('ladder:top-by-realm:v2'))->toBeFalse();
+});

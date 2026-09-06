@@ -8,6 +8,7 @@ use App\Models\MatchResult;
 use App\Models\Player;
 use App\Models\Queue;
 use App\Models\User;
+use App\Services\LadderCacheService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -234,20 +235,41 @@ class TestingLabService
                 continue;
             }
 
-            $pl = (float) $rows->sum('pl_change');
-            $mmr = (int) $rows->sum('mmr_change');
+            // Se deshace el movimiento REAL de cada enfrentamiento, el que va de
+            // pl_before a pl_after. Sumar la columna del cambio no vale: cuando
+            // alguien pierde estando a cero no se le quita nada, y restar esa
+            // caida que nunca ocurrio le regalaba puntos.
+            $pl = round($rows->sum(fn ($row) => (float) $row->pl_after - (float) $row->pl_before), 1);
+            $mmr = (int) $rows->sum(fn ($row) => (int) $row->mmr_after - (int) $row->mmr_before);
             $wins = $rows->where('result', 'win')->count();
             $losses = $rows->where('result', 'loss')->count();
+            $jugadas = max(0, $player->matches_played - $rows->count());
 
-            $player->forceFill([
-                // Nunca por debajo de cero: un personaje que jugo solo pruebas
-                // acabaria con puntos negativos si se restase a ciegas.
-                'pl_points' => max(0, $player->pl_points - $pl),
-                'mmr' => max(0, $player->mmr - $mmr),
-                'wins' => max(0, $player->wins - $wins),
-                'losses' => max(0, $player->losses - $losses),
-                'matches_played' => max(0, $player->matches_played - $rows->count()),
-            ])->save();
+            // Sin combates que contar, el personaje vuelve exactamente a como
+            // estaba antes del primero que se borra. Es mas fiel que dejarlo en
+            // los valores de fabrica -pudo tener otro MMR de partida- y ademas
+            // cierra cualquier desajuste que arrastrase de antes.
+            if ($jugadas === 0) {
+                $primero = $rows->sortBy(['created_at', 'id'])->first();
+
+                $player->forceFill([
+                    'pl_points' => max(0, round((float) $primero->pl_before, 1)),
+                    'mmr' => max(100, (int) $primero->mmr_before),
+                    'wins' => 0,
+                    'losses' => 0,
+                    'matches_played' => 0,
+                ])->save();
+            } else {
+                $player->forceFill([
+                    // Nunca por debajo de cero: un personaje que jugo solo pruebas
+                    // acabaria con puntos negativos si se restase a ciegas.
+                    'pl_points' => max(0, round($player->pl_points - $pl, 1)),
+                    'mmr' => max(100, $player->mmr - $mmr),
+                    'wins' => max(0, $player->wins - $wins),
+                    'losses' => max(0, $player->losses - $losses),
+                    'matches_played' => $jugadas,
+                ])->save();
+            }
 
             $result['pl_reverted'] += $pl;
             $result['mmr_reverted'] += $mmr;
@@ -274,6 +296,12 @@ class TestingLabService
 
     private function finishPurge(array $result, Collection $botIds, Collection $users, bool $deleteBots): array
     {
+        // El podio y el top por reino salen de una cache de cinco minutos. Sin
+        // vaciarla, la portada del ladder seguia contando lo de antes de la
+        // purga: el mismo jugador aparecia con dos puntuaciones distintas en la
+        // misma pagina, y el primero de un reino ya no era el primero.
+        app(LadderCacheService::class)->forgetSummary();
+
         DB::transaction(function () use ($botIds, $users, $deleteBots, &$result) {
             $result['queues_deleted'] = Queue::query()->whereIn('player_id', $botIds)->delete();
 
@@ -313,6 +341,8 @@ class TestingLabService
             'queues_deleted' => 0,
             'matches_deleted' => 0,
         ];
+
+        app(LadderCacheService::class)->forgetSummary();
 
         DB::transaction(function () use ($users, $playerIds, $matchIds, $deleteUsers, $resetPlayers, &$result) {
             if ($matchIds->isNotEmpty()) {

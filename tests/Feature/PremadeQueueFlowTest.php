@@ -244,8 +244,10 @@ it('applies the random vs premade bonus to PL and MMR when the random side wins'
     expect($winnerResult->scoring_context['queue_type_multiplier_pl'])->toBe(1.25);
     expect($winnerResult->scoring_context['queue_type_multiplier_mmr'])->toBe(1.18);
 
-    expect($loserResult->pl_change)->toBe(-2.5);
-    expect($loserResult->mmr_change)->toBe(-19);
+    expect($loserResult->scoring_context['pl_change_theoretical'])->toBe(-2.5);
+    expect($loserResult->scoring_context['mmr_change_theoretical'])->toBe(-19);
+    // Y lo aplicado es cero: nadie baja de cero PL.
+    expect((float) $loserResult->pl_change)->toBe(0.0);
     expect($loserResult->scoring_context['player_queue_type'])->toBe('premade');
     expect($loserResult->scoring_context['opponent_queue_type'])->toBe('random');
 });
@@ -298,8 +300,8 @@ it('softens the loss for random teams and trims the gain for premades in mixed m
         ->where('player_id', $premadeTeam[0]->id)
         ->firstOrFail();
 
-    expect($randomLoss->pl_change)->toBe(-1.6);
-    expect($randomLoss->mmr_change)->toBe(-14);
+    expect($randomLoss->scoring_context['pl_change_theoretical'])->toBe(-1.6);
+    expect($randomLoss->scoring_context['mmr_change_theoretical'])->toBe(-14);
     expect($randomLoss->scoring_context['queue_type_multiplier_pl'])->toBe(0.8);
     expect($randomLoss->scoring_context['queue_type_multiplier_mmr'])->toBe(0.86);
 

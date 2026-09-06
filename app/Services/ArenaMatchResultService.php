@@ -804,6 +804,19 @@ class ArenaMatchResultService
                 $finalPlAfter = max(0, round($playerResult['pl_before'] + $finalPlChange, 1));
                 $finalMmrAfter = max(100, $playerResult['mmr_before'] + $finalMmrChange);
 
+                // La columna guarda lo que de verdad cambio, no lo que tocaba.
+                // Nadie baja de cero PL: a quien pierde estando a cero no se le
+                // quita nada, y anotar la resta entera dejaba la fila mintiendo.
+                // Quien luego la use para deshacer -la purga del laboratorio-
+                // le devolveria puntos que nunca perdio.
+                //
+                // Lo que pedia la formula no se pierde: va al contexto, que es
+                // donde se audita el reparto.
+                $plChangeTeorico = $finalPlChange;
+                $mmrChangeTeorico = $finalMmrChange;
+                $finalPlChange = round($finalPlAfter - $playerResult['pl_before'], 1);
+                $finalMmrChange = $finalMmrAfter - $playerResult['mmr_before'];
+
                 $player->update([
                     'pl_points' => $finalPlAfter,
                     'mmr' => $finalMmrAfter,
@@ -825,6 +838,10 @@ class ArenaMatchResultService
                     'opponent_queue_type' => $opponentQueueType,
                     'base_pl_change' => $playerResult['pl_change'],
                     'base_mmr_change' => $playerResult['mmr_change'],
+                    // Lo que pedia la formula ya con multiplicadores y topes,
+                    // antes del suelo de cero.
+                    'pl_change_theoretical' => $plChangeTeorico,
+                    'mmr_change_theoretical' => $mmrChangeTeorico,
                 ];
 
                 MatchResult::updateOrCreate(
@@ -997,6 +1014,13 @@ class ArenaMatchResultService
             $finalPlAfter = max(0, round((float) $playerResult['pl_before'] + $finalPlChange, 1));
             $finalMmrAfter = max(100, (int) $playerResult['mmr_before'] + $finalMmrChange);
 
+            // Igual que arriba: se anota el movimiento real, con el suelo de
+            // cero ya aplicado, y el teorico se guarda en el contexto.
+            $plChangeTeorico = $finalPlChange;
+            $mmrChangeTeorico = $finalMmrChange;
+            $finalPlChange = round($finalPlAfter - (float) $playerResult['pl_before'], 1);
+            $finalMmrChange = $finalMmrAfter - (int) $playerResult['mmr_before'];
+
             $updatedRows[$playerId] = [
                 'player_id' => $playerId,
                 'result' => $playerResult['result'],
@@ -1019,6 +1043,8 @@ class ArenaMatchResultService
                     'opponent_queue_type' => $opponentQueueType,
                     'base_pl_change' => $playerResult['pl_change'],
                     'base_mmr_change' => $playerResult['mmr_change'],
+                    'pl_change_theoretical' => $plChangeTeorico,
+                    'mmr_change_theoretical' => $mmrChangeTeorico,
                     'resolution_source' => 'admin_force_complete_correction',
                 ],
             ];
