@@ -2,24 +2,15 @@
 
 namespace App\Console\Commands;
 
-use App\Models\MatchResult;
-use App\Models\Player;
-use App\Services\LadderCacheService;
+use App\Services\LadderMaintenanceService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 
 /**
- * Rehace la puntuacion de cada personaje a partir de los enfrentamientos que
- * le quedan.
+ * Rehace la puntuacion de cada personaje desde sus enfrentamientos.
  *
- * Hizo falta porque la purga del laboratorio devolvia mal los puntos: a quien
- * perdia estando a cero PL se le "restauraba" una caida que nunca ocurrio, y
- * acababa en el ladder con puntuacion sin haber ganado nada. El fallo ya no se
- * produce, pero los personajes que lo sufrieron siguen descuadrados.
- *
- * No inventa nada: la ultima fila de resultado de cada jugador ya guarda como
- * quedo tras ese enfrentamiento. Quien no tenga ninguna vuelve a los valores de
- * un personaje recien creado.
+ * Lo mismo que el boton del panel, para cuando se prefiere la consola. El
+ * trabajo lo hace el servicio: dos copias de esta logica acabarian dando
+ * resultados distintos.
  */
 class LadderRecalculateCommand extends Command
 {
@@ -27,72 +18,36 @@ class LadderRecalculateCommand extends Command
 
     protected $description = 'Rehace PL, MMR y el historial de cada personaje desde sus enfrentamientos.';
 
-    public function handle(): int
+    public function handle(LadderMaintenanceService $mantenimiento): int
     {
         $ensayo = (bool) $this->option('dry-run');
-        $cambiados = 0;
+        $resumen = $mantenimiento->recalcularRanking($ensayo);
 
-        foreach (Player::query()->orderBy('id')->cursor() as $player) {
-            $filas = MatchResult::query()
-                ->where('player_id', $player->id)
-                ->orderBy('created_at')
-                ->orderBy('id')
-                ->get();
-
-            $ultima = $filas->last();
-
-            $esperado = [
-                'pl_points' => $ultima ? max(0, round((float) $ultima->pl_after, 1)) : 0.0,
-                'mmr' => $ultima ? max(100, (int) $ultima->mmr_after) : 1000,
-                'wins' => $filas->where('result', 'win')->count(),
-                'losses' => $filas->whereIn('result', ['loss', 'no_show'])->count(),
-                'matches_played' => $filas->count(),
-            ];
-
-            $actual = [
-                'pl_points' => round((float) $player->pl_points, 1),
-                'mmr' => (int) $player->mmr,
-                'wins' => (int) $player->wins,
-                'losses' => (int) $player->losses,
-                'matches_played' => (int) $player->matches_played,
-            ];
-
-            if ($actual == $esperado) {
-                continue;
-            }
-
-            $cambiados++;
+        foreach ($resumen['detalle'] as $fila) {
             $this->line(sprintf(
                 '%-24s PL %s → %s   MMR %d → %d   %d/%d → %d/%d   partidas %d → %d',
-                $player->character_name,
-                $actual['pl_points'], $esperado['pl_points'],
-                $actual['mmr'], $esperado['mmr'],
-                $actual['wins'], $actual['losses'],
-                $esperado['wins'], $esperado['losses'],
-                $actual['matches_played'], $esperado['matches_played']
+                $fila['character_name'],
+                $fila['antes']['pl_points'], $fila['despues']['pl_points'],
+                $fila['antes']['mmr'], $fila['despues']['mmr'],
+                $fila['antes']['wins'], $fila['antes']['losses'],
+                $fila['despues']['wins'], $fila['despues']['losses'],
+                $fila['antes']['matches_played'], $fila['despues']['matches_played']
             ));
-
-            if (!$ensayo) {
-                DB::transaction(fn () => $player->forceFill($esperado)->save());
-            }
         }
 
-        if ($cambiados === 0) {
-            $this->info('Todo cuadra, no habia nada que rehacer.');
+        if ($resumen['corregidos'] === 0) {
+            $this->info('Todo cuadra en los ' . $resumen['revisados'] . ' personajes revisados.');
 
             return self::SUCCESS;
         }
 
         if ($ensayo) {
-            $this->warn($cambiados . ' personaje(s) descuadrados. Quita --dry-run para arreglarlos.');
+            $this->warn($resumen['corregidos'] . ' personaje(s) descuadrados. Quita --dry-run para arreglarlos.');
 
             return self::SUCCESS;
         }
 
-        // El podio y el top por reino van cacheados: sin esto la portada
-        // seguiria enseñando las cifras viejas hasta cinco minutos.
-        app(LadderCacheService::class)->forgetSummary();
-        $this->info($cambiados . ' personaje(s) rehechos.');
+        $this->info($resumen['corregidos'] . ' personaje(s) rehechos.');
 
         return self::SUCCESS;
     }

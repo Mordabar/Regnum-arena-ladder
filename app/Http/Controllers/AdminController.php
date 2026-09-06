@@ -13,6 +13,7 @@ use App\Services\ArenaMatchResultService;
 use App\Services\ArenaMatchmakingService;
 use App\Services\PlayerCleanupService;
 use App\Services\LadderCacheService;
+use App\Services\LadderMaintenanceService;
 use App\Support\ArenaMode;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -716,5 +717,76 @@ class AdminController extends Controller
         file_put_contents($filepath, $jsContent);
 
         return back()->with('success', 'Zonas del mapa guardadas correctamente.');
+    }
+
+    /**
+     * Borra los enfrentamientos elegidos y devuelve a cada jugador lo que le
+     * repartieron.
+     *
+     * Hasta ahora solo se sabian borrar los del laboratorio. Cuando las
+     * partidas que sobraban eran entre personajes de verdad -unas cuantas
+     * jugadas a mano para probar- no habia forma de quitarlas sin dejar el
+     * ranking descuadrado.
+     */
+    public function destroyMatches(Request $request, LadderMaintenanceService $mantenimiento)
+    {
+        $validated = $request->validate([
+            'match_ids' => 'required|array|min:1',
+            'match_ids.*' => 'required|integer|exists:matches,id',
+        ], [
+            'match_ids.required' => 'Elige al menos un enfrentamiento.',
+            'match_ids.*.exists' => 'Alguno de los enfrentamientos ya no existe. Recarga la lista.',
+        ]);
+
+        $resumen = $mantenimiento->borrarEnfrentamientos($validated['match_ids']);
+
+        return back()->with('success', sprintf(
+            '%d enfrentamiento(s) borrados. %d personaje(s) recalculados.',
+            $resumen['matches_deleted'],
+            $resumen['players_recalculated']
+        ));
+    }
+
+    /** Rehace la puntuacion de todos desde los enfrentamientos que quedan. */
+    public function recalculateLadder(Request $request, LadderMaintenanceService $mantenimiento)
+    {
+        $ensayo = $request->boolean('dry_run');
+        $resumen = $mantenimiento->recalcularRanking($ensayo);
+
+        if ($resumen['corregidos'] === 0) {
+            return back()->with('success', 'Todo cuadra en los ' . $resumen['revisados'] . ' personajes revisados.');
+        }
+
+        if ($ensayo) {
+            return back()
+                ->with('warning', $resumen['corregidos'] . ' personaje(s) descuadrados. Revisa la lista y confirma para arreglarlos.')
+                ->with('ladder_preview', $resumen['detalle']);
+        }
+
+        return back()->with('success', $resumen['corregidos'] . ' personaje(s) rehechos.');
+    }
+
+    /**
+     * Deja el ranking a cero borrando todos los enfrentamientos.
+     *
+     * Pide el nombre del sitio escrito a mano: no se borra el historial entero
+     * por un clic de mas.
+     */
+    public function resetLadder(Request $request, LadderMaintenanceService $mantenimiento)
+    {
+        $request->validate([
+            'confirmacion' => 'required|in:REINICIAR',
+        ], [
+            'confirmacion.required' => 'Escribe REINICIAR para confirmar.',
+            'confirmacion.in' => 'Escribe REINICIAR para confirmar.',
+        ]);
+
+        $resumen = $mantenimiento->reiniciarRanking();
+
+        return back()->with('success', sprintf(
+            'Ranking reiniciado: %d enfrentamiento(s) borrados y %d personaje(s) a cero.',
+            $resumen['matches_deleted'],
+            $resumen['players_recalculated']
+        ));
     }
 }

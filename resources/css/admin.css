@@ -944,6 +944,74 @@
     .ap-pagination-controls { display: flex; align-items: center; gap: 8px; }
     .ap-pagination-info { font-size: 12px; color: var(--ap-text-subtle); }
 
+    /* ── Seleccion multiple y mantenimiento ────────────────────────────
+       La barra de borrado solo aparece cuando hay algo elegido: un boton de
+       borrar siempre visible sobre una tabla invita al accidente. */
+    .ap-bulkbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin: -4px -4px 12px;
+        padding: 9px 12px;
+        border-radius: var(--ap-radius-sm);
+        border: 1px solid var(--ap-danger-dim);
+        background: color-mix(in srgb, var(--ap-danger) 8%, transparent);
+        font-size: 13px;
+        color: var(--ap-text);
+    }
+    .ap-bulkbar b { color: var(--ap-danger); }
+
+    .ap-maint {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: 12px;
+        margin-top: 14px;
+    }
+    .ap-maint-block {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 13px 14px;
+        border-radius: var(--ap-radius-sm);
+        border: 1px solid var(--ap-line);
+        background: var(--ap-surface-soft, rgba(255, 255, 255, 0.02));
+    }
+    .ap-maint-block.is-danger { border-color: var(--ap-danger-dim); }
+    .ap-maint-block .ap-field { width: 100%; }
+    .ap-maint-text {
+        margin: 0;
+        font-size: 12.5px;
+        line-height: 1.5;
+        color: var(--ap-text-subtle);
+    }
+    .ap-maint-block button { margin-top: auto; }
+
+    /* Lo que cambiaria el recalculo, antes de tocar nada. */
+    .ap-preview {
+        margin-top: 14px;
+        padding: 12px 14px;
+        border-radius: var(--ap-radius-sm);
+        border: 1px solid var(--ap-warn-dim, var(--ap-line));
+        background: color-mix(in srgb, var(--ap-warn, #d8b15c) 7%, transparent);
+    }
+    .ap-preview-head { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--ap-text); }
+    .ap-preview-list {
+        margin: 0;
+        padding-left: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        font-size: 12.5px;
+        color: var(--ap-text-subtle);
+        max-height: 260px;
+        overflow-y: auto;
+    }
+    .ap-preview-list b { color: var(--ap-text); }
+
+    .ap-error { margin: 0; font-size: 12px; color: var(--ap-danger); }
+
     /* ── Barra de filtros ──────────────────────────────────────────── */
     .ap-filters {
         display: flex;

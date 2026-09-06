@@ -57,11 +57,33 @@
     @endif
 </form>
 
-<div class="ap-card ap-rise ap-delay-1" style="overflow-x: auto">
+{{-- Borrar enfrentamientos.
+
+     El laboratorio solo sabe quitar los suyos. Cuando las partidas que sobran
+     son entre personajes de verdad -unas cuantas jugadas a mano para probar-
+     no habia forma de quitarlas sin dejar el ranking descuadrado, y hacia
+     falta entrar por consola. --}}
+<form method="POST" action="{{ route('admin.matches.destroy') }}" data-matches-form>
+    @csrf
+    @method('DELETE')
+
+    <div class="ap-card ap-rise ap-delay-1" style="overflow-x: auto">
+        <div class="ap-bulkbar" data-bulk-bar hidden>
+            <span><b data-bulk-count>0</b> seleccionados</span>
+            <button type="submit" class="ap-btn ap-btn-sm ap-btn-danger"
+                    onclick="return confirm('Se borran los enfrentamientos elegidos y se devuelve a cada jugador lo que le repartieron. ¿Seguir?')">
+                <x-admin.icon name="trash" class="h-3.5 w-3.5" />
+                Borrar y recalcular
+            </button>
+        </div>
+
     <table class="ap-table">
         <caption class="ap-sr-only">Enfrentamientos {{ $activeFilters->isNotEmpty() ? 'filtrados por ' . $activeFilters->implode(', ') : 'mas recientes primero' }}</caption>
         <thead>
             <tr>
+                <th scope="col" style="width: 34px">
+                    <input type="checkbox" data-bulk-all aria-label="Elegir todos los de esta pagina">
+                </th>
                 <th scope="col">Codigo</th>
                 <th scope="col">Enfrentamiento</th>
                 <th scope="col">Zona</th>
@@ -74,6 +96,10 @@
         <tbody>
             @forelse($matches as $match)
                 <tr>
+                    <td>
+                        <input type="checkbox" name="match_ids[]" value="{{ $match->id }}"
+                               data-bulk-item aria-label="Elegir {{ $match->match_code }}">
+                    </td>
                     <th scope="row" style="font-weight: 500">
                         <a href="{{ route('admin.matches.show', $match) }}" class="ap-link">{{ $match->match_code }}</a>
                         <div class="ap-list-meta">{{ $match->queue_mode === 'premade' ? 'Premade' : 'Aleatoria' }}</div>
@@ -104,7 +130,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="7">
+                    <td colspan="8">
                         <div class="ap-empty">
                             <x-admin.icon name="search" class="h-6 w-6" />
                             <p class="m-0">
@@ -120,7 +146,122 @@
             @endforelse
         </tbody>
     </table>
-</div>
+    </div>
+</form>
 
 {{ $matches->links('vendor.pagination.admin') }}
+
+{{-- Mantenimiento del ranking.
+
+     Cuando las cifras de un personaje no cuadran con sus partidas -paso al
+     purgar el laboratorio, que devolvia puntos que nadie llego a perder- esto
+     las rehace desde el historial que queda. --}}
+<div class="ap-card ap-rise ap-delay-2 mt-5">
+    <x-admin.section-head icon="refresh" title="Mantenimiento del ranking"
+        note="Rehacer las puntuaciones desde los enfrentamientos, o empezar de cero" />
+
+    @if(session('ladder_preview'))
+        <div class="ap-preview">
+            <p class="ap-preview-head">Esto es lo que cambiaria:</p>
+            <ul class="ap-preview-list">
+                @foreach(session('ladder_preview') as $fila)
+                    <li>
+                        <b>{{ $fila['character_name'] }}</b>
+                        PL {{ $fila['antes']['pl_points'] }} → {{ $fila['despues']['pl_points'] }} ·
+                        MMR {{ $fila['antes']['mmr'] }} → {{ $fila['despues']['mmr'] }} ·
+                        {{ $fila['antes']['wins'] }}/{{ $fila['antes']['losses'] }} → {{ $fila['despues']['wins'] }}/{{ $fila['despues']['losses'] }} ·
+                        {{ $fila['antes']['matches_played'] }} → {{ $fila['despues']['matches_played'] }} partidas
+                    </li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
+    <div class="ap-maint">
+        <form method="POST" action="{{ route('admin.ladder.recalculate') }}" class="ap-maint-block">
+            @csrf
+            <input type="hidden" name="dry_run" value="1">
+            <p class="ap-maint-text">
+                Compara cada personaje con sus enfrentamientos y enseña lo que no cuadra,
+                sin tocar nada.
+            </p>
+            <button class="ap-btn ap-btn-sm">
+                <x-admin.icon name="search" class="h-3.5 w-3.5" />
+                Revisar sin tocar
+            </button>
+        </form>
+
+        <form method="POST" action="{{ route('admin.ladder.recalculate') }}" class="ap-maint-block">
+            @csrf
+            <p class="ap-maint-text">
+                Rehace PL, MMR y el historial de todos desde los enfrentamientos que
+                quedan. No inventa nada: cada partida ya guarda como quedo el jugador.
+            </p>
+            <button class="ap-btn ap-btn-sm ap-btn-primary"
+                    onclick="return confirm('Se rehacen las puntuaciones de todos los personajes desde su historial. ¿Seguir?')">
+                <x-admin.icon name="refresh" class="h-3.5 w-3.5" />
+                Recalcular el ranking
+            </button>
+        </form>
+
+        <form method="POST" action="{{ route('admin.ladder.reset') }}" class="ap-maint-block is-danger">
+            @csrf
+            <p class="ap-maint-text">
+                Borra <b>todos</b> los enfrentamientos y deja a cada personaje como
+                recien creado. Los personajes no se borran.
+            </p>
+            <label class="ap-field">
+                <span class="ap-label" for="reset-confirm">Escribe REINICIAR para confirmar</span>
+                <input type="text" id="reset-confirm" name="confirmacion" class="ap-input" placeholder="REINICIAR" autocomplete="off">
+            </label>
+            @error('confirmacion')
+                <p class="ap-error">{{ $message }}</p>
+            @enderror
+            <button class="ap-btn ap-btn-sm ap-btn-danger"
+                    onclick="return confirm('Se borra TODO el historial de enfrentamientos y el ranking queda a cero. ¿Seguir?')">
+                <x-admin.icon name="trash" class="h-3.5 w-3.5" />
+                Reiniciar el ranking
+            </button>
+        </form>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+    /* La barra de borrado solo aparece cuando hay algo elegido: un boton de
+       borrar siempre visible sobre una tabla invita al accidente. */
+    (function () {
+        var form = document.querySelector('[data-matches-form]');
+        if (!form) { return; }
+
+        var barra = form.querySelector('[data-bulk-bar]');
+        var cuenta = form.querySelector('[data-bulk-count]');
+        var todos = form.querySelector('[data-bulk-all]');
+
+        function repintar() {
+            var elegidos = form.querySelectorAll('[data-bulk-item]:checked').length;
+            cuenta.textContent = elegidos;
+            barra.hidden = elegidos === 0;
+
+            if (todos) {
+                var total = form.querySelectorAll('[data-bulk-item]').length;
+                todos.checked = elegidos > 0 && elegidos === total;
+                todos.indeterminate = elegidos > 0 && elegidos < total;
+            }
+        }
+
+        form.addEventListener('change', function (event) {
+            if (event.target === todos) {
+                form.querySelectorAll('[data-bulk-item]').forEach(function (casilla) {
+                    casilla.checked = todos.checked;
+                });
+            }
+
+            repintar();
+        });
+
+        repintar();
+    })();
+</script>
+@endpush
 @endsection

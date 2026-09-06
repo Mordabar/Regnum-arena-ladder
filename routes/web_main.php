@@ -109,6 +109,13 @@ Route::prefix('/' . $arenaAdminPath)->group(function () {
 
         Route::post('/matches/{match}/resolve', [AdminController::class, 'resolveMatch'])->name('matches.resolve');
 
+        // Mantenimiento del ranking. Antes solo se podia desde la consola del
+        // servidor, y el laboratorio solo sabia borrar lo suyo: las partidas
+        // entre personajes de verdad no habia forma de quitarlas.
+        Route::delete('/matches', [AdminController::class, 'destroyMatches'])->name('matches.destroy');
+        Route::post('/ladder/recalcular', [AdminController::class, 'recalculateLadder'])->name('ladder.recalculate');
+        Route::post('/ladder/reiniciar', [AdminController::class, 'resetLadder'])->name('ladder.reset');
+
         Route::get('/players', [AdminController::class, 'players'])->name('players.index');
         Route::post('/players/create', [AdminController::class, 'storePlayer'])->name('players.store');
         Route::post('/players/{player}', [AdminController::class, 'updatePlayer'])->name('players.update');
@@ -131,11 +138,3 @@ Route::prefix('/' . $arenaAdminPath)->group(function () {
         });
     });
 });
-
-
-
-
-
-
-
-

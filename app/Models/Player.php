@@ -221,6 +221,9 @@ class Player extends Model
         'female' => 'Femenino',
     ];
 
+    /** Con lo que arranca un personaje, igual que la migracion de players. */
+    const MMR_INICIAL = 1000;
+
     /** Reglas de creación; no dependen de que un archivo 3D se pueda descargar. */
     const RACE_ARCHETYPES = [
         'alsius' => [
