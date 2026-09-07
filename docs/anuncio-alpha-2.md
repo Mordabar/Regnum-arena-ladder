@@ -1,7 +1,9 @@
 # Alpha 2 — Anuncio y changelog
 
-Dos piezas. El **anuncio** es para todo el mundo y busca que la gente entre a
-probar. El **changelog** es la lista completa, para quien quiera el detalle.
+Tres piezas. El **anuncio** es para todo el mundo y busca que la gente entre a
+probar. El **changelog** es la lista completa, para quien quiera el detalle. Y
+las **bases de los premios** van aparte, porque tienen letra pequeña que
+conviene poder citar y fijar por separado.
 
 ---
 
@@ -9,8 +11,13 @@ probar. El **changelog** es la lista completa, para quien quiera el detalle.
 
 > # ⚔️ REGNUM ARENA LADDER — ALPHA 2
 >
-> Hemos reconstruido el ladder de arriba abajo. Esto es lo que os vais a
-> encontrar.
+> Hemos reconstruido el ladder de arriba abajo. Y la primera temporada
+> reparte premios de verdad.
+>
+> # 💰 10 LINGOTES DE MAGNANITA
+> **🥇 1.º — 5 lingotes · 🥈 2.º — 3 lingotes · 🥉 3.º — 2 lingotes**
+> Los tres primeros de la Alpha Season se los llevan. Sin importar el reino.
+> Bases completas más abajo 👇
 >
 > **🗿 Vuestros guerreros, en 3D**
 > **60 modelos** de los tres reinos. Nordos, lamai, enanos, utghar, esquelios,
@@ -38,14 +45,16 @@ probar. El **changelog** es la lista completa, para quien quiera el detalle.
 > Corregido de raíz un fallo que repartía puntos que nadie había ganado. El
 > ladder de hoy responde partida por partida.
 >
-> Y por debajo: móvil revisado de punta a punta, sonido arreglado en iPhone,
-> anonimato del rival hasta que acaba el combate, y un panel de moderación
-> que permite arreglar cualquier cosa sin tocar la base de datos.
+> Y por debajo: móvil revisado de punta a punta, sonido arreglado en iPhone y
+> anonimato del rival hasta que acaba el combate.
+>
+> El primer campeón de Arena Ladder sale de esta temporada. La tabla arranca
+> a cero para todos.
 >
 > 👉 **regnumarenaladder.top**
 >
-> Changelog completo en el hilo. Es una alpha: si algo falla, contadlo aquí y
-> se arregla.
+> Changelog completo y bases del premio en el hilo. Es una alpha: si algo
+> falla, contadlo aquí y se arregla.
 
 ---
 
@@ -155,3 +164,38 @@ CRUCE/COMBATE/PARTIDAS/GRUPOS (segundo) y AVISOS en adelante (tercero).
 >   queda cojo.
 > · El 3D se detiene cuando no se ve, para no gastar batería.
 > · 244 pruebas automáticas cubriendo combate, ranking y panel.
+
+---
+
+## 3. BASES DEL PREMIO (mensaje aparte, para fijar)
+
+> # 🏆 ALPHA SEASON · 10 LINGOTES DE MAGNANITA
+>
+> **Cómo se reparte**
+> 🥇 **1.er puesto — 5 lingotes**
+> 🥈 **2.º puesto — 3 lingotes**
+> 🥉 **3.er puesto — 2 lingotes**
+>
+> Los tres primeros de la tabla general al cerrar la Alpha Season. Un único
+> ladder para 2v2 y 3v3, así que todo lo que juegues cuenta.
+>
+> **Dónde está el fondo ahora mismo**
+> El fondo pertenece a Arena Ladder y está repartido entre personajes de los
+> tres reinos:
+> · 🟢 Syrtis — 4 lingotes
+> · 🔵 Alsius — 4 lingotes
+> · 🔴 Ignis — 2 lingotes
+>
+> ⚠️ **Esto no condiciona quién gana.** Dónde esté guardado el fondo no tiene
+> nada que ver con la clasificación. Si el primer puesto es de Ignis, cobra
+> sus 5 lingotes igual, aunque en Ignis solo haya 2 guardados.
+>
+> **Cómo se entrega**
+> Al cerrar la temporada y con los tres ganadores confirmados, Arena Ladder
+> coordina los intercambios y movimientos necesarios dentro del juego para que
+> cada uno reciba su premio completo, sea del reino que sea. Nos ponemos en
+> contacto con cada ganador directamente.
+>
+> **10 lingotes. 3 puestos. 3 reinos. Un primer campeón de Arena Ladder.**
+>
+> 👉 **regnumarenaladder.top**
