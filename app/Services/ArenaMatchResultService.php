@@ -13,6 +13,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use App\Services\DiscordBotService;
 
@@ -195,6 +196,38 @@ class ArenaMatchResultService
         });
     }
 
+    /**
+     * Da por confirmado un reporte en nombre del rival.
+     *
+     * Existe para dos cosas que antes no se podian hacer: ensayar el flujo
+     * completo sin necesitar la sesion del otro jugador, y desatascar un
+     * reporte cuyo rival no va a contestar nunca. Puntua exactamente igual que
+     * una confirmacion normal, y queda anotado como lo que es.
+     */
+    public function confirmReportForRival(MatchReport $report, ?string $note = null): array
+    {
+        $match = $report->match()->firstOrFail();
+
+        if ($report->status !== 'pending_confirmation') {
+            throw new \RuntimeException('Este reporte ya no esta esperando confirmacion.');
+        }
+
+        return DB::transaction(function () use ($report, $match, $note) {
+            $report->update([
+                'status' => 'confirmed',
+                'confirmed_at' => now(),
+                'admin_note' => $note,
+                'resolution_payload' => [
+                    'resolution_source' => 'admin_confirmed_for_rival',
+                ],
+            ]);
+
+            return $this->finalizeMatch($match->fresh('report'), $report->claimed_winner_team, true, [
+                'resolution_source' => 'admin_confirmed_for_rival',
+            ]);
+        });
+    }
+
     public function rejectReport(MatchReport $report, Player $rejector, ?string $note = null): MatchReport
     {
         $match = $report->match()->firstOrFail();
@@ -336,6 +369,14 @@ class ArenaMatchResultService
 
     public function markDisputed(ArenaMatch $match, ?User $admin = null, ?string $note = null): void
     {
+        // Mismo criterio que markVoid: un match ya puntuado no puede volver a
+        // disputa. Si lo hiciera, desapareceria de los listados de completados
+        // pero sus puntos seguirian contando en el ladder, sin forma de
+        // revertirlos. Para corregir un resultado ya dado esta forceComplete.
+        if ($match->results()->exists()) {
+            throw new \RuntimeException('No puedes mandar a disputa un match ya puntuado. Corrige el resultado en su lugar.');
+        }
+
         DB::transaction(function () use ($match, $admin, $note) {
             if ($match->report) {
                 $match->report->update([
@@ -403,7 +444,16 @@ class ArenaMatchResultService
         $winnerTeam = $offendingSide === 'team_a' ? 'team_b' : 'team_a';
         $offender = Player::findOrFail($offendingPlayerId);
 
-        $this->applyAbandonmentPenalty($offender, $match, $admin, $note ?? 'Abandonment walkover');
+        // Idempotencia: forceComplete si lo es (deriva a correctProcessedMatch),
+        // pero la penalizacion no. Sin esto, reenviar el formulario (doble clic,
+        // reintento tras timeout, dos admins a la vez) sumaba un segundo strike,
+        // restaba trust otra vez y ENCADENABA el bloqueo sobre si mismo. Si el
+        // match ya esta resuelto, solo se re-deriva el resultado.
+        $alreadyResolved = $match->results()->exists();
+
+        if (!$alreadyResolved) {
+            $this->applyAbandonmentPenalty($offender, $match, $admin, $note ?? 'Abandonment walkover');
+        }
 
         return $this->forceComplete(
             $match,
@@ -427,7 +477,16 @@ class ArenaMatchResultService
         $winnerTeam = $offendingSide === 'team_a' ? 'team_b' : 'team_a';
         $offender = Player::findOrFail($offendingPlayerId);
 
-        $this->applyPenalty($offender, 'support_infraction', $match, $admin, $note ?? 'Support role infraction');
+        // Idempotencia: forceComplete si lo es (deriva a correctProcessedMatch),
+        // pero la penalizacion no. Sin esto, reenviar el formulario (doble clic,
+        // reintento tras timeout, dos admins a la vez) sumaba un segundo strike,
+        // restaba trust otra vez y ENCADENABA el bloqueo sobre si mismo. Si el
+        // match ya esta resuelto, solo se re-deriva el resultado.
+        $alreadyResolved = $match->results()->exists();
+
+        if (!$alreadyResolved) {
+            $this->applyPenalty($offender, 'support_infraction', $match, $admin, $note ?? 'Support role infraction');
+        }
 
         return $this->forceComplete(
             $match,
@@ -442,7 +501,55 @@ class ArenaMatchResultService
         return [
             'expired_hunts' => $this->expireInProgressMatchesWithoutReport(),
             'expired_report_confirmations' => $this->expirePendingReportConfirmations(),
+            'expired_disputes' => $this->expireStaleDisputes(),
         ];
+    }
+
+    /** Horas que una disputa espera a moderacion antes de anularse sola. */
+    public function disputeAutoVoidHours(): int
+    {
+        return max(1, (int) AppSetting::getValue('dispute_auto_void_hours', 48));
+    }
+
+    /**
+     * Anula las disputas que moderacion no ha mirado a tiempo.
+     *
+     * Una disputa es lo unico que quedaba sin plazo: esperaba a un
+     * administrador para siempre, y un ladder de una persona no puede
+     * apoyarse en que esa persona entre. Al vencer el plazo el
+     * enfrentamiento se anula, que es lo unico honesto cuando las dos
+     * versiones se contradicen o cuando nadie reporto: nadie gana ni pierde
+     * puntos, y el historial guarda por que se cerro.
+     */
+    private function expireStaleDisputes(): int
+    {
+        $deadline = now()->subHours($this->disputeAutoVoidHours());
+
+        $stale = ArenaMatch::query()
+            ->with('report')
+            ->where('status', 'disputed')
+            ->where('updated_at', '<=', $deadline)
+            // Un match ya puntuado no se anula: markVoid lo rechazaria y ademas
+            // habria que devolver puntos que ya movieron el ladder.
+            ->whereDoesntHave('results')
+            ->get();
+
+        foreach ($stale as $match) {
+            try {
+                $this->markVoid(
+                    $match,
+                    null,
+                    'Anulado solo: la disputa cumplio ' . $this->disputeAutoVoidHours() . ' horas sin resolverse'
+                );
+            } catch (\Throwable $exception) {
+                Log::warning('No se pudo anular una disputa vencida.', [
+                    'match_id' => $match->id,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+        }
+
+        return $stale->count();
     }
 
     /**
@@ -601,6 +708,13 @@ class ArenaMatchResultService
             throw new \RuntimeException('Este match ya fue procesado.');
         }
 
+        // Un match cancelado o anulado no puede otorgar puntos: si quedo un
+        // reporte pendiente al cancelarse, confirmarlo despues sumaria PL de
+        // una partida que oficialmente no existe.
+        if (in_array($match->status, ['cancelled', 'void'], true)) {
+            throw new \RuntimeException('Este match fue ' . ($match->status === 'void' ? 'anulado' : 'cancelado') . ' y ya no puede puntuarse.');
+        }
+
         $resultRows = [];
         $scoring = [];
         $winnerRealm = null;
@@ -690,6 +804,19 @@ class ArenaMatchResultService
                 $finalPlAfter = max(0, round($playerResult['pl_before'] + $finalPlChange, 1));
                 $finalMmrAfter = max(100, $playerResult['mmr_before'] + $finalMmrChange);
 
+                // La columna guarda lo que de verdad cambio, no lo que tocaba.
+                // Nadie baja de cero PL: a quien pierde estando a cero no se le
+                // quita nada, y anotar la resta entera dejaba la fila mintiendo.
+                // Quien luego la use para deshacer -la purga del laboratorio-
+                // le devolveria puntos que nunca perdio.
+                //
+                // Lo que pedia la formula no se pierde: va al contexto, que es
+                // donde se audita el reparto.
+                $plChangeTeorico = $finalPlChange;
+                $mmrChangeTeorico = $finalMmrChange;
+                $finalPlChange = round($finalPlAfter - $playerResult['pl_before'], 1);
+                $finalMmrChange = $finalMmrAfter - $playerResult['mmr_before'];
+
                 $player->update([
                     'pl_points' => $finalPlAfter,
                     'mmr' => $finalMmrAfter,
@@ -711,6 +838,10 @@ class ArenaMatchResultService
                     'opponent_queue_type' => $opponentQueueType,
                     'base_pl_change' => $playerResult['pl_change'],
                     'base_mmr_change' => $playerResult['mmr_change'],
+                    // Lo que pedia la formula ya con multiplicadores y topes,
+                    // antes del suelo de cero.
+                    'pl_change_theoretical' => $plChangeTeorico,
+                    'mmr_change_theoretical' => $mmrChangeTeorico,
                 ];
 
                 MatchResult::updateOrCreate(
@@ -883,6 +1014,13 @@ class ArenaMatchResultService
             $finalPlAfter = max(0, round((float) $playerResult['pl_before'] + $finalPlChange, 1));
             $finalMmrAfter = max(100, (int) $playerResult['mmr_before'] + $finalMmrChange);
 
+            // Igual que arriba: se anota el movimiento real, con el suelo de
+            // cero ya aplicado, y el teorico se guarda en el contexto.
+            $plChangeTeorico = $finalPlChange;
+            $mmrChangeTeorico = $finalMmrChange;
+            $finalPlChange = round($finalPlAfter - (float) $playerResult['pl_before'], 1);
+            $finalMmrChange = $finalMmrAfter - (int) $playerResult['mmr_before'];
+
             $updatedRows[$playerId] = [
                 'player_id' => $playerId,
                 'result' => $playerResult['result'],
@@ -905,6 +1043,8 @@ class ArenaMatchResultService
                     'opponent_queue_type' => $opponentQueueType,
                     'base_pl_change' => $playerResult['pl_change'],
                     'base_mmr_change' => $playerResult['mmr_change'],
+                    'pl_change_theoretical' => $plChangeTeorico,
+                    'mmr_change_theoretical' => $mmrChangeTeorico,
                     'resolution_source' => 'admin_force_complete_correction',
                 ],
             ];
@@ -913,6 +1053,15 @@ class ArenaMatchResultService
         return $updatedRows;
     }
 
+    /**
+     * Cierra los enfrentamientos que se quedaron sin reporte.
+     *
+     * Nadie reporto dentro de la ventana: no hay capturas, no hay version de
+     * nadie y no hay nada que juzgar. Antes esto abria una disputa, o sea una
+     * cola que solo un administrador podia vaciar, para un caso en el que ni
+     * siquiera hay algo que decidir. Se anula: la partida queda en cero y nadie
+     * gana ni pierde puntos.
+     */
     private function expireInProgressMatchesWithoutReport(): int
     {
         $expiredMatches = ArenaMatch::query()
@@ -923,24 +1072,32 @@ class ArenaMatchResultService
             ->get();
 
         foreach ($expiredMatches as $match) {
-            DB::transaction(function () use ($match) {
-                $match->update([
-                    'status' => 'disputed',
-                    'expires_at' => null,
-                    'notes' => $this->appendNote($match->notes, 'Hunt window expired without report submission'),
+            try {
+                $this->markVoid($match, null, 'Nadie reporto dentro del plazo para pelear');
+            } catch (\Throwable $exception) {
+                Log::warning('No se pudo anular un enfrentamiento sin reporte.', [
+                    'match_id' => $match->id,
+                    'message' => $exception->getMessage(),
                 ]);
-
-                $this->closeMatchQueues($match);
-            });
-        }
-
-        if ($expiredMatches->isNotEmpty()) {
-            $this->ladderCacheService->forgetRecentMatches();
+            }
         }
 
         return $expiredMatches->count();
     }
 
+    /**
+     * Cierra los reportes que el rival dejo sin contestar.
+     *
+     * El silencio no es una disputa. Quien reporta sube capturas y el rival
+     * tiene una ventana para rechazarlas; si deja pasar el plazo sin decir
+     * nada, el reporte se da por bueno y la partida se puntua. Antes esto
+     * mandaba el enfrentamiento a disputa, o sea a una cola que solo un
+     * administrador podia vaciar: bastaba con que un rival no volviera a
+     * entrar para que el match se quedara colgado para siempre.
+     *
+     * Sigue siendo reversible: moderacion puede corregir el resultado despues,
+     * y eso reajusta los puntos de las partidas posteriores.
+     */
     private function expirePendingReportConfirmations(): int
     {
         $expiredMatches = ArenaMatch::query()
@@ -953,18 +1110,43 @@ class ArenaMatchResultService
             ->filter(fn (ArenaMatch $match) => $match->report?->status === 'pending_confirmation')
             ->values();
 
-        foreach ($expiredMatches as $match) {
-            DB::transaction(function () use ($match) {
-                $this->expirePendingReport($match, 'Report confirmation window expired');
-            });
+        $closed = 0;
 
-            $freshMatch = $match->fresh('report');
-            if ($freshMatch?->report) {
-                $this->discordBotService->notifyMatchDisputed($freshMatch, $freshMatch->report);
+        foreach ($expiredMatches as $match) {
+            try {
+                DB::transaction(function () use ($match) {
+                    $report = $match->report;
+
+                    $report->update([
+                        'status' => 'confirmed',
+                        'confirmed_at' => now(),
+                        'resolution_payload' => [
+                            'resolution_source' => 'confirmation_window_elapsed',
+                        ],
+                    ]);
+
+                    $this->finalizeMatch($match->fresh('report'), $report->claimed_winner_team, false, [
+                        'resolution_source' => 'confirmation_window_elapsed',
+                    ]);
+                });
+
+                $closed++;
+            } catch (\Throwable $exception) {
+                // Si por lo que sea no se puede puntuar (el match ya se cerro
+                // por otro camino), no se deja a medias: pasa a disputa, que es
+                // visible en el panel y tiene su propio plazo de cierre.
+                Log::warning('No se pudo cerrar un reporte vencido; pasa a disputa.', [
+                    'match_id' => $match->id,
+                    'message' => $exception->getMessage(),
+                ]);
+
+                DB::transaction(function () use ($match) {
+                    $this->expirePendingReport($match, 'Report confirmation window expired');
+                });
             }
         }
 
-        return $expiredMatches->count();
+        return $closed;
     }
 
     private function calculateDailyGainMultiplier(int $playerId): float

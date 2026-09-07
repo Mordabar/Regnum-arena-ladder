@@ -13,7 +13,7 @@
             <div>
                 <p class="arena-kicker">Ranking público</p>
                 <h1 class="mt-3 text-4xl font-bold text-[color:var(--arena-gold-soft)]">{{ \App\Models\AppSetting::getValue('season_name', 'Alpha Season') }}</h1>
-                <p class="mt-2 max-w-3xl text-[color:var(--arena-sand)] arena-body-text">{{ \App\Models\AppSetting::getValue('home_tagline', 'Conquest PvP 2v2 por reino y subclase') }}</p>
+                <p class="mt-2 max-w-3xl text-[color:var(--arena-sand)] arena-body-text">{{ \App\Models\AppSetting::getValue('home_tagline', 'Conquest PvP por reino y subclase') }}</p>
             </div>
             <div class="flex items-center gap-2">
                 <x-arena-realm-icon realm="ignis" size="md" />
@@ -22,6 +22,53 @@
             </div>
         </div>
     </section>
+
+    @php
+        $champions = collect($topByRealm)
+            ->map(fn ($realmPlayers) => $realmPlayers->first())
+            ->filter()
+            ->values();
+    @endphp
+
+    @if($champions->isNotEmpty())
+        {{-- El podio de los reinos. Tres figuras, no una por fila: el navegador
+             solo aguanta un punado de escenarios 3D a la vez, y de todas formas
+             lo que se quiere ver de un vistazo es quien manda en cada reino. --}}
+        <section class="arena-panel mb-8 p-6 arena-animate-in">
+            <div class="flex flex-wrap items-baseline justify-between gap-3">
+                <h2 class="text-2xl font-semibold text-white">Quien manda en cada reino</h2>
+                <p class="text-sm text-[color:var(--arena-muted)] arena-body-text">El primero de cada tabla, ahora mismo.</p>
+            </div>
+
+            <div class="mt-5 grid gap-4 sm:grid-cols-3">
+                @foreach($champions as $champion)
+                    <a href="{{ route('ladder.show', $champion) }}"
+                       class="arena-champion-podium arena-card arena-card-{{ $champion->realm }} arena-card-interactive p-4">
+                        <x-arena-champion
+                            :id="'podium-' . $champion->realm"
+                            :realm="$champion->realm"
+                            :subclass="$champion->subclass"
+                            :race="$champion->race"
+                            :gender="$champion->gender"
+                            :parallax="false"
+                            height="200px"
+                            class="arena-champion-podium-stage" />
+                        <div class="mt-3 min-w-0">
+                            <p class="arena-kicker flex items-center gap-2">
+                                <x-arena-realm-icon :realm="$champion->realm" size="xs" />
+                                {{ \App\Models\Player::REALMS[$champion->realm] ?? ucfirst($champion->realm) }}
+                            </p>
+                            <h3 class="mt-1.5 truncate text-lg font-semibold text-white">{{ $champion->cleanName() }}</h3>
+                            <p class="mt-1 flex flex-wrap items-center gap-x-3 text-sm text-[color:var(--arena-muted)] arena-body-text">
+                                <span>{{ \App\Models\Player::SUBCLASSES[$champion->subclass] ?? ucfirst($champion->subclass) }}</span>
+                                <span class="font-semibold text-amber-300">{{ number_format((float) $champion->pl_points, 1) }} PL</span>
+                            </p>
+                        </div>
+                    </a>
+                @endforeach
+            </div>
+        </section>
+    @endif
 
     <div class="mb-8 grid gap-6 xl:grid-cols-[0.75fr,1.25fr]">
         {{-- ── TOP POR REINO ── --}}
@@ -42,11 +89,7 @@
                                 <div class="arena-card arena-card-interactive flex items-center justify-between gap-3 px-3 py-2.5">
                                     <div class="flex items-center gap-3">
                                         <span class="w-6 text-center text-sm font-bold {{ $index === 0 ? 'arena-medal-1' : ($index === 1 ? 'arena-medal-2' : ($index === 2 ? 'arena-medal-3' : 'text-amber-300')) }}">
-                                            @if($index < 3)
-                                                {{ ['🥇','🥈','🥉'][$index] }}
-                                            @else
-                                                #{{ $index + 1 }}
-                                            @endif
+                                            #{{ $index + 1 }}
                                         </span>
                                         <a href="{{ route('ladder.show', $player) }}" class="font-medium text-white hover:text-[color:var(--arena-gold-soft)] transition-colors arena-body-text">{{ $player->character_name }}</a>
                                     </div>
@@ -106,11 +149,7 @@
                             @php $rank = $players->firstItem() + $index; @endphp
                             <tr class="arena-animate-in" style="animation-delay: {{ ($index % 25) * 30 }}ms">
                                 <td class="py-3 pr-4 font-bold {{ $rank <= 3 ? 'arena-medal-' . $rank : 'text-amber-300' }}">
-                                    @if($rank <= 3)
-                                        {{ ['','🥇','🥈','🥉'][$rank] }}
-                                    @else
-                                        {{ $rank }}
-                                    @endif
+                                    {{ $rank }}
                                 </td>
                                 <td class="py-3 pr-4">
                                     <a href="{{ route('ladder.show', $player) }}" class="font-medium text-white hover:text-[color:var(--arena-gold-soft)] transition-colors arena-body-text">{{ $player->character_name }}</a>
@@ -140,7 +179,7 @@
                         <div class="flex items-center justify-between gap-3">
                             <div class="flex items-center gap-3">
                                 <span class="w-7 text-center text-sm font-bold {{ $rank <= 3 ? 'arena-medal-' . $rank : 'text-amber-300' }}">
-                                    @if($rank <= 3) {{ ['','🥇','🥈','🥉'][$rank] }} @else {{ $rank }} @endif
+                                    {{ $rank }}
                                 </span>
                                 <x-arena-realm-icon :realm="$player->realm" size="sm" />
                                 <div>
@@ -158,7 +197,7 @@
             </div>
 
             <div class="mt-6">
-                {{ $players->links() }}
+                {{ $players->links('vendor.pagination.arena') }}
             </div>
         </section>
     </div>

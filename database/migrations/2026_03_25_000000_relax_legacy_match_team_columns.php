@@ -12,6 +12,11 @@ return new class extends Migration
             return;
         }
 
+        // MODIFY solo existe en MySQL; en sqlite las columnas legacy ya aceptan null.
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         $columns = collect(Schema::getColumns('matches'))->keyBy('name');
 
         foreach (['team_ignis', 'team_syrtis', 'team_alsius'] as $legacyColumn) {

@@ -22,7 +22,9 @@ class LadderCacheService
             fn () => collect(Player::REALMS)->mapWithKeys(function ($label, $realm) {
                 return [
                     $realm => Player::query()
-                        ->select('id', 'character_name', 'realm', 'pl_points', 'mmr')
+                        // subclass, race y gender hacen falta para dibujar la
+                        // figura del podio; sin ellas todos salian igual.
+                        ->select('id', 'character_name', 'realm', 'subclass', 'race', 'gender', 'pl_points', 'mmr', 'is_active', 'deactivated_reason')
                         ->where('is_active', true)
                         ->where('realm', $realm)
                         ->orderByPublicLadder()

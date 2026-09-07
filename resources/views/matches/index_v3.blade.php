@@ -20,7 +20,7 @@
                 <p class="mt-2 text-[color:var(--arena-sand)] arena-body-text">Revisa aceptaciones, reportes, disputas y resultados del ladder.</p>
             </div>
             <div class="flex gap-3">
-                <a href="{{ route('queue.index') }}" class="arena-btn px-4 py-2">
+                <a href="{{ route('lobby') }}" class="arena-btn px-4 py-2">
                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
                     Buscar combate
                 </a>
@@ -39,7 +39,7 @@
         @if($activeMatches->isEmpty())
             <div class="arena-panel p-6 text-center text-[color:var(--arena-muted)] arena-body-text">
                 <svg class="mx-auto h-10 w-10 opacity-30 text-[color:var(--arena-gold)]" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
-                <p class="mt-3">No tienes matches activos. <a href="{{ route('queue.index') }}" class="text-[color:var(--arena-gold-soft)] hover:underline">Buscar combate →</a></p>
+                <p class="mt-3">No tienes matches activos. <a href="{{ route('lobby') }}" class="text-[color:var(--arena-gold-soft)] hover:underline">Buscar combate →</a></p>
             </div>
         @else
             <div class="grid gap-4 lg:grid-cols-2">
@@ -96,7 +96,12 @@
                         </div>
 
                         <div class="mt-5">
-                            <a href="{{ route('matches.show', $match) }}" class="arena-btn-secondary w-full">
+                            {{-- Aceptar y reportar viven en el lobby, que es
+                                 donde ocurre el combate entero. Mandar aqui a
+                                 otra pagina para hacer eso era volver a partir
+                                 el flujo en dos. --}}
+                            <a href="{{ in_array($match->status, ['pending_acceptance', 'in_progress'], true) ? route('lobby', ['mode' => $match->arena_mode]) : route('matches.show', $match) }}"
+                               class="arena-btn-secondary w-full">
                                 @if($match->status === 'pending_acceptance')
                                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
                                     Aceptar match

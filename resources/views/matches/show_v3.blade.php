@@ -29,17 +29,37 @@
     $canRejectReport = $canConfirmReport;
     $reportPendingConfirmation = $report && $report->status === 'pending_confirmation';
     $showRivalNames = in_array($match->status, ['completed', 'disputed', 'void'], true);
+
+    // Aspecto de cada combatiente para las figuras 3D. El propio equipo va con
+    // su raza y su sexo reales; al rival se le dibuja con el maniqui humano del
+    // reino mientras siga siendo anonimo, porque raza y sexo sumados al reino y
+    // la subclase ayudarian a ponerle nombre.
+    $lookIds = collect($ownTeam)->pluck('player_id');
+    if ($showRivalNames) {
+        $lookIds = $lookIds->merge(collect($rivalTeam)->pluck('player_id'));
+    }
+    $looks = \App\Models\Player::query()
+        ->whereIn('id', $lookIds->filter()->all())
+        ->get(['id', 'race', 'gender'])
+        ->keyBy('id');
+    $lookOf = function (array $entry, string $realm) use ($looks) {
+        $found = $looks->get($entry['player_id'] ?? 0);
+
+        return [
+            'race' => $found->race ?? \App\Models\Player::defaultRace($realm),
+            'gender' => $found->gender ?? 'male',
+        ];
+    };
     $claimedWinnerRealm = $report
         ? ($report->claimed_winner_team === 'draw' ? null : ($report->claimed_winner_team === 'team_a' ? $match->team_a_realm : $match->team_b_realm))
         : null;
 
+    // Los mismos cuatro pasos que el lobby, con los mismos nombres. Esta
+    // pagina contaba cinco y con otras palabras, asi que llegar aqui desde el
+    // lobby parecia cambiar de aplicacion en el ultimo paso.
     $stepperCurrent = match(true) {
-        $match->status === 'pending_acceptance' => 2,
-        $match->status === 'in_progress' && !$report => 3,
-        $reportPendingConfirmation => 4,
-        $match->status === 'disputed' => 4,
-        $match->status === 'completed' => 5,
-        default => 3,
+        $match->status === 'pending_acceptance' => 3,
+        default => 4,
     };
 
     $statusClass = match($match->status) {
@@ -111,7 +131,7 @@
         {{-- Stepper --}}
         <div class="relative mt-6">
             <x-arena-stepper
-                :steps="['Match', 'Aceptación', 'Combate', 'Reporte', 'Cierre']"
+                :steps="['Registra', 'Elige modo', 'Espera cruce', 'Pelea y reporta']"
                 :current="$stepperCurrent"
             />
         </div>
@@ -130,7 +150,7 @@
                         </span>
                     </div>
                     <h2 class="mt-1 text-2xl font-semibold text-[color:var(--arena-gold-soft)]">Confirma tu disponibilidad</h2>
-                    <p class="mt-2 text-sm text-[color:var(--arena-muted)] arena-body-text">Los 4 jugadores deben aceptar para que comience la cacería.</p>
+                    <p class="mt-2 text-sm text-[color:var(--arena-muted)] arena-body-text">Los {{ \App\Support\ArenaMode::teamSize($match->arena_mode) * 2 }} jugadores deben aceptar para que comience la cacería.</p>
                     <div class="mt-2 text-xs text-[color:var(--arena-gold)] font-mono bg-black/30 inline-block px-3 py-1 rounded-md border border-[color:var(--arena-gold)]/20">
                         Expira en: <span id="matchAcceptanceCountdown" data-expires="{{ $match->expires_at?->timestamp }}">--:--</span>
                     </div>
@@ -253,11 +273,11 @@
                     <h2 class="text-xl font-bold text-rose-300">Encuentro Cancelado</h2>
                     <p class="mt-1 text-sm text-rose-200/80 arena-body-text">El combate se deshizo porque alguien se ausentó o rechazó. Serás redirigido al lobby...</p>
                 </div>
-                <a href="{{ route('queue.index') }}" class="arena-btn-danger mt-3 sm:mt-0 whitespace-nowrap">Volver al Lobby</a>
+                <a href="{{ route('lobby') }}" class="arena-btn-danger mt-3 sm:mt-0 whitespace-nowrap">Volver al Lobby</a>
             </div>
             <script>
                 setTimeout(() => {
-                    window.location.href = '{{ route('queue.index') }}';
+                    window.location.href = '{{ route('lobby') }}';
                 }, 3500);
             </script>
         </section>
@@ -270,7 +290,7 @@
                     <p class="mt-1 text-sm text-sky-200/70 arena-body-text">
                         El equipo rival debe confirmar o disputar tu reporte.
                         @if($match->expires_at)
-                            Tiempo restante: {{ $match->expires_at->diffForHumans() }}
+                            Tiempo restante: {{ $match->expires_at->locale('es')->diffForHumans() }}
                         @endif
                     </p>
                 </div>
@@ -306,6 +326,18 @@
                                         <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/></svg>
                                     </span>
                                 @endif
+                                @php
+                                    $look = $lookOf($player, $ownRealm);
+                                @endphp
+                                <x-arena-champion
+                                    :id="'match-own-' . $loop->index"
+                                    :realm="$ownRealm"
+                                    :subclass="$player['subclass']"
+                                    :race="$look['race']"
+                                    :gender="$look['gender']"
+                                    :parallax="false"
+                                    height="72px"
+                                    class="arena-duel-portrait" />
                                 <div>
                                     <h3 class="font-semibold text-white arena-body-text">{{ $player['character_name'] }} {{ $isViewer ? '(tú)' : '' }}</h3>
                                     <p class="text-xs text-[color:var(--arena-muted)] arena-body-text">
@@ -347,15 +379,38 @@
             <div class="mt-4 space-y-3">
                 @if($showRivalNames)
                     @foreach($rivalTeam as $player)
-                        <article class="arena-card p-4">
-                            <h3 class="font-semibold text-white arena-body-text">{{ $player['character_name'] }}</h3>
-                            <p class="text-xs text-[color:var(--arena-muted)] arena-body-text">{{ \App\Models\Player::SUBCLASSES[$player['subclass']] ?? ucfirst($player['subclass']) }}</p>
+                        @php
+                            $look = $lookOf($player, $rivalRealm);
+                        @endphp
+                        <article class="arena-card p-4 flex items-center gap-3">
+                            <x-arena-champion
+                                :id="'match-rival-' . $loop->index"
+                                :realm="$rivalRealm"
+                                :subclass="$player['subclass']"
+                                :race="$look['race']"
+                                :gender="$look['gender']"
+                                :parallax="false"
+                                height="72px"
+                                class="arena-duel-portrait" />
+                            <div class="min-w-0">
+                                <h3 class="font-semibold text-white arena-body-text">{{ $player['character_name'] }}</h3>
+                                <p class="text-xs text-[color:var(--arena-muted)] arena-body-text">{{ \App\Models\Player::SUBCLASSES[$player['subclass']] ?? ucfirst($player['subclass']) }}</p>
+                            </div>
                         </article>
                     @endforeach
                 @else
                     @foreach($rivalTeam as $player)
-                        <article class="arena-card p-4 flex items-center justify-between">
-                            <div>
+                        <article class="arena-card p-4 flex items-center gap-3">
+                            <x-arena-champion
+                                :id="'match-anon-' . $loop->index"
+                                :realm="$rivalRealm"
+                                :subclass="$player['subclass']"
+                                :race="\App\Models\Player::defaultRace($rivalRealm)"
+                                gender="male"
+                                :parallax="false"
+                                height="72px"
+                                class="arena-duel-portrait" />
+                            <div class="min-w-0 flex-1">
                                 <h3 class="font-semibold text-[color:var(--arena-text)] arena-body-text italic">Guerrero Anónimo</h3>
                                 <p class="text-xs text-[color:var(--arena-gold-soft)] arena-body-text">{{ \App\Models\Player::SUBCLASSES[$player['subclass']] ?? ucfirst($player['subclass']) }}</p>
                             </div>
@@ -492,13 +547,22 @@
                                 <x-arena-realm-icon :realm="$claimedWinnerRealm" size="xs" />
                                 <span class="font-semibold text-white arena-body-text">{{ \App\Models\ArenaMatch::REALMS[$claimedWinnerRealm] ?? strtoupper((string) $claimedWinnerRealm) }}</span>
                             @else
-                                <span class="font-semibold text-amber-300 arena-body-text">⚔️ Empate</span>
+                                <span class="font-semibold text-amber-300 arena-body-text">Empate</span>
                             @endif
                         </div>
                     </div>
                     <div class="arena-card p-4">
                         <p class="text-[0.6rem] uppercase tracking-[0.2em] text-[color:var(--arena-muted)]">Reportado por</p>
-                        <p class="mt-1 font-semibold text-white arena-body-text">{{ $report->reporter?->character_name ?? 'Sin dato' }}</p>
+                        {{-- El sistema promete anonimato rival hasta el reveal: mostrar aqui el
+                             nombre del reportero lo delataba en cuanto reportaba, mientras el
+                             resto de la pagina seguia diciendo "Guerrero Anonimo". --}}
+                        <p class="mt-1 font-semibold text-white arena-body-text">
+                            @if($showRivalNames || $report->reporting_team === $ownSide)
+                                {{ $report->reporter?->character_name ?? 'Sin dato' }}
+                            @else
+                                Guerrero Anónimo
+                            @endif
+                        </p>
                     </div>
                 </div>
 

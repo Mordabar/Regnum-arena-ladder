@@ -77,6 +77,21 @@ class AppSetting extends Model
         return $setting;
     }
 
+    /**
+     * Vacia la cache en memoria de ajustes.
+     *
+     * En una peticion normal la cache vive y muere con ella. En la suite de
+     * tests, en cambio, el proceso es uno solo: sin esto, los ajustes que
+     * escribe un test siguen cacheados en el siguiente aunque la base de datos
+     * ya se haya revertido, y el fallo aparece en un test que no tiene nada que
+     * ver con el que lo provoco.
+     */
+    public static function flushSettingsCache(): void
+    {
+        static::$settingsCache = null;
+        static::$settingsTableExists = null;
+    }
+
     protected static function hasSettingsTable(): bool
     {
         if (static::$settingsTableExists !== null) {

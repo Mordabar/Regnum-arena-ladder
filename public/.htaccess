@@ -19,3 +19,36 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# ── Compresion y cacheo de estaticos ──────────────────────────────────────────
+# Sin esto, three.min.js viaja como 589 KB en vez de 146 KB. Medido con el
+# navegador contra el servidor de desarrollo, que no comprime: en una conexion
+# movil esa diferencia se nota mucho.
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript
+    AddOutputFilterByType DEFLATE application/javascript application/x-javascript
+    AddOutputFilterByType DEFLATE application/json application/xml image/svg+xml
+</IfModule>
+
+<IfModule mod_expires.c>
+    ExpiresActive On
+
+    # Los .js y .css se piden con ?v=fecha-de-modificacion, asi que un cacheo
+    # largo es seguro: al cambiar el archivo cambia la URL.
+    <FilesMatch "\.(js|css)$">
+        ExpiresDefault "access plus 1 year"
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+
+    # Modelos e imagenes: se sustituyen por nombre, no llevan version en la URL,
+    # asi que una semana es un termino medio razonable.
+    <FilesMatch "\.(glb|gltf|png|jpg|jpeg|webp|avif|woff2)$">
+        ExpiresDefault "access plus 1 week"
+        Header set Cache-Control "public, max-age=604800"
+    </FilesMatch>
+</IfModule>
+
+<IfModule mod_mime.c>
+    AddType model/gltf-binary .glb
+    AddType model/gltf+json .gltf
+</IfModule>

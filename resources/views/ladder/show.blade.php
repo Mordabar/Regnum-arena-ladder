@@ -19,11 +19,28 @@
 
         <div class="relative flex flex-wrap items-start justify-between gap-4">
             <div class="flex items-start gap-4">
-                <x-arena-realm-icon :realm="$player->realm" size="xl" />
+                {{-- La ficha del ladder ensena al guerrero, no solo sus numeros:
+                     es la misma figura que su dueno ve en el lobby. --}}
+                <x-arena-champion
+                    id="profile-stage"
+                    :realm="$player->realm"
+                    :subclass="$player->subclass"
+                    :race="$player->race"
+                    :gender="$player->gender"
+                    :parallax="false"
+                    height="150px"
+                    class="arena-profile-portrait" />
                 <div>
-                    <p class="arena-kicker">{{ \App\Models\Player::REALMS[$player->realm] ?? ucfirst($player->realm) }}</p>
-                    <h1 class="mt-2 text-4xl font-bold text-[color:var(--arena-gold-soft)]">{{ $player->character_name }}</h1>
-                    <p class="mt-2 text-[color:var(--arena-sand)] arena-body-text">{{ \App\Models\Player::SUBCLASSES[$player->subclass] ?? ucfirst($player->subclass) }}</p>
+                    <p class="arena-kicker flex items-center gap-2">
+                        <x-arena-realm-icon :realm="$player->realm" size="sm" />
+                        {{ \App\Models\Player::REALMS[$player->realm] ?? ucfirst($player->realm) }}
+                    </p>
+                    <h1 class="mt-2 text-4xl font-bold text-[color:var(--arena-gold-soft)]">{{ $player->cleanName() }}</h1>
+                    <p class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[color:var(--arena-sand)] arena-body-text">
+                        <span>{{ \App\Models\Player::SUBCLASSES[$player->subclass] ?? ucfirst($player->subclass) }}</span>
+                        <span class="text-[color:var(--arena-muted)]">{{ $player->raceName() }}</span>
+                        <span class="text-[color:var(--arena-muted)]">{{ $player->genderName() }}</span>
+                    </p>
                 </div>
             </div>
             <a href="{{ route('ladder.index') }}" class="arena-btn-ghost px-4 py-2">
@@ -58,11 +75,7 @@
             <div class="arena-card p-4 arena-animate-in arena-stagger-4">
                 <p class="arena-kicker">Posición</p>
                 <p class="mt-1 text-2xl font-semibold {{ $player->ranking_position <= 3 ? 'arena-medal-' . $player->ranking_position : 'text-white' }}">
-                    @if($player->ranking_position <= 3)
-                        {{ ['','🥇','🥈','🥉'][$player->ranking_position] }} #{{ $player->ranking_position }}
-                    @else
-                        #{{ $player->ranking_position }}
-                    @endif
+                    #{{ $player->ranking_position }}
                 </p>
             </div>
         </div>
@@ -113,7 +126,7 @@
         </div>
 
         <div class="mt-6">
-            {{ $results->links() }}
+            {{ $results->links('vendor.pagination.arena') }}
         </div>
     </section>
 </div>

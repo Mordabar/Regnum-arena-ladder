@@ -64,7 +64,7 @@ function premadeFlowPayload(array $players, array $roles = []): array
 function createReadyPremadeParty(Player $leader, Player $teammate, array $roles = []): Party
 {
     test()->actingAs($leader->user)
-        ->from(route('queue.index'))
+        ->from(route('lobby'))
         ->post(route('party.create'), [
             'party_player_ids' => [$leader->id, $teammate->id],
             'party_conjurer_roles' => [
@@ -72,7 +72,7 @@ function createReadyPremadeParty(Player $leader, Player $teammate, array $roles 
                 $roles[$teammate->id] ?? null,
             ],
         ])
-        ->assertRedirect(route('queue.index'));
+        ->assertRedirect(route('lobby'));
 
     $party = Party::query()->latest('created_at')->firstOrFail();
     $member = PartyMember::query()
@@ -81,7 +81,7 @@ function createReadyPremadeParty(Player $leader, Player $teammate, array $roles 
         ->firstOrFail();
 
     test()->actingAs($teammate->user)
-        ->from(route('queue.index'))
+        ->from(route('lobby'))
         ->post(route('party.accept', [$party, $member]))
         ->assertRedirect();
 
@@ -99,9 +99,9 @@ it('queues a premade party as one linked duo from the main queue flow', function
     expect($party->status)->toBe('ready');
 
     $this->actingAs($leader->user)
-        ->from(route('queue.index'))
+        ->from(route('lobby'))
         ->post(route('party.enqueue', $party))
-        ->assertRedirect(route('queue.index'));
+        ->assertRedirect(route('lobby'));
 
     $queues = Queue::query()
         ->where('queue_type', 'premade')
@@ -151,12 +151,12 @@ it('blocks an exact premade duo after 3 matches in the same day', function () {
     }
 
     $this->actingAs($leader->user)
-        ->from(route('queue.index'))
+        ->from(route('lobby'))
         ->post(route('party.create'), [
             'party_player_ids' => [$leader->id, $teammate->id],
             'party_conjurer_roles' => [null, null],
         ])
-        ->assertRedirect(route('queue.index'))
+        ->assertRedirect(route('lobby'))
         ->assertSessionHasErrors(['error']);
 
     expect(Queue::query()->where('queue_type', 'premade')->count())->toBe(0);
@@ -168,22 +168,22 @@ it('blocks inviting a player who already belongs to another active party', funct
     $leaderB = makePremadeFlowPlayer('leader-b', 'ignis', 'conjurer', 1000);
 
     $this->actingAs($leaderA->user)
-        ->from(route('queue.index'))
+        ->from(route('lobby'))
         ->post(route('party.create'), [
             'party_player_ids' => [$leaderA->id, $sharedPlayer->id],
             'party_conjurer_roles' => [null, null],
         ])
-        ->assertRedirect(route('queue.index'));
+        ->assertRedirect(route('lobby'));
 
     expect(Party::query()->count())->toBe(1);
 
     $this->actingAs($leaderB->user)
-        ->from(route('queue.index'))
+        ->from(route('lobby'))
         ->post(route('party.create'), [
             'party_player_ids' => [$leaderB->id, $sharedPlayer->id],
             'party_conjurer_roles' => ['offensive', null],
         ])
-        ->assertRedirect(route('queue.index'))
+        ->assertRedirect(route('lobby'))
         ->assertSessionHasErrors(['error']);
 
     expect(Party::query()->count())->toBe(1);
@@ -244,8 +244,10 @@ it('applies the random vs premade bonus to PL and MMR when the random side wins'
     expect($winnerResult->scoring_context['queue_type_multiplier_pl'])->toBe(1.25);
     expect($winnerResult->scoring_context['queue_type_multiplier_mmr'])->toBe(1.18);
 
-    expect($loserResult->pl_change)->toBe(-2.5);
-    expect($loserResult->mmr_change)->toBe(-19);
+    expect($loserResult->scoring_context['pl_change_theoretical'])->toBe(-2.5);
+    expect($loserResult->scoring_context['mmr_change_theoretical'])->toBe(-19);
+    // Y lo aplicado es cero: nadie baja de cero PL.
+    expect((float) $loserResult->pl_change)->toBe(0.0);
     expect($loserResult->scoring_context['player_queue_type'])->toBe('premade');
     expect($loserResult->scoring_context['opponent_queue_type'])->toBe('random');
 });
@@ -298,8 +300,8 @@ it('softens the loss for random teams and trims the gain for premades in mixed m
         ->where('player_id', $premadeTeam[0]->id)
         ->firstOrFail();
 
-    expect($randomLoss->pl_change)->toBe(-1.6);
-    expect($randomLoss->mmr_change)->toBe(-14);
+    expect($randomLoss->scoring_context['pl_change_theoretical'])->toBe(-1.6);
+    expect($randomLoss->scoring_context['mmr_change_theoretical'])->toBe(-14);
     expect($randomLoss->scoring_context['queue_type_multiplier_pl'])->toBe(0.8);
     expect($randomLoss->scoring_context['queue_type_multiplier_mmr'])->toBe(0.86);
 
@@ -352,8 +354,11 @@ it('keeps queue type multipliers neutral for random mirrors and premade mirrors'
 
     expect($randomWinner->pl_change)->toBe(3.0);
     expect($randomWinner->mmr_change)->toBe(16);
-    expect($randomWinner->scoring_context['queue_type_multiplier_pl'])->toBe(1.0);
-    expect($randomWinner->scoring_context['queue_type_multiplier_mmr'])->toBe(1.0);
+    // json_encode(1.0) serializa "1", asi que el multiplicador neutro vuelve
+    // como int. Se compara el valor, que es lo que importa (los no enteros,
+    // como 1.25 o 0.8, si conservan el tipo float y usan toBe()).
+    expect($randomWinner->scoring_context['queue_type_multiplier_pl'])->toEqual(1.0);
+    expect($randomWinner->scoring_context['queue_type_multiplier_mmr'])->toEqual(1.0);
 
     $premadeTeamA = [
         makePremadeFlowPlayer('mirror-prem-a1', 'syrtis', 'knight', 1000),
@@ -392,6 +397,6 @@ it('keeps queue type multipliers neutral for random mirrors and premade mirrors'
 
     expect($premadeWinner->pl_change)->toBe(3.0);
     expect($premadeWinner->mmr_change)->toBe(16);
-    expect($premadeWinner->scoring_context['queue_type_multiplier_pl'])->toBe(1.0);
-    expect($premadeWinner->scoring_context['queue_type_multiplier_mmr'])->toBe(1.0);
+    expect($premadeWinner->scoring_context['queue_type_multiplier_pl'])->toEqual(1.0);
+    expect($premadeWinner->scoring_context['queue_type_multiplier_mmr'])->toEqual(1.0);
 });

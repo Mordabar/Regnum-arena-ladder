@@ -34,6 +34,12 @@ class AuthController extends Controller
                     || in_array((string) $discordUser->id, $adminIds, true),
             ]);
 
+            // Entrar por Discord ya cuenta como pasar por el ladder: sin esto,
+            // quien acaba de iniciar sesion figuraria "sin actividad" hasta su
+            // siguiente peticion, porque el middleware mira al usuario antes
+            // de que este callback lo autentique.
+            $user->forceFill(['last_seen_at' => now()])->saveQuietly();
+
             Auth::login($user);
 
             return redirect()->route('lobby');

@@ -1,0 +1,375 @@
+<?php
+
+use App\Models\ArenaMatch;
+use App\Models\Player;
+use App\Models\Queue;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
+uses(RefreshDatabase::class);
+
+function hubUser(string $suffix): User
+{
+    return User::create([
+        'discord_id' => 'hub-' . $suffix,
+        'discord_username' => 'hub_' . $suffix,
+        'name' => 'Hub ' . $suffix,
+        'email' => 'hub-' . $suffix . '@example.com',
+    ]);
+}
+
+function hubPlayer(User $user, string $name, string $realm = 'syrtis', string $subclass = 'hunter'): Player
+{
+    return Player::create([
+        'user_id' => $user->id,
+        'character_name' => $name,
+        'subclass' => $subclass,
+        'realm' => $realm,
+        'race' => Player::defaultRace($realm),
+        'gender' => 'male',
+        'pl_points' => 30,
+        'mmr' => 1000,
+        'trust_score' => 100,
+        'is_active' => true,
+    ]);
+}
+
+it('el lobby lleva la cola dentro: elegir guerrero y pelear pasan en la misma pantalla', function () {
+    // El bug que lo motivo: desde el lobby, "Pelear" navegaba a otra pagina en
+    // vez de meterte en la cola.
+    $user = hubUser('a');
+    hubPlayer($user, 'Sylwen');
+
+    $this->actingAs($user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('action="' . route('queue.join') . '"', false)
+        ->assertSee('data-champion-id="hub-stage"', false)
+        ->assertSee('data-champion-slot', false);
+});
+
+it('la url vieja de la cola apunta al lobby y conserva la modalidad', function () {
+    $user = hubUser('b');
+    hubPlayer($user, 'Reliquia');
+
+    $this->actingAs($user)->get('/queue?mode=2v2')
+        ->assertRedirect(route('lobby', ['mode' => '2v2']));
+});
+
+/** Un enfrentamiento ya en marcha, con el jugador dentro. */
+function hubLiveMatch(Player $mine, Player $foe): ArenaMatch
+{
+    $pack = fn (Player $p) => [
+        'player_id' => $p->id,
+        'character_name' => $p->character_name,
+        'subclass' => $p->subclass,
+        'realm' => $p->realm,
+        'discord_id' => (string) $p->user_id,
+    ];
+
+    $match = ArenaMatch::create([
+        'match_code' => 'ARENA-9001',
+        'report_token' => 'HUBLIVE1',
+        'queue_mode' => 'random',
+        'arena_mode' => '1v1',
+        'team_a_realm' => $mine->realm,
+        'team_b_realm' => $foe->realm,
+        'team_a' => [$pack($mine)],
+        'team_b' => [$pack($foe)],
+        'zone' => 'frozen_bridge',
+        'status' => 'in_progress',
+        'estimated_mmr_avg' => 1000,
+        'player_count' => 2,
+        'started_at' => now(),
+        'expires_at' => now()->addMinutes(30),
+    ]);
+
+    foreach ([$mine, $foe] as $player) {
+        Queue::create([
+            'player_id' => $player->id,
+            'queue_type' => 'random',
+            'arena_mode' => '1v1',
+            'status' => 'accepted',
+            'match_id' => (string) $match->id,
+            'estimated_mmr' => $player->mmr,
+            'joined_at' => now()->subMinutes(2),
+            'expires_at' => now()->addMinutes(20),
+        ]);
+    }
+
+    return $match;
+}
+
+it('el combate en curso trae su reloj y las figuras de los dos bandos', function () {
+    // Lo que faltaba: cuando todos aceptan y el combate arranca, no habia nada
+    // que dijera cuanto tiempo queda para pelear y reportar.
+    $mine = hubPlayer(hubUser('c'), 'Aeryn', 'syrtis', 'marksman');
+    $foe = hubPlayer(hubUser('d'), 'Grumm', 'ignis', 'barbarian');
+    $match = hubLiveMatch($mine, $foe);
+
+    $this->actingAs($mine->user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('data-live-match', false)
+        ->assertSee('data-clock-expires="' . $match->expires_at->timestamp . '"', false)
+        ->assertSee('para pelear')
+        ->assertSee('data-champion-id="live-own-0"', false)
+        ->assertSee('data-champion-id="live-rival-0"', false);
+});
+
+it('el combate en curso tapa el escaparate: una sola figura grande a la vez', function () {
+    $mine = hubPlayer(hubUser('e'), 'Solitaria', 'alsius', 'knight');
+    $foe = hubPlayer(hubUser('f'), 'Rival', 'ignis', 'warlock');
+    hubLiveMatch($mine, $foe);
+
+    $this->actingAs($mine->user)->get(route('lobby'))
+        ->assertOk()
+        ->assertDontSee('data-champion-id="hub-stage"', false);
+});
+
+it('el combate en curso no destapa el nombre del rival', function () {
+    $mine = hubPlayer(hubUser('g'), 'Anonima', 'alsius', 'knight');
+    $foe = hubPlayer(hubUser('h'), 'NombreSecreto', 'ignis', 'warlock');
+    hubLiveMatch($mine, $foe);
+
+    $this->actingAs($mine->user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('Guerrero Anónimo')
+        ->assertDontSee('NombreSecreto');
+});
+
+it('en cola el reloj cuenta desde que entro y se ve el pulso por reino', function () {
+    $user = hubUser('i');
+    $player = hubPlayer($user, 'Paciente', 'ignis', 'warlock');
+
+    $queue = Queue::create([
+        'player_id' => $player->id,
+        'queue_type' => 'random',
+        'arena_mode' => '2v2',
+        'status' => 'waiting',
+        'estimated_mmr' => $player->mmr,
+        'joined_at' => now()->subMinutes(3),
+        'expires_at' => now()->addMinutes(30),
+    ]);
+
+    $this->actingAs($user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('data-clock-since="' . $queue->joined_at->timestamp . '"', false)
+        ->assertSee('data-queue-pulse-total', false)
+        ->assertSee('data-champion-id="queue-stage"', false)
+        ->assertSee('Salir de la cola');
+});
+
+it('el rival puede confirmar el reporte sin salir del lobby', function () {
+    // Antes "Subir el reporte" y su respuesta vivian en otra pagina. El formulario
+    // del lobby apuntaba ademas a un campo que el controlador no lee.
+    \Illuminate\Support\Facades\Storage::fake('arena_reports');
+
+    $mine = hubPlayer(hubUser('conf-a'), 'Confirmadora', 'syrtis', 'hunter');
+    $foe = hubPlayer(hubUser('conf-b'), 'Reportador', 'ignis', 'knight');
+    $match = hubLiveMatch($mine, $foe);
+
+    app(\App\Services\ArenaMatchResultService::class)
+        ->submitSyntheticReport($match, $foe, 'team_b', 'reporte de prueba');
+
+    $response = $this->actingAs($mine->user)->get(route('lobby'));
+
+    $response->assertOk()
+        ->assertSee('Confirma si es correcto')
+        ->assertSee('name="report_id" value="' . $match->fresh('report')->report->id . '"', false);
+
+    $this->actingAs($mine->user)->post(route('matches.report.confirm'), [
+        'report_id' => $match->fresh('report')->report->id,
+        'player_id' => $mine->id,
+    ])->assertRedirect();
+
+    expect($match->fresh()->status)->toBe('completed')
+        ->and($match->fresh()->winner_team)->toBe('team_b');
+});
+
+it('quien todavia no ha reportado ve el formulario en el lobby', function () {
+    $mine = hubPlayer(hubUser('form-a'), 'Reportadora', 'alsius', 'warlock');
+    $foe = hubPlayer(hubUser('form-b'), 'Contrario', 'ignis', 'barbarian');
+    $match = hubLiveMatch($mine, $foe);
+
+    $this->actingAs($mine->user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('Subir el reporte del combate')
+        ->assertSee('action="' . route('matches.report') . '"', false)
+        ->assertSee('name="evidence_files[]"', false);
+});
+
+it('el rail cambia de guerrero sin JavaScript y el formulario le sigue', function () {
+    // Los slots son enlaces con ?player, no botones que solo pinta un script:
+    // sin JavaScript se tenia que poder cambiar de guerrero igual.
+    $user = hubUser('rail');
+    $primero = hubPlayer($user, 'Primera', 'syrtis', 'hunter');
+    $segundo = hubPlayer($user, 'Segunda', 'alsius', 'conjurer');
+
+    $this->actingAs($user)->get(route('lobby'))
+        ->assertOk()
+        // El & del enlace viaja escapado en el HTML.
+        ->assertSee('player=' . $segundo->id . '"', false)
+        ->assertSee('data-subclass="hunter"', false)
+        ->assertSee('value="' . $primero->id . '"', false);
+
+    $this->actingAs($user)->get(route('lobby', ['player' => $segundo->id]))
+        ->assertOk()
+        ->assertSee('data-subclass="conjurer"', false)
+        ->assertSee('value="' . $segundo->id . '"', false)
+        ->assertSee('data-champion-subclass="conjurer"', false);
+});
+
+it('un guerrero de otro usuario no se puede colar por la url', function () {
+    $user = hubUser('rail-mio');
+    $mio = hubPlayer($user, 'Mio');
+    $ajeno = hubPlayer(hubUser('rail-ajeno'), 'Ajeno', 'ignis', 'warlock');
+
+    $this->actingAs($user)->get(route('lobby', ['player' => $ajeno->id]))
+        ->assertOk()
+        ->assertSee('value="' . $mio->id . '"', false)
+        ->assertDontSee('Ajeno');
+});
+
+it('entrar y armar grupo son dos botones, y el grupo arranca con el guerrero del escenario', function () {
+    // Elegir personaje pasaba dos veces y armar party pedia elegirlo una
+    // tercera. Ahora el rail manda sobre las tres cosas, y no hay pestanas que
+    // obliguen a descubrir que hay algo escondido detras.
+    $user = hubUser('modos');
+    $primero = hubPlayer($user, 'Lider', 'syrtis', 'knight');
+    hubPlayer($user, 'Companiera', 'syrtis', 'conjurer');
+
+    $this->actingAs($user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('Entrar a Random 2v2')
+        ->assertSee('Invitar aliado 2v2')
+        // Armar grupo abre una ventana de invitacion, no despliega otro
+        // formulario donde volver a elegir personaje.
+        ->assertSee('data-modal-open="modal-premade"', false)
+        ->assertSee('id="modal-premade"', false)
+        // El lider es el guerrero del escenario: campo oculto, no desplegable.
+        ->assertSee('name="party_player_ids[]" data-party-leader-select', false)
+        ->assertSee('value="' . $primero->id . '"', false)
+        ->assertDontSee('Slot 1 — Tu líder');
+});
+
+it('las reglas se abren en una ventana, no ocupan sitio todo el rato', function () {
+    $user = hubUser('reglas');
+    hubPlayer($user, 'Curiosa');
+
+    $this->actingAs($user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('data-modal-open="modal-arena-rules"', false)
+        ->assertSee('id="modal-arena-rules"', false)
+        ->assertSee('el enfrentamiento se anula y no reparte puntos');
+});
+
+it('las ventanas se pintan fuera de los paneles que recortan', function () {
+    // Dentro de la consola del lobby, que recorta su contenido, la ventana de
+    // reglas salia cortada y anclada en medio del escenario.
+    $user = hubUser('ventanas');
+    hubPlayer($user, 'Lectora');
+
+    $html = $this->actingAs($user)->get(route('lobby'))->getContent();
+
+    $consolaEmpieza = strpos($html, 'class="arena-console ');
+    $ventanaEmpieza = strpos($html, 'id="modal-arena-rules"');
+
+    expect($consolaEmpieza)->not->toBeFalse()
+        ->and($ventanaEmpieza)->not->toBeFalse()
+        // La ventana se pinta despues de que la consola haya cerrado.
+        ->and($ventanaEmpieza)->toBeGreaterThan(strpos($html, '</section>', $consolaEmpieza));
+});
+
+it('la invitacion a party flota y dice a que modalidad te invitan', function () {
+    $lider = hubPlayer(hubUser('inv-lider'), 'Capitana', 'ignis', 'knight');
+    $invitado = hubPlayer(hubUser('inv-mio'), 'Invitada', 'ignis', 'hunter');
+
+    $party = \App\Models\Party::create([
+        'leader_player_id' => $lider->id,
+        'realm' => 'ignis',
+        'arena_mode' => '3v3',
+        'status' => 'forming',
+    ]);
+
+    \App\Models\PartyMember::create(['party_id' => $party->id, 'player_id' => $lider->id, 'is_leader' => true, 'is_accepted_invite' => true]);
+    \App\Models\PartyMember::create(['party_id' => $party->id, 'player_id' => $invitado->id, 'is_leader' => false, 'is_accepted_invite' => false]);
+
+    $this->actingAs($invitado->user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('class="arena-invites"', false)
+        ->assertSee('Invitacion a party 3v3')
+        ->assertSee('Capitana')
+        ->assertSee('Invitada');
+});
+
+it('las acciones del guerrero viven en su propio panel, no en una tarjeta suelta', function () {
+    $user = hubUser('acciones');
+    hubPlayer($user, 'Accionada');
+
+    $html = $this->actingAs($user)->get(route('lobby'))->getContent();
+
+    $escenario = strpos($html, 'class="arena-console-stage"');
+    $barra = strpos($html, 'class="arena-console-actions"');
+    $cierre = strpos($html, 'class="arena-console-foot"');
+
+    expect($escenario)->not->toBeFalse()
+        ->and($barra)->not->toBeFalse()
+        // La barra se pinta dentro del escenario, entre su apertura y su pie.
+        ->and($barra)->toBeGreaterThan($escenario)
+        ->and($cierre)->toBeGreaterThan($barra);
+});
+
+it('el editor del guerrero deja cambiar raza y sexo', function () {
+    $user = hubUser('editor');
+    $player = hubPlayer($user, 'Mutable', 'alsius', 'knight');
+
+    $this->actingAs($user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('Editar a Mutable')
+        // Las cuatro razas de Alsius, no las de los otros reinos.
+        ->assertSee('value="utghar"', false)
+        ->assertSee('value="dwarf"', false)
+        ->assertDontSee('value="molok"', false)
+        ->assertSee('name="gender" value="female"', false)
+        ->assertSee('El reino y la subclase no se pueden cambiar.');
+});
+
+it('la escuadra se puede abrir y cerrar como cajon, y no se ofrece durante un combate', function () {
+    // En movil colgaba del final de la pagina, visible todo el rato, tambien
+    // durante un combate en el que ya no se puede cambiar de guerrero.
+    $user = hubUser('cajon');
+    hubPlayer($user, 'Primera');
+    hubPlayer($user, 'Segunda', 'ignis', 'warlock');
+
+    $this->actingAs($user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('data-roster-rail', false)
+        ->assertSee('data-roster-open', false)
+        ->assertSee('Cambiar guerrero');
+
+    $foe = hubPlayer(hubUser('cajon-rival'), 'Rival', 'syrtis', 'knight');
+    hubLiveMatch($user->players()->first(), $foe);
+
+    $this->actingAs($user)->get(route('lobby'))
+        ->assertOk()
+        ->assertDontSee('Cambiar guerrero');
+});
+
+it('el grupo se cuenta como un lobby: primero invitas y luego se arma', function () {
+    $lider = hubPlayer(hubUser('lobby-lider'), 'Capitan', 'ignis', 'knight');
+    $aliado = hubPlayer(hubUser('lobby-aliado'), 'Aliado', 'ignis', 'hunter');
+
+    $party = \App\Models\Party::create([
+        'leader_player_id' => $lider->id,
+        'realm' => 'ignis',
+        'arena_mode' => '2v2',
+        'status' => 'forming',
+    ]);
+    \App\Models\PartyMember::create(['party_id' => $party->id, 'player_id' => $lider->id, 'is_leader' => true, 'is_accepted_invite' => true]);
+    \App\Models\PartyMember::create(['party_id' => $party->id, 'player_id' => $aliado->id, 'is_leader' => false, 'is_accepted_invite' => false]);
+
+    $this->actingAs($lider->user)->get(route('lobby'))
+        ->assertOk()
+        // Dice a quien falta por nombre, no un generico "esperando aliados".
+        ->assertSee('Invitacion enviada. Falta que Aliado la acepte.')
+        ->assertSee('Deshacer el grupo');
+});

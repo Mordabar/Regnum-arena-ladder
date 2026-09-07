@@ -48,6 +48,28 @@ php artisan route:cache
 php artisan view:cache
 ```
 
+> **Importante: migrar en el mismo despliegue que sube el codigo.**
+> El soporte de modalidades (2v2 / 3v3) necesita la columna `arena_mode` en
+> `queues`, `matches` y `parties`. Mientras esa columna falte,
+> `isMatchesSchemaReady()` devuelve `false` a proposito: la cola queda cerrada
+> con un mensaje claro en vez de fallar con errores de SQL. Si por lo que sea el
+> `migrate` no llego a correr, se nota asi:
+>
+> ```bash
+> php artisan migrate:status | grep arena_mode
+> php artisan tinker --execute="dd(app(App\Services\ArenaMatchmakingService::class)->isMatchesSchemaReady());"
+> ```
+>
+> Con `true` el sistema esta listo. Correr `php artisan migrate --force` lo
+> resuelve; la migracion es idempotente y se puede repetir sin riesgo.
+
+### Modalidades tras el despliegue
+
+La migracion deja encendida la modalidad que ya estaba corriendo (2v2 en el caso
+normal) y **3v3 apagado**. Estrenar 3v3 es una decision explicita: se activa
+desde *Panel admin → Ajustes → Modalidades activas*. Ambas pueden convivir y
+comparten el mismo ladder.
+
 Las migraciones `2026_07_06_000001_add_arena_modes.php` y `2026_07_06_000002_create_arena_seasons.php` conservan los datos actuales, crean Alpha como temporada activa y preparan el Salon de la Fama.
 
 ## Permisos y tareas programadas

@@ -88,7 +88,8 @@ it('stores report evidence on the dedicated disk and serves it to match particip
         ]);
 
     $response
-        ->assertRedirect(route('matches.show', $match))
+        // De vuelta al lobby: el combate entero ocurre alli.
+        ->assertRedirect(route('lobby', ['mode' => $match->fresh()->arena_mode]))
         ->assertSessionHas('success');
 
     $report = MatchReport::firstOrFail();

@@ -1,293 +1,373 @@
-@extends('layouts.arena')
+@extends('layouts.admin')
 
-@section('title', 'Moderar ' . $match->match_code)
+@section('title', $match->match_code)
+@section('page-title', $match->match_code)
+@section('page-subtitle', 'Detalle del enfrentamiento y decisiones de moderacion')
+
+@section('page-actions')
+    <a href="{{ route('admin.matches.index') }}" class="ap-btn ap-btn-sm ap-btn-quiet">Volver a la lista</a>
+    <a href="{{ route('admin.inbox') }}" class="ap-btn ap-btn-sm">Bandeja</a>
+@endsection
 
 @section('content')
-<div class="mx-auto max-w-7xl px-4 py-8">
-    <x-arena-breadcrumbs :items="[
-        ['label' => 'Admin', 'url' => route('admin.dashboard')],
-        ['label' => 'Matches', 'url' => route('admin.matches.index')],
-        ['label' => $match->match_code],
-    ]" class="mb-6" />
+@php
+    $realmName = fn ($realm) => \App\Models\ArenaMatch::REALMS[$realm] ?? strtoupper((string) $realm);
+    $report = $match->report;
+    $claimed = $report?->claimed_winner_team;
+    $isClosed = in_array($match->status, ['completed', 'void', 'cancelled'], true);
+@endphp
 
-    {{-- Hero --}}
-    <section class="arena-panel-strong mb-6 p-6 md:p-8 arena-animate-in relative overflow-hidden">
-        <div class="absolute -top-16 -left-16 w-48 h-48 rounded-full pointer-events-none opacity-20"
-             style="background: radial-gradient(circle, {{ $match->team_a_realm === 'ignis' ? 'rgba(211,100,47,0.5)' : ($match->team_a_realm === 'alsius' ? 'rgba(121,181,214,0.5)' : 'rgba(142,179,74,0.5)') }}, transparent 70%)">
+{{-- Cabecera de contexto: todo lo que hay que saber antes de decidir nada. --}}
+<section class="ap-card ap-rise mb-4 p-4">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+        <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+                <x-admin.status :value="$match->status" />
+                <x-admin.mode :mode="$match->arena_mode" />
+                <span class="ap-badge ap-badge-neutral">{{ $match->queue_mode === 'premade' ? 'Premade' : 'Cola aleatoria' }}</span>
+            </div>
+            <p class="ap-section-note mt-2">
+                <x-admin.realm :realm="$match->team_a_realm" /> contra <x-admin.realm :realm="$match->team_b_realm" />
+                · empezo <x-admin.ago :date="$match->started_at ?? $match->created_at" />
+                @if($match->completed_at) · cerrado <x-admin.ago :date="$match->completed_at" /> @endif
+            </p>
         </div>
-        <div class="absolute -top-16 -right-16 w-48 h-48 rounded-full pointer-events-none opacity-20"
-             style="background: radial-gradient(circle, {{ $match->team_b_realm === 'ignis' ? 'rgba(211,100,47,0.5)' : ($match->team_b_realm === 'alsius' ? 'rgba(121,181,214,0.5)' : 'rgba(142,179,74,0.5)') }}, transparent 70%)">
-        </div>
+        <button type="button" class="ap-btn ap-btn-sm" data-modal-open="modal-admin-zone-map">
+            <x-admin.icon name="map" class="h-3.5 w-3.5" />
+            {{ $match->zone_name }}
+        </button>
+    </div>
+</section>
 
-        <div class="relative flex flex-wrap items-start justify-between gap-4">
-            <div>
-                <div class="flex items-center gap-3">
-                    <p class="arena-kicker">Moderación</p>
-                    @php
-                        $heroStatusClass = match($match->status) {
-                            'pending_acceptance' => 'arena-status-pending',
-                            'in_progress' => 'arena-status-active',
-                            'completed' => 'arena-status-completed',
-                            'disputed' => 'arena-status-disputed',
-                            'void' => 'arena-status-void',
-                            default => 'arena-status-pending',
-                        };
-                    @endphp
-                    <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold {{ $heroStatusClass }}">{{ $match->status_name }}</span>
+<div class="grid gap-4 lg:grid-cols-2 mb-4">
+    {{-- Equipos --}}
+    @foreach(['team_a', 'team_b'] as $side)
+        @php $realm = $side === 'team_a' ? $match->team_a_realm : $match->team_b_realm; @endphp
+        <section class="ap-card ap-rise ap-delay-{{ $loop->index + 1 }} p-4">
+            <div class="ap-section-head">
+                <div>
+                    <h2 class="ap-section-title">
+                        Equipo {{ $side === 'team_a' ? 'A' : 'B' }} · {{ $realmName($realm) }}
+                    </h2>
+                    <p class="ap-section-note">
+                        @if($match->winner_team === $side)
+                            Declarado ganador.
+                        @elseif($claimed === $side)
+                            El reporte dice que gano este equipo.
+                        @else
+                            &nbsp;
+                        @endif
+                    </p>
                 </div>
-                <h1 class="mt-3 text-4xl font-bold text-white md:text-5xl">{{ $match->match_code }}</h1>
-                <div class="mt-3 flex flex-wrap items-center gap-3">
-                    <span class="inline-flex items-center gap-1.5 text-[color:var(--arena-sand)] arena-body-text">
-                        <x-arena-realm-icon :realm="$match->team_a_realm" size="sm" />
-                        {{ \App\Models\ArenaMatch::REALMS[$match->team_a_realm] ?? strtoupper((string) $match->team_a_realm) }}
+                <x-admin.realm :realm="$realm" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+                @foreach($match->getTeamBySide($side) as $player)
+                    <div class="ap-list-row" style="border-color: var(--ap-line); background: var(--ap-surface-raised)">
+                        <div class="ap-list-main">
+                            <div class="ap-list-title">{{ $player['character_name'] }}</div>
+                            <div class="ap-list-meta">
+                                {{ \App\Models\Player::SUBCLASSES[$player['subclass']] ?? ucfirst($player['subclass']) }}
+                                @if(!empty($player['conjurer_role']))
+                                    · {{ $player['conjurer_role'] === 'support' ? 'Soporte' : 'Ofensivo' }}
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </section>
+    @endforeach
+</div>
+
+<div class="grid gap-4 lg:grid-cols-2 mb-4">
+    {{-- Reporte y pruebas --}}
+    <section class="ap-card ap-rise ap-delay-3 p-4">
+        <div class="ap-section-head">
+            <span class="ap-section-lead">
+                <span class="ap-section-mark"><x-admin.icon name="inbox" class="h-4 w-4" /></span>
+                <h2 class="ap-section-title">Lo que reportaron los jugadores</h2>
+            </span>
+            @if($report)<x-admin.status kind="report" :value="$report->status" />@endif
+        </div>
+
+        @if($report)
+            <div class="flex flex-col gap-2">
+                <div class="ap-kv">
+                    <span class="ap-kv-key">Quien reporto</span>
+                    <span class="ap-kv-value">{{ $report->reporter?->character_name ?? 'jugador eliminado' }}</span>
+                </div>
+                <div class="ap-kv">
+                    <span class="ap-kv-key">Ganador que reclama</span>
+                    <span class="ap-kv-value">
+                        @if($claimed === 'draw')
+                            Empate
+                        @elseif($claimed === 'team_a')
+                            Equipo A · {{ $realmName($match->team_a_realm) }}
+                        @else
+                            Equipo B · {{ $realmName($match->team_b_realm) }}
+                        @endif
                     </span>
-                    <span class="text-[color:var(--arena-muted)]">vs</span>
-                    <span class="inline-flex items-center gap-1.5 text-[color:var(--arena-sand)] arena-body-text">
-                        <x-arena-realm-icon :realm="$match->team_b_realm" size="sm" />
-                        {{ \App\Models\ArenaMatch::REALMS[$match->team_b_realm] ?? strtoupper((string) $match->team_b_realm) }}
-                    </span>
-                    <button type="button" class="flex items-center gap-2 rounded-lg border border-[color:var(--arena-gold-soft)]/20 bg-[color:var(--arena-gold-soft)]/10 px-3 py-1.5 text-xs font-semibold text-[#f4deb1] transition-all hover:bg-[color:var(--arena-gold-soft)]/20 shadow-sm ml-2" data-modal-open="modal-admin-zone-map">
-                        <svg class="h-4 w-4 drop-shadow-md text-[color:var(--arena-gold)]" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
-                        Ver Mapa ({{ $match->zone_name }})
-                    </button>
                 </div>
             </div>
-            <div class="flex flex-wrap gap-3">
-                <a href="{{ route('admin.inbox') }}" class="arena-btn-warning px-4 py-2">Inbox</a>
-                <a href="{{ route('admin.matches.index') }}" class="arena-btn-ghost px-4 py-2">
-                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd"/></svg>
-                    Matches
-                </a>
+
+            @if(count($report->evidenceItems()))
+                <p class="ap-label mt-3 mb-1.5">Capturas aportadas</p>
+                <div class="flex flex-wrap gap-2">
+                    @foreach($report->evidenceItems() as $evidence)
+                        <a href="{{ $evidence['url'] }}" target="_blank" rel="noopener" class="ap-btn ap-btn-sm">
+                            <x-admin.icon name="external" class="h-3.5 w-3.5" />
+                            {{ $evidence['label'] }}
+                        </a>
+                    @endforeach
+                </div>
+            @endif
+
+            @if($report->reporter_note)
+                <p class="ap-label mt-3 mb-1.5">Version de quien reporto</p>
+                <p class="ap-quote">“{{ $report->reporter_note }}”</p>
+            @endif
+
+            @if($report->rejection_note)
+                <p class="ap-label mt-3 mb-1.5">Version del rival, que lo rechazo</p>
+                <p class="ap-quote">“{{ $report->rejection_note }}”</p>
+            @endif
+
+            @if($report->admin_note)
+                <p class="ap-label mt-3 mb-1.5">Nota de moderacion</p>
+                <p class="ap-quote">{{ $report->admin_note }}</p>
+            @endif
+
+            @if($report->reviewed_at || data_get($report->resolution_payload, 'original_claimed_winner_team'))
+                <p class="ap-hint mt-3">
+                    @if(data_get($report->resolution_payload, 'original_claimed_winner_team') && data_get($report->resolution_payload, 'original_claimed_winner_team') !== $claimed)
+                        Moderacion corrigio el ganador reportado antes de cerrar.
+                    @endif
+                    @if($report->reviewer)
+                        Revisado por {{ $report->reviewer->display_name ?? $report->reviewer->name ?? 'un administrador' }}@if($report->reviewed_at), <x-admin.ago :date="$report->reviewed_at" />@endif.
+                    @endif
+                </p>
+            @endif
+        @else
+            <div class="ap-empty">
+                <x-admin.icon name="inbox" class="h-6 w-6" />
+                <p class="m-0">Nadie ha reportado el resultado todavia.</p>
             </div>
-        </div>
+        @endif
     </section>
 
-    <div class="mb-6 grid gap-6 lg:grid-cols-2">
-        {{-- Teams --}}
-        @foreach(['team_a', 'team_b'] as $side)
-            @php $realm = $side === 'team_a' ? $match->team_a_realm : $match->team_b_realm; @endphp
-            <section class="arena-panel arena-card-{{ $realm }} p-6 arena-animate-in arena-stagger-{{ $loop->index + 1 }}">
-                <div class="flex items-center gap-2 mb-4">
-                    <x-arena-realm-icon :realm="$realm" size="md" />
-                    <div>
-                        <p class="arena-kicker">{{ $side === 'team_a' ? 'Team A' : 'Team B' }}</p>
-                        <h2 class="mt-1 text-xl font-semibold text-white">{{ \App\Models\ArenaMatch::REALMS[$realm] ?? strtoupper((string) $realm) }}</h2>
-                    </div>
-                </div>
-                <div class="space-y-2">
-                    @foreach($match->getTeamBySide($side) as $player)
-                        <article class="arena-card p-3">
-                            <p class="font-semibold text-white arena-body-text">{{ $player['character_name'] }}</p>
-                            <p class="text-xs text-[color:var(--arena-muted)] arena-body-text">
-                                {{ \App\Models\Player::SUBCLASSES[$player['subclass']] ?? ucfirst($player['subclass']) }}
-                                @if(!empty($player['conjurer_role'])) · {{ ucfirst($player['conjurer_role']) }} @endif
-                            </p>
-                        </article>
-                    @endforeach
-                </div>
-            </section>
-        @endforeach
-    </div>
+    {{-- Puntos aplicados --}}
+    <section class="ap-card ap-rise ap-delay-4 p-4">
+        <x-admin.section-head title="Puntos ya aplicados" icon="trophy"
+                                note="Lo que este enfrentamiento sumo o resto en el ranking." />
 
-    <div class="mb-6 grid gap-6 lg:grid-cols-2">
-        {{-- Report --}}
-        <section class="arena-panel p-6 arena-animate-in arena-stagger-3">
-            <h2 class="text-2xl font-semibold text-white">Reporte</h2>
-            @if($match->report)
-                <div class="mt-5 space-y-4">
-                    <div class="grid gap-3 sm:grid-cols-3">
-                        <div class="arena-card p-4">
-                            <p class="text-[0.6rem] uppercase tracking-[0.2em] text-[color:var(--arena-muted)]">Estado</p>
-                            <p class="mt-1 font-semibold text-white arena-body-text">{{ $match->report->status_name }}</p>
-                        </div>
-                        <div class="arena-card p-4">
-                            <p class="text-[0.6rem] uppercase tracking-[0.2em] text-[color:var(--arena-muted)]">Reporter</p>
-                            <p class="mt-1 font-semibold text-white arena-body-text">{{ $match->report->reporter?->character_name ?? 'Sin reporter' }}</p>
-                        </div>
-                        <div class="arena-card p-4">
-                            <p class="text-[0.6rem] uppercase tracking-[0.2em] text-[color:var(--arena-muted)]">Ganador reportado</p>
-                            <p class="mt-1 font-semibold text-white arena-body-text">
-                                @if($match->report->claimed_winner_team === 'draw')
-                                    Empate
-                                @elseif($match->report->claimed_winner_team === 'team_a')
-                                    Team A ({{ \App\Models\ArenaMatch::REALMS[$match->team_a_realm] ?? strtoupper((string) $match->team_a_realm) }})
-                                @else
-                                    Team B ({{ \App\Models\ArenaMatch::REALMS[$match->team_b_realm] ?? strtoupper((string) $match->team_b_realm) }})
-                                @endif
-                            </p>
-                        </div>
-                    </div>
-                    <div class="grid gap-3 sm:grid-cols-{{ count($match->report->evidenceItems()) > 1 ? '2' : '1' }}">
-                        @foreach($match->report->evidenceItems() as $evidence)
-                            <a href="{{ $evidence['url'] }}" target="_blank" class="arena-btn-ghost justify-center">
-                                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg>
-                                {{ $evidence['label'] }}
-                            </a>
-                        @endforeach
-                    </div>
-                    @if($match->report->reporter_note)
-                        <div class="arena-card p-4">
-                            <p class="text-xs font-semibold text-[color:var(--arena-gold-soft)]">Nota del reporter</p>
-                            <p class="mt-2 text-sm text-[color:var(--arena-text)] arena-body-text">{{ $match->report->reporter_note }}</p>
-                        </div>
-                    @endif
-                    @if($match->report->rejection_note)
-                        <div class="arena-card p-4">
-                            <p class="text-xs font-semibold text-amber-300">Nota de rechazo rival</p>
-                            <p class="mt-2 text-sm text-[color:var(--arena-text)] arena-body-text">{{ $match->report->rejection_note }}</p>
-                        </div>
-                    @endif
-                    @if($match->report->admin_note)
-                        <div class="arena-card p-4">
-                            <p class="text-xs font-semibold text-emerald-300">Nota admin</p>
-                            <p class="mt-2 text-sm text-[color:var(--arena-text)] arena-body-text">{{ $match->report->admin_note }}</p>
-                        </div>
-                    @endif
-                    @if($match->report->reviewed_at || data_get($match->report->resolution_payload, 'original_claimed_winner_team'))
-                        <div class="arena-card p-4">
-                            <p class="text-xs font-semibold text-[color:var(--arena-gold-soft)]">Revision de moderacion</p>
-                            @if(data_get($match->report->resolution_payload, 'original_claimed_winner_team') && data_get($match->report->resolution_payload, 'original_claimed_winner_team') !== $match->report->claimed_winner_team)
-                                <p class="mt-2 text-sm text-[color:var(--arena-text)] arena-body-text">El ganador reportado fue corregido por moderacion antes del cierre.</p>
-                            @endif
-                            @if($match->report->reviewer)
-                                <p class="mt-2 text-xs text-[color:var(--arena-muted)] arena-body-text">Revisado por {{ $match->report->reviewer->display_name ?? $match->report->reviewer->name ?? $match->report->reviewer->username ?? 'admin' }}{{ $match->report->reviewed_at ? ' � ' . $match->report->reviewed_at->diffForHumans() : '' }}</p>
-                            @endif
-                        </div>
-                    @endif
-                </div>
-            @else
-                <div class="arena-card mt-5 p-5 text-center text-[color:var(--arena-muted)] arena-body-text">
-                    <p>Sin reporte cargado.</p>
-                </div>
-            @endif
-        </section>
-
-        {{-- Results --}}
-        <section class="arena-panel p-6 arena-animate-in arena-stagger-4">
-            <h2 class="text-2xl font-semibold text-white">Resultado persistido</h2>
-            @if($match->results->isEmpty())
-                <div class="arena-card mt-5 p-5 text-center text-[color:var(--arena-muted)] arena-body-text">
-                    <p>Sin cambios en match_results.</p>
-                </div>
-            @else
-                <div class="mt-5 space-y-3">
-                    @foreach($match->results as $result)
-                        <article class="arena-card p-4">
-                            <div class="flex items-start justify-between gap-3">
-                                <div>
-                                    <h3 class="font-semibold text-white arena-body-text">{{ $result->player->character_name }}</h3>
-                                    <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {{ $result->result === 'win' ? 'bg-emerald-900/30 text-emerald-300' : 'bg-rose-900/30 text-rose-300' }}">
-                                        {{ strtoupper($result->result) }}
+        @if($match->results->isEmpty())
+            <div class="ap-empty">
+                <x-admin.icon name="gauge" class="h-6 w-6" />
+                <p class="m-0">Aun no se ha repartido nada. El ranking no ha cambiado por esta partida.</p>
+            </div>
+        @else
+            <div style="overflow-x: auto">
+                <table class="ap-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Jugador</th>
+                            <th scope="col">Resultado</th>
+                            <th scope="col" style="text-align: right">Puntos</th>
+                            <th scope="col" style="text-align: right">MMR</th>
+                            <th scope="col">Origen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($match->results as $result)
+                            <tr>
+                                <th scope="row" style="font-weight: 500">{{ $result->player?->character_name ?? 'jugador eliminado' }}</th>
+                                <td>
+                                    <span class="ap-badge {{ $result->result === 'win' ? 'ap-badge-ok' : 'ap-badge-neutral' }}">
+                                        <span class="ap-badge-dot"></span>{{ $result->result === 'win' ? 'Victoria' : 'Derrota' }}
                                     </span>
-                                </div>
-                                <span class="text-xs text-[color:var(--arena-muted)] arena-body-text">{{ $result->reported_by_admin ? 'Admin' : 'Jugador' }}</span>
-                            </div>
-                            <div class="mt-2 flex flex-wrap gap-2 text-sm arena-body-text">
-                                <span class="{{ $result->pl_change >= 0 ? 'text-emerald-300' : 'text-rose-300' }}">
-                                    PL {{ $result->pl_change >= 0 ? '+' : '' }}{{ number_format((float) $result->pl_change, 1) }}
-                                </span>
-                                <span class="{{ $result->mmr_change >= 0 ? 'text-emerald-300' : 'text-rose-300' }}">
-                                    MMR {{ $result->mmr_change >= 0 ? '+' : '' }}{{ $result->mmr_change }}
-                                </span>
-                            </div>
-                        </article>
-                    @endforeach
-                </div>
-            @endif
-        </section>
-    </div>
-
-    {{-- Admin actions --}}
-    <section class="arena-panel p-6 arena-animate-in arena-stagger-5">
-        <h2 class="text-2xl font-semibold text-white">Acciones admin</h2>
-        <div class="mt-5 grid gap-4 xl:grid-cols-2">
-            <form method="POST" action="{{ route('admin.matches.resolve', $match) }}" class="arena-card space-y-3 p-4">
-                @csrf
-                <input type="hidden" name="action" value="force_complete">
-                <div class="flex items-center gap-2">
-                    <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-900/30 text-emerald-300">&#10003;</span>
-                    <h3 class="font-semibold text-white arena-body-text">Revisar reporte y aplicar resultado</h3>
-                </div>
-                <select name="winner_team" class="arena-select">
-                    <option value="team_a" {{ $match->report?->claimed_winner_team === 'team_a' ? 'selected' : '' }}>Gana Team A ({{ \App\Models\ArenaMatch::REALMS[$match->team_a_realm] ?? strtoupper((string) $match->team_a_realm) }})</option>
-                    <option value="team_b" {{ $match->report?->claimed_winner_team === 'team_b' ? 'selected' : '' }}>Gana Team B ({{ \App\Models\ArenaMatch::REALMS[$match->team_b_realm] ?? strtoupper((string) $match->team_b_realm) }})</option>
-                    <option value="draw" {{ $match->report?->claimed_winner_team === 'draw' ? 'selected' : '' }}>Empate / cierre sin ganador</option>
-                </select>
-                <textarea name="note" rows="2" class="arena-textarea" placeholder="Nota de moderacion o correccion del reporte"></textarea>
-                <button type="submit" class="arena-btn-safe w-full">Corregir y aplicar resultado</button>
-            </form>
-
-            <form method="POST" action="{{ route('admin.matches.resolve', $match) }}" class="arena-card space-y-3 p-4">
-                @csrf
-                <input type="hidden" name="action" value="dispute">
-                <div class="flex items-center gap-2">
-                    <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-900/30 text-amber-300">⚠</span>
-                    <h3 class="font-semibold text-white arena-body-text">Marcar disputa</h3>
-                </div>
-                <textarea name="note" rows="2" class="arena-textarea" placeholder="Motivo de disputa"></textarea>
-                <button type="submit" class="arena-btn-warning w-full">Enviar a disputa</button>
-            </form>
-
-            <form method="POST" action="{{ route('admin.matches.resolve', $match) }}" class="arena-card space-y-3 p-4">
-                @csrf
-                <input type="hidden" name="action" value="abandonment_walkover">
-                <div class="flex items-center gap-2">
-                    <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-900/30 text-orange-300">🚪</span>
-                    <h3 class="font-semibold text-white arena-body-text">Abandono con derrota</h3>
-                </div>
-                <select name="player_id" class="arena-select">
-                    @foreach($match->getAllPlayers() as $player)
-                        <option value="{{ $player['player_id'] }}">{{ $player['character_name'] }}</option>
-                    @endforeach
-                </select>
-                <textarea name="note" rows="2" class="arena-textarea" placeholder="Nota de abandono"></textarea>
-                <button type="submit" class="arena-btn-warning w-full">Aplicar walkover</button>
-            </form>
-
-            <form method="POST" action="{{ route('admin.matches.resolve', $match) }}" class="arena-card space-y-3 p-4">
-                @csrf
-                <input type="hidden" name="action" value="support_infraction">
-                <div class="flex items-center gap-2">
-                    <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-900/30 text-rose-300">⛔</span>
-                    <h3 class="font-semibold text-white arena-body-text">Infracción doble soporte</h3>
-                </div>
-                <select name="player_id" class="arena-select">
-                    @foreach($match->getAllPlayers() as $player)
-                        <option value="{{ $player['player_id'] }}">{{ $player['character_name'] }}</option>
-                    @endforeach
-                </select>
-                <textarea name="note" rows="2" class="arena-textarea" placeholder="Evidencia de la infracción"></textarea>
-                <button type="submit" class="arena-btn-danger w-full">Procesar infracción</button>
-            </form>
-
-            <form method="POST" action="{{ route('admin.matches.resolve', $match) }}" class="arena-card space-y-3 p-4 xl:col-span-2">
-                @csrf
-                <input type="hidden" name="action" value="void">
-                <div class="flex items-center gap-2">
-                    <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-white/5 text-[color:var(--arena-muted)]">✕</span>
-                    <h3 class="font-semibold text-white arena-body-text">Marcar void</h3>
-                </div>
-                <textarea name="note" rows="2" class="arena-textarea" placeholder="Motivo de anulación"></textarea>
-                <button type="submit" class="arena-btn-danger-ghost w-full" onclick="return confirm('¿Estás seguro de anular este match?')">Marcar void</button>
-            </form>
-        </div>
+                                </td>
+                                <td class="ap-num" style="text-align: right; color: {{ $result->pl_change >= 0 ? 'var(--ap-ok)' : 'var(--ap-danger)' }}">
+                                    {{ $result->pl_change >= 0 ? '+' : '' }}{{ number_format((float) $result->pl_change, 1) }}
+                                </td>
+                                <td class="ap-num" style="text-align: right; color: {{ $result->mmr_change >= 0 ? 'var(--ap-ok)' : 'var(--ap-danger)' }}">
+                                    {{ $result->mmr_change >= 0 ? '+' : '' }}{{ $result->mmr_change }}
+                                </td>
+                                <td>{{ $result->reported_by_admin ? 'Moderacion' : 'Jugadores' }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
     </section>
 </div>
 
-{{-- ── ADMIN MAP MODAL ── --}}
-<div id="modal-admin-zone-map" class="fixed inset-0 z-50 items-center justify-center" style="display:none" role="dialog" aria-modal="true">
-    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" data-modal-close="modal-admin-zone-map"></div>
-    <div class="relative mx-4 w-full max-w-3xl rounded-2xl border border-[color:var(--arena-line-strong)] bg-[linear-gradient(180deg,rgba(40,28,20,0.98),rgba(14,10,8,0.99))] p-6 shadow-[0_25px_60px_rgba(0,0,0,0.5)]" style="animation: arenaModalIn 0.2s ease-out">
-        <div class="flex items-start justify-between gap-4 mb-4">
-            <div>
-                <p class="text-xs uppercase tracking-[0.2em] text-[color:var(--arena-gold)] font-['Cinzel']">Auditoría de Zona</p>
-                <h3 class="mt-1 text-xl font-semibold text-white">{{ $match->zone_name }}</h3>
+{{-- Un solo formulario de decision.
+     Antes habia cinco formularios en paralelo, cada uno con su boton: con las
+     manos en el teclado y prisa, es facil enviar el que no era. Aqui se elige
+     primero la decision, se ve que consecuencias tiene y se confirma una vez. --}}
+<section class="ap-card ap-rise p-4" id="ap-decide">
+    <div class="ap-section-head">
+        <div class="ap-section-lead">
+            <span class="ap-section-mark ap-section-mark-warn"><x-admin.icon name="scale" class="h-4 w-4" /></span>
+            <div class="min-w-0">
+            <h2 class="ap-section-title">Tomar una decision</h2>
+            <p class="ap-section-note">
+                @if($isClosed)
+                    Este enfrentamiento ya esta cerrado. Lo que hagas aqui vuelve a mover el ranking.
+                @else
+                    Elige que hacer, revisa las consecuencias y confirma.
+                @endif
+            </p>
             </div>
-            <button type="button" class="shrink-0 rounded-full p-1.5 text-[color:var(--arena-muted)] transition-colors hover:bg-white/10 hover:text-white" data-modal-close="modal-admin-zone-map" aria-label="Cerrar">
-                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+        </div>
+    </div>
+
+    <form method="POST" action="{{ route('admin.matches.resolve', $match) }}" id="ap-decision-form">
+        @csrf
+
+        <div class="grid gap-3 md:grid-cols-2">
+            <div class="ap-field">
+                <label class="ap-label" for="d-action">Decision</label>
+                <select name="action" id="d-action" class="ap-select">
+                    @if($report && $report->status === 'pending_confirmation')
+                        <option value="confirm_report">Confirmar el reporte por el rival</option>
+                    @endif
+                    <option value="force_complete">Cerrar con un resultado</option>
+                    <option value="dispute">Abrir disputa y congelar</option>
+                    <option value="abandonment_walkover">Alguien abandono: derrota y sancion</option>
+                    <option value="support_infraction">Infraccion de soporte</option>
+                    <option value="void">Anular sin puntos</option>
+                </select>
+            </div>
+
+            <div class="ap-field" data-ap-when="force_complete">
+                <label class="ap-label" for="d-winner">Quien gano</label>
+                <select name="winner_team" id="d-winner" class="ap-select">
+                    <option value="team_a" @selected($claimed === 'team_a')>Equipo A · {{ $realmName($match->team_a_realm) }}</option>
+                    <option value="team_b" @selected($claimed === 'team_b')>Equipo B · {{ $realmName($match->team_b_realm) }}</option>
+                    <option value="draw" @selected($claimed === 'draw')>Empate, sin ganador</option>
+                </select>
+                <span class="ap-hint">Viene preseleccionado lo que dice el reporte, si lo hay.</span>
+            </div>
+
+            {{-- Sin JavaScript se ven todos los campos. Es feo pero honesto: si
+                 este selector estuviera oculto por defecto y el script fallara,
+                 al elegir "abandono" se sancionaria al primer jugador de la
+                 lista sin que nadie lo viera. --}}
+            <div class="ap-field" data-ap-when="abandonment_walkover support_infraction">
+                <label class="ap-label" for="d-player">Jugador afectado</label>
+                <select name="player_id" id="d-player" class="ap-select">
+                    @foreach($match->getAllPlayers() as $player)
+                        <option value="{{ $player['player_id'] }}">{{ $player['character_name'] }}</option>
+                    @endforeach
+                </select>
+                <span class="ap-hint">Su equipo pierde la partida y el jugador queda bloqueado.</span>
+            </div>
+
+            <div class="ap-field md:col-span-2">
+                <label class="ap-label" for="d-note">Nota interna (opcional)</label>
+                <textarea name="note" id="d-note" rows="2" class="ap-textarea"
+                          placeholder="Por que decides esto. Queda guardado con el caso."></textarea>
+            </div>
+        </div>
+
+        <div class="ap-decision-summary" id="ap-decision-summary"></div>
+
+        <button type="submit" class="ap-btn ap-btn-primary mt-3" id="ap-decision-submit">Confirmar decision</button>
+    </form>
+</section>
+
+{{-- Auditoria de zona --}}
+<div id="modal-admin-zone-map" class="ap-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="ap-zone-title">
+    <div class="ap-modal-backdrop" data-modal-close="modal-admin-zone-map"></div>
+    <div class="ap-modal-panel">
+        <div class="ap-section-head">
+            <div>
+                <h2 class="ap-section-title" id="ap-zone-title">{{ $match->zone_name }}</h2>
+                <p class="ap-section-note">Zona asignada a este enfrentamiento.</p>
+            </div>
+            <button type="button" class="ap-icon-btn" data-modal-close="modal-admin-zone-map" aria-label="Cerrar">
+                <x-admin.icon name="close" class="h-4 w-4" />
             </button>
         </div>
-        <x-arena-zone-map :zone-key="$match->zone_key" height="450px" />
+        <x-arena-zone-map :zone-key="$match->zone_key" height="420px" />
     </div>
 </div>
+
+@push('scripts')
+<script>
+    // La decision manda: los campos que no aplican se ocultan y el resumen
+    // dice en una frase que va a pasar al confirmar.
+    (function () {
+        const form = document.getElementById('ap-decision-form');
+        if (!form) return;
+
+        const select = document.getElementById('d-action');
+        const summary = document.getElementById('ap-decision-summary');
+        const submit = document.getElementById('ap-decision-submit');
+        const groups = form.querySelectorAll('[data-ap-when]');
+
+        const copy = {
+            confirm_report: {
+                text: 'Se aplica el reporte tal cual, como si el rival lo hubiera confirmado. Sirve para ensayar el flujo completo y para desatascar un reporte que el rival no va a contestar.',
+                label: 'Confirmar por el rival',
+                confirm: 'Vas a dar por bueno el reporte y mover el ranking.',
+                danger: false,
+            },
+            force_complete: {
+                text: 'Se cierra el enfrentamiento con el resultado elegido y se reparten puntos y MMR entre todos los participantes.',
+                label: 'Cerrar y repartir puntos',
+                confirm: 'Vas a cerrar el enfrentamiento y mover el ranking.',
+                danger: false,
+            },
+            dispute: {
+                text: 'El enfrentamiento queda congelado en disputa. No reparte puntos hasta que lo resuelvas.',
+                label: 'Abrir disputa',
+                confirm: null,
+                danger: false,
+            },
+            abandonment_walkover: {
+                text: 'El equipo del jugador elegido pierde, y el jugador recibe bloqueo de cola y baja de confianza.',
+                label: 'Aplicar derrota por abandono',
+                confirm: 'Vas a dar la partida por perdida a su equipo y sancionar al jugador.',
+                danger: true,
+            },
+            support_infraction: {
+                text: 'Se sanciona al jugador por incumplir las reglas de soporte, con bloqueo y perdida de confianza.',
+                label: 'Aplicar sancion',
+                confirm: 'Vas a sancionar al jugador por infraccion de soporte.',
+                danger: true,
+            },
+            void: {
+                text: 'El enfrentamiento se anula. Nadie gana ni pierde puntos, y no cuenta en el historial competitivo.',
+                label: 'Anular enfrentamiento',
+                confirm: 'Vas a anular este enfrentamiento. No repartira puntos.',
+                danger: true,
+            },
+        };
+
+        const render = () => {
+            const action = select.value;
+            const info = copy[action];
+
+            groups.forEach((group) => {
+                group.hidden = !group.dataset.apWhen.split(' ').includes(action);
+            });
+
+            summary.textContent = info.text;
+            summary.classList.toggle('ap-decision-danger', info.danger);
+            submit.textContent = info.label;
+            submit.classList.toggle('ap-btn-danger', info.danger);
+            submit.classList.toggle('ap-btn-primary', !info.danger);
+            form.setAttribute('data-ap-confirm', info.confirm || '');
+            if (!info.confirm) form.removeAttribute('data-ap-confirm');
+        };
+
+        select.addEventListener('change', render);
+        render();
+    })();
+</script>
+@endpush
 @endsection

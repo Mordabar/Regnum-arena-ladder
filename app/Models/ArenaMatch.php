@@ -90,15 +90,17 @@ class ArenaMatch extends Model
         'alsius' => 'Alsius',
     ];
 
+    // La modalidad (2v2 / 3v3) se agrega aparte desde arena_mode.
     const QUEUE_MODES = [
-        'random' => 'Random 2v2',
-        'premade' => 'Premade 2v2',
+        'random' => 'Random',
+        'premade' => 'Premade',
     ];
 
     protected $fillable = [
         'match_code',
         'report_token',
         'queue_mode',
+        'arena_mode',
         'team_a_queue_type',
         'team_b_queue_type',
         'team_a_realm',
@@ -243,16 +245,24 @@ class ArenaMatch extends Model
             && in_array($this->report->status, ['pending_confirmation', 'rejected', 'disputed'], true);
     }
 
+    public function getArenaModeLabelAttribute(): string
+    {
+        return \App\Support\ArenaMode::label($this->arena_mode);
+    }
+
     public function getQueueModeNameAttribute()
     {
         $teamAType = $this->team_a_queue_type;
         $teamBType = $this->team_b_queue_type;
+        $mode = $this->arena_mode_label;
 
         if ($teamAType && $teamBType && $teamAType !== $teamBType) {
-            return 'Random vs Premade 2v2';
+            return 'Random vs Premade ' . $mode;
         }
 
-        return self::QUEUE_MODES[$this->queue_mode] ?? $this->queue_mode;
+        $queueMode = self::QUEUE_MODES[$this->queue_mode] ?? $this->queue_mode;
+
+        return trim($queueMode . ' ' . $mode);
     }
 
     public function getTeamQueueType(string $side): string

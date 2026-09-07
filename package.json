@@ -4,13 +4,24 @@
     "version": "1.0.0",
     "scripts": {
         "dev": "vite",
-        "build": "vite build"
+        "build": "npm run build:site && npm run build:admin",
+        "build:site": "tailwindcss -i resources/css/site.css -o public/css/site.css --minify",
+        "build:admin": "tailwindcss -c tailwind.admin.config.js -i resources/css/admin.css -o public/css/admin.css --minify",
+        "check:css": "node tools/check-css-coverage.mjs"
     },
     "devDependencies": {
+        "@gltf-transform/cli": "^4.5.0",
+        "@gltf-transform/core": "^4.5.0",
+        "@gltf-transform/extensions": "^4.5.0",
+        "@gltf-transform/functions": "^4.5.0",
         "@tailwindcss/forms": "^0.5.7",
         "autoprefixer": "^10.4.17",
+        "draco3dgltf": "^1.5.7",
         "laravel-vite-plugin": "^1.0.2",
+        "meshoptimizer": "^1.2.0",
+        "obj2gltf": "^3.2.0",
         "postcss": "^8.4.35",
+        "sharp": "^0.35.4",
         "tailwindcss": "^3.4.1",
         "vite": "^5.1.4"
     }
