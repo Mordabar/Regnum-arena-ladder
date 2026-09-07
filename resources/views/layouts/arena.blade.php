@@ -852,28 +852,49 @@
         .arena-console-main > div { display: flex; flex-direction: column; gap: 16px; }
 
         /* ── Invitaciones flotantes ────────────────────────────────────── */
+        /* Van en el centro de la pantalla, no en una esquina. Abajo a la
+           derecha se comian los botones de entrar a cola e invitar aliado,
+           que es justo lo que el jugador tiene debajo cuando le llega una;
+           y en movil competian con los avisos de color, que si viven en la
+           esquina. Aqui no tapan nada que haga falta y se ven siempre, ya
+           este la pagina donde este. */
         .arena-invites {
             position: fixed;
-            right: 18px;
-            bottom: 18px;
+            inset: 0;
             z-index: 55;
             display: flex;
             flex-direction: column;
+            align-items: center;
+            justify-content: center;
             gap: 10px;
-            width: min(340px, calc(100vw - 36px));
+            padding: 18px;
+            pointer-events: none;
+        }
+        .arena-invites[hidden] { display: none; }
+        /* Velo, solo mientras haya alguna sin plegar: separa la invitacion de
+           la pagina sin llegar a bloquearla, porque plegar sigue siendo una
+           salida valida y detras hay cosas que mirar. */
+        .arena-invites:has(.arena-invite:not(.is-folded))::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: rgba(8, 5, 4, 0.55);
+            backdrop-filter: blur(2px);
             pointer-events: none;
         }
         .arena-invite {
+            position: relative;
             pointer-events: auto;
+            width: min(380px, 100%);
             border: 1px solid var(--arena-line-strong);
             border-radius: 16px;
             background: linear-gradient(180deg, rgba(40, 28, 20, 0.97), rgba(14, 10, 8, 0.98));
-            box-shadow: 0 20px 44px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.62);
             padding: 13px 15px;
             animation: arenaInviteIn 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
         }
         @keyframes arenaInviteIn {
-            from { opacity: 0; transform: translateY(14px) scale(0.97); }
+            from { opacity: 0; transform: scale(0.94); }
             to { opacity: 1; transform: none; }
         }
         .arena-invite header {
@@ -919,10 +940,18 @@
             cursor: pointer;
         }
         .arena-invite-folded:hover { background: rgba(255, 255, 255, 0.05); color: var(--arena-text); }
-        .arena-invite.is-folded { padding: 10px 13px; }
+        /* Con todas plegadas la cosa deja de ser urgente: el aviso baja a la
+           esquina de abajo a la izquierda, lejos de los avisos de color que
+           viven a la derecha, y devuelve el centro de la pantalla. */
+        .arena-invites:not(:has(.arena-invite:not(.is-folded))) {
+            align-items: flex-start;
+            justify-content: flex-end;
+        }
+        .arena-invite.is-folded { padding: 10px 13px; width: min(300px, 100%); }
+        .arena-invite.is-folded .arena-invite-folded { margin-top: 6px; }
 
         @media (max-width: 560px) {
-            .arena-invites { right: 12px; left: 12px; bottom: 12px; width: auto; }
+            .arena-invites { padding: 12px; }
         }
 
         /* Modalidad de arena, encima del escenario: manda sobre todo lo que
