@@ -28,7 +28,7 @@
                         </a>
                     </li>
                     <li>
-                        <a href="https://discord.gg/dYeyzd3X" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 text-[color:var(--arena-muted)] transition-colors hover:text-[color:var(--arena-gold-soft)]">
+                        <a href="{{ \App\Models\AppSetting::getValue('discord_invite_url') ?: 'https://discord.gg/QbTYu3fbvr' }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 text-[color:var(--arena-muted)] transition-colors hover:text-[color:var(--arena-gold-soft)]">
                             <svg class="h-4 w-4" opacity="0.7" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
                             Invitación Discord
                         </a>
