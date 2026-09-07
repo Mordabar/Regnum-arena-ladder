@@ -19,11 +19,12 @@ conviene poder citar y fijar por separado.
 > Los tres primeros de la Alpha Season se los llevan. Sin importar el reino.
 > Bases completas más abajo 👇
 >
-> **🗿 Vuestros guerreros, en 3D**
-> **60 modelos** de los tres reinos. Nordos, lamai, enanos, utghar, esquelios,
-> elfos oscuros, moloks, alturianos, semielfos y elfos del bosque. Cada raza,
-> cada sexo, con el equipo de guerrero, arquero o mago. Lo montáis al crear el
-> personaje y lo veis antes de confirmar.
+> **🗿 SABED A QUIÉN OS ENFRENTÁIS**
+> Los modelos 3D no son un adorno: son información. Cuando salta el cruce veis
+> al rival tal cual entra a pelear, su raza, su sexo y su arquetipo, y podéis
+> prepararos para lo que viene. Su nombre sigue oculto hasta que acaba el
+> combate. **60 modelos**, los tres reinos completos, para que ninguna
+> combinación se quede sin representar.
 >
 > **⚔️ 2v2 y 3v3**
 > Dos modalidades, un solo ladder. Cambiáis de una a otra con un clic, sobre
@@ -45,8 +46,7 @@ conviene poder citar y fijar por separado.
 > Corregido de raíz un fallo que repartía puntos que nadie había ganado. El
 > ladder de hoy responde partida por partida.
 >
-> Y por debajo: móvil revisado de punta a punta, sonido arreglado en iPhone y
-> anonimato del rival hasta que acaba el combate.
+> Y por debajo: móvil revisado de punta a punta y sonido arreglado en iPhone.
 >
 > El primer campeón de Arena Ladder sale de esta temporada. La tabla arranca
 > a cero para todos.
@@ -74,11 +74,19 @@ CRUCE/COMBATE/PARTIDAS/GRUPOS (segundo) y AVISOS en adelante (tercero).
 > · Cada modalidad se puede encender y apagar por separado desde el panel.
 > · Los grupos se ajustan al tamaño de la modalidad: 2 o 3 huecos.
 >
-> **🗿 GUERREROS EN 3D**
+> **🗿 LOS MODELOS 3D SON INFORMACIÓN, NO DECORADO**
+> · Para qué están: para que sepas a qué te enfrentas. Al saltar el cruce el
+>   rival aparece con su raza, su sexo y su arquetipo a la vista, y con eso
+>   puedes preparar el combate.
+> · Lo que no revelan: quién es. El nombre del rival sigue oculto hasta que
+>   termina la partida. Ves al enemigo, no al jugador.
+> · Por eso hay un modelo por cada combinación y no una figura genérica: una
+>   silueta que valiese para todos no diría nada.
 > · 60 modelos, los tres reinos completos, por raza, sexo y arquetipo.
-> · 12 razas: nordo, utghar, enano, lamai, esquelio, elfo oscuro, molok,
+> · 10 razas: nordo, utghar, enano, lamai, esquelio, elfo oscuro, molok,
 >   alturiano, elfo del bosque, semielfo.
-> · Cada raza solo ofrece las subclases que le corresponden en el juego.
+> · Cada raza solo ofrece las subclases que le corresponden en el juego, así
+>   que la figura ya te acota lo que el rival puede llevar.
 > · Nombre, raza y sexo se pueden cambiar después. Reino y subclase no.
 > · Se ven en el lobby, en el creador, en el cruce, en el combate, en la ficha
 >   del ladder y en la portada.
