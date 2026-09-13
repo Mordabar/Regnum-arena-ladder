@@ -125,6 +125,32 @@
     window.arenaLoadMap = (function () {
         var pendiente = null;
 
+        // El editor del panel dibuja los mismos puntos para poder moverlos, y
+        // tiene que salirle el mismo numero que al jugador: un calculo copiado
+        // en dos sitios acaba dando dos puntos distintos.
+        window.ArenaMapPoints = {
+            puntoDeEncuentro: puntoDeEncuentro,
+            distanciaAlBorde: distanciaAlBorde,
+            /** El punto de una zona: el fijado a mano si lo tiene, o el calculado. */
+            deZona: function (zone) {
+                if (!zone || !zone.coords || zone.coords.length < 3) { return null; }
+
+                if (Array.isArray(zone.meeting) && zone.meeting.length === 2) {
+                    return {
+                        punto: zone.meeting,
+                        holgura: distanciaAlBorde(zone.meeting, zone.coords),
+                        fijado: true,
+                    };
+                }
+
+                var calculado = puntoDeEncuentro(zone.coords);
+                calculado.fijado = false;
+
+                return calculado;
+            },
+        };
+
+
         function traer(tag, attrs) {
             return new Promise(function (resolve, reject) {
                 var el = document.createElement(tag);
@@ -311,11 +337,9 @@
                         // o el mapa entero se llena de carteles.
                         // El calculo es geometrico: da el punto mas interior,
                         // pero no sabe si ahi hay agua o un risco. Cuando una
-                        // zona necesite otro sitio, se le pone "meeting":
-                        // [y, x] en arena-zones.js y manda ese.
-                        var encuentro = Array.isArray(zone.meeting) && zone.meeting.length === 2
-                            ? { punto: zone.meeting, holgura: distanciaAlBorde(zone.meeting, zone.coords) }
-                            : puntoDeEncuentro(zone.coords);
+                        // zona necesite otro sitio, se mueve desde el editor
+                        // del panel y queda como "meeting": [y, x].
+                        var encuentro = window.ArenaMapPoints.deZona(zone);
 
                         if (isHighlighted || !highlightKey) {
                             if (isHighlighted) {
