@@ -31,6 +31,7 @@ class MatchReport extends Model
         'encounter_screenshot_path',
         'final_screenshot_path',
         'evidence_paths',
+        'rejection_evidence_paths',
         'reporter_note',
         'confirmed_by_player_id',
         'confirmed_at',
@@ -50,6 +51,7 @@ class MatchReport extends Model
             'rejected_at' => 'datetime',
             'reviewed_at' => 'datetime',
             'evidence_paths' => 'array',
+            'rejection_evidence_paths' => 'array',
             'resolution_payload' => 'array',
         ];
     }
@@ -150,10 +152,52 @@ class MatchReport extends Model
         return $items;
     }
 
+    /**
+     * Las capturas que adjunto quien rechazo el reporte.
+     *
+     * Van aparte de las del reporte a proposito: en una disputa lo que importa
+     * es poder poner las dos versiones una al lado de la otra, y mezclarlas en
+     * la misma lista las volveria indistinguibles.
+     *
+     * @return array<int, string>
+     */
+    public function rejectionEvidencePaths(): array
+    {
+        return collect($this->rejection_evidence_paths ?? [])
+            ->filter(fn ($path) => is_string($path) && trim($path) !== '')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{slot: string, label: string, path: string, url: string|null}>
+     */
+    public function rejectionEvidenceItems(): array
+    {
+        return collect($this->rejectionEvidencePaths())
+            ->map(function (string $path, int $index) {
+                $slot = 'rejection-' . ($index + 1);
+
+                return [
+                    'slot' => $slot,
+                    'label' => 'Prueba del rechazo ' . ($index + 1),
+                    'path' => $path,
+                    'url' => $this->evidenceUrl($slot),
+                ];
+            })
+            ->all();
+    }
+
     public function evidencePath(string $slot): ?string
     {
         if ($slot === 'primary') {
             return $this->evidencePaths()[0] ?? null;
+        }
+
+        if (preg_match('/^rejection-(\d+)$/', $slot, $matches) === 1) {
+            $index = max(0, ((int) $matches[1]) - 1);
+
+            return $this->rejectionEvidencePaths()[$index] ?? null;
         }
 
         if (preg_match('/^evidence-(\d+)$/', $slot, $matches) === 1) {

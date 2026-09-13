@@ -282,11 +282,29 @@ class TestingLabService
     {
         $deleted = 0;
 
+        // Los dos juegos de capturas, las del reporte y las del rechazo, y en
+        // los discos donde de verdad estan: hasta ahora se buscaban en 'local',
+        // cuya raiz es storage/app, mientras que se guardan en 'arena_reports',
+        // que cuelga de storage/app/arena-reports. No se borraba ni una.
+        $discos = [MatchReport::EVIDENCE_DISK, 'public', 'local'];
+
         foreach (MatchReport::query()->whereIn('match_id', $matchIds)->get() as $report) {
-            foreach ((array) ($report->evidence_paths ?? []) as $path) {
-                if (is_string($path) && $path !== '' && Storage::disk('local')->exists($path)) {
-                    Storage::disk('local')->delete($path);
-                    $deleted++;
+            $rutas = array_merge(
+                (array) ($report->evidence_paths ?? []),
+                (array) ($report->rejection_evidence_paths ?? [])
+            );
+
+            foreach ($rutas as $path) {
+                if (!is_string($path) || $path === '') {
+                    continue;
+                }
+
+                foreach ($discos as $disco) {
+                    if (Storage::disk($disco)->exists($path)) {
+                        Storage::disk($disco)->delete($path);
+                        $deleted++;
+                        break;
+                    }
                 }
             }
         }

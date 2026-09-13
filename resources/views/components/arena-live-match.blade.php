@@ -185,7 +185,12 @@
                 <button type="button" class="arena-btn-danger-ghost px-5 py-2.5" data-reject-toggle>Rechazar y explicar</button>
             </div>
 
-            <form method="POST" action="{{ route('matches.report.reject') }}" class="arena-report-reject" data-reject-form hidden>
+            {{-- El rechazo admite capturas. Sin ellas moderacion tiene la
+                 version del otro con pruebas y la tuya sin ninguna, asi que se
+                 pide aunque no se obligue: quien no tomo captura tiene que
+                 poder rechazar igual, o se tragaria un resultado falso. --}}
+            <form method="POST" action="{{ route('matches.report.reject') }}" class="arena-report-reject"
+                  data-reject-form enctype="multipart/form-data" hidden>
                 @csrf
                 <input type="hidden" name="report_id" value="{{ $report->id }}">
                 <input type="hidden" name="player_id" value="{{ $lineup['viewer_player_id'] }}">
@@ -194,7 +199,14 @@
                     <textarea name="rejection_note" rows="3" class="arena-textarea" required
                               placeholder="Cuenta que paso de verdad. Lo lee moderacion, no el rival."></textarea>
                 </label>
-                <button type="submit" class="arena-btn-danger px-5 py-2.5">Enviar el rechazo</button>
+                <label class="block mt-4">
+                    <span class="mb-2 block text-sm font-medium arena-body-text">Tus capturas (opcional, hasta 3)</span>
+                    <input type="file" name="rejection_files[]" accept="image/*" class="arena-field text-sm" multiple>
+                    <span class="mt-2 block text-xs text-[color:var(--arena-muted)]">
+                        Con pruebas el arbitraje es mucho mas rapido. Mismos formatos que el reporte, hasta 10 MB cada una.
+                    </span>
+                </label>
+                <button type="submit" class="arena-btn-danger px-5 py-2.5 mt-4">Enviar el rechazo</button>
             </form>
         </div>
     @endif

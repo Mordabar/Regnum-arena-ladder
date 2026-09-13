@@ -133,6 +133,26 @@
                 <p class="ap-quote">“{{ $report->rejection_note }}”</p>
             @endif
 
+            {{-- Las pruebas del rechazo van aparte de las del reporte: en una
+                 disputa lo util es tener las dos versiones separadas y poder
+                 compararlas, no una lista donde no se sabe quien aporto que. --}}
+            @if(count($report->rejectionEvidenceItems()))
+                <p class="ap-label mt-3 mb-1.5">Capturas que aporto el rival al rechazar</p>
+                <div class="flex flex-wrap gap-2">
+                    @foreach($report->rejectionEvidenceItems() as $evidence)
+                        <a href="{{ $evidence['url'] }}" target="_blank" rel="noopener" class="ap-btn ap-btn-sm">
+                            <x-admin.icon name="external" class="h-3.5 w-3.5" />
+                            {{ $evidence['label'] }}
+                        </a>
+                    @endforeach
+                </div>
+            @elseif($report->rejected_at || $report->status === 'rejected')
+                {{-- Se mira el rechazo en si, no su nota: un rechazo sin nota
+                     dejaba la pantalla sin una sola señal de que alguien habia
+                     rechazado algo. --}}
+                <p class="ap-hint mt-2">El rival rechazo sin aportar capturas.</p>
+            @endif
+
             @if($report->admin_note)
                 <p class="ap-label mt-3 mb-1.5">Nota de moderacion</p>
                 <p class="ap-quote">{{ $report->admin_note }}</p>

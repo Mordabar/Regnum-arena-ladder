@@ -101,6 +101,7 @@
         <li><strong class="text-white">Conjuradores:</strong> solo puede haber uno de soporte por equipo.</li>
         <li><strong class="text-white">Anonimato:</strong> del rival ves reino y subclase, nunca el nombre, hasta que el enfrentamiento se cierra.</li>
         <li><strong class="text-white">Reporte:</strong> quien reporta sube entre 1 y 3 capturas. El rival confirma o rechaza; si deja pasar el plazo sin decir nada, el reporte se da por bueno.</li>
+        <li><strong class="text-white">Rechazo:</strong> rechazar manda el enfrentamiento a disputa y lo revisa moderacion. Puedes adjuntar tus propias capturas, y con ellas se resuelve mucho antes.</li>
         <li><strong class="text-white">Sin reporte:</strong> si nadie reporta antes de que se agote el reloj, el enfrentamiento se anula y no reparte puntos.</li>
         <li><strong class="text-white">Abandonos:</strong> rechazar cruces a menudo o abandonar partidas baja tu confianza y bloquea la cola un tiempo.</li>
     </ul>

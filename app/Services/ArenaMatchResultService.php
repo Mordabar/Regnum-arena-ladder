@@ -113,6 +113,7 @@ class ArenaMatchResultService
                         'rejected_by_player_id' => null,
                         'rejected_at' => null,
                         'rejection_note' => null,
+                        'rejection_evidence_paths' => null,
                         'reviewed_by_user_id' => null,
                         'reviewed_at' => null,
                         'admin_note' => null,
@@ -165,12 +166,7 @@ class ArenaMatchResultService
                 $this->expirePendingReport($match, 'Report confirmation window expired before confirmation');
             });
 
-            $freshMatch = $match->fresh('report');
-            if ($freshMatch?->report) {
-                $this->discordBotService->notifyMatchDisputed($freshMatch, $freshMatch->report);
-            }
-
-            throw new \RuntimeException('El tiempo para confirmar este reporte expiro. El match paso a disputa.');
+            throw new \RuntimeException('El tiempo para responder este reporte expiro. Al no contestar, el resultado se dio por bueno.');
         }
 
         if ($report->status !== 'pending_confirmation') {
@@ -228,8 +224,23 @@ class ArenaMatchResultService
         });
     }
 
-    public function rejectReport(MatchReport $report, Player $rejector, ?string $note = null): MatchReport
-    {
+    /**
+     * El rival rechaza el reporte y el enfrentamiento pasa a disputa.
+     *
+     * $evidenceFiles son las capturas con las que el que rechaza sostiene su
+     * version. Son opcionales: obligarlas dejaria sin salida a quien no tomo
+     * captura, y le forzaria a tragarse un resultado falso. Pero se guardan
+     * aparte de las del reporte para que moderacion pueda poner las dos
+     * versiones una al lado de la otra.
+     *
+     * @param array<int, \Illuminate\Http\UploadedFile> $evidenceFiles
+     */
+    public function rejectReport(
+        MatchReport $report,
+        Player $rejector,
+        ?string $note = null,
+        array $evidenceFiles = []
+    ): MatchReport {
         $match = $report->match()->firstOrFail();
 
         if ($this->hasPendingReportExpired($match, $report)) {
@@ -237,12 +248,7 @@ class ArenaMatchResultService
                 $this->expirePendingReport($match, 'Report confirmation window expired before rejection');
             });
 
-            $freshMatch = $match->fresh('report');
-            if ($freshMatch?->report) {
-                $this->discordBotService->notifyMatchDisputed($freshMatch, $freshMatch->report);
-            }
-
-            throw new \RuntimeException('El tiempo para responder este reporte expiro. El match paso a disputa.');
+            throw new \RuntimeException('El tiempo para responder este reporte expiro. Al no contestar, el resultado se dio por bueno.');
         }
 
         if ($report->status !== 'pending_confirmation') {
@@ -254,12 +260,37 @@ class ArenaMatchResultService
             throw new \RuntimeException('Solo el equipo rival puede rechazar este reporte.');
         }
 
-        DB::transaction(function () use ($report, $rejector, $note, $match) {
+        // Las capturas se guardan ANTES de abrir la transaccion: escribir
+        // ficheros dentro de una transaccion no se puede deshacer si algo falla
+        // despues, y quedarian huerfanos en el disco.
+        $archivos = array_slice(
+            array_values(array_filter($evidenceFiles, fn ($file) => $file instanceof UploadedFile)),
+            0,
+            3
+        );
+
+        $storedPaths = [];
+
+        try {
+            foreach ($archivos as $index => $file) {
+                $storedPaths[] = $this->storeScreenshot($match, $file, 'rejection-' . ($index + 1));
+            }
+        } catch (\Throwable $e) {
+            // Si la segunda captura falla, la primera ya esta en disco y no la
+            // referencia nadie. Se limpia antes de propagar.
+            $this->deleteEvidencePaths($storedPaths);
+
+            throw $e;
+        }
+
+        try {
+            DB::transaction(function () use ($report, $rejector, $note, $match, $storedPaths) {
             $report->update([
                 'status' => 'rejected',
                 'rejected_by_player_id' => $rejector->id,
                 'rejected_at' => now(),
                 'rejection_note' => $note,
+                'rejection_evidence_paths' => $storedPaths !== [] ? $storedPaths : null,
             ]);
 
             $match->update([
@@ -268,8 +299,13 @@ class ArenaMatchResultService
                 'notes' => $this->appendNote($match->notes, 'Report rejected by rival: ' . $rejector->character_name),
             ]);
 
-            $this->closeMatchQueues($match);
-        });
+                $this->closeMatchQueues($match);
+            });
+        } catch (\Throwable $e) {
+            $this->deleteEvidencePaths($storedPaths);
+
+            throw $e;
+        }
 
         $this->ladderCacheService->forgetRecentMatches();
         $this->discordBotService->notifyMatchDisputed($match->fresh('report'), $report);
@@ -1115,19 +1151,12 @@ class ArenaMatchResultService
         foreach ($expiredMatches as $match) {
             try {
                 DB::transaction(function () use ($match) {
-                    $report = $match->report;
-
-                    $report->update([
-                        'status' => 'confirmed',
-                        'confirmed_at' => now(),
-                        'resolution_payload' => [
-                            'resolution_source' => 'confirmation_window_elapsed',
-                        ],
-                    ]);
-
-                    $this->finalizeMatch($match->fresh('report'), $report->claimed_winner_team, false, [
-                        'resolution_source' => 'confirmation_window_elapsed',
-                    ]);
+                    // El mismo camino que cuando el jugador llega tarde a la
+                    // pantalla. Estaba copiado aqui, y las dos copias ya habian
+                    // empezado a separarse: una anotaba el motivo en el
+                    // enfrentamiento y la otra no, y cada una guardaba un
+                    // origen distinto para el mismo suceso.
+                    $this->expirePendingReport($match, 'Report confirmation window expired');
                 });
 
                 $closed++;
@@ -1141,7 +1170,7 @@ class ArenaMatchResultService
                 ]);
 
                 DB::transaction(function () use ($match) {
-                    $this->expirePendingReport($match, 'Report confirmation window expired');
+                    $this->disputePendingReport($match, 'Report confirmation window expired');
                 });
             }
         }
@@ -1495,9 +1524,24 @@ SVG;
             && now()->gt($match->expires_at);
     }
 
-    private function expirePendingReport(ArenaMatch $match, string $reason): void
+    /**
+     * Red de seguridad: el reporte vencio y ademas no se pudo puntuar.
+     *
+     * No es el caso normal -ese lo resuelve expirePendingReport dando el
+     * reporte por bueno- sino el del enfrentamiento que ya se cerro por otro
+     * camino o que rompe al calcular. Eso necesita una persona, asi que va a
+     * disputa, que es donde moderacion lo ve.
+     */
+    private function disputePendingReport(ArenaMatch $match, string $reason): void
     {
-        $match->loadMissing('report');
+        // Se relee de la base a proposito. Aqui se llega desde el catch de una
+        // transaccion que ya marco el reporte como confirmado EN MEMORIA antes
+        // de fallar; la vuelta atras deshizo la fila, no el objeto. Con el
+        // objeto viejo la guardia de abajo veia 'confirmed', se iba sin hacer
+        // nada, y el enfrentamiento se quedaba colgado: nunca llegaba a
+        // moderacion y los dos jugadores seguian atrapados en su fila de cola.
+        $match->unsetRelation('report');
+        $match->load('report');
 
         if (!$match->report || $match->report->status !== 'pending_confirmation') {
             return;
@@ -1506,7 +1550,10 @@ SVG;
         $match->report->update([
             'status' => 'disputed',
             'resolution_payload' => [
-                'resolution_source' => 'report_confirmation_timeout',
+                // Nombre propio: 'report_confirmation_timeout' es el silencio
+                // que SI puntua. Compartir cadena para dos desenlaces opuestos
+                // deja cualquier consulta de moderacion sin poder separarlos.
+                'resolution_source' => 'report_confirmation_timeout_unscorable',
             ],
         ]);
 
@@ -1517,6 +1564,44 @@ SVG;
         ]);
 
         $this->closeMatchQueues($match);
+        $this->ladderCacheService->forgetRecentMatches();
+    }
+
+    /**
+     * El rival dejo pasar su plazo sin decir nada.
+     *
+     * Antes esto mandaba el enfrentamiento a disputa, y no cuadraba: a disputa
+     * se entra cuando alguien RECHAZA, porque hay dos versiones enfrentadas que
+     * un arbitro tiene que mirar. El silencio no es una version enfrentada; el
+     * silencio otorga. Ademas mandar a disputa cada reporte no contestado
+     * llenaba la bandeja de moderacion de cosas que nadie discutia.
+     *
+     * Asi que el reporte se da por bueno y reparte puntos, igual que si el
+     * rival hubiera pulsado confirmar. Queda anotado de donde salio.
+     */
+    private function expirePendingReport(ArenaMatch $match, string $reason): void
+    {
+        $match->loadMissing('report');
+
+        if (!$match->report || $match->report->status !== 'pending_confirmation') {
+            return;
+        }
+
+        $report = $match->report;
+
+        $report->update([
+            'status' => 'confirmed',
+            'confirmed_at' => now(),
+        ]);
+
+        $match->update([
+            'notes' => $this->appendNote($match->notes, $reason),
+        ]);
+
+        $this->finalizeMatch($match->fresh('report'), $report->claimed_winner_team, false, [
+            'resolution_source' => 'report_confirmation_timeout',
+        ]);
+
         $this->ladderCacheService->forgetRecentMatches();
     }
 

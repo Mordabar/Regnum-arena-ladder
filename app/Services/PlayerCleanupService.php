@@ -218,7 +218,11 @@ class PlayerCleanupService
             ->whereIn('match_id', $matchIds)
             ->get()
             ->flatMap(function (MatchReport $report) {
+                // Las del rechazo tambien. Son ficheros que subio una persona:
+                // si se borra su cuenta y sus enfrentamientos, no pueden
+                // quedarse en el disco para siempre.
                 return collect($report->evidenceItems())
+                    ->concat($report->rejectionEvidenceItems())
                     ->map(function (array $item) use ($report) {
                         return [
                             'disk' => $report->resolveEvidenceDisk((string) $item['slot']),

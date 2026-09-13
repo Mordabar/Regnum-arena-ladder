@@ -605,11 +605,21 @@
                         <p class="text-sm text-[color:var(--arena-muted)] arena-body-text mb-4">
                             Si rechazas el reporte, el match pasará a moderación. Un administrador revisará la evidencia y decidirá el resultado.
                         </p>
-                        <form method="POST" action="{{ route('matches.report.reject') }}" class="space-y-4">
+                        {{-- Mismo formulario que el del lobby, capturas
+                             incluidas: si aqui no se pudieran adjuntar, quien
+                             conteste desde esta pantalla llegaria a moderacion
+                             sin nada que enseñar. --}}
+                        <form method="POST" action="{{ route('matches.report.reject') }}" class="space-y-4"
+                              enctype="multipart/form-data">
                             @csrf
                             <input type="hidden" name="report_id" value="{{ $report->id }}">
                             <input type="hidden" name="player_id" value="{{ $viewerPlayer['player_id'] }}">
-                            <textarea name="rejection_note" rows="3" class="arena-textarea" placeholder="Explica por qué rechazas el reporte"></textarea>
+                            <textarea name="rejection_note" rows="3" class="arena-textarea" required
+                                      placeholder="Explica por qué rechazas el reporte"></textarea>
+                            <label class="block">
+                                <span class="mb-2 block text-sm font-medium arena-body-text">Tus capturas (opcional, hasta 3)</span>
+                                <input type="file" name="rejection_files[]" accept="image/*" class="arena-field text-sm" multiple>
+                            </label>
                             <div class="flex gap-3">
                                 <button type="submit" class="arena-btn-warning">Enviar a disputa</button>
                                 <button type="button" class="arena-btn-ghost" data-modal-close="modal-dispute">Cancelar</button>

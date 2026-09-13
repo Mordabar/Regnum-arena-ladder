@@ -278,14 +278,26 @@ class ArenaMatchController extends Controller
         $request->validate([
             'report_id' => 'required|exists:match_reports,id',
             'player_id' => 'required|exists:players,id',
-            'rejection_note' => 'nullable|string|max:1000',
+            'rejection_note' => 'required|string|min:5|max:1000',
+            'rejection_files' => 'nullable|array|max:3',
+            'rejection_files.*' => 'file|mimes:jpg,jpeg,png,webp,gif,bmp,avif,heic,heif|max:10240',
+        ], [
+            'rejection_note.required' => 'Explica por que lo rechazas: sin motivo moderacion no tiene por donde empezar.',
+            'rejection_files.max' => 'Solo puedes subir hasta 3 capturas con el rechazo.',
+            'rejection_files.*.mimes' => 'Las capturas deben ser JPG, PNG, WEBP, GIF, BMP, AVIF o HEIC.',
+            'rejection_files.*.max' => 'Cada captura no puede superar los 10 MB.',
         ]);
 
         $report = MatchReport::with('match')->findOrFail($request->report_id);
         $player = Auth::user()->players()->findOrFail((int) $request->player_id);
 
         try {
-            $resultService->rejectReport($report, $player, $request->rejection_note);
+            $resultService->rejectReport(
+                $report,
+                $player,
+                $request->rejection_note,
+                $request->file('rejection_files', [])
+            );
         } catch (\Throwable $e) {
             return back()->withErrors(['error' => $e->getMessage()]);
         }
