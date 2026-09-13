@@ -46,6 +46,30 @@
         font-weight: 600;
         letter-spacing: 0.06em;
     }
+    .arena-map-zone-note {
+        margin: 6px 0 0;
+        font-size: 11px;
+        color: #b9a98c;
+        font-family: 'Inter', sans-serif;
+    }
+    /* El cartel del punto de encuentro. Naranja y no dorado a proposito: el
+       oro ya lo usan el nombre de la zona y su borde, y con el mismo color los
+       dos carteles se leian como uno solo. */
+    .arena-map-meet {
+        background: rgba(20, 10, 5, 0.9);
+        border: 1px solid rgba(244, 162, 97, 0.75);
+        border-radius: 4px;
+        color: #ffc48c;
+        font-family: 'Inter', sans-serif;
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        padding: 2px 7px;
+        white-space: nowrap;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.8);
+    }
+    .arena-map-meet::before { display: none; }
+
     .arena-map-label {
         background: rgba(12, 8, 6, 0.85);
         border: 1px solid rgba(216, 177, 92, 0.5);
@@ -142,6 +166,74 @@
             return pendiente;
         };
 
+        /* Punto de encuentro de una zona.
+
+           Las zonas son grandes y "nos vemos en la zona 8" deja a cuatro
+           personas dando vueltas por media frontera. Esto calcula el punto mas
+           interior del poligono -el que queda mas lejos de cualquier borde- y
+           es donde se queda para pelear.
+
+           No vale el centro de masas: en una zona en forma de arco cae fuera
+           del propio terreno. El calculo es una busqueda por rejilla que se va
+           afinando, siempre sobre los mismos vertices, asi que los cuatro
+           jugadores del cruce ven exactamente el mismo punto. */
+        function distanciaAlBorde(punto, coords) {
+            var dentro = false;
+            var minimo = Infinity;
+
+            for (var i = 0, j = coords.length - 1; i < coords.length; j = i++) {
+                var ay = coords[i][0], ax = coords[i][1];
+                var by = coords[j][0], bx = coords[j][1];
+
+                if ((ay > punto[0]) !== (by > punto[0]) &&
+                    punto[1] < (bx - ax) * (punto[0] - ay) / (by - ay) + ax) {
+                    dentro = !dentro;
+                }
+
+                // Distancia del punto al segmento AB.
+                var dy = by - ay, dx = bx - ax;
+                var largo = dy * dy + dx * dx;
+                var t = largo === 0 ? 0 : ((punto[0] - ay) * dy + (punto[1] - ax) * dx) / largo;
+                t = Math.max(0, Math.min(1, t));
+                var py = ay + t * dy, px = ax + t * dx;
+                minimo = Math.min(minimo, Math.sqrt(Math.pow(punto[0] - py, 2) + Math.pow(punto[1] - px, 2)));
+            }
+
+            return dentro ? minimo : -minimo;
+        }
+
+        function puntoDeEncuentro(coords) {
+            var ys = coords.map(function (c) { return c[0]; });
+            var xs = coords.map(function (c) { return c[1]; });
+            var y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+            var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+
+            var mejor = [(y0 + y1) / 2, (x0 + x1) / 2];
+            var mejorDistancia = -Infinity;
+            var paso = Math.max((y1 - y0), (x1 - x0)) / 16;
+
+            for (var vuelta = 0; vuelta < 5; vuelta++) {
+                var desdeY = vuelta === 0 ? y0 : mejor[0] - paso * 2;
+                var hastaY = vuelta === 0 ? y1 : mejor[0] + paso * 2;
+                var desdeX = vuelta === 0 ? x0 : mejor[1] - paso * 2;
+                var hastaX = vuelta === 0 ? x1 : mejor[1] + paso * 2;
+
+                for (var y = desdeY; y <= hastaY; y += paso) {
+                    for (var x = desdeX; x <= hastaX; x += paso) {
+                        var d = distanciaAlBorde([y, x], coords);
+                        if (d > mejorDistancia) {
+                            mejorDistancia = d;
+                            mejor = [y, x];
+                        }
+                    }
+                }
+
+                paso /= 3;
+            }
+
+            return { punto: mejor, holgura: Math.max(mejorDistancia, 0) };
+        }
+
         function crearFabrica() {
             return {
                 create: function (containerId, options) {
@@ -210,7 +302,51 @@
                             polygon.bindPopup(`
                                 <div class="arena-map-zone-badge">Zona PvP</div>
                                 <h4 class="arena-map-zone-title">${zone.name}</h4>
+                                <p class="arena-map-zone-note">El aspa marca el punto de encuentro.</p>
                             `);
+                        }
+
+                        // El punto de encuentro. En la zona del cruce va con su
+                        // circulo y su cartel; en las demas basta con la marca,
+                        // o el mapa entero se llena de carteles.
+                        // El calculo es geometrico: da el punto mas interior,
+                        // pero no sabe si ahi hay agua o un risco. Cuando una
+                        // zona necesite otro sitio, se le pone "meeting":
+                        // [y, x] en arena-zones.js y manda ese.
+                        var encuentro = Array.isArray(zone.meeting) && zone.meeting.length === 2
+                            ? { punto: zone.meeting, holgura: distanciaAlBorde(zone.meeting, zone.coords) }
+                            : puntoDeEncuentro(zone.coords);
+
+                        if (isHighlighted || !highlightKey) {
+                            if (isHighlighted) {
+                                L.circle(encuentro.punto, {
+                                    radius: Math.max(18, Math.min(encuentro.holgura * 0.55, 55)),
+                                    color: '#f4a261',
+                                    weight: 1,
+                                    dashArray: '4 5',
+                                    fillColor: '#f4a261',
+                                    fillOpacity: 0.12,
+                                    interactive: false,
+                                }).addTo(map);
+                            }
+
+                            var marca = L.circleMarker(encuentro.punto, {
+                                radius: isHighlighted ? 6 : 3,
+                                color: '#1a1209',
+                                weight: isHighlighted ? 2 : 1,
+                                fillColor: isHighlighted ? '#f9d87e' : 'rgba(244, 162, 97, 0.75)',
+                                fillOpacity: 1,
+                                interactive: false,
+                            }).addTo(map);
+
+                            if (isHighlighted) {
+                                marca.bindTooltip('PUNTO DE ENCUENTRO', {
+                                    permanent: true,
+                                    direction: 'bottom',
+                                    offset: [0, 8],
+                                    className: 'arena-map-meet',
+                                });
+                            }
                         }
 
                         if (isHighlighted) {

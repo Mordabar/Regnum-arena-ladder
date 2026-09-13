@@ -720,15 +720,16 @@ class ArenaMatchmakingService
             ->values()
             ->all();
 
-        // Las zonas de la frontera entre estos dos reinos van primero, y en el
-        // orden en que estan declaradas. Antes la zona salia por sorteo entre
-        // todas las libres y mandaba a la gente a cruzar el mapa entero para
-        // encontrarse; con esto, un Syrtis contra Ignis cae en su frontera
-        // mientras quede alguna libre.
+        // El sorteo se hace entre las zonas de la frontera de estos dos reinos,
+        // no entre las catorce. Antes salia cualquiera y mandaba a la gente a
+        // cruzar el mapa entero para encontrarse; ahora un Syrtis contra Ignis
+        // cae en su frontera mientras quede alguna libre, pero sigue siendo
+        // sorteo: repartir los combates entre las zonas del cruce evita que
+        // todo el mundo acabe en la misma.
         $preferredZones = ArenaMatch::preferredZonesFor($teamARealm, $teamBRealm);
         $preferredAvailable = array_values(array_intersect($preferredZones, $availableZones));
         if ($preferredAvailable !== []) {
-            return $preferredAvailable[0];
+            return $preferredAvailable[array_rand($preferredAvailable)];
         }
 
         // Ninguna recomendada libre. Antes que hacer esperar a nadie se juega

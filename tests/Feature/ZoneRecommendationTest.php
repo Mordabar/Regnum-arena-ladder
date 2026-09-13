@@ -34,25 +34,41 @@ function ocuparZona(string $zona, string $realmA, string $realmB): ArenaMatch
 }
 
 it('manda cada cruce de reinos a su propia frontera', function () {
-    expect(elegirZona('syrtis', 'ignis'))->toBe('etreng_outskirts');
-    expect(elegirZona('ignis', 'alsius'))->toBe('emerald_pass');
-    expect(elegirZona('alsius', 'syrtis'))->toBe('aggersborg_bay');
+    foreach (['ignis|syrtis', 'alsius|ignis', 'alsius|syrtis'] as $cruce) {
+        [$realmA, $realmB] = explode('|', $cruce);
+
+        expect(elegirZona($realmA, $realmB))->toBeIn(ArenaMatch::ZONE_PREFERENCES[$cruce]);
+    }
 });
 
 it('da igual el orden en que lleguen los dos reinos', function () {
-    expect(elegirZona('ignis', 'syrtis'))->toBe(elegirZona('syrtis', 'ignis'));
-    expect(elegirZona('alsius', 'ignis'))->toBe(elegirZona('ignis', 'alsius'));
-    expect(elegirZona('syrtis', 'alsius'))->toBe(elegirZona('alsius', 'syrtis'));
+    expect(ArenaMatch::preferredZonesFor('ignis', 'syrtis'))
+        ->toBe(ArenaMatch::preferredZonesFor('syrtis', 'ignis'));
+    expect(ArenaMatch::preferredZonesFor('alsius', 'ignis'))
+        ->toBe(ArenaMatch::preferredZonesFor('ignis', 'alsius'));
+    expect(ArenaMatch::preferredZonesFor('syrtis', 'alsius'))
+        ->toBe(ArenaMatch::preferredZonesFor('alsius', 'syrtis'));
 });
 
-it('baja a la siguiente recomendada cuando la primera esta ocupada', function () {
-    ocuparZona('etreng_outskirts', 'syrtis', 'ignis');
+it('sortea entre las zonas de la frontera en vez de repetir siempre la misma', function () {
+    $salidas = collect(range(1, 60))
+        ->map(fn () => elegirZona('syrtis', 'ignis'))
+        ->unique();
 
-    expect(elegirZona('syrtis', 'ignis'))->toBe('obsidian_watch');
+    // Con siete zonas y sesenta sorteos, salir siempre la misma seria un
+    // sorteo roto, no mala suerte.
+    expect($salidas->count())->toBeGreaterThan(1);
+    expect($salidas->diff(ArenaMatch::ZONE_PREFERENCES['ignis|syrtis']))->toBeEmpty();
+});
 
-    ocuparZona('obsidian_watch', 'syrtis', 'ignis');
+it('esquiva las zonas de la frontera que ya estan ocupadas', function () {
+    $frontera = ArenaMatch::ZONE_PREFERENCES['ignis|syrtis'];
 
-    expect(elegirZona('syrtis', 'ignis'))->toBe('red_cliff_pass');
+    foreach (array_slice($frontera, 0, 5) as $zona) {
+        ocuparZona($zona, 'syrtis', 'ignis');
+    }
+
+    expect(elegirZona('syrtis', 'ignis'))->toBeIn(array_slice($frontera, 5));
 });
 
 it('recurre a una zona de fuera solo cuando no queda ninguna recomendada', function () {
@@ -67,11 +83,15 @@ it('recurre a una zona de fuera solo cuando no queda ninguna recomendada', funct
 });
 
 it('no roba a otro cruce su frontera mientras le queden zonas propias', function () {
-    // Zona 8 es la primera de Syrtis contra Ignis. Con un Ignis contra Alsius
-    // en marcha en la 2, el siguiente Syrtis contra Ignis sigue yendo a la 8.
     ocuparZona('emerald_pass', 'ignis', 'alsius');
 
-    expect(elegirZona('syrtis', 'ignis'))->toBe('etreng_outskirts');
+    expect(elegirZona('syrtis', 'ignis'))
+        ->toBeIn(ArenaMatch::ZONE_PREFERENCES['ignis|syrtis']);
+});
+
+it('deja la zona 3 compartida por los dos cruces que la reclaman', function () {
+    expect(ArenaMatch::ZONE_PREFERENCES['ignis|syrtis'])->toContain('red_cliff_pass');
+    expect(ArenaMatch::ZONE_PREFERENCES['alsius|ignis'])->toContain('red_cliff_pass');
 });
 
 it('con el mapa entero ocupado prefiere una recomendada antes que una lejana', function () {
