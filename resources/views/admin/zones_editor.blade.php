@@ -98,7 +98,7 @@
             <hr class="my-1" style="border: 0; border-top: 1px solid var(--ap-line)">
 
             <div class="ap-label" style="display:flex; align-items:center; gap:6px">
-                <span style="width:9px; height:9px; border-radius:50%; background:#f4a261; display:inline-block"></span>
+                <span style="width:9px; height:9px; border-radius:50%; background:#ff4d4f; display:inline-block"></span>
                 Punto de encuentro
             </div>
             <p class="ap-hint" id="meeting-state">—</p>
@@ -196,21 +196,33 @@
                 if (!encuentro) return;
 
                 const esActual = actual && zone.id === actual.id;
-                const color = encuentro.fijado ? '#f4a261' : '#f9d87e';
+                // Rojo, y no dorado: el mapa entero ya es dorado -contornos,
+                // etiquetas y relleno- y el punto se perdia dentro.
+                const color = encuentro.fijado ? '#ff8b5e' : '#ff4d4f';
 
                 meetingLayers.push(L.circle(encuentro.punto, {
                     radius: Math.max(18, Math.min(encuentro.holgura * 0.55, 55)),
-                    color: color, weight: 1, dashArray: '4 5',
-                    fillColor: color, fillOpacity: esActual ? 0.16 : 0.05,
+                    color: color, weight: esActual ? 2 : 1, dashArray: '4 5',
+                    fillColor: color, fillOpacity: esActual ? 0.22 : 0.06,
                     interactive: false,
                 }).addTo(map));
 
+                // Aro oscuro detras: el punto tiene que leerse igual sobre
+                // nieve que sobre bosque.
                 meetingLayers.push(L.circleMarker(encuentro.punto, {
-                    radius: esActual ? 6 : 4,
-                    color: '#1a1209', weight: 2,
+                    radius: esActual ? 10 : 6,
+                    color: '#0c0806', weight: 3, opacity: 0.85,
                     fillColor: color, fillOpacity: 1,
                     interactive: false,
                 }).addTo(map));
+
+                if (esActual) {
+                    meetingLayers.push(L.circleMarker(encuentro.punto, {
+                        radius: 3, weight: 0,
+                        fillColor: '#fff', fillOpacity: 0.92,
+                        interactive: false,
+                    }).addTo(map));
+                }
 
             });
         }
@@ -222,13 +234,20 @@
             zonesData.forEach(zone => {
                 if (!zone.coords || zone.coords.length < 3) return;
 
+                // La zona que se esta editando va marcada: con catorce
+                // contornos iguales no se sabia cual se estaba tocando.
+                const esActual = zone.id === parseInt(selector.value);
+
                 let polygon = L.polygon(zone.coords, {
-                    color: 'rgba(216, 177, 92, 0.6)', weight: 2, fillColor: '#D8B15C', fillOpacity: 0.08,
-                    dashArray: '5 5'
+                    color: esActual ? '#ff5a4d' : 'rgba(216, 177, 92, 0.6)',
+                    weight: esActual ? 3 : 2,
+                    fillColor: esActual ? '#ff4d4f' : '#D8B15C',
+                    fillOpacity: esActual ? 0.18 : 0.06,
+                    dashArray: esActual ? null : '5 5'
                 }).addTo(map);
 
-                polygon.on('mouseover', function () { this.setStyle({ fillOpacity: 0.25, weight: 3, color: '#F9D87E' }); });
-                polygon.on('mouseout', function () { this.setStyle({ fillOpacity: 0.08, weight: 2, color: 'rgba(216, 177, 92, 0.6)' }); });
+                polygon.on('mouseover', function () { this.setStyle({ fillOpacity: esActual ? 0.26 : 0.2, weight: 3 }); });
+                polygon.on('mouseout', function () { this.setStyle({ fillOpacity: esActual ? 0.18 : 0.06, weight: esActual ? 3 : 2 }); });
 
                 polygon.bindTooltip(zone.name.split(' - ')[0].toUpperCase(), {
                     permanent: true, direction: 'center', className: 'zone-label-permanent'
@@ -239,7 +258,23 @@
                     <h4 class="zone-title">${zone.name}</h4>
                     <span style="font-size:10px; color:#aaa">Key: ${zone.key}</span>
                 `);
-                
+
+                /* Un clic sobre el poligono no llega al mapa.
+
+                   Leaflet reparte el clic entre el poligono y el mapa, en ese
+                   orden, pero para y no sigue si alguien lo ha parado. Y abrir
+                   el globo de informacion lo para: es lo primero que hace.
+                   Resultado, el `map.on('click')` de abajo solo se enteraba de
+                   los clics en el mar, y colocar el punto de encuentro DENTRO
+                   de su zona -que es lo unico que tiene sentido- no hacia
+                   nada. Por eso se escucha tambien aqui. */
+                polygon.on('click', function (e) {
+                    if (!isPlacingMeeting && !isTracing) { return; }
+
+                    this.closePopup();
+                    atenderClicDelMapa(e.latlng);
+                });
+
                 drawnLayers[zone.id] = polygon;
             });
 
@@ -305,7 +340,7 @@
         });
 
         // Cambiar de zona mueve el foco y actualiza el estado del panel.
-        selector.addEventListener('change', renderMeetingPoints);
+        selector.addEventListener('change', renderAllZones);
 
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape' && isPlacingMeeting) { cerrarPuntoDeEncuentro(); }
@@ -320,10 +355,12 @@
             btnSaveDb.disabled = false;
         }
 
-        map.on('click', function(e) {
+        map.on('click', function (e) { atenderClicDelMapa(e.latlng); });
+
+        function atenderClicDelMapa(latlng) {
             if (isPlacingMeeting) {
                 const zona = zonaSeleccionada();
-                const punto = [Math.round(e.latlng.lat), Math.round(e.latlng.lng)];
+                const punto = [Math.round(latlng.lat), Math.round(latlng.lng)];
 
                 // Sin el calculo cargado no se puede comprobar nada, pero
                 // tampoco se puede dejar al admin encerrado en modo colocar con
@@ -348,13 +385,11 @@
             }
 
             if(!isTracing) return;
-            const y = Math.round(e.latlng.lat);
-            const x = Math.round(e.latlng.lng);
-            tracePoints.push([y, x]);
+            tracePoints.push([Math.round(latlng.lat), Math.round(latlng.lng)]);
 
             if(tempPolyLine) map.removeLayer(tempPolyLine);
             tempPolyLine = L.polygon(tracePoints, {color: '#facc15', weight: 3, dashArray: '5,5', fillOpacity: 0.3}).addTo(map);
-        });
+        }
 
         document.getElementById('btn-finish').addEventListener('click', () => {
             if(tracePoints.length < 3) {

@@ -56,17 +56,17 @@
        oro ya lo usan el nombre de la zona y su borde, y con el mismo color los
        dos carteles se leian como uno solo. */
     .arena-map-meet {
-        background: rgba(20, 10, 5, 0.9);
-        border: 1px solid rgba(244, 162, 97, 0.75);
-        border-radius: 4px;
-        color: #ffc48c;
+        background: rgba(120, 20, 18, 0.92);
+        border: 1px solid #ff6b5e;
+        border-radius: 5px;
+        color: #ffe3de;
         font-family: 'Inter', sans-serif;
-        font-size: 9px;
-        font-weight: 700;
-        letter-spacing: 0.14em;
-        padding: 2px 7px;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        padding: 3px 9px;
         white-space: nowrap;
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.8);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.85);
     }
     .arena-map-meet::before { display: none; }
 
@@ -302,40 +302,60 @@
                         const isHighlighted = highlightKey && zone.key === highlightKey;
                         const isOther = highlightKey && zone.key !== highlightKey;
 
+                        /* La zona del cruce tiene que cantar. Antes se pintaba
+                           en el mismo dorado que las demas y con un relleno
+                           flojo: sobre un mapa que ya es dorado y marron habia
+                           que buscarla. Ahora va en rojo, con doble trazo, y
+                           las demas se apagan mas. */
+                        if (isHighlighted) {
+                            // Trazo ancho y oscuro por debajo, para que el rojo
+                            // se lea igual sobre nieve que sobre bosque.
+                            L.polygon(zone.coords, {
+                                color: '#1a0806', weight: 9, opacity: 0.55,
+                                fill: false, interactive: false,
+                            }).addTo(map);
+                        }
+
                         const polygon = L.polygon(zone.coords, {
-                            color: isHighlighted ? '#f4deb1' : 'rgba(216, 177, 92, 0.6)',
-                            weight: isHighlighted ? 3 : 2,
-                            fillColor: isHighlighted ? '#D8B15C' : '#D8B15C',
-                            fillOpacity: isHighlighted ? 0.30 : (isOther ? 0.03 : 0.08),
+                            color: isHighlighted ? '#ff5a4d' : 'rgba(216, 177, 92, 0.55)',
+                            weight: isHighlighted ? 4 : 2,
+                            fillColor: isHighlighted ? '#ff4d4f' : '#D8B15C',
+                            fillOpacity: isHighlighted ? 0.26 : (isOther ? 0.02 : 0.08),
                             dashArray: isHighlighted ? null : '5 5',
-                            className: isOther ? '' : '',
                         }).addTo(map);
 
                         if (!highlightKey || isHighlighted) {
                             polygon.on('mouseover', function () {
-                                this.setStyle({ fillOpacity: isHighlighted ? 0.40 : 0.25, weight: 3, color: '#F9D87E' });
+                                this.setStyle({ fillOpacity: isHighlighted ? 0.36 : 0.25, weight: isHighlighted ? 5 : 3, color: isHighlighted ? '#ff7a63' : '#F9D87E' });
                             });
                             polygon.on('mouseout', function () {
                                 this.setStyle({
-                                    fillOpacity: isHighlighted ? 0.30 : 0.08,
-                                    weight: isHighlighted ? 3 : 2,
-                                    color: isHighlighted ? '#f4deb1' : 'rgba(216, 177, 92, 0.6)'
+                                    fillOpacity: isHighlighted ? 0.26 : 0.08,
+                                    weight: isHighlighted ? 4 : 2,
+                                    color: isHighlighted ? '#ff5a4d' : 'rgba(216, 177, 92, 0.55)'
                                 });
                             });
                         }
 
-                        polygon.bindTooltip(zone.name.split(' - ')[0].toUpperCase(), {
-                            permanent: true,
-                            direction: 'center',
-                            className: 'arena-map-label',
-                            opacity: isOther ? 0.35 : 1,
-                        });
+                        /* En la zona del cruce el cartel del nombre sobra: la
+                           ventana ya lo lleva en el titulo, y puesto en el
+                           centro se montaba encima del cartel del punto de
+                           encuentro. Se queda el del punto, que es el dato que
+                           hace falta. */
+                        if (!isHighlighted) {
+                            polygon.bindTooltip(zone.name.split(' - ')[0].toUpperCase(), {
+                                permanent: true,
+                                direction: 'center',
+                                className: 'arena-map-label',
+                                opacity: isOther ? 0.3 : 1,
+                            });
+                        }
 
                         if (!isOther) {
                             polygon.bindPopup(`
                                 <div class="arena-map-zone-badge">Zona PvP</div>
                                 <h4 class="arena-map-zone-title">${zone.name}</h4>
-                                <p class="arena-map-zone-note">El aspa marca el punto de encuentro.</p>
+                                <p class="arena-map-zone-note">El circulo rojo marca el punto de encuentro.</p>
                             `);
                         }
 
@@ -351,30 +371,41 @@
                         if (isHighlighted || !highlightKey) {
                             if (isHighlighted) {
                                 L.circle(encuentro.punto, {
-                                    radius: Math.max(18, Math.min(encuentro.holgura * 0.55, 55)),
-                                    color: '#f4a261',
-                                    weight: 1,
+                                    radius: Math.max(22, Math.min(encuentro.holgura * 0.6, 60)),
+                                    color: '#ff6b5e',
+                                    weight: 2,
                                     dashArray: '4 5',
-                                    fillColor: '#f4a261',
-                                    fillOpacity: 0.12,
+                                    fillColor: '#ff4d4f',
+                                    fillOpacity: 0.2,
                                     interactive: false,
                                 }).addTo(map);
                             }
 
+                            // Aro oscuro, punto rojo y corazon blanco: tres
+                            // capas para que se vea sobre cualquier terreno.
                             var marca = L.circleMarker(encuentro.punto, {
-                                radius: isHighlighted ? 6 : 3,
-                                color: '#1a1209',
-                                weight: isHighlighted ? 2 : 1,
-                                fillColor: isHighlighted ? '#f9d87e' : 'rgba(244, 162, 97, 0.75)',
+                                radius: isHighlighted ? 11 : 4,
+                                color: '#120604',
+                                weight: isHighlighted ? 3 : 1,
+                                opacity: 0.85,
+                                fillColor: isHighlighted ? '#ff4d4f' : 'rgba(255, 77, 79, 0.7)',
                                 fillOpacity: 1,
                                 interactive: false,
                             }).addTo(map);
 
                             if (isHighlighted) {
+                                L.circleMarker(encuentro.punto, {
+                                    radius: 3.5,
+                                    weight: 0,
+                                    fillColor: '#fff',
+                                    fillOpacity: 0.95,
+                                    interactive: false,
+                                }).addTo(map);
+
                                 marca.bindTooltip('PUNTO DE ENCUENTRO', {
                                     permanent: true,
                                     direction: 'bottom',
-                                    offset: [0, 8],
+                                    offset: [0, 14],
                                     className: 'arena-map-meet',
                                 });
                             }
@@ -393,8 +424,13 @@
 
                     // Fit view
                     if (highlightPolygon) {
-                        map.fitBounds(highlightPolygon.getBounds().pad(0.5));
-                        highlightPolygon.openPopup();
+                        // Se acerca un poco mas que antes: la zona tiene que
+                        // llenar la ventana, no perderse en medio del mapa.
+                        map.fitBounds(highlightPolygon.getBounds().pad(0.25));
+
+                        // Y no se abre el globo solo: tapaba justo la zona y el
+                        // punto de encuentro, que es lo que se viene a ver. El
+                        // nombre ya esta en el titulo de la ventana.
                     } else {
                         map.fitBounds(bounds);
                     }
