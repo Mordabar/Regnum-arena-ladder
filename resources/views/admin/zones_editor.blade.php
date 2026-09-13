@@ -73,6 +73,10 @@
         <div id="tracing-indicator" class="hidden ap-tracing-badge">
             Modo dibujo: haz clic en el mapa para marcar cada vertice
         </div>
+
+        <div id="meeting-indicator" class="hidden ap-tracing-badge" style="background: #f4a261; color: #1a1209">
+            Haz clic donde quieres que queden los dos equipos
+        </div>
     </div>
 
     <aside class="ap-card p-4 self-start">
@@ -89,6 +93,20 @@
             <p class="ap-hint">
                 Marca al menos tres puntos sobre el mapa. Cuando confirmes la forma, aun tendras
                 que publicar para que sea oficial.
+            </p>
+
+            <hr class="my-1" style="border: 0; border-top: 1px solid var(--ap-line)">
+
+            <div class="ap-label" style="display:flex; align-items:center; gap:6px">
+                <span style="width:9px; height:9px; border-radius:50%; background:#f4a261; display:inline-block"></span>
+                Punto de encuentro
+            </div>
+            <p class="ap-hint" id="meeting-state">—</p>
+            <button id="btn-meeting" class="ap-btn ap-btn-block">Mover el punto</button>
+            <button id="btn-meeting-auto" class="ap-btn ap-btn-block ap-btn-quiet">Volver al automatico</button>
+            <p class="ap-hint">
+                Es el sitio que el cruce le indica a los dos equipos para quedar. Sin tocarlo sale
+                solo, en la parte mas interior de la zona.
             </p>
         </div>
 
@@ -120,14 +138,82 @@
         let tracePoints = [];
         let tempPolyLine = null;
 
+        let meetingLayers = [];
+        let isPlacingMeeting = false;
+
         const selector = document.getElementById('zone-selector');
         const btnDraw = document.getElementById('btn-draw');
+        const btnMeeting = document.getElementById('btn-meeting');
+        const btnMeetingAuto = document.getElementById('btn-meeting-auto');
+        const meetingState = document.getElementById('meeting-state');
+        const meetingIndicator = document.getElementById('meeting-indicator');
         const actionGroup = document.getElementById('action-buttons');
         const traceGroup = document.getElementById('trace-buttons');
         const indicator = document.getElementById('tracing-indicator');
         const saveForm = document.getElementById('save-zones-form');
         const inputJson = document.getElementById('zones-json-input');
         const btnSaveDb = document.getElementById('btn-save-db');
+
+        function zonaSeleccionada() {
+            return zonesData.find(z => z.id === parseInt(selector.value)) || null;
+        }
+
+        /* Los puntos de encuentro.
+
+           El calculo no vive aqui: lo sirve window.ArenaMapPoints, el mismo que
+           usa el mapa del jugador. Copiarlo acabaria dando dos puntos distintos
+           para la misma zona, uno el que coloca el admin y otro el que ve quien
+           tiene que ir a pelear.
+
+           Dorado es el punto que sale solo; naranja, uno movido a mano. */
+        function renderMeetingPoints() {
+            meetingLayers.forEach(layer => map.removeLayer(layer));
+            meetingLayers = [];
+
+            if (!window.ArenaMapPoints) {
+                meetingState.textContent = 'No se pudo cargar el calculo del punto.';
+                return;
+            }
+
+            const actual = zonaSeleccionada();
+            const suyo = actual ? window.ArenaMapPoints.deZona(actual) : null;
+
+            // El estado se decide aqui y no dentro del bucle: una zona sin
+            // contorno no entra en el bucle, y el panel se quedaba enseñando
+            // el estado de la zona anterior.
+            if (!actual) {
+                meetingState.textContent = 'Elige una zona.';
+            } else if (!suyo) {
+                meetingState.textContent = 'Sin contorno todavia: dibujalo y vuelve.';
+            } else if (suyo.fijado) {
+                meetingState.textContent = 'Fijado a mano en ' + suyo.punto[0] + ', ' + suyo.punto[1] + '.';
+            } else {
+                meetingState.textContent = 'Automatico, en la parte mas interior de la zona.';
+            }
+
+            zonesData.forEach(zone => {
+                const encuentro = window.ArenaMapPoints.deZona(zone);
+                if (!encuentro) return;
+
+                const esActual = actual && zone.id === actual.id;
+                const color = encuentro.fijado ? '#f4a261' : '#f9d87e';
+
+                meetingLayers.push(L.circle(encuentro.punto, {
+                    radius: Math.max(18, Math.min(encuentro.holgura * 0.55, 55)),
+                    color: color, weight: 1, dashArray: '4 5',
+                    fillColor: color, fillOpacity: esActual ? 0.16 : 0.05,
+                    interactive: false,
+                }).addTo(map));
+
+                meetingLayers.push(L.circleMarker(encuentro.punto, {
+                    radius: esActual ? 6 : 4,
+                    color: '#1a1209', weight: 2,
+                    fillColor: color, fillOpacity: 1,
+                    interactive: false,
+                }).addTo(map));
+
+            });
+        }
 
         function renderAllZones() {
             Object.values(drawnLayers).forEach(layer => map.removeLayer(layer));
@@ -156,6 +242,8 @@
                 
                 drawnLayers[zone.id] = polygon;
             });
+
+            renderMeetingPoints();
         }
 
         // Init
@@ -193,7 +281,63 @@
             btnSaveDb.disabled = true;
         });
 
+        btnMeeting.addEventListener('click', () => {
+            const zona = zonaSeleccionada();
+            if (!zona || !zona.coords || zona.coords.length < 3) {
+                alert('Esa zona todavia no tiene contorno. Dibujalo primero.');
+                return;
+            }
+
+            isPlacingMeeting = true;
+            actionGroup.classList.add('hidden');
+            meetingIndicator.classList.remove('hidden');
+            map.getContainer().style.cursor = 'crosshair';
+            selector.disabled = true;
+            btnSaveDb.disabled = true;
+        });
+
+        btnMeetingAuto.addEventListener('click', () => {
+            const zona = zonaSeleccionada();
+            if (!zona) return;
+
+            delete zona.meeting;
+            renderMeetingPoints();
+        });
+
+        // Cambiar de zona mueve el foco y actualiza el estado del panel.
+        selector.addEventListener('change', renderMeetingPoints);
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && isPlacingMeeting) { cerrarPuntoDeEncuentro(); }
+        });
+
+        function cerrarPuntoDeEncuentro() {
+            isPlacingMeeting = false;
+            actionGroup.classList.remove('hidden');
+            meetingIndicator.classList.add('hidden');
+            map.getContainer().style.cursor = 'grab';
+            selector.disabled = false;
+            btnSaveDb.disabled = false;
+        }
+
         map.on('click', function(e) {
+            if (isPlacingMeeting) {
+                const zona = zonaSeleccionada();
+                const punto = [Math.round(e.latlng.lat), Math.round(e.latlng.lng)];
+
+                // Un punto fuera de su zona manda a los equipos a otro sitio:
+                // se avisa antes de guardarlo, no despues.
+                if (window.ArenaMapPoints.distanciaAlBorde(punto, zona.coords) <= 0 &&
+                    !confirm('Ese punto cae FUERA de ' + zona.name + '. Lo guardas igual?')) {
+                    return;
+                }
+
+                zona.meeting = punto;
+                cerrarPuntoDeEncuentro();
+                renderMeetingPoints();
+                return;
+            }
+
             if(!isTracing) return;
             const y = Math.round(e.latlng.lat);
             const x = Math.round(e.latlng.lng);
@@ -209,8 +353,19 @@
                 return;
             }
             let zoneIndex = zonesData.findIndex(z => z.id === currentEditingId);
-            zonesData[zoneIndex].coords = [...tracePoints];
-            
+            const zona = zonesData[zoneIndex];
+            zona.coords = [...tracePoints];
+
+            // Redibujar el contorno puede dejar el punto de encuentro fuera de
+            // su propia zona. Callarselo mandaria a los equipos a un sitio que
+            // ya no es la zona, asi que vuelve al automatico y se avisa.
+            if (Array.isArray(zona.meeting) && window.ArenaMapPoints &&
+                window.ArenaMapPoints.distanciaAlBorde(zona.meeting, zona.coords) <= 0) {
+                delete zona.meeting;
+                alert('El nuevo contorno deja fuera el punto de encuentro que tenia ' + zona.name +
+                      '. Vuelve al automatico; si quieres otro, vuelve a moverlo.');
+            }
+
             closeTracing();
             renderAllZones();
         });

@@ -51,17 +51,7 @@
         .btn-green { width:100%; padding:0.5rem; text-align:center; font-family:'Cinzel'; color:#22c55e; border:1px solid #22c55e; border-radius:0.375rem; background:rgba(34,197,94,0.1); margin-bottom:0.75rem;}
         .btn-green:hover { background:#22c55e; color:white; }
 
-        #tracing-indicator, #meeting-indicator { display: none; background: #ef4444; color: white; text-align: center; font-size: 12px; font-weight: bold; padding: 8px; border-radius: 4px; margin-bottom: 10px; animation: pulse 1s infinite alternate; }
-        #meeting-indicator { background: #f4a261; color: #1a1209; }
-        .btn-orange { width:100%; padding:0.5rem; text-align:center; font-family:'Cinzel'; color:#f4a261; border:1px solid #f4a261; border-radius:0.375rem; background:rgba(244,162,97,0.1); margin-bottom:0.75rem; transition: background 0.2s; }
-        .btn-orange:hover { background:#f4a261; color:#1a1209; }
-        /* El cartel del punto en el editor, igual que el que ve el jugador. */
-        .meeting-label {
-            background: rgba(20, 10, 5, 0.9); border: 1px solid rgba(244, 162, 97, 0.75); border-radius: 4px;
-            color: #ffc48c; font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700;
-            letter-spacing: 0.12em; padding: 2px 7px; white-space: nowrap;
-        }
-        .meeting-label::before { display: none; }
+        #tracing-indicator { display: none; background: #ef4444; color: white; text-align: center; font-size: 12px; font-weight: bold; padding: 8px; border-radius: 4px; margin-bottom: 10px; animation: pulse 1s infinite alternate; }
         @keyframes pulse { from { opacity: 0.7; } to { opacity: 1; } }
         .leaflet-interactive { transition: fill-opacity 0.2s, stroke-width 0.2s; }
     </style>
@@ -76,9 +66,7 @@
             <span class="text-3xl">⚒️</span> Herramienta Cartográfica
         </h1>
         <p class="mt-2 text-sm text-[color:var(--arena-muted)] max-w-3xl">
-            Ajusta los vértices y ubicaciones de las Zonas de Cacería seleccionándolas en el dropdown y redibujando los polígonos.
-            También puedes mover el <b class="text-[#f4a261]">punto de encuentro</b> de cada zona, que es donde el sitio le dice a los dos
-            equipos que queden: sin tocarlo sale solo, en el punto más interior del área. Exporta el archivo JSON final para actualizar la base de la aplicación.
+            Ajusta los vértices y ubicaciones de las Zonas de Cacería seleccionándolas en el dropdown y redibujando los polígonos. Exporta el archivo JSON final para actualizar la base de la aplicación.
         </p>
     </div>
 
@@ -87,7 +75,6 @@
 
         <div id="editor-panel">
             <div id="tracing-indicator">🎯 MODO DIBUJO ACTIVO <br><span class="text-[10px] font-normal">Da clic en el mapa para anclar los vértices del área.</span></div>
-            <div id="meeting-indicator">📍 MOVIENDO EL PUNTO DE ENCUENTRO <br><span class="text-[10px] font-normal">Da clic donde quieres que queden los equipos.</span></div>
 
             <div class="form-group mb-4">
                 <label>Selecciona una zona a editar:</label>
@@ -96,8 +83,6 @@
 
             <div id="action-buttons">
                 <button type="button" id="btn-draw" class="btn-red">✏️ Redibujar Zona Seleccionada</button>
-                <button type="button" id="btn-meeting" class="btn-orange">📍 Mover Punto de Encuentro</button>
-                <button type="button" id="btn-meeting-auto" class="btn-gold" style="border-color:var(--arena-muted); color:var(--arena-muted);">↺ Punto Automático</button>
                 <button type="button" id="btn-export" class="btn-gold">📋 Copiar a Portapapeles</button>
             </div>
 
@@ -134,27 +119,18 @@
         L.control.zoom({ position: 'bottomright' }).addTo(map);
 
         let drawnLayers = {};
-        let meetingLayers = [];
         let isTracing = false;
-        let isPlacingMeeting = false;
         let currentEditingId = null;
         let tracePoints = [];
         let tempPolyLine = null;
 
         const selector = document.getElementById('zone-selector');
         const btnDraw = document.getElementById('btn-draw');
-        const btnMeeting = document.getElementById('btn-meeting');
-        const btnMeetingAuto = document.getElementById('btn-meeting-auto');
         const btnExport = document.getElementById('btn-export');
         const actionGroup = document.getElementById('action-buttons');
         const traceGroup = document.getElementById('trace-buttons');
         const indicator = document.getElementById('tracing-indicator');
-        const meetingIndicator = document.getElementById('meeting-indicator');
         const output = document.getElementById('json-output');
-
-        function zonaSeleccionada() {
-            return zonesData.find(z => z.id === parseInt(selector.value)) || null;
-        }
 
         function initMap() {
             selector.innerHTML = '';
@@ -188,56 +164,6 @@
 
                 drawnLayers[zone.id] = polygon;
             });
-
-            renderMeetingPoints();
-        }
-
-        /* Los puntos de encuentro, con el mismo calculo que ve el jugador.
-           Dorado cuando sale solo, naranja cuando se ha movido a mano: de un
-           vistazo se sabe cuales estan revisados y cuales no. */
-        function renderMeetingPoints() {
-            meetingLayers.forEach(layer => map.removeLayer(layer));
-            meetingLayers = [];
-
-            if (!window.ArenaMapPoints) { return; }
-
-            zonesData.forEach(zone => {
-                const encuentro = window.ArenaMapPoints.deZona(zone);
-                if (!encuentro) { return; }
-
-                const esActual = zone.id === parseInt(selector.value);
-                const color = encuentro.fijado ? '#f4a261' : '#f9d87e';
-
-                const aro = L.circle(encuentro.punto, {
-                    radius: Math.max(18, Math.min(encuentro.holgura * 0.55, 55)),
-                    color: color,
-                    weight: 1,
-                    dashArray: '4 5',
-                    fillColor: color,
-                    fillOpacity: esActual ? 0.16 : 0.06,
-                    interactive: false,
-                }).addTo(map);
-
-                const marca = L.circleMarker(encuentro.punto, {
-                    radius: esActual ? 6 : 4,
-                    color: '#1a1209',
-                    weight: 2,
-                    fillColor: color,
-                    fillOpacity: 1,
-                    interactive: false,
-                }).addTo(map);
-
-                if (esActual) {
-                    marca.bindTooltip(encuentro.fijado ? 'PUNTO FIJADO A MANO' : 'PUNTO AUTOMÁTICO', {
-                        permanent: true,
-                        direction: 'bottom',
-                        offset: [0, 8],
-                        className: 'meeting-label',
-                    });
-                }
-
-                meetingLayers.push(aro, marca);
-            });
         }
 
         btnDraw.addEventListener('click', () => {
@@ -256,48 +182,7 @@
             selector.disabled = true;
         });
 
-        btnMeeting.addEventListener('click', () => {
-            const zona = zonaSeleccionada();
-            if (!zona || !zona.coords || zona.coords.length < 3) {
-                alert('Esa zona todavia no tiene poligono. Dibujala primero.');
-                return;
-            }
-
-            isPlacingMeeting = true;
-            actionGroup.style.display = 'none';
-            meetingIndicator.style.display = 'block';
-            map.getContainer().style.cursor = 'crosshair';
-            selector.disabled = true;
-        });
-
-        btnMeetingAuto.addEventListener('click', () => {
-            const zona = zonaSeleccionada();
-            if (!zona) { return; }
-
-            delete zona.meeting;
-            renderMeetingPoints();
-            updateJSON();
-        });
-
         map.on('click', function(e) {
-            if (isPlacingMeeting) {
-                const zona = zonaSeleccionada();
-                const punto = [Math.round(e.latlng.lat), Math.round(e.latlng.lng)];
-
-                // Un punto fuera de su zona manda a los equipos a otro sitio:
-                // se avisa antes de guardarlo, no despues.
-                if (window.ArenaMapPoints.distanciaAlBorde(punto, zona.coords) <= 0 &&
-                    !confirm('Ese punto cae FUERA de ' + zona.name + '. ¿Lo guardas igual?')) {
-                    return;
-                }
-
-                zona.meeting = punto;
-                cerrarPuntoDeEncuentro();
-                renderMeetingPoints();
-                updateJSON();
-                return;
-            }
-
             if(!isTracing) return;
             const y = Math.round(e.latlng.lat);
             const x = Math.round(e.latlng.lng);
@@ -323,25 +208,6 @@
         document.getElementById('btn-cancel').addEventListener('click', () => {
             closeTracing();
             renderAllZones();
-        });
-
-        function cerrarPuntoDeEncuentro() {
-            isPlacingMeeting = false;
-            actionGroup.style.display = 'block';
-            meetingIndicator.style.display = 'none';
-            map.getContainer().style.cursor = 'grab';
-            selector.disabled = false;
-        }
-
-        // Cambiar de zona en el desplegable mueve el foco del punto marcado.
-        selector.addEventListener('change', renderMeetingPoints);
-
-        // Escape sale de cualquiera de los dos modos sin guardar nada.
-        document.addEventListener('keydown', function (event) {
-            if (event.key !== 'Escape') { return; }
-
-            if (isPlacingMeeting) { cerrarPuntoDeEncuentro(); }
-            else if (isTracing) { closeTracing(); renderAllZones(); }
         });
 
         function closeTracing() {
