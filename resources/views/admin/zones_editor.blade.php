@@ -325,6 +325,15 @@
                 const zona = zonaSeleccionada();
                 const punto = [Math.round(e.latlng.lat), Math.round(e.latlng.lng)];
 
+                // Sin el calculo cargado no se puede comprobar nada, pero
+                // tampoco se puede dejar al admin encerrado en modo colocar con
+                // el boton de publicar bloqueado: se sale y se dice por que.
+                if (!window.ArenaMapPoints) {
+                    cerrarPuntoDeEncuentro();
+                    alert('No se pudo cargar el calculo del punto de encuentro. Recarga la pagina.');
+                    return;
+                }
+
                 // Un punto fuera de su zona manda a los equipos a otro sitio:
                 // se avisa antes de guardarlo, no despues.
                 if (window.ArenaMapPoints.distanciaAlBorde(punto, zona.coords) <= 0 &&

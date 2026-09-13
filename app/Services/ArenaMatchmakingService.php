@@ -727,7 +727,17 @@ class ArenaMatchmakingService
         // sorteo: repartir los combates entre las zonas del cruce evita que
         // todo el mundo acabe en la misma.
         $preferredZones = ArenaMatch::preferredZonesFor($teamARealm, $teamBRealm);
-        $preferredAvailable = array_values(array_intersect($preferredZones, $availableZones));
+
+        // Se compara por clave canonica, como hace el filtro de ocupadas. Con
+        // una columna "zone" antigua y corta el catalogo llega en alias, y
+        // comparar las cadenas a pelo dejaba la recomendacion en nada sin que
+        // se notara: volvia a salir cualquier zona del mapa.
+        $preferredAvailable = array_values(array_filter($availableZones, function (string $zone) use ($preferredZones) {
+            $zoneKey = ArenaMatch::normalizeZoneKey($zone) ?? $zone;
+
+            return in_array($zoneKey, $preferredZones, true);
+        }));
+
         if ($preferredAvailable !== []) {
             return $preferredAvailable[array_rand($preferredAvailable)];
         }

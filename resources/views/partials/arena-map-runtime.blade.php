@@ -238,6 +238,13 @@
             var mejorDistancia = -Infinity;
             var paso = Math.max((y1 - y0), (x1 - x0)) / 16;
 
+            // Una zona degenerada -todos los vertices en el mismo sitio- deja
+            // el paso a cero, y un bucle que avanza de cero en cero no termina:
+            // colgaria el editor y, publicado, el mapa de todos los jugadores.
+            if (!(paso > 0)) {
+                return { punto: mejor, holgura: 0 };
+            }
+
             for (var vuelta = 0; vuelta < 5; vuelta++) {
                 var desdeY = vuelta === 0 ? y0 : mejor[0] - paso * 2;
                 var hastaY = vuelta === 0 ? y1 : mejor[0] + paso * 2;

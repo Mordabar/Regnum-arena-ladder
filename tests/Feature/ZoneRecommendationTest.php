@@ -89,6 +89,17 @@ it('no roba a otro cruce su frontera mientras le queden zonas propias', function
         ->toBeIn(ArenaMatch::ZONE_PREFERENCES['ignis|syrtis']);
 });
 
+it('reconoce como ocupada una zona guardada con otra escritura', function () {
+    // Los enfrentamientos viejos guardaron la zona con su nombre largo. Si eso
+    // no cuenta como ocupada, dos cruces acaban en el mismo sitio.
+    $frontera = ArenaMatch::ZONE_PREFERENCES['alsius|syrtis'];
+
+    ocuparZona('Aggersborg Bay', 'alsius', 'syrtis');
+    ocuparZona('bridge watch', 'alsius', 'syrtis');
+
+    expect(elegirZona('alsius', 'syrtis'))->toBeIn(array_slice($frontera, 2));
+});
+
 it('deja la zona 3 compartida por los dos cruces que la reclaman', function () {
     expect(ArenaMatch::ZONE_PREFERENCES['ignis|syrtis'])->toContain('red_cliff_pass');
     expect(ArenaMatch::ZONE_PREFERENCES['alsius|ignis'])->toContain('red_cliff_pass');
