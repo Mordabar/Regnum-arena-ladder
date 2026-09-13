@@ -29,6 +29,50 @@ class ArenaMatch extends Model
         'herth_gulf' => ['number' => 14, 'name' => 'Herth Gulf'],
     ];
 
+    /**
+     * Zonas recomendadas segun que dos reinos se cruzan, en orden de
+     * preferencia.
+     *
+     * En la temporada 0 la zona salia por sorteo entre todas las libres, y eso
+     * mandaba a la gente al otro extremo del mapa: dos reinos vecinos podian
+     * acabar peleando en la frontera del tercero. Encontrar al rival costaba
+     * mas que el propio combate. Estas listas son la frontera real de cada
+     * cruce, elegidas por los jugadores durante las pruebas.
+     *
+     * La clave son los dos reinos en orden alfabetico, unidos por "|", para que
+     * ignis-syrtis y syrtis-ignis caigan en la misma entrada.
+     *
+     * Ojo: esto NO bloquea el resto de zonas. Solo las ordena. Si las
+     * recomendadas de un cruce estan todas ocupadas, se sigue jugando en las
+     * demas antes que hacer esperar a nadie.
+     */
+    public const ZONE_PREFERENCES = [
+        // Syrtis contra Ignis: 8, 9, 3, 6, 7, 5, 4.
+        'ignis|syrtis' => [
+            'etreng_outskirts',
+            'obsidian_watch',
+            'red_cliff_pass',
+            'crimson_canyon',
+            'central_ruins',
+            'merchant_coast',
+            'black_fort_shore',
+        ],
+        // Ignis contra Alsius: 2, 1, 14, 3.
+        'alsius|ignis' => [
+            'emerald_pass',
+            'frozen_bridge',
+            'herth_gulf',
+            'red_cliff_pass',
+        ],
+        // Alsius contra Syrtis: 13, 12, 11, 10.
+        'alsius|syrtis' => [
+            'aggersborg_bay',
+            'bridge_watch',
+            'jagaros_crossroads',
+            'green_camp',
+        ],
+    ];
+
     private const ZONE_ALIASES = [
         'central ruins' => 'central_ruins',
         'centralruins' => 'central_ruins',
@@ -335,6 +379,26 @@ class ArenaMatch extends Model
     public static function zoneKeys(): array
     {
         return array_keys(self::ZONES);
+    }
+
+    /**
+     * Las zonas recomendadas para este cruce de reinos, en orden de
+     * preferencia. Devuelve una lista vacia si el cruce no tiene recomendacion
+     * (mismo reino, un reino desconocido, o un dato a medias).
+     *
+     * @return array<int, string>
+     */
+    public static function preferredZonesFor(?string $realmA, ?string $realmB): array
+    {
+        $realms = [Str::lower(trim((string) $realmA)), Str::lower(trim((string) $realmB))];
+
+        if (in_array('', $realms, true) || $realms[0] === $realms[1]) {
+            return [];
+        }
+
+        sort($realms);
+
+        return self::ZONE_PREFERENCES[implode('|', $realms)] ?? [];
     }
 
     public static function zoneMetadata(?string $zone): ?array

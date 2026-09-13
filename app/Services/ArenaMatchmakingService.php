@@ -719,6 +719,20 @@ class ArenaMatchmakingService
             })
             ->values()
             ->all();
+
+        // Las zonas de la frontera entre estos dos reinos van primero, y en el
+        // orden en que estan declaradas. Antes la zona salia por sorteo entre
+        // todas las libres y mandaba a la gente a cruzar el mapa entero para
+        // encontrarse; con esto, un Syrtis contra Ignis cae en su frontera
+        // mientras quede alguna libre.
+        $preferredZones = ArenaMatch::preferredZonesFor($teamARealm, $teamBRealm);
+        $preferredAvailable = array_values(array_intersect($preferredZones, $availableZones));
+        if ($preferredAvailable !== []) {
+            return $preferredAvailable[0];
+        }
+
+        // Ninguna recomendada libre. Antes que hacer esperar a nadie se juega
+        // en cualquier otra: la recomendacion ordena, no bloquea.
         if ($availableZones !== []) {
             return $availableZones[array_rand($availableZones)];
         }
@@ -726,7 +740,7 @@ class ArenaMatchmakingService
         $incomingRealms = [$teamARealm, $teamBRealm];
         sort($incomingRealms);
 
-        $zoneScores = collect($allZones)->mapWithKeys(function (string $zone) use ($activeMatches, $incomingRealms) {
+        $zoneScores = collect($allZones)->mapWithKeys(function (string $zone) use ($activeMatches, $incomingRealms, $preferredZones) {
             $zoneKey = ArenaMatch::normalizeZoneKey($zone) ?? $zone;
 
             $score = $activeMatches->reduce(function (int $carry, ArenaMatch $activeMatch) use ($zoneKey, $incomingRealms) {
@@ -750,6 +764,14 @@ class ArenaMatchmakingService
 
                 return $carry + 10;
             }, 0);
+
+            // Con todo el mapa ocupado la recomendacion sigue pesando, pero ya
+            // no manda: un cruce del mismo par de reinos suma 100, asi que una
+            // zona lejana solo gana cuando todas las de la frontera arrastran
+            // cinco combates o mas de este mismo cruce.
+            if ($preferredZones !== [] && !in_array($zoneKey, $preferredZones, true)) {
+                $score += 500;
+            }
 
             return [$zone => $score];
         });
