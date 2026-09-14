@@ -244,6 +244,13 @@
 
             isReloading = true;
             clearScheduledPoll();
+
+            // Deja dicho que esta recarga la provoco un cambio de estado, no el
+            // jugador. Es lo que distingue "estabas aqui y se te cayo el
+            // combate" de "has venido a consultarlo", que no se puede saber por
+            // la hora: un enfrentamiento recien anulado tambien se consulta.
+            try { sessionStorage.setItem('arena:live-reload', '1'); } catch (e) {}
+
             window.setTimeout(() => {
                 window.location.reload();
             }, _reloadDelayMs);

@@ -4,18 +4,21 @@ use App\Models\ArenaMatch;
 use App\Models\Player;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
 /**
- * Un enfrentamiento caido se puede leer si ya es historial.
+ * Un enfrentamiento caido se puede leer, se acabe de caer o no.
  *
  * La vista mandaba al lobby a los 3,5 segundos siempre que el estado fuera
- * 'cancelled' o 'void'. Sirve cuando el combate se acaba de deshacer y el
- * jugador sigue en su flujo, pero desde el historial no dejaba leer nada: se
- * entraba y te echaba. Se nota mas desde que moderacion puede anular
- * enfrentamientos ya puntuados, porque esos son justo los que hay que mirar.
+ * 'cancelled' o 'void', asi que entrar a leer uno no servia de nada: te echaba.
+ * Se nota mas desde que moderacion puede anular enfrentamientos ya puntuados,
+ * porque esos son justo los que hay que mirar despues.
+ *
+ * El primer intento de arreglo miraba la hora -redirigir solo si acababa de
+ * caer- y no valia: a un enfrentamiento recien anulado se entra a consultarlo
+ * igual, y se comia el mismo salto. La marca del sondeo si distingue las dos
+ * cosas, porque solo existe cuando la pagina se recargo sola.
  */
 function jugadorHistorial(string $sufijo, string $reino): Player
 {
@@ -38,11 +41,10 @@ function jugadorHistorial(string $sufijo, string $reino): Player
     ]);
 }
 
-function enfrentamientoCaido(string $estado, $cuando, string $marca = ''): array
+function enfrentamientoCaido(string $estado): array
 {
-    $marca = $estado . $marca;
-    $mio = jugadorHistorial('mio-' . $marca, 'alsius');
-    $rival = jugadorHistorial('rival-' . $marca, 'ignis');
+    $mio = jugadorHistorial('mio-' . $estado, 'alsius');
+    $rival = jugadorHistorial('rival-' . $estado, 'ignis');
 
     $pack = fn (Player $p) => [
         'player_id' => $p->id,
@@ -53,8 +55,8 @@ function enfrentamientoCaido(string $estado, $cuando, string $marca = ''): array
     ];
 
     $match = ArenaMatch::create([
-        'match_code' => 'ARENA-H' . strtoupper(substr(md5($marca), 0, 6)),
-        'report_token' => strtoupper(substr(md5($marca), 0, 10)),
+        'match_code' => 'ARENA-H' . strtoupper(substr(md5($estado), 0, 6)),
+        'report_token' => strtoupper(substr(md5($estado), 0, 10)),
         'queue_mode' => 'random',
         'arena_mode' => '2v2',
         'team_a_realm' => 'alsius',
@@ -67,57 +69,69 @@ function enfrentamientoCaido(string $estado, $cuando, string $marca = ''): array
         'player_count' => 2,
     ]);
 
-    // updated_at es lo que distingue "se acaba de caer" de "esto es historial".
-    // Va por el query builder a proposito: saveQuietly() calla los eventos pero
-    // sigue poniendo la marca de tiempo, asi que el valor se perderia.
-    DB::table('matches')->where('id', $match->id)->update(['updated_at' => $cuando]);
-
     return ['match' => $match->fresh(), 'mio' => $mio];
 }
 
-it('no echa al lobby al abrir un enfrentamiento anulado del historial', function () {
-    $s = enfrentamientoCaido('void', now()->subDays(3));
+it('el salto al lobby lo decide el navegador, no la hora del enfrentamiento', function () {
+    // Recien anulado: da igual, porque quien entra puede venir a consultarlo.
+    // El servidor no decide nada; manda la marca que deja el sondeo.
+    $s = enfrentamientoCaido('void');
 
-    $this->actingAs($s['mio']->user)
+    $html = $this->actingAs($s['mio']->user)
         ->get(route('matches.show', $s['match']))
         ->assertOk()
         ->assertSee('Encuentro Anulado')
-        // Ni el redirect ni la promesa de redirigir.
-        ->assertDontSee('data-auto-lobby-redirect', false)
-        ->assertDontSee('Serás redirigido al lobby');
+        ->getContent();
+
+    expect($html)->toContain("sessionStorage.getItem('arena:live-reload')");
+    // Sin la marca se sale antes de programar nada.
+    expect($html)->toContain('if (!enVivo) { return; }');
 });
 
-it('tampoco al abrir uno cancelado hace tiempo', function () {
-    $s = enfrentamientoCaido('cancelled', now()->subHours(6));
+it('el aviso de redirigir nace oculto', function () {
+    // Solo lo enciende el guion cuando confirma que la recarga fue en vivo.
+    $s = enfrentamientoCaido('cancelled');
 
     $this->actingAs($s['mio']->user)
         ->get(route('matches.show', $s['match']))
         ->assertOk()
         ->assertSee('Encuentro Cancelado')
-        ->assertDontSee('data-auto-lobby-redirect', false);
+        ->assertSee('<span data-lobby-notice hidden>', false);
 });
 
-it('sigue devolviendo a la cola cuando el combate se acaba de caer', function () {
-    // Aqui el jugador esta en mitad de su flujo: se le devuelve al lobby para
-    // que vuelva a encolarse sin tener que buscar el boton.
-    $s = enfrentamientoCaido('cancelled', now()->subMinute());
+it('un anulado se explica como anulado, no como cancelado', function () {
+    $s = enfrentamientoCaido('void');
 
     $this->actingAs($s['mio']->user)
         ->get(route('matches.show', $s['match']))
         ->assertOk()
-        ->assertSee('Serás redirigido al lobby')
-        ->assertSee('data-auto-lobby-redirect', false);
+        ->assertSee('Encuentro Anulado')
+        ->assertSee('devolvió los puntos que repartió')
+        ->assertDontSee('El combate se deshizo porque alguien se ausentó');
 });
 
-it('el enlace al lobby esta siempre, se redirija o no', function () {
-    foreach ([now()->subMinute(), now()->subDays(3)] as $i => $cuando) {
-        $s = enfrentamientoCaido("void", $cuando, (string) $i);
+it('el enlace al lobby esta siempre, salte solo o no', function () {
+    foreach (['void', 'cancelled'] as $estado) {
+        $s = enfrentamientoCaido($estado);
 
         $this->actingAs($s['mio']->user)
             ->get(route('matches.show', $s['match']))
             ->assertOk()
             ->assertSee('Volver al Lobby');
-
-        $s['match']->delete();
     }
+});
+
+it('el sondeo deja la marca antes de recargar', function () {
+    // La otra mitad del trato: sin esto el salto no ocurriria nunca, ni en el
+    // caso en vivo, y el jugador se quedaria mirando un combate deshecho.
+    $componente = file_get_contents(
+        resource_path('views/components/arena-state-poller.blade.php')
+    );
+
+    expect($componente)->toContain("sessionStorage.setItem('arena:live-reload', '1')");
+
+    $marca = strpos($componente, "setItem('arena:live-reload'");
+    $recarga = strpos($componente, 'window.location.reload()');
+
+    expect($marca)->toBeLessThan($recarga);
 });
