@@ -33,3 +33,6 @@
 
 # Base de datos local para desarrollo y auditoria de UI
 /database/*.sqlite
+
+# Tests de auditoria del arbitro: demuestran fallos, no verifican producto
+/tests/Feature/AuditoriaAbandonoTest.php
