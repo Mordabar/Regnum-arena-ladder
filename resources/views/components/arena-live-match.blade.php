@@ -185,19 +185,42 @@
                 <button type="button" class="arena-btn-danger-ghost px-5 py-2.5" data-reject-toggle>Rechazar y explicar</button>
             </div>
 
+            @php
+                // Si el envio anterior fallo, el formulario tiene que volver
+                // ABIERTO y con el error dentro. Cerrado y con el aviso arriba
+                // del todo, el jugador -que esta mirando el panel de combate,
+                // abajo- solo ve que pulsar no hace nada.
+                // Se mira el error, no la entrada anterior: old() depende de que
+                // el fallo haya venido de una validacion, y los nuestros -los de
+                // base de datos- no la pasan.
+                $rechazoFallido = $errors->has('rejection_note')
+                    || $errors->has('rejection_files')
+                    || $errors->has('rejection_files.*')
+                    || $errors->has('error');
+            @endphp
+
             {{-- El rechazo admite capturas. Sin ellas moderacion tiene la
                  version del otro con pruebas y la tuya sin ninguna, asi que se
                  pide aunque no se obligue: quien no tomo captura tiene que
                  poder rechazar igual, o se tragaria un resultado falso. --}}
             <form method="POST" action="{{ route('matches.report.reject') }}" class="arena-report-reject"
-                  data-reject-form enctype="multipart/form-data" hidden>
+                  data-reject-form enctype="multipart/form-data" @if(! $rechazoFallido) hidden @endif>
                 @csrf
                 <input type="hidden" name="report_id" value="{{ $report->id }}">
                 <input type="hidden" name="player_id" value="{{ $lineup['viewer_player_id'] }}">
+
+                @if($rechazoFallido)
+                    <div class="mb-4 rounded-xl border border-rose-500/40 bg-rose-950/40 px-4 py-3 text-sm text-rose-100">
+                        @foreach($errors->all() as $error)
+                            <p>{{ $error }}</p>
+                        @endforeach
+                    </div>
+                @endif
+
                 <label class="block">
                     <span class="mb-2 block text-sm font-medium arena-body-text">Por que lo rechazas</span>
-                    <textarea name="rejection_note" rows="3" class="arena-textarea" required
-                              placeholder="Cuenta que paso de verdad. Lo lee moderacion, no el rival."></textarea>
+                    <textarea name="rejection_note" rows="3" class="arena-textarea" required minlength="5"
+                              placeholder="Cuenta que paso de verdad. Lo lee moderacion, no el rival.">{{ old('rejection_note') }}</textarea>
                 </label>
                 <label class="block mt-4">
                     <span class="mb-2 block text-sm font-medium arena-body-text">Tus capturas (opcional, hasta 3)</span>

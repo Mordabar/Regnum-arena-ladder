@@ -332,3 +332,27 @@ it('rechaza igual en una base a la que le falta la migracion', function () {
     expect($report->fresh()->status)->toBe('rejected');
     expect($match->fresh()->status)->toBe('disputed');
 });
+
+it('devuelve el formulario de rechazo abierto y con el motivo del fallo dentro', function () {
+    // El fallo se quedaba invisible: el aviso salia arriba del todo y el
+    // formulario volvia cerrado, asi que desde el panel de combate parecia que
+    // el boton no hacia nada.
+    [, $report, , $rival] = enfrentamientoConReportePendiente('visible');
+
+    $respuesta = $this->actingAs($rival->user)
+        ->from(route('lobby'))
+        ->followingRedirects()
+        ->post(route('matches.report.reject'), [
+            'report_id' => $report->id,
+            'player_id' => $rival->id,
+            'rejection_note' => 'no',
+        ]);
+
+    $respuesta->assertOk();
+    // El motivo del fallo, dentro del propio formulario.
+    $respuesta->assertSee('Cuenta un poco mas', false);
+    // Y abierto, no escondido otra vez.
+    expect($respuesta->getContent())->not->toContain('data-reject-form enctype="multipart/form-data" hidden');
+    // Con lo que habia escrito, para no tener que teclearlo de nuevo.
+    $respuesta->assertSee('>no</textarea>', false);
+});

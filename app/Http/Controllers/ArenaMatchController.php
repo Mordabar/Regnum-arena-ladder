@@ -284,6 +284,7 @@ class ArenaMatchController extends Controller
             'rejection_files.*' => 'file|mimes:jpg,jpeg,png,webp,gif,bmp,avif,heic,heif|max:10240',
         ], [
             'rejection_note.required' => 'Explica por que lo rechazas: sin motivo moderacion no tiene por donde empezar.',
+            'rejection_note.min' => 'Cuenta un poco mas: con dos palabras moderacion no puede decidir nada.',
             'rejection_files.max' => 'Solo puedes subir hasta 3 capturas con el rechazo.',
             'rejection_files.*.mimes' => 'Las capturas deben ser JPG, PNG, WEBP, GIF, BMP, AVIF o HEIC.',
             'rejection_files.*.max' => 'Cada captura no puede superar los 10 MB.',
@@ -302,7 +303,7 @@ class ArenaMatchController extends Controller
         } catch (\RuntimeException $e) {
             // Las de regla -"ya no esta esperando confirmacion", "solo el rival
             // puede rechazar"- se le cuentan al jugador tal cual.
-            return back()->withErrors(['error' => $e->getMessage()]);
+            return back()->withInput()->withErrors(['error' => $e->getMessage()]);
         } catch (\Throwable $e) {
             // Lo demas es un fallo nuestro. Antes se le enseñaba al jugador el
             // mensaje crudo, que con un error de base de datos es la consulta
@@ -314,7 +315,7 @@ class ArenaMatchController extends Controller
                 'message' => $e->getMessage(),
             ]);
 
-            return back()->withErrors([
+            return back()->withInput()->withErrors([
                 'error' => 'No se pudo registrar tu rechazo. Vuelve a intentarlo; si sigue fallando, avisa en el Discord.',
             ]);
         }

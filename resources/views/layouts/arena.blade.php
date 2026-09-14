@@ -2820,6 +2820,21 @@
 
             /* Rechazar pide un motivo, y ese motivo no puede estar en otra
                pagina. */
+
+            // Si el formulario vuelve abierto es porque el envio anterior
+            // fallo: se lleva la vista hasta el, que si no el jugador se queda
+            // mirando el panel sin entender por que no paso nada.
+            window.ArenaBoot.register(function (root) {
+                var abierto = (root || document).querySelector('[data-reject-form]:not([hidden])');
+                if (!abierto || abierto.dataset.rejectFocused === '1') { return; }
+
+                abierto.dataset.rejectFocused = '1';
+                abierto.scrollIntoView({ block: 'center', behavior: 'smooth' });
+
+                var nota = abierto.querySelector('textarea');
+                if (nota) { nota.focus(); }
+            });
+
             document.addEventListener('click', function (event) {
                 if (!event.target.closest('[data-reject-toggle]')) { return; }
 

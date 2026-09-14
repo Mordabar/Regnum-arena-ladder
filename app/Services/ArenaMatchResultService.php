@@ -392,44 +392,167 @@ class ArenaMatchResultService
         });
     }
 
+    /**
+     * Anula un enfrentamiento.
+     *
+     * Si ya estaba puntuado tambien se anula, deshaciendo lo que repartio. La
+     * negativa de antes dejaba a moderacion sin salida: una partida cerrada por
+     * un fallo -el rival confirmo algo que no paso, o el sistema la cerro sola-
+     * se quedaba contando en el ladder para siempre, porque forceComplete solo
+     * sabe cambiar el ganador, y aqui el problema es que no hubo partida.
+     */
+    /**
+     * Anula un enfrentamiento.
+     *
+     * Si ya estaba puntuado tambien se anula, deshaciendo lo que repartio. La
+     * negativa de antes dejaba a moderacion sin salida: una partida cerrada por
+     * un fallo -el rival confirmo algo que no paso, o el sistema la cerro sola-
+     * se quedaba contando en el ladder para siempre, porque forceComplete solo
+     * sabe cambiar el ganador, y aqui el problema es que no hubo partida.
+     */
     public function markVoid(ArenaMatch $match, ?User $admin = null, ?string $note = null): void
     {
-        if ($match->results()->exists()) {
-            throw new \RuntimeException('No puedes anular un match ya puntuado.');
-        }
+        $devueltos = [];
 
-        DB::transaction(function () use ($match, $admin, $note) {
-            if ($match->report) {
-                $match->report->update([
-                    'status' => 'voided',
-                    'reviewed_by_user_id' => $admin?->id,
-                    'reviewed_at' => now(),
-                    'admin_note' => $note,
-                    'resolution_payload' => [
-                        'resolution_source' => 'admin_void',
-                    ],
-                ]);
+        DB::transaction(function () use ($match, $admin, $note, &$devueltos) {
+            // Bajo llave y releido: dos clics seguidos en "anular" veian los
+            // mismos resultados y devolvian los puntos dos veces.
+            $bloqueado = ArenaMatch::query()->whereKey($match->getKey())->lockForUpdate()->first();
+
+            if (!$bloqueado || $bloqueado->status === 'void') {
+                return;
             }
 
-            $match->update([
+            $devueltos = $this->revertMatchResults($bloqueado);
+
+            if ($bloqueado->report) {
+                $cambios = [
+                    'status' => 'voided',
+                    'reviewed_at' => now(),
+                    'admin_note' => $note,
+                    'resolution_payload' => array_filter([
+                        'resolution_source' => $devueltos === [] ? 'admin_void' : 'admin_void_scored',
+                        // Se guarda lo que se deshizo: borrar las filas sin
+                        // dejar rastro no dejaba forma de reconstruir la
+                        // partida si la anulacion fue un error.
+                        'reverted_results' => $devueltos ?: null,
+                        'previous_resolution' => $bloqueado->report->resolution_payload ?: null,
+                        'previous_admin_note' => $bloqueado->report->admin_note ?: null,
+                    ], fn ($valor) => $valor !== null),
+                ];
+
+                // Solo se pisa si hay un admin de verdad; desde el panel llega
+                // null, y sobrescribir borraria quien reviso la vez anterior.
+                if ($admin) {
+                    $cambios['reviewed_by_user_id'] = $admin->id;
+                }
+
+                $bloqueado->report->update($cambios);
+            }
+
+            $bloqueado->update([
                 'status' => 'void',
-                'completed_at' => now(),
+                'winner_team' => null,
+                'winner_realm' => null,
+                // Se conserva: pisarlo con ahora subiria una partida de hace
+                // semanas a lo alto de la lista de combates recientes.
+                'completed_at' => $bloqueado->completed_at ?? now(),
                 'expires_at' => null,
-                'notes' => $this->appendNote($match->notes, 'Match voided' . ($note ? ': ' . $note : '')),
+                'notes' => $this->appendNote(
+                    $bloqueado->notes,
+                    ($devueltos === [] ? 'Match voided' : 'Scored match voided, points reverted')
+                        . ($note ? ': ' . $note : '')
+                ),
             ]);
 
-            $this->closeMatchQueues($match);
+            $this->closeMatchQueues($bloqueado);
         });
 
         $this->ladderCacheService->forgetRecentMatches();
+
+        if ($devueltos !== []) {
+            // Quien pierde PL y MMR por una decision de moderacion tiene que
+            // enterarse, igual que cuando se corrige un resultado.
+            $this->ladderCacheService->forgetSummary();
+            $this->discordBotService->notifyReportResolved($match->fresh(['report', 'results']), [
+                'resolution_source' => 'admin_void_scored',
+                'winner_team' => null,
+                'winner_realm' => null,
+                'note' => $note,
+            ]);
+        }
+    }
+
+    /**
+     * Deshace lo que un enfrentamiento repartio y borra sus resultados.
+     *
+     * Devuelve lo que habia, para poder dejarlo anotado.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function revertMatchResults(ArenaMatch $match): array
+    {
+        $resultados = MatchResult::query()
+            ->where('match_id', $match->id)
+            ->lockForUpdate()
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+
+        if ($resultados->isEmpty()) {
+            return [];
+        }
+
+        $devueltos = [];
+
+        foreach ($resultados as $fila) {
+            // Se deshace el movimiento REAL, no lo que dice pl_change. Con el
+            // suelo en cero una derrota puede apuntar -8 y haber quitado solo
+            // 3: devolver los 8 seria regalar cinco puntos, y ademas moveria
+            // todo el historial posterior de ese jugador.
+            $plOffset = round(-1 * ((float) $fila->pl_after - (float) $fila->pl_before), 1);
+            $mmrOffset = -1 * ((int) $fila->mmr_after - (int) $fila->mmr_before);
+
+            $devueltos[] = [
+                'player_id' => (int) $fila->player_id,
+                'result' => $fila->result,
+                'pl_change' => (float) $fila->pl_change,
+                'mmr_change' => (int) $fila->mmr_change,
+                'pl_before' => (float) $fila->pl_before,
+                'pl_after' => (float) $fila->pl_after,
+                'mmr_before' => (int) $fila->mmr_before,
+                'mmr_after' => (int) $fila->mmr_after,
+            ];
+
+            // Primero las partidas posteriores, que aun apuntan a esta fila
+            // para saber donde empiezan. Despues se borra.
+            $this->shiftFutureResultsForPlayer($fila, $plOffset, $mmrOffset);
+
+            $player = Player::find((int) $fila->player_id);
+
+            if ($player) {
+                $player->update([
+                    'pl_points' => max(0, round((float) $player->pl_points + $plOffset, 1)),
+                    'mmr' => max(100, (int) $player->mmr + $mmrOffset),
+                    'wins' => max(0, (int) $player->wins - ($this->countsAsWin($fila->result) ? 1 : 0)),
+                    'losses' => max(0, (int) $player->losses - ($this->countsAsLoss($fila->result) ? 1 : 0)),
+                    'matches_played' => max(0, (int) $player->matches_played - 1),
+                ]);
+            }
+
+            $fila->delete();
+        }
+
+        return $devueltos;
     }
 
     public function markDisputed(ArenaMatch $match, ?User $admin = null, ?string $note = null): void
     {
-        // Mismo criterio que markVoid: un match ya puntuado no puede volver a
-        // disputa. Si lo hiciera, desapareceria de los listados de completados
-        // pero sus puntos seguirian contando en el ladder, sin forma de
-        // revertirlos. Para corregir un resultado ya dado esta forceComplete.
+        // Un match ya puntuado no vuelve a disputa: desapareceria de los
+        // listados de completados mientras sus puntos siguen contando en el
+        // ladder, que es justo el estado incoherente que nadie quiere mirar.
+        // Para cambiar el ganador esta forceComplete, y para deshacerlo del
+        // todo, markVoid, que devuelve lo repartido.
         if ($match->results()->exists()) {
             throw new \RuntimeException('No puedes mandar a disputa un match ya puntuado. Corrige el resultado en su lugar.');
         }
@@ -586,8 +709,10 @@ class ArenaMatchResultService
             ->with('report')
             ->where('status', 'disputed')
             ->where('updated_at', '<=', $deadline)
-            // Un match ya puntuado no se anula: markVoid lo rechazaria y ademas
-            // habria que devolver puntos que ya movieron el ladder.
+            // Las que ya repartieron puntos se quedan fuera del barrido a
+            // proposito. markVoid sabe deshacerlas, pero quitarle puntos a
+            // cuatro jugadores es una decision que toma una persona, no un
+            // reloj: desde el panel se anula a mano cuando toca.
             ->whereDoesntHave('results')
             ->get();
 
@@ -637,6 +762,77 @@ class ArenaMatchResultService
         app(DiscordBotService::class)->notifyMatchAccepted($match->fresh());
 
         return true;
+    }
+
+    /**
+     * Anula un enfrentamiento que ya repartio puntos.
+     *
+     * Devuelve a cada jugador lo que esta partida le dio o le quito, corrige
+     * el rastro de las partidas que jugo despues -si no, su historial contaria
+     * un recorrido que ya no existe- y borra las filas de resultado, porque la
+     * partida pasa a no haber ocurrido.
+     */
+    private function voidProcessedMatch(ArenaMatch $match, ?User $admin = null, ?string $note = null): void
+    {
+        $match->loadMissing(['results', 'report']);
+
+        $resultados = $match->results
+            ->sortBy(fn (MatchResult $fila) => ($fila->created_at?->timestamp ?? 0) . '-' . $fila->id)
+            ->values();
+
+        DB::transaction(function () use ($match, $resultados, $admin, $note) {
+            foreach ($resultados as $fila) {
+                $plOffset = round(-1 * (float) $fila->pl_change, 1);
+                $mmrOffset = -1 * (int) $fila->mmr_change;
+
+                // Primero se corrigen las partidas posteriores, que aun apuntan
+                // a esta fila para saber donde empiezan. Despues se borra.
+                $this->shiftFutureResultsForPlayer($fila, $plOffset, $mmrOffset);
+
+                $player = Player::find((int) $fila->player_id);
+
+                if ($player) {
+                    $player->update([
+                        'pl_points' => max(0, round((float) $player->pl_points + $plOffset, 1)),
+                        'mmr' => max(100, (int) $player->mmr + $mmrOffset),
+                        'wins' => max(0, (int) $player->wins - ($this->countsAsWin($fila->result) ? 1 : 0)),
+                        'losses' => max(0, (int) $player->losses - ($this->countsAsLoss($fila->result) ? 1 : 0)),
+                        'matches_played' => max(0, (int) $player->matches_played - 1),
+                    ]);
+                }
+
+                $fila->delete();
+            }
+
+            if ($match->report) {
+                $match->report->update([
+                    'status' => 'voided',
+                    'reviewed_by_user_id' => $admin?->id,
+                    'reviewed_at' => now(),
+                    'admin_note' => $note,
+                    'resolution_payload' => [
+                        'resolution_source' => 'admin_void_scored',
+                    ],
+                ]);
+            }
+
+            $match->update([
+                'status' => 'void',
+                'winner_team' => null,
+                'winner_realm' => null,
+                'completed_at' => now(),
+                'expires_at' => null,
+                'notes' => $this->appendNote(
+                    $match->notes,
+                    'Scored match voided, points reverted' . ($note ? ': ' . $note : '')
+                ),
+            ]);
+
+            $this->closeMatchQueues($match);
+        });
+
+        $this->ladderCacheService->forgetRecentMatches();
+        $this->ladderCacheService->forgetSummary();
     }
 
     private function correctProcessedMatch(
@@ -1635,22 +1831,37 @@ SVG;
         $futureResults = MatchResult::query()
             ->where('player_id', $sourceResult->player_id)
             ->where(function ($query) use ($sourceResult) {
+                // Sin fecha no se puede comparar por fecha: cualquier
+                // comparacion con null en SQL no devuelve nada, y las partidas
+                // posteriores se quedaban sin corregir mientras el jugador si
+                // perdia los puntos. En ese caso manda el id.
+                if ($sourceResult->created_at === null) {
+                    $query->where('id', '>', $sourceResult->id);
+
+                    return;
+                }
+
                 $query->where('created_at', '>', $sourceResult->created_at)
                     ->orWhere(function ($sameTimestamp) use ($sourceResult) {
                         $sameTimestamp->where('created_at', $sourceResult->created_at)
                             ->where('id', '>', $sourceResult->id);
-                    });
+                    })
+                    ->orWhereNull('created_at');
             })
             ->orderBy('created_at')
             ->orderBy('id')
             ->get();
 
         foreach ($futureResults as $futureResult) {
+            // Con los mismos suelos que al puntuar. Deshacer una partida entera
+            // -no una correccion pequeña- puede empujar el historial por debajo
+            // de cero, y ahi quedaba una ficha con PL negativo que no cuadraba
+            // con el saldo del jugador, que si se topa en cero.
             $futureResult->update([
-                'pl_before' => round((float) $futureResult->pl_before + $plOffset, 1),
-                'pl_after' => round((float) $futureResult->pl_after + $plOffset, 1),
-                'mmr_before' => (int) $futureResult->mmr_before + $mmrOffset,
-                'mmr_after' => (int) $futureResult->mmr_after + $mmrOffset,
+                'pl_before' => max(0, round((float) $futureResult->pl_before + $plOffset, 1)),
+                'pl_after' => max(0, round((float) $futureResult->pl_after + $plOffset, 1)),
+                'mmr_before' => max(100, (int) $futureResult->mmr_before + $mmrOffset),
+                'mmr_after' => max(100, (int) $futureResult->mmr_after + $mmrOffset),
             ]);
         }
     }

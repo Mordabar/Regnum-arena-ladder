@@ -154,8 +154,12 @@ class AdminController extends Controller
                     break;
 
                 case 'void':
+                    $yaPuntuado = $match->results()->exists();
+
                     $resultService->markVoid($match, null, $validated['note'] ?? null);
-                    $message = 'Match marcado como void.';
+                    $message = $yaPuntuado
+                        ? 'Enfrentamiento anulado y puntos devueltos a los jugadores.'
+                        : 'Match marcado como void.';
                     break;
 
                 case 'dispute':

@@ -15,6 +15,24 @@
     $report = $match->report;
     $claimed = $report?->claimed_winner_team;
     $isClosed = in_array($match->status, ['completed', 'void', 'cancelled'], true);
+    // Anular una partida ya puntuada no es lo mismo que anular una que nunca
+    // repartio nada: hay que devolver los puntos, y conviene decirlo.
+    // Sobre la coleccion ya cargada por el controlador, no otra consulta.
+    $yaPuntuado = $match->results->isNotEmpty();
+    $cuantosJugadores = max(2, (int) ($match->player_count ?: $match->getAllPlayers()->count()));
+    $textoAnular = $yaPuntuado
+        ? [
+            'text' => 'El enfrentamiento se anula y se deshace lo que repartio: cada jugador recupera los puntos que gano o perdio aqui, y sus partidas posteriores se recalculan.',
+            'label' => 'Anular y devolver los puntos',
+            'confirm' => 'Vas a anular un enfrentamiento YA PUNTUADO. Se devolveran los puntos a los ' . $cuantosJugadores . ' jugadores.',
+            'danger' => true,
+        ]
+        : [
+            'text' => 'El enfrentamiento se anula. Nadie gana ni pierde puntos, y no cuenta en el historial competitivo.',
+            'label' => 'Anular enfrentamiento',
+            'confirm' => 'Vas a anular este enfrentamiento. No repartira puntos.',
+            'danger' => true,
+        ];
 @endphp
 
 {{-- Cabecera de contexto: todo lo que hay que saber antes de decidir nada. --}}
@@ -258,7 +276,7 @@
                     <option value="dispute">Abrir disputa y congelar</option>
                     <option value="abandonment_walkover">Alguien abandono: derrota y sancion</option>
                     <option value="support_infraction">Infraccion de soporte</option>
-                    <option value="void">Anular sin puntos</option>
+                    <option value="void">{{ $yaPuntuado ? 'Anular y devolver los puntos' : 'Anular sin puntos' }}</option>
                 </select>
             </div>
 
@@ -360,12 +378,7 @@
                 confirm: 'Vas a sancionar al jugador por infraccion de soporte.',
                 danger: true,
             },
-            void: {
-                text: 'El enfrentamiento se anula. Nadie gana ni pierde puntos, y no cuenta en el historial competitivo.',
-                label: 'Anular enfrentamiento',
-                confirm: 'Vas a anular este enfrentamiento. No repartira puntos.',
-                danger: true,
-            },
+            void: @json($textoAnular),
         };
 
         const render = () => {
