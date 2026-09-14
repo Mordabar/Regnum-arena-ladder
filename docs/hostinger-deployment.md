@@ -2,13 +2,24 @@
 
 Subir los archivos no basta: Laravel necesita dependencias, variables de entorno, base de datos, permisos y un document root correcto.
 
-## Estructura recomendada
+## Estructura
 
-- Sube el proyecto completo fuera de `public_html`, por ejemplo en `domains/tu-dominio/arena`.
-- Configura el document root del dominio para que apunte a `arena/public`.
-- No expongas `.env`, `app`, `vendor`, `storage` ni `database` como archivos publicos.
+Asi es como esta montado ahora mismo: el proyecto entero vive dentro de
+`public_html` y el `.htaccess` de la raiz reescribe cada peticion a `/public/`.
 
-Si el plan no permite cambiar el document root, mueve solo el contenido de `public` a `public_html` y ajusta en `public_html/index.php` las rutas a `vendor/autoload.php` y `bootstrap/app.php`.
+```apache
+RewriteEngine On
+RewriteCond %{REQUEST_URI} !^/public/
+RewriteRule ^(.*)$ /public/$1 [L,QSA]
+```
+
+Funciona sin tocar el document root, que es lo que el plan no deja cambiar. La
+contrapartida es que `.env`, `app`, `vendor`, `storage` y `database` quedan
+dentro del arbol servido: los protege el mismo `.htaccess`, asi que **no lo
+borres ni lo sustituyas** al subir una version nueva.
+
+Si algun dia se puede cambiar el document root, lo limpio es apuntarlo a
+`public/` y quitar el `.htaccess` de la raiz.
 
 ## Preparacion
 
@@ -87,7 +98,7 @@ Configura un cron cada minuto:
 ```bash
 php artisan migrate:status
 php artisan about
-php artisan test
+./vendor/bin/pest
 ```
 
 Comprueba despues el login de Discord, una cola 2v2, una cola 3v3, la subida de evidencias y el panel de modalidades en la configuracion administrativa.
