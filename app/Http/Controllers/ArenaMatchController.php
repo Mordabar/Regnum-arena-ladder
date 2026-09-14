@@ -10,6 +10,7 @@ use App\Services\ArenaMatchmakingService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -298,8 +299,24 @@ class ArenaMatchController extends Controller
                 $request->rejection_note,
                 $request->file('rejection_files', [])
             );
-        } catch (\Throwable $e) {
+        } catch (\RuntimeException $e) {
+            // Las de regla -"ya no esta esperando confirmacion", "solo el rival
+            // puede rechazar"- se le cuentan al jugador tal cual.
             return back()->withErrors(['error' => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            // Lo demas es un fallo nuestro. Antes se le enseñaba al jugador el
+            // mensaje crudo, que con un error de base de datos es la consulta
+            // entera, y si no se fijaba en el aviso de arriba parecia que el
+            // boton no hacia nada.
+            Log::error('No se pudo registrar el rechazo del reporte', [
+                'report_id' => $report->id,
+                'player_id' => $player->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors([
+                'error' => 'No se pudo registrar tu rechazo. Vuelve a intentarlo; si sigue fallando, avisa en el Discord.',
+            ]);
         }
 
         return redirect()->route('lobby', ['mode' => $report->match->arena_mode])

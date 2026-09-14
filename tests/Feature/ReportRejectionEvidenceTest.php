@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\ArenaMatchResultService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
@@ -307,4 +308,27 @@ it('al borrar a un jugador tambien se van las capturas de su rechazo', function 
     app(\App\Services\PlayerCleanupService::class)->purgePlayer($rival->fresh());
 
     Storage::disk('arena_reports')->assertMissing($ruta);
+});
+
+it('rechaza igual en una base a la que le falta la migracion', function () {
+    Storage::fake('arena_reports');
+
+    // Exactamente lo que pasa al desplegar sin correr las migraciones: el
+    // UPDATE reventaba y el rechazo entero se perdia. El jugador pulsaba,
+    // volvia al lobby y el enfrentamiento seguia igual, sin pasar a disputa.
+    Schema::table('match_reports', function ($tabla) {
+        $tabla->dropColumn('rejection_evidence_paths');
+    });
+
+    [$match, $report, , $rival] = enfrentamientoConReportePendiente('sin-migrar');
+
+    $this->actingAs($rival->user)->post(route('matches.report.reject'), [
+        'report_id' => $report->id,
+        'player_id' => $rival->id,
+        'rejection_note' => 'No fue asi, y la base no esta migrada',
+        'rejection_files' => [UploadedFile::fake()->image('prueba.png', 800, 600)],
+    ])->assertSessionHasNoErrors();
+
+    expect($report->fresh()->status)->toBe('rejected');
+    expect($match->fresh()->status)->toBe('disputed');
 });

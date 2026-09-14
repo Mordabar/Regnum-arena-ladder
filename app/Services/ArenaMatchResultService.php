@@ -14,6 +14,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use App\Services\DiscordBotService;
 
@@ -260,6 +261,21 @@ class ArenaMatchResultService
             throw new \RuntimeException('Solo el equipo rival puede rechazar este reporte.');
         }
 
+        // Si el despliegue todavia no ha corrido la migracion, la columna de
+        // las capturas del rechazo no existe. Sin esta comprobacion el UPDATE
+        // reventaba y el rechazo entero se perdia: el jugador pulsaba, volvia
+        // al lobby y el enfrentamiento seguia igual, sin pasar a disputa.
+        // Rechazar es lo importante; las capturas son el extra.
+        $puedeGuardarPruebas = $this->soportaPruebasDeRechazo();
+
+        if (!$puedeGuardarPruebas && $evidenceFiles !== []) {
+            Log::warning('Rechazo con capturas en una base sin migrar: se guarda el rechazo sin ellas.', [
+                'match_id' => $match->id,
+            ]);
+
+            $evidenceFiles = [];
+        }
+
         // Las capturas se guardan ANTES de abrir la transaccion: escribir
         // ficheros dentro de una transaccion no se puede deshacer si algo falla
         // despues, y quedarian huerfanos en el disco.
@@ -284,14 +300,19 @@ class ArenaMatchResultService
         }
 
         try {
-            DB::transaction(function () use ($report, $rejector, $note, $match, $storedPaths) {
-            $report->update([
-                'status' => 'rejected',
-                'rejected_by_player_id' => $rejector->id,
-                'rejected_at' => now(),
-                'rejection_note' => $note,
-                'rejection_evidence_paths' => $storedPaths !== [] ? $storedPaths : null,
-            ]);
+            DB::transaction(function () use ($report, $rejector, $note, $match, $storedPaths, $puedeGuardarPruebas) {
+                $cambios = [
+                    'status' => 'rejected',
+                    'rejected_by_player_id' => $rejector->id,
+                    'rejected_at' => now(),
+                    'rejection_note' => $note,
+                ];
+
+                if ($puedeGuardarPruebas) {
+                    $cambios['rejection_evidence_paths'] = $storedPaths !== [] ? $storedPaths : null;
+                }
+
+                $report->update($cambios);
 
             $match->update([
                 'status' => 'disputed',
@@ -1642,6 +1663,26 @@ SVG;
     private function countsAsLoss(string $result): bool
     {
         return in_array($result, ['loss', 'no_show'], true);
+    }
+
+    /**
+     * Si la base ya tiene la columna de las capturas del rechazo.
+     *
+     * Se resuelve una vez por peticion: preguntarle el esquema a la base en
+     * cada rechazo es una consulta de mas por algo que no cambia.
+     */
+    private ?bool $soportaPruebas = null;
+
+    private function soportaPruebasDeRechazo(): bool
+    {
+        // Por instancia, no estatico: un estatico sobreviviria a toda la
+        // ejecucion y en las pruebas se llevaria la respuesta de un caso al
+        // siguiente, donde el esquema puede ser otro.
+        if ($this->soportaPruebas === null) {
+            $this->soportaPruebas = Schema::hasColumn('match_reports', 'rejection_evidence_paths');
+        }
+
+        return $this->soportaPruebas;
     }
 
     private function deleteEvidencePaths(array $paths): void
