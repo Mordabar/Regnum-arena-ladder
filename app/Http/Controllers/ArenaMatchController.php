@@ -300,6 +300,20 @@ class ArenaMatchController extends Controller
                 $request->rejection_note,
                 $request->file('rejection_files', [])
             );
+        } catch (\Illuminate\Database\QueryException $e) {
+            // ANTES que RuntimeException, del que hereda. Sin esto un fallo de
+            // base de datos entraba por la rama de "regla del juego" y le
+            // enseñaba al jugador la consulta entera, con nombres de tablas y
+            // todo, en mitad del panel de combate.
+            Log::error('Fallo de base de datos al rechazar un reporte', [
+                'report_id' => $report->id,
+                'player_id' => $player->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return back()->withInput()->withErrors([
+                'error' => 'No se pudo registrar tu rechazo por un problema del servidor. Avisa en el Discord con la hora exacta.',
+            ]);
         } catch (\RuntimeException $e) {
             // Las de regla -"ya no esta esperando confirmacion", "solo el rival
             // puede rechazar"- se le cuentan al jugador tal cual.
