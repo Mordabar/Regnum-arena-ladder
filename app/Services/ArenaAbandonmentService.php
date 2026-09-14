@@ -92,11 +92,20 @@ class ArenaAbandonmentService
                 'status' => 'pending',
             ]);
 
-            // A disputa, y ahi se queda hasta que alguien lo mire. Sin tocar
-            // marcadores: si resulta que no hubo abandono, no hay nada que
-            // deshacer.
+            // El aviso NO toca el estado del enfrentamiento, solo lo anota.
+            //
+            // Mandarlo a 'disputed' parecia lo natural y era un agujero: con el
+            // match fuera de 'in_progress', submitReport() deja de aceptar el
+            // reporte del rival y los barridos de vencimiento dejan de verlo,
+            // asi que a las 48 horas se auto-anulaba. Resultado: quien iba
+            // perdiendo pulsaba el boton y convertia su derrota en un cero a
+            // cero, gratis y sin una sola captura. El aviso no sancionaba al
+            // acusado, pero decidia el combate, que es peor.
+            //
+            // Ahora el combate sigue su curso -se reporta, se confirma y se
+            // puntua como siempre- y el aviso viaja en paralelo hasta que
+            // moderacion lo resuelve.
             $match->update([
-                'status' => 'disputed',
                 'notes' => $this->añadirNota(
                     $match->notes,
                     'Abandono reportado por ' . $reporter->character_name
@@ -117,20 +126,43 @@ class ArenaAbandonmentService
         ?User $admin = null,
         ?string $note = null
     ): void {
-        if ($aviso->status === 'confirmed') {
-            return;
-        }
-
         $match = $aviso->match()->firstOrFail();
         $acusado = Player::findOrFail($aviso->accused_player_id);
 
+        // Si el combate llego a puntuar -se reporto y se confirmo mientras el
+        // aviso esperaba-, esos puntos no pueden quedarse: un abandonado no
+        // reparte resultado. Se devuelven antes de sancionar, o el acusado
+        // pagaria dos veces y los otros tres se quedarian con puntos de un
+        // combate marcado como abandonado.
+        if ($match->results()->exists()) {
+            $this->resultService->markVoid(
+                $match,
+                $admin,
+                'Puntos devueltos antes de marcar el abandono'
+            );
+            $match->refresh();
+        }
+
         DB::transaction(function () use ($aviso, $match, $acusado, $admin, $note) {
-            $aviso->update([
-                'status' => 'confirmed',
-                'reviewed_by_user_id' => $admin?->id,
-                'reviewed_at' => now(),
-                'admin_note' => $note,
-            ]);
+            // El candado es este UPDATE condicional, no una lectura previa.
+            // Comprobar el estado en memoria y decidir fuera de la transaccion
+            // dejaba pasar a dos admins a la vez -o a un doble clic- y cobraba
+            // la sancion dos veces, con dos strikes que ademas escalan el
+            // bloqueo de cola. Si no cambia ninguna fila, alguien se nos
+            // adelanto y aqui no hay nada que hacer.
+            $tomado = MatchAbandonmentReport::query()
+                ->whereKey($aviso->getKey())
+                ->where('status', 'pending')
+                ->update([
+                    'status' => 'confirmed',
+                    'reviewed_by_user_id' => $admin?->id,
+                    'reviewed_at' => now(),
+                    'admin_note' => $note,
+                ]);
+
+            if ($tomado === 0) {
+                return;
+            }
 
             // Los demas avisos del mismo enfrentamiento contra el mismo
             // jugador quedan resueltos con este; no se sanciona dos veces.
@@ -201,31 +233,28 @@ class ArenaAbandonmentService
         ?User $admin = null,
         ?string $note = null
     ): void {
-        if ($aviso->status === 'dismissed') {
-            return;
-        }
-
         $match = $aviso->match()->firstOrFail();
 
         DB::transaction(function () use ($aviso, $match, $admin, $note) {
-            $aviso->update([
-                'status' => 'dismissed',
-                'reviewed_by_user_id' => $admin?->id,
-                'reviewed_at' => now(),
-                'admin_note' => $note,
-            ]);
-
-            $quedanAvisos = MatchAbandonmentReport::query()
-                ->where('match_id', $match->id)
+            $tomado = MatchAbandonmentReport::query()
+                ->whereKey($aviso->getKey())
                 ->where('status', 'pending')
-                ->exists();
+                ->update([
+                    'status' => 'dismissed',
+                    'reviewed_by_user_id' => $admin?->id,
+                    'reviewed_at' => now(),
+                    'admin_note' => $note,
+                ]);
 
-            // Solo se devuelve al combate si no queda ningun aviso vivo y el
-            // enfrentamiento no entro en disputa por otra cosa.
-            if (!$quedanAvisos && $match->status === 'disputed' && !$match->report) {
-                $match->update(['status' => 'in_progress']);
+            if ($tomado === 0) {
+                return;
             }
 
+            // No hay nada que devolver a su sitio: el aviso nunca cambio el
+            // estado del enfrentamiento. Antes si lo hacia, y descartarlo lo
+            // resucitaba a 'in_progress' con el plazo ya vencido, asi que el
+            // siguiente barrido lo anulaba al instante: darle la razon al
+            // acusado destruia igualmente su combate.
             $match->update([
                 'notes' => $this->añadirNota(
                     $match->notes,

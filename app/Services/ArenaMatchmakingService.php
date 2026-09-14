@@ -285,9 +285,13 @@ class ArenaMatchmakingService
         // Ninguna cola puede quedar apuntando a una fila que ya no existe.
         Queue::query()->where('match_id', $matchId)->update(['match_id' => null]);
 
-        // Salvaguarda: si por lo que sea hubiera reporte o resultados, esto no
-        // era un cruce sin partida y no se toca.
-        if ($match->results()->exists() || $match->report()->exists()) {
+        // Salvaguarda: si por lo que sea hubiera reporte, resultados o avisos de
+        // abandono, esto no era un cruce sin partida y no se toca. Los avisos
+        // cuentan tanto como lo demas: si alguien denuncio un abandono es que
+        // el combate se estaba jugando.
+        if ($match->results()->exists()
+            || $match->report()->exists()
+            || $match->abandonmentReports()->exists()) {
             $match->update(['status' => 'cancelled']);
 
             return;

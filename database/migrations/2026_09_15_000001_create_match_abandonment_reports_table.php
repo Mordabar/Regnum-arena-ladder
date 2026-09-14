@@ -23,7 +23,9 @@ return new class extends Migration
 
         Schema::create('match_abandonment_reports', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('match_id');
+            // Con borrado en cascada, igual que match_results y match_reports:
+            // un aviso no sobrevive al enfrentamiento que lo origino.
+            $table->foreignId('match_id')->constrained('matches')->cascadeOnDelete();
             $table->unsignedBigInteger('reported_by_player_id')->nullable();
             // A quien se señala. Puede ser un rival o el propio compañero.
             $table->unsignedBigInteger('accused_player_id');
@@ -35,7 +37,6 @@ return new class extends Migration
             $table->text('admin_note')->nullable();
             $table->timestamps();
 
-            $table->index('match_id');
             $table->index('accused_player_id');
             $table->index('status');
             // Un jugador no señala dos veces al mismo en el mismo

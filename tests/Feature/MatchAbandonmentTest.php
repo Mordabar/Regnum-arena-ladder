@@ -13,8 +13,13 @@ uses(RefreshDatabase::class);
  * Abandono: avisar no castiga, confirmar si, y solo a quien se fue.
  *
  * Un boton que sancione con el clic de un jugador se convierte en un arma el
- * primer dia. El aviso deja el enfrentamiento en disputa sin mover un punto y
- * la sancion pasa unicamente por el panel.
+ * primer dia, asi que la sancion pasa unicamente por el panel.
+ *
+ * Y el aviso tampoco decide el combate: no toca su estado. Mandarlo a disputa
+ * -que fue el primer intento- sacaba el match de 'in_progress', el rival ya no
+ * podia reportar su victoria y a las 48 horas se auto-anulaba. El acusado no
+ * era sancionado, pero quien iba perdiendo convertia su derrota en un cero a
+ * cero pulsando un boton. El combate sigue su curso y el aviso va en paralelo.
  */
 function jugadorAbandono(string $sufijo, string $reino = 'alsius'): Player
 {
@@ -78,14 +83,18 @@ function combateEnCurso(string $marca = ''): array
     return compact('match', 'mio', 'companero', 'rival', 'rival2');
 }
 
-it('avisar manda el enfrentamiento a disputa sin tocar un solo punto', function () {
+it('avisar no cambia el estado del combate ni toca un solo punto', function () {
+    // Mandarlo a disputa era un agujero: con el match fuera de 'in_progress'
+    // el rival ya no podia reportar su victoria y a las 48 horas se
+    // auto-anulaba, asi que el boton servia para borrar una derrota. El
+    // combate sigue su curso y el aviso viaja en paralelo.
     $s = combateEnCurso('a');
 
     app(ArenaAbandonmentService::class)->report(
         $s['match'], $s['mio'], $s['rival']->id, 'Se desconecto al minuto dos'
     );
 
-    expect($s['match']->fresh()->status)->toBe('disputed');
+    expect($s['match']->fresh()->status)->toBe('in_progress');
 
     // Nadie ha perdido nada todavia: aun no se ha revisado.
     foreach (['mio', 'companero', 'rival', 'rival2'] as $quien) {
@@ -214,13 +223,15 @@ it('dos avisos contra el mismo jugador se resuelven de una', function () {
     expect((float) $s['rival']->fresh()->pl_points)->toBe(28.0);
 });
 
-it('descartar el aviso devuelve el enfrentamiento al combate', function () {
+it('descartar el aviso deja el combate donde estaba', function () {
     $s = combateEnCurso('k');
     $servicio = app(ArenaAbandonmentService::class);
 
     $aviso = $servicio->report($s['match'], $s['mio'], $s['rival']->id, 'Creo que se fue');
     $servicio->dismiss($aviso->fresh(), null, 'Estaba jugando, se ve en el video');
 
+    // Nunca salio de 'in_progress', asi que no hay nada que resucitar -ni el
+    // plazo vencido que eso arrastraba.
     expect($s['match']->fresh()->status)->toBe('in_progress');
     expect($aviso->fresh()->status)->toBe('dismissed');
 
@@ -307,7 +318,8 @@ it('el formulario de abandono llega hasta la sancion', function () {
         ->assertSessionHasNoErrors()
         ->assertRedirect();
 
-    expect($s['match']->fresh()->status)->toBe('disputed');
+    // El combate sigue en curso: el aviso se anota, no lo congela.
+    expect($s['match']->fresh()->status)->toBe('in_progress');
     expect(MatchAbandonmentReport::where('match_id', $s['match']->id)->count())->toBe(1);
 });
 
@@ -531,4 +543,133 @@ it('sin avisos no aparece el bloque', function () {
         ->get(route('matches.show', $s['match']))
         ->assertOk()
         ->assertDontSee('data-abandonment-record', false);
+});
+
+it('confirmar sigue funcionando si el combate se auto-anulo mientras esperaba', function () {
+    // El admin tarda en mirarlo y el barrido de vencimiento anula el combate
+    // antes. El aviso sigue vivo y tiene que poder resolverse: si no, quien
+    // abandono se libra por haber tardado nosotros.
+    $s = combateEnCurso('z5');
+    $servicio = app(ArenaAbandonmentService::class);
+
+    $aviso = $servicio->report($s['match'], $s['mio'], $s['rival']->id, 'Se fue');
+
+    $s['match']->fresh()->update(['status' => 'void']);
+
+    $servicio->confirm($aviso->fresh(), null, 'Confirmado tarde');
+
+    expect($s['match']->fresh()->status)->toBe('abandoned');
+    expect((float) $s['rival']->fresh()->pl_points)->toBe(28.0);
+    expect((float) $s['mio']->fresh()->pl_points)->toBe(30.0);
+});
+
+it('un aviso vivo impide que el cruce se borre por error', function () {
+    // Salvaguarda del borrado: si alguien denuncio un abandono es que el
+    // combate se estaba jugando, pase lo que pase con el estado.
+    $s = combateEnCurso('z6');
+    $servicio = app(ArenaAbandonmentService::class);
+    $servicio->report($s['match'], $s['mio'], $s['rival']->id, 'Se fue');
+
+    $s['match']->fresh()->update(['status' => 'pending_acceptance']);
+    $id = $s['match']->id;
+
+    app(App\Services\ArenaMatchmakingService::class)
+        ->cancelMatch(ArenaMatch::find($id), 'timeout', null, false);
+
+    expect(ArenaMatch::find($id))->not->toBeNull();
+    expect(MatchAbandonmentReport::where('match_id', $id)->count())->toBe(1);
+});
+
+/*
+ * Guardias nacidos de la auditoria adversarial. Cada uno vigila un agujero
+ * concreto que llego a existir; escritos al reves que los del arbitro, para
+ * que fallen si el fallo vuelve.
+ */
+
+it('reportar un abandono no impide al rival subir su reporte', function () {
+    // El agujero: el aviso mandaba el match a 'disputed', submitReport() solo
+    // acepta 'in_progress', y a las 48h se auto-anulaba. Quien iba perdiendo
+    // convertia su derrota en un cero a cero pulsando un boton.
+    $s = combateEnCurso('g1');
+
+    app(ArenaAbandonmentService::class)
+        ->report($s['match'], $s['mio'], $s['rival']->id, 'Aviso para escaparme de la derrota');
+
+    // El rival, que gano, sigue pudiendo reportar.
+    $s['match']->fresh()->update(['expires_at' => now()->addMinutes(20)]);
+
+    expect($s['match']->fresh()->status)->toBe('in_progress');
+
+    Illuminate\Support\Facades\Storage::fake(App\Models\MatchReport::EVIDENCE_DISK);
+
+    $this->actingAs($s['rival']->user)
+        ->post(route('matches.report'), [
+            'match_id' => $s['match']->id,
+            'player_id' => $s['rival']->id,
+            'claimed_winner_team' => 'team_b',
+            'evidence_files' => [
+                Illuminate\Http\UploadedFile::fake()->image('final.png'),
+            ],
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($s['match']->fresh()->report)->not->toBeNull();
+});
+
+it('confirmar un abandono devuelve los puntos si el combate llego a puntuar', function () {
+    // El agujero: se podia confirmar sobre un match ya puntuado, y quedaban
+    // cuatro filas de resultados en un enfrentamiento marcado como abandonado.
+    // El acusado pagaba dos veces y los otros tres conservaban puntos.
+    $s = combateEnCurso('g2');
+    $servicio = app(ArenaAbandonmentService::class);
+
+    $aviso = $servicio->report($s['match'], $s['mio'], $s['rival']->id, 'Se fue');
+
+    // El combate se reporta y se confirma mientras el aviso espera.
+    $reporte = App\Models\MatchReport::create([
+        'match_id' => $s['match']->id,
+        'reported_by_player_id' => $s['rival']->id,
+        'reporting_team' => 'team_b',
+        'claimed_winner_team' => 'team_b',
+        'claimed_winner_realm' => 'ignis',
+        'status' => 'pending_confirmation',
+        'final_screenshot_path' => 'match-reports/testing/aban/final.png',
+        'encounter_screenshot_path' => 'match-reports/testing/aban/enc.png',
+    ]);
+    app(App\Services\ArenaMatchResultService::class)->confirmReportForRival($reporte, 'ok');
+
+    expect($s['match']->fresh()->results()->count())->toBeGreaterThan(0);
+
+    $servicio->confirm($aviso->fresh(), null, 'Se fue, confirmado');
+
+    // Ni una fila de resultados sobrevive, y solo el acusado queda por debajo.
+    expect($s['match']->fresh()->status)->toBe('abandoned');
+    expect($s['match']->fresh()->results()->count())->toBe(0);
+    expect((float) $s['rival']->fresh()->pl_points)->toBe(28.0);
+    expect((float) $s['mio']->fresh()->pl_points)->toBe(30.0);
+    expect((float) $s['companero']->fresh()->pl_points)->toBe(30.0);
+    expect((float) $s['rival2']->fresh()->pl_points)->toBe(30.0);
+});
+
+it('dos admins a la vez no cobran la sancion dos veces', function () {
+    // El agujero: la comprobacion de estado se hacia sobre el modelo en
+    // memoria y fuera de la transaccion, asi que dos peticiones que lo leyeron
+    // antes de que la otra escribiera sancionaban las dos.
+    $s = combateEnCurso('g3');
+    $servicio = app(ArenaAbandonmentService::class);
+
+    $aviso = $servicio->report($s['match'], $s['mio'], $s['rival']->id, 'Se fue');
+
+    // Dos copias leidas ANTES de que ninguna resuelva: es lo que tienen dos
+    // peticiones concurrentes.
+    $copiaA = MatchAbandonmentReport::find($aviso->id);
+    $copiaB = MatchAbandonmentReport::find($aviso->id);
+
+    $servicio->confirm($copiaA);
+    $servicio->confirm($copiaB);
+
+    $culpable = $s['rival']->fresh();
+    expect((float) $culpable->pl_points)->toBe(28.0);
+    expect($culpable->penalty_strikes)->toBe(1);
+    expect($culpable->trust_score)->toBe(85);
 });
