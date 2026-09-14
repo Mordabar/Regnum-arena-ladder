@@ -485,3 +485,50 @@ it('marcar interrumpido no castiga a nadie', function () {
         expect($p->queue_locked_until)->toBeNull();
     }
 });
+
+it('el acusado puede leer de que se le acusa y con que pruebas', function () {
+    $s = combateEnCurso('z');
+    app(ArenaAbandonmentService::class)
+        ->report($s['match'], $s['mio'], $s['rival']->id, 'Se desconecto y no volvio');
+
+    $this->actingAs($s['rival']->user)
+        ->get(route('matches.show', $s['match']))
+        ->assertOk()
+        ->assertSee('Aviso de abandono')
+        ->assertSee('Se desconecto y no volvio')
+        ->assertSee('Pendiente de revisión. Nadie ha sido sancionado todavía.');
+});
+
+it('quien aviso ve en que quedo su aviso', function () {
+    $s = combateEnCurso('z2');
+    $servicio = app(ArenaAbandonmentService::class);
+    $aviso = $servicio->report($s['match'], $s['mio'], $s['rival']->id, 'Se fue');
+    $servicio->confirm($aviso->fresh(), null, 'Se ve en el video que se desconecta');
+
+    $this->actingAs($s['mio']->user)
+        ->get(route('matches.show', $s['match']))
+        ->assertOk()
+        ->assertSee('Moderación confirmó el abandono')
+        ->assertSee('Se ve en el video que se desconecta');
+});
+
+it('un aviso descartado se lee como descartado', function () {
+    $s = combateEnCurso('z3');
+    $servicio = app(ArenaAbandonmentService::class);
+    $aviso = $servicio->report($s['match'], $s['mio'], $s['rival']->id, 'Creo que se fue');
+    $servicio->dismiss($aviso->fresh(), null, 'Estaba jugando');
+
+    $this->actingAs($s['rival']->user)
+        ->get(route('matches.show', $s['match']))
+        ->assertOk()
+        ->assertSee('Moderación descartó el aviso. Nadie fue sancionado.');
+});
+
+it('sin avisos no aparece el bloque', function () {
+    $s = combateEnCurso('z4');
+
+    $this->actingAs($s['mio']->user)
+        ->get(route('matches.show', $s['match']))
+        ->assertOk()
+        ->assertDontSee('data-abandonment-record', false);
+});

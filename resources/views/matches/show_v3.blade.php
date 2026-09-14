@@ -752,6 +752,12 @@
         @endif
     </section>
 
+    {{-- ── AVISOS DE ABANDONO ──
+         Va en su propio bloque y no dentro del expediente del reporte, porque
+         un abandono puede ocurrir sin que nadie llegue a reportar resultado:
+         justamente cuando el combate se rompe a mitad. --}}
+    @include('matches.partials.abandonment-record', ['match' => $match, 'viewerPlayer' => $viewerPlayer, 'showRivalNames' => $showRivalNames])
+
     {{-- ── LADDER IMPACT (collapsible) ── --}}
     @if($match->results->isNotEmpty())
         <details class="arena-panel arena-animate-in arena-stagger-4 group" open>
