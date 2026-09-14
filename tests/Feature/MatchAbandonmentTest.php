@@ -249,17 +249,42 @@ it('no se reporta un abandono de un combate que no ha empezado', function () {
     ))->toThrow(RuntimeException::class, 'mientras el combate esta en curso');
 });
 
-it('los cruces que nunca empezaron no salen en el historial', function () {
-    // 'cancelled' solo puede pasar antes de empezar: nadie acepto, o alguien
-    // rechazo. No hubo pelea, asi que no es historial de nadie.
+it('un cruce que nunca empezo no sale en el historial porque ya no existe', function () {
+    // Antes se filtraba por estado; ahora no hace falta filtrar nada, porque
+    // cancelMatch borra la fila. Lo que se comprueba aqui es justo eso: que no
+    // quede nada que mostrar.
     $s = combateEnCurso('m');
+    $s['match']->update(['status' => 'pending_acceptance']);
+    $id = $s['match']->id;
+
+    App\Models\Queue::create([
+        'player_id' => $s['mio']->id,
+        'queue_type' => 'random',
+        'arena_mode' => '2v2',
+        'status' => 'matched',
+        'match_id' => (string) $id,
+        'estimated_mmr' => 1000,
+        'joined_at' => now()->subHour(),
+    ]);
+
+    app(App\Services\ArenaMatchmakingService::class)
+        ->cancelMatch(ArenaMatch::find($id), 'timeout', null, false);
+
+    expect(ArenaMatch::find($id))->toBeNull();
+});
+
+it('un combate interrumpido si sale en el historial', function () {
+    // 'cancelled' ya no significa "nunca empezo" -esos se borran- sino
+    // "alguien de fuera lo interrumpio". Eso se peleo, asi que esconderlo
+    // hacia desaparecer del historial de los cuatro una partida que jugaron.
+    $s = combateEnCurso('m2');
     $s['match']->update(['status' => 'cancelled']);
 
     App\Models\Queue::create([
         'player_id' => $s['mio']->id,
         'queue_type' => 'random',
         'arena_mode' => '2v2',
-        'status' => 'cancelled',
+        'status' => 'accepted',
         'match_id' => (string) $s['match']->id,
         'estimated_mmr' => 1000,
         'joined_at' => now()->subHour(),
@@ -268,7 +293,7 @@ it('los cruces que nunca empezaron no salen en el historial', function () {
     $this->actingAs($s['mio']->user)
         ->get(route('matches.index'))
         ->assertOk()
-        ->assertDontSee($s['match']->match_code);
+        ->assertSee($s['match']->match_code);
 });
 
 it('un abandonado si sale en el historial', function () {
@@ -672,4 +697,198 @@ it('dos admins a la vez no cobran la sancion dos veces', function () {
     expect((float) $culpable->pl_points)->toBe(28.0);
     expect($culpable->penalty_strikes)->toBe(1);
     expect($culpable->trust_score)->toBe(85);
+});
+
+it('confirmar un aviso ya resuelto no destruye el combate', function () {
+    // El agujero de la 2a ronda: la devolucion de puntos iba ANTES del guard y
+    // fuera de la transaccion. Confirmar un aviso ya descartado -boton atras,
+    // reenvio, dos pestañas- anulaba un combate puntuado, borraba los cuatro
+    // resultados, y el admin leia "abandono confirmado" sin que nadie hubiera
+    // sido sancionado.
+    $s = combateEnCurso('g4');
+    $servicio = app(ArenaAbandonmentService::class);
+
+    $aviso = $servicio->report($s['match'], $s['mio'], $s['rival']->id, 'Creo que se fue');
+    $servicio->dismiss($aviso->fresh(), null, 'Estaba jugando');
+
+    // El combate continua y se puntua con normalidad.
+    $reporte = App\Models\MatchReport::create([
+        'match_id' => $s['match']->id,
+        'reported_by_player_id' => $s['rival']->id,
+        'reporting_team' => 'team_b',
+        'claimed_winner_team' => 'team_b',
+        'claimed_winner_realm' => 'ignis',
+        'status' => 'pending_confirmation',
+        'final_screenshot_path' => 'match-reports/testing/aban/final.png',
+        'encounter_screenshot_path' => 'match-reports/testing/aban/enc.png',
+    ]);
+    app(App\Services\ArenaMatchResultService::class)->confirmReportForRival($reporte, 'ok');
+
+    $antes = [
+        'estado' => $s['match']->fresh()->status,
+        'filas' => $s['match']->fresh()->results()->count(),
+        'pl' => (float) $s['rival']->fresh()->pl_points,
+    ];
+
+    // Alguien pulsa confirmar sobre el aviso ya descartado.
+    $servicio->confirm($aviso->fresh(), null, 'Reenvio');
+
+    // Nada se movio.
+    expect($s['match']->fresh()->status)->toBe($antes['estado']);
+    expect($s['match']->fresh()->results()->count())->toBe($antes['filas']);
+    expect((float) $s['rival']->fresh()->pl_points)->toBe($antes['pl']);
+    expect($aviso->fresh()->status)->toBe('dismissed');
+});
+
+it('tras una derrota por abandono el aviso queda resuelto', function () {
+    // El agujero: el walkover dejaba los avisos pendientes, el siguiente admin
+    // pulsaba confirmar -el camino natural- y el infractor pagaba dos veces
+    // mientras el equipo que gano perdia su victoria.
+    $s = combateEnCurso('g5');
+    $servicio = app(ArenaAbandonmentService::class);
+
+    $aviso = $servicio->report($s['match'], $s['mio'], $s['rival']->id, 'Se fue');
+
+    $this->withSession(sesionAdminAbandono())
+        ->post(route('admin.matches.resolve', $s['match']), [
+            'action' => 'abandonment_walkover',
+            'player_id' => $s['rival']->id,
+            'note' => 'Se fue',
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($aviso->fresh()->status)->toBe('confirmed');
+
+    $strikesTrasWalkover = $s['rival']->fresh()->penalty_strikes;
+    $plGanador = (float) $s['mio']->fresh()->pl_points;
+
+    // Y si alguien confirma igualmente, no cobra otra vez.
+    $servicio->confirm($aviso->fresh());
+
+    expect($s['rival']->fresh()->penalty_strikes)->toBe($strikesTrasWalkover);
+    expect((float) $s['mio']->fresh()->pl_points)->toBe($plGanador);
+});
+
+it('el rival no ve el motivo ni las capturas mientras se pelea', function () {
+    // Las capturas de un aviso se toman A MITAD del combate: enseñarlas al
+    // bando contrario en directo le regala la pantalla del enemigo.
+    $s = combateEnCurso('g6');
+    $aviso = app(ArenaAbandonmentService::class)->report(
+        $s['match'], $s['mio'], $s['companero']->id, 'SECRETO-DEL-RIVAL le queda poca vida'
+    );
+    $aviso->update(['evidence_paths' => ['match-reports/testing/aban/prueba.png']]);
+
+    // El rival, que no avisó ni está señalado, no lee nada.
+    $this->actingAs($s['rival']->user)
+        ->get(route('matches.show', $s['match']))
+        ->assertOk()
+        ->assertDontSee('SECRETO-DEL-RIVAL')
+        ->assertSee('se abren cuando termine el enfrentamiento');
+
+    $this->actingAs($s['rival']->user)
+        ->get(route('matches.abandonment.evidence', ['abandonment' => $aviso, 'slot' => 1]))
+        ->assertForbidden();
+
+    // El señalado si, porque tiene que poder defenderse.
+    $this->actingAs($s['companero']->user)
+        ->get(route('matches.show', $s['match']))
+        ->assertOk()
+        ->assertSee('SECRETO-DEL-RIVAL');
+
+    // Y con el combate cerrado, se abre para todos los que lo jugaron.
+    $s['match']->fresh()->update(['status' => 'completed']);
+
+    $this->actingAs($s['rival']->user)
+        ->get(route('matches.show', $s['match']))
+        ->assertOk()
+        ->assertSee('SECRETO-DEL-RIVAL');
+});
+
+it('el boton de avisar sigue estando con un reporte ya subido y en disputa', function () {
+    // El agujero: el boton colgaba de $canReport, que exige que NO exista
+    // reporte, asi que desaparecia justo cuando la victima necesitaba avisar.
+    $s = combateEnCurso('g7');
+
+    App\Models\MatchReport::create([
+        'match_id' => $s['match']->id,
+        'reported_by_player_id' => $s['rival']->id,
+        'reporting_team' => 'team_b',
+        'claimed_winner_team' => 'team_b',
+        'claimed_winner_realm' => 'ignis',
+        'status' => 'pending_confirmation',
+        'final_screenshot_path' => 'match-reports/testing/aban/final.png',
+        'encounter_screenshot_path' => 'match-reports/testing/aban/enc.png',
+    ]);
+
+    $this->actingAs($s['mio']->user)
+        ->get(route('matches.show', $s['match']))
+        ->assertOk()
+        ->assertSee('Reportar abandono');
+
+    $s['match']->fresh()->update(['status' => 'disputed']);
+
+    $this->actingAs($s['mio']->user)
+        ->get(route('matches.show', $s['match']))
+        ->assertOk()
+        ->assertSee('Reportar abandono');
+});
+
+it('un abandono confirmado ya no se puede puntuar desde el panel', function () {
+    $s = combateEnCurso('g8');
+    $servicio = app(ArenaAbandonmentService::class);
+    $aviso = $servicio->report($s['match'], $s['mio'], $s['rival']->id, 'Se fue');
+    $servicio->confirm($aviso->fresh());
+
+    $this->withSession(sesionAdminAbandono())
+        ->post(route('admin.matches.resolve', $s['match']), [
+            'action' => 'force_complete',
+            'winner_team' => 'team_a',
+        ])
+        ->assertSessionHasErrors();
+
+    expect($s['match']->fresh()->status)->toBe('abandoned');
+});
+
+it('marcar interrumpido dos veces no repite el trabajo', function () {
+    $s = combateEnCurso('g9');
+
+    foreach ([1, 2] as $vez) {
+        $this->withSession(sesionAdminAbandono())
+            ->post(route('admin.matches.resolve', $s['match']), [
+                'action' => 'interrupted',
+                'note' => 'Entro un tercero',
+            ])
+            ->assertSessionHasNoErrors();
+    }
+
+    expect($s['match']->fresh()->status)->toBe('cancelled');
+    expect(substr_count((string) $s['match']->fresh()->notes, 'Combate interrumpido'))->toBe(1);
+});
+
+it('un aviso no aplaza el cierre automatico de una disputa', function () {
+    // El agujero: report() escribia una nota en el match, eso tocaba
+    // updated_at, y expireStaleDisputes elige por ese campo. Cada aviso
+    // reiniciaba el reloj de 48 horas.
+    $s = combateEnCurso('h1');
+    $s['match']->update(['status' => 'disputed']);
+    App\Models\MatchReport::create([
+        'match_id' => $s['match']->id,
+        'reported_by_player_id' => $s['rival']->id,
+        'reporting_team' => 'team_b',
+        'claimed_winner_team' => 'team_b',
+        'claimed_winner_realm' => 'ignis',
+        'status' => 'disputed',
+        'final_screenshot_path' => 'match-reports/testing/aban/final.png',
+        'encounter_screenshot_path' => 'match-reports/testing/aban/enc.png',
+    ]);
+    Illuminate\Support\Facades\DB::table('matches')
+        ->where('id', $s['match']->id)
+        ->update(['updated_at' => now()->subHours(50)]);
+
+    app(ArenaAbandonmentService::class)
+        ->report($s['match']->fresh(), $s['mio'], $s['rival']->id, 'Se fue');
+
+    // El reloj sigue donde estaba.
+    expect(ArenaMatch::find($s['match']->id)->updated_at->diffInHours(now()))
+        ->toBeGreaterThanOrEqual(49);
 });

@@ -964,8 +964,17 @@ class ArenaMatchResultService
         // Un match cancelado o anulado no puede otorgar puntos: si quedo un
         // reporte pendiente al cancelarse, confirmarlo despues sumaria PL de
         // una partida que oficialmente no existe.
-        if (in_array($match->status, ['cancelled', 'void'], true)) {
-            throw new \RuntimeException('Este match fue ' . ($match->status === 'void' ? 'anulado' : 'cancelado') . ' y ya no puede puntuarse.');
+        // 'abandoned' cuenta igual: puntuarlo despues borraba el abandono del
+        // expediente y lo pasaba a 'completed', mientras la sancion al que se
+        // fue seguia aplicada. Quedaban castigo y partida normal a la vez.
+        if (in_array($match->status, ['cancelled', 'void', 'abandoned'], true)) {
+            $comoQuedo = match ($match->status) {
+                'void' => 'anulado',
+                'abandoned' => 'marcado como abandonado',
+                default => 'interrumpido',
+            };
+
+            throw new \RuntimeException('Este match fue ' . $comoQuedo . ' y ya no puede puntuarse.');
         }
 
         $resultRows = [];

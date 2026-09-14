@@ -195,6 +195,23 @@ class AdminController extends Controller
                         null,
                         $validated['note'] ?? null
                     );
+
+                    // El walkover ES la resolucion del abandono. Si se dejan
+                    // los avisos pendientes, el siguiente admin ve el boton de
+                    // confirmar y lo pulsa -es el camino natural-, y entonces
+                    // el infractor paga dos veces y el equipo que gano pierde
+                    // su victoria.
+                    MatchAbandonmentReport::query()
+                        ->where('match_id', $match->id)
+                        ->where('accused_player_id', (int) $validated['player_id'])
+                        ->where('status', 'pending')
+                        ->update([
+                            'status' => 'confirmed',
+                            'reviewed_at' => now(),
+                            'admin_note' => trim('Resuelto con derrota automatica'
+                                . ($validated['note'] ?? '' ? ': ' . $validated['note'] : '')),
+                        ]);
+
                     $message = 'Abandono procesado con derrota automatica para el infractor.';
                     break;
 
@@ -228,9 +245,19 @@ class AdminController extends Controller
                     // Un jugador ajeno al PvP se metio y el combate no pudo
                     // decidirse. No es abandono -nadie se fue- ni anulacion
                     // -no hubo reporte malo-: no cuenta y no castiga a nadie.
+                    //
+                    // Idempotente a proposito: markVoid solo se corta cuando ve
+                    // 'void', y aqui lo dejamos en 'cancelled', asi que sin esto
+                    // el segundo clic volvia a recorrer todo el camino de
+                    // anulacion y duplicaba la nota.
+                    if ($match->status === 'cancelled') {
+                        $message = 'Este enfrentamiento ya estaba marcado como interrumpido.';
+                        break;
+                    }
+
                     $resultService->markVoid($match, null, trim(
                         'Combate interrumpido por un jugador externo'
-                        . ($validated['note'] ? ': ' . $validated['note'] : '')
+                        . (($validated['note'] ?? null) ? ': ' . $validated['note'] : '')
                     ));
                     $match->fresh()->update(['status' => 'cancelled']);
                     $message = 'Marcado como interrumpido. No cuenta para nadie y no hay sancion.';

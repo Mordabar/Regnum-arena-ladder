@@ -71,6 +71,35 @@ class MatchAbandonmentReport extends Model
     }
 
     /**
+     * Si un jugador puede leer el motivo y abrir las capturas de este aviso.
+     *
+     * Mientras el combate sigue abierto, no. Las capturas de un aviso se toman
+     * A MITAD de la pelea, al reves que las del reporte de resultado, que solo
+     * existen cuando ya termino. Enseñarlas al bando contrario en directo le
+     * regala la pantalla del enemigo: vida, posicion, quien queda en pie. El
+     * anonimato del rival se cuidaba en los nombres y se escapaba entero por
+     * aqui.
+     *
+     * Con el enfrentamiento cerrado se abre para todos los que lo jugaron, que
+     * es cuando hace falta para defenderse de una acusacion.
+     */
+    public function visibleParaJugador(?int $playerId, ArenaMatch $match): bool
+    {
+        if ($playerId === null) {
+            return false;
+        }
+
+        // Cerrado: ya no hay ventaja que robar.
+        if (in_array($match->status, ['completed', 'disputed', 'void', 'abandoned', 'cancelled'], true)) {
+            return true;
+        }
+
+        // En curso: solo quien lo escribio y quien esta señalado.
+        return (int) $this->reported_by_player_id === $playerId
+            || (int) $this->accused_player_id === $playerId;
+    }
+
+    /**
      * @return array<int, string>
      */
     public function evidencePaths(): array

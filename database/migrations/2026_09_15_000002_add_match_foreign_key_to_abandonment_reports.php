@@ -35,7 +35,20 @@ return new class extends Migration
         // ahi el borrado en cascada lo cubre el propio motor solo si la tabla
         // se creo con ella. El banco de pruebas corre migraciones desde cero,
         // asi que basta con no romper aqui.
-        if (DB::connection()->getDriverName() === 'sqlite') {
+        if (DB::connection()->getDriverName() !== 'mysql') {
+            return;
+        }
+
+        // En una base nueva la migracion de creacion YA deja la clave puesta, y
+        // el nombre que genera es exactamente el mismo que generaria esta
+        // (`tabla_columna_foreign` en los dos casos). Sin esta comprobacion,
+        // MySQL responde "Duplicate foreign key constraint name" y el
+        // `php artisan migrate` de un despliegue limpio aborta entero. SQLite
+        // no lo veia porque se va antes.
+        $yaExiste = collect(Schema::getForeignKeys('match_abandonment_reports'))
+            ->contains(fn (array $clave) => in_array('match_id', $clave['columns'] ?? [], true));
+
+        if ($yaExiste) {
             return;
         }
 

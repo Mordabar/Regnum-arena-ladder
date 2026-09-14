@@ -42,13 +42,16 @@ class ArenaMatchController extends Controller
             ->latest('created_at')
             ->get();
 
-        // 'cancelled' se queda fuera: son los cruces que nunca llegaron a
-        // empezar -nadie acepto a tiempo, o alguien rechazo- y no hubo combate
-        // que recordar. 'abandoned' si entra: ahi se peleo, aunque acabara mal.
+        // Todos los que llegaron a jugarse. Los cruces que nunca empezaron ya
+        // no estan aqui porque no existen: se borran al cancelarse. Asi que un
+        // 'cancelled' que sobreviva es lo que ahora significa -un combate
+        // interrumpido por alguien de fuera- y eso si se peleo, con lo que
+        // ocultarlo hacia desaparecer del historial de los cuatro una partida
+        // que jugaron.
         $completedMatches = $this->constrainMatchesToPlayers(
             ArenaMatch::query()
                 ->with(['report', 'results'])
-                ->whereIn('status', ['completed', 'void', 'disputed', 'abandoned']),
+                ->whereIn('status', ['completed', 'void', 'disputed', 'abandoned', 'cancelled']),
             $userPlayerIds
         )
             ->latest('created_at')
@@ -447,14 +450,22 @@ class ArenaMatchController extends Controller
 
         $match = $abandonment->match()->firstOrFail();
         $user = Auth::user();
-        $canAccess = $user->isAdmin()
-            || $match->getAllPlayers()
-                ->pluck('player_id')
-                ->intersect($user->players()->pluck('id'))
-                ->isNotEmpty();
 
-        if (!$canAccess) {
-            abort(403, 'No tienes acceso a esta evidencia.');
+        if (!$user->isAdmin()) {
+            $mios = $match->getAllPlayers()
+                ->pluck('player_id')
+                ->map(fn ($id) => (int) $id)
+                ->intersect($user->players()->pluck('id')->map(fn ($id) => (int) $id));
+
+            // Ser participante no basta mientras el combate sigue abierto: la
+            // captura de un aviso es de la pelea EN CURSO, y darsela al bando
+            // contrario es regalarle la pantalla del enemigo.
+            $puede = $mios->isNotEmpty()
+                && $mios->contains(fn (int $id) => $abandonment->visibleParaJugador($id, $match));
+
+            if (!$puede) {
+                abort(403, 'No tienes acceso a esta evidencia.');
+            }
         }
 
         $path = $abandonment->evidencePath($slot);

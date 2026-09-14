@@ -127,7 +127,7 @@
                     </div>
 
                     @if($aviso->note)
-                        <p class="mt-2 whitespace-pre-line text-sm">{{ $aviso->note }}</p>
+                        <p class="mt-2 whitespace-pre-line break-words text-sm">{{ $aviso->note }}</p>
                     @endif
 
                     @if($aviso->evidenceItems() !== [])
@@ -140,7 +140,12 @@
 
                     @if($aviso->status === 'pending')
                         <div class="mt-3 flex flex-wrap gap-2">
-                            <form method="POST" action="{{ route('admin.matches.resolve', $match) }}">
+                            {{-- Con confirmacion, como el resto de acciones
+                                 destructivas del panel: esto aplica strike,
+                                 baja de confianza, bloqueo escalado y resta PL,
+                                 y no hay boton de deshacer. --}}
+                            <form method="POST" action="{{ route('admin.matches.resolve', $match) }}"
+                                  data-ap-confirm="Vas a sancionar a {{ $aviso->accused?->character_name ?? 'el señalado' }}: pierde PL y confianza, y no podra entrar en cola durante horas. ¿Seguro?">
                                 @csrf
                                 <input type="hidden" name="action" value="confirm_abandonment">
                                 <input type="hidden" name="abandonment_id" value="{{ $aviso->id }}">
@@ -148,7 +153,8 @@
                                     Confirmar: sancionar a {{ $aviso->accused?->character_name ?? 'el señalado' }}
                                 </button>
                             </form>
-                            <form method="POST" action="{{ route('admin.matches.resolve', $match) }}">
+                            <form method="POST" action="{{ route('admin.matches.resolve', $match) }}"
+                                  data-ap-confirm="Vas a descartar el aviso. Nadie sera sancionado.">
                                 @csrf
                                 <input type="hidden" name="action" value="dismiss_abandonment">
                                 <input type="hidden" name="abandonment_id" value="{{ $aviso->id }}">
@@ -453,12 +459,27 @@
                 confirm: 'Vas a sancionar al jugador por infraccion de soporte.',
                 danger: true,
             },
+            interrupted: {
+                text: 'Un jugador ajeno al PvP interrumpio el combate. No cuenta para nadie, no reparte puntos y no sanciona a nadie. Si ya habia puntuado, se devuelven.',
+                label: 'Marcar como interrumpido',
+                confirm: 'Vas a dejar el enfrentamiento sin efecto para los cuatro.',
+                danger: true,
+            },
             void: @json($textoAnular),
         };
 
         const render = () => {
             const action = select.value;
-            const info = copy[action];
+            // Sin respaldo, una opcion sin entrada aqui reventaba en la linea
+            // de abajo y dejaba el resumen, la etiqueta del boton y el aviso de
+            // confirmacion con los del action ANTERIOR: el admin leia "cerrar y
+            // repartir puntos" mientras iba a hacer lo contrario.
+            const info = copy[action] ?? {
+                text: 'Revisa la decision antes de confirmar.',
+                label: 'Aplicar decision',
+                confirm: 'Vas a aplicar esta decision sobre el enfrentamiento.',
+                danger: true,
+            };
 
             groups.forEach((group) => {
                 group.hidden = !group.dataset.apWhen.split(' ').includes(action);

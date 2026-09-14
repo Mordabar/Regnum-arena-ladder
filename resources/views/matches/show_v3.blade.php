@@ -28,7 +28,9 @@
     $canConfirmReport = $report && $report->status === 'pending_confirmation' && $viewerSide !== $report->reporting_team;
     $canRejectReport = $canConfirmReport;
     $reportPendingConfirmation = $report && $report->status === 'pending_confirmation';
-    $showRivalNames = in_array($match->status, ['completed', 'disputed', 'void'], true);
+    // 'abandoned' y 'cancelled' tambien son cerrados: el combate termino, asi
+    // que los nombres ya se pueden enseñar como en los demas.
+    $showRivalNames = in_array($match->status, ['completed', 'disputed', 'void', 'abandoned', 'cancelled'], true);
 
     // Aspecto de cada combatiente para las figuras 3D. El propio equipo va con
     // su raza y su sexo reales; al rival se le dibuja con el maniqui humano del
@@ -232,7 +234,6 @@
             </div>
         </section>
 
-        @include('matches.partials.abandonment', ['match' => $match, 'viewerPlayer' => $viewerPlayer])
     @elseif($canConfirmReport)
         <section class="arena-panel mb-6 p-6 arena-animate-in arena-stagger-1 border-l-4 border-l-sky-500/60">
             <div class="flex flex-wrap items-center justify-between gap-4">
@@ -654,7 +655,7 @@
                                 </div>
 
                                 @if($report->rejection_note)
-                                    <p class="mt-2 whitespace-pre-line text-sm text-[color:var(--arena-text)] arena-body-text">{{ $report->rejection_note }}</p>
+                                    <p class="mt-2 whitespace-pre-line break-words text-sm text-[color:var(--arena-text)] arena-body-text">{{ $report->rejection_note }}</p>
                                 @else
                                     <p class="mt-2 text-sm italic text-[color:var(--arena-muted)] arena-body-text">Sin motivo escrito.</p>
                                 @endif
@@ -684,7 +685,7 @@
                                 </div>
 
                                 @if($report->admin_note)
-                                    <p class="mt-2 whitespace-pre-line text-sm text-[color:var(--arena-text)] arena-body-text">{{ $report->admin_note }}</p>
+                                    <p class="mt-2 whitespace-pre-line break-words text-sm text-[color:var(--arena-text)] arena-body-text">{{ $report->admin_note }}</p>
                                 @else
                                     <p class="mt-2 text-sm italic text-[color:var(--arena-muted)] arena-body-text">Resuelto sin comentario.</p>
                                 @endif
@@ -751,6 +752,16 @@
             </div>
         @endif
     </section>
+
+    {{-- El boton de avisar vive fuera del panel de accion a proposito.
+         Dentro dependia de $canReport, que exige que NO exista reporte de
+         resultado, asi que desaparecia en cuanto el rival reportaba -y ese es
+         justo el momento en que la victima necesita avisar- y tampoco salia en
+         disputa, que el servicio si acepta. La mitad de los estados validos
+         eran inalcanzables desde la interfaz. --}}
+    @if(in_array($match->status, ['in_progress', 'disputed'], true) && $viewerPlayer)
+        @include('matches.partials.abandonment', ['match' => $match, 'viewerPlayer' => $viewerPlayer])
+    @endif
 
     {{-- ── AVISOS DE ABANDONO ──
          Va en su propio bloque y no dentro del expediente del reporte, porque

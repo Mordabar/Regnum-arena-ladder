@@ -123,19 +123,21 @@ class ArenaMatch extends Model
         'pending_acceptance' => 'Esperando aceptacion',
         'in_progress'        => 'En progreso',
         'completed'          => 'Completado',
-        // 'cancelled' es el que nunca llego a empezar: nadie acepto a tiempo o
-        // alguien rechazo el cruce. No hubo pelea, asi que no cuenta como
-        // historial de nadie.
-        'cancelled'          => 'Cancelado',
+        // 'cancelled' es el combate que se interrumpio: alguien ajeno al PvP se
+        // metio y no pudo decidirse. Se jugo, asi que cuenta como historial,
+        // pero no reparte puntos ni sanciona a nadie.
+        //
+        // Un cruce que nadie acepta NO acaba aqui: se borra, porque no llego a
+        // ser partida.
+        'cancelled'          => 'Interrumpido',
+        // 'void' es el que se jugo, se reporto y se confirmo, pero el reporte
+        // estaba mal, asi que se deshace.
         'void'               => 'Anulado',
         'disputed'           => 'En disputa',
-        // 'abandoned' es lo contrario: la pelea empezo y alguien se fue. Solo
-        // se castiga a quien se fue; su compañero y los rivales no se tocan.
+        // 'abandoned': la pelea empezo y alguien se fue. Solo se castiga a
+        // quien se fue; su compañero y los rivales no se tocan.
         'abandoned'          => 'Abandonado',
     ];
-
-    /** Estados en los que el enfrentamiento nunca llego a jugarse. */
-    const NEVER_PLAYED_STATUSES = ['cancelled'];
 
     const REALMS = [
         'ignis' => 'Ignis',

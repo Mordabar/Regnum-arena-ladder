@@ -32,17 +32,37 @@
                         default => 'border-l-amber-500/60',
                     };
 
+                    // El motivo y las capturas solo se abren a quien toca: en
+                    // un combate en curso son informacion de la pelea en vivo.
+                    $verDetalle = $aviso->visibleParaJugador($yo, $match);
+
                     // Mismo criterio que el resto de la pantalla: los nombres
                     // del rival solo se enseñan con el enfrentamiento cerrado.
+                    // Si hay dos rivales de la misma subclase se les numera,
+                    // porque "Cazador rival señala a Cazador rival" no dice
+                    // nada, y de ahi sale un strike y un bloqueo.
                     $nombre = function (?\App\Models\Player $p, int $id) use ($match, $yo, $showRivalNames) {
                         if ($id === $yo) { return 'tú'; }
                         if (!$p) { return 'un jugador retirado'; }
 
                         $mismoEquipo = $match->getTeamSideForPlayer($id) === $match->getTeamSideForPlayer($yo);
 
-                        return ($showRivalNames || $mismoEquipo)
-                            ? $p->character_name
-                            : (\App\Models\Player::SUBCLASSES[$p->subclass] ?? 'Guerrero') . ' rival';
+                        if ($showRivalNames || $mismoEquipo) {
+                            return $p->character_name;
+                        }
+
+                        $etiqueta = \App\Models\Player::SUBCLASSES[$p->subclass] ?? 'Guerrero';
+                        $rivales = $match->getAllPlayers()
+                            ->filter(fn ($x) => $match->getTeamSideForPlayer((int) $x['player_id']) !== $match->getTeamSideForPlayer($yo))
+                            ->values();
+                        $mismos = $rivales->filter(fn ($x) => $x['subclass'] === $p->subclass)->values();
+
+                        if ($mismos->count() > 1) {
+                            $puesto = $mismos->search(fn ($x) => (int) $x['player_id'] === $id);
+                            $etiqueta .= ' ' . (((int) $puesto) + 1);
+                        }
+
+                        return $etiqueta . ' rival';
                     };
                 @endphp
 
@@ -58,19 +78,25 @@
                         </span>
                     </div>
 
-                    @if($aviso->note)
-                        <p class="mt-2 whitespace-pre-line text-sm text-[color:var(--arena-text)] arena-body-text">{{ $aviso->note }}</p>
-                    @endif
+                    @if(!$verDetalle)
+                        <p class="mt-2 text-sm italic text-[color:var(--arena-muted)] arena-body-text">
+                            El motivo y las capturas se abren cuando termine el enfrentamiento.
+                        </p>
+                    @else
+                        @if($aviso->note)
+                            <p class="mt-2 whitespace-pre-line break-words text-sm text-[color:var(--arena-text)] arena-body-text">{{ $aviso->note }}</p>
+                        @endif
 
-                    @if($aviso->evidenceItems() !== [])
-                        <div class="mt-3 grid gap-2 sm:grid-cols-{{ count($aviso->evidenceItems()) > 1 ? '2' : '1' }}">
-                            @foreach($aviso->evidenceItems() as $prueba)
-                                <a href="{{ $prueba['url'] }}" target="_blank" class="arena-btn-ghost justify-center text-xs">
-                                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg>
-                                    {{ $prueba['label'] }}
-                                </a>
-                            @endforeach
-                        </div>
+                        @if($aviso->evidenceItems() !== [])
+                            <div class="mt-3 grid gap-2 {{ count($aviso->evidenceItems()) > 1 ? 'sm:grid-cols-2' : '' }}">
+                                @foreach($aviso->evidenceItems() as $prueba)
+                                    <a href="{{ $prueba['url'] }}" target="_blank" class="arena-btn-ghost justify-center text-xs">
+                                        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg>
+                                        {{ $prueba['label'] }}
+                                    </a>
+                                @endforeach
+                            </div>
+                        @endif
                     @endif
 
                     <p class="mt-3 text-xs {{ $aviso->status === 'pending' ? 'text-amber-300' : 'text-[color:var(--arena-muted)]' }} arena-body-text">
@@ -85,7 +111,7 @@
                                 Pendiente de revisión. Nadie ha sido sancionado todavía.
                         @endswitch
                         @if($aviso->admin_note)
-                            <span class="mt-1 block text-[color:var(--arena-text)]">{{ $aviso->admin_note }}</span>
+                            <span class="mt-1 block break-words text-[color:var(--arena-text)]">{{ $aviso->admin_note }}</span>
                         @endif
                     </p>
                 </article>
