@@ -266,20 +266,39 @@
             </div>
         </section>
     @elseif(in_array($match->status, ['cancelled', 'void']))
+        @php
+            // Volver solo al lobby tiene sentido cuando el combate se acaba de
+            // caer y el jugador sigue en su flujo: se le devuelve a la cola. En
+            // el historial estorba -se entra a leer que paso y a los tres
+            // segundos te echa-, y desde que se pueden anular enfrentamientos
+            // desde el panel hay mas de estos para consultar.
+            $seAcabaDeCaer = $match->updated_at && $match->updated_at->gt(now()->subMinutes(5));
+        @endphp
         <section class="arena-panel mb-6 p-6 arena-animate-in arena-stagger-1">
             <div class="flex items-start gap-4 rounded-2xl border border-rose-500/25 bg-rose-950/20 px-5 py-5 text-rose-100 flex-col sm:flex-row sm:items-center">
                 <svg class="h-8 w-8 shrink-0 text-rose-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
                 <div class="flex-1">
-                    <h2 class="text-xl font-bold text-rose-300">Encuentro Cancelado</h2>
-                    <p class="mt-1 text-sm text-rose-200/80 arena-body-text">El combate se deshizo porque alguien se ausentó o rechazó. Serás redirigido al lobby...</p>
+                    <h2 class="text-xl font-bold text-rose-300">{{ $match->status === 'void' ? 'Encuentro Anulado' : 'Encuentro Cancelado' }}</h2>
+                    <p class="mt-1 text-sm text-rose-200/80 arena-body-text">
+                        @if($match->status === 'void')
+                            Moderación anuló este encuentro y devolvió los puntos que repartió.
+                        @else
+                            El combate se deshizo porque alguien se ausentó o rechazó.
+                        @endif
+                        @if($seAcabaDeCaer)
+                            Serás redirigido al lobby...
+                        @endif
+                    </p>
                 </div>
                 <a href="{{ route('lobby') }}" class="arena-btn-danger mt-3 sm:mt-0 whitespace-nowrap">Volver al Lobby</a>
             </div>
-            <script>
-                setTimeout(() => {
-                    window.location.href = '{{ route('lobby') }}';
-                }, 3500);
-            </script>
+            @if($seAcabaDeCaer)
+                <script data-auto-lobby-redirect>
+                    setTimeout(() => {
+                        window.location.href = '{{ route('lobby') }}';
+                    }, 3500);
+                </script>
+            @endif
         </section>
     @elseif($reportPendingConfirmation && $viewerSide === $report->reporting_team)
         <section class="arena-panel mb-6 p-6 arena-animate-in arena-stagger-1">
