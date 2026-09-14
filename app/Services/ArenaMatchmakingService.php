@@ -266,6 +266,36 @@ class ArenaMatchmakingService
         return $this->premadeDailyLimit();
     }
 
+    /**
+     * Borra el cruce que nunca llego a ser partida.
+     *
+     * Si nadie acepto, no hubo combate: no es historial de nadie y no tiene por
+     * que ocupar una fila. Antes se quedaban como 'cancelled' y ensuciaban el
+     * historial de los jugadores y el listado del panel con enfrentamientos que
+     * no existieron.
+     *
+     * Lo que si sobrevive es la cuenta del jugador: los strikes, la confianza y
+     * el bloqueo de cola viven en `players`, asi que borrar el cruce no borra
+     * la sancion de quien lo tumbo.
+     */
+    private function descartarCruceSinPartida(ArenaMatch $match): void
+    {
+        $matchId = (string) $match->id;
+
+        // Ninguna cola puede quedar apuntando a una fila que ya no existe.
+        Queue::query()->where('match_id', $matchId)->update(['match_id' => null]);
+
+        // Salvaguarda: si por lo que sea hubiera reporte o resultados, esto no
+        // era un cruce sin partida y no se toca.
+        if ($match->results()->exists() || $match->report()->exists()) {
+            $match->update(['status' => 'cancelled']);
+
+            return;
+        }
+
+        $match->delete();
+    }
+
     public function cancelMatch(
         ArenaMatch $match,
         string $reason = 'timeout',
@@ -294,13 +324,19 @@ class ArenaMatchmakingService
                 ->whereIn('status', ['matched', 'accepted'])
                 ->get();
 
+            // Aqui solo se llega con un cruce que nunca empezo: la lista blanca
+            // de arriba deja fuera in_progress y disputed. Y un cruce que nadie
+            // acepto no es una partida, es un emparejamiento que no cuajo, asi
+            // que no deja rastro: ni historial, ni fila. Se borra al final,
+            // despues de devolver a la cola a quien toque.
             $match->update([
-                'status' => 'cancelled',
                 'expires_at' => null,
                 'notes' => trim(($match->notes ?? '') . "\nCancel reason: {$reason}"),
             ]);
 
             if ($queues->isEmpty()) {
+                $this->descartarCruceSinPartida($match);
+
                 return;
             }
 
@@ -369,6 +405,8 @@ class ArenaMatchmakingService
                     $this->resetRandomQueueGroup($queueGroup);
                 }
             }
+
+            $this->descartarCruceSinPartida($match);
         });
 
         $this->discordBotService->notifyMatchCancelled($match, $reason);

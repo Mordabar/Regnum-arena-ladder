@@ -279,3 +279,116 @@ it('un abandonado si sale en el historial', function () {
         ->assertOk()
         ->assertSee($s['match']->match_code);
 });
+
+it('el boton de reportar abandono sale durante el combate', function () {
+    $s = combateEnCurso('o');
+
+    $this->actingAs($s['mio']->user)
+        ->get(route('matches.show', $s['match']))
+        ->assertOk()
+        ->assertSee('Reportar abandono')
+        ->assertSee('tu aviso no sanciona a nadie por sí solo')
+        // Los otros tres, y no uno mismo.
+        ->assertSee('name="accused_player_id" value="' . $s['companero']->id . '"', false)
+        ->assertSee('name="accused_player_id" value="' . $s['rival']->id . '"', false)
+        ->assertDontSee('name="accused_player_id" value="' . $s['mio']->id . '"', false);
+});
+
+it('el formulario de abandono llega hasta la sancion', function () {
+    $s = combateEnCurso('p');
+
+    $this->actingAs($s['mio']->user)
+        ->post(route('matches.abandonment.report'), [
+            'match_id' => $s['match']->id,
+            'player_id' => $s['mio']->id,
+            'accused_player_id' => $s['rival']->id,
+            'note' => 'Se desconecto y no volvio en todo el combate',
+        ])
+        ->assertSessionHasNoErrors()
+        ->assertRedirect();
+
+    expect($s['match']->fresh()->status)->toBe('disputed');
+    expect(MatchAbandonmentReport::where('match_id', $s['match']->id)->count())->toBe(1);
+});
+
+it('el formulario exige un motivo escrito', function () {
+    $s = combateEnCurso('q');
+
+    $this->actingAs($s['mio']->user)
+        ->post(route('matches.abandonment.report'), [
+            'match_id' => $s['match']->id,
+            'player_id' => $s['mio']->id,
+            'accused_player_id' => $s['rival']->id,
+            'note' => 'no',
+        ])
+        ->assertSessionHasErrors('note');
+
+    expect($s['match']->fresh()->status)->toBe('in_progress');
+});
+
+it('nadie reporta en nombre de otro', function () {
+    // player_id se valida contra los personajes de quien ha iniciado sesion.
+    $s = combateEnCurso('r');
+
+    $this->actingAs($s['mio']->user)
+        ->post(route('matches.abandonment.report'), [
+            'match_id' => $s['match']->id,
+            'player_id' => $s['rival']->id,
+            'accused_player_id' => $s['companero']->id,
+            'note' => 'Intento reportar haciendome pasar por el rival',
+        ])
+        ->assertNotFound();
+});
+
+it('un cruce que nadie acepto se borra, no se queda como cancelado', function () {
+    // "Si no confirman no hay match": no es historial de nadie y no tiene por
+    // que ocupar una fila.
+    $s = combateEnCurso('s');
+    $s['match']->update(['status' => 'pending_acceptance']);
+    $id = $s['match']->id;
+
+    foreach (['mio', 'companero', 'rival', 'rival2'] as $quien) {
+        App\Models\Queue::create([
+            'player_id' => $s[$quien]->id,
+            'queue_type' => 'random',
+            'arena_mode' => '2v2',
+            'status' => 'matched',
+            'match_id' => (string) $id,
+            'estimated_mmr' => 1000,
+            'joined_at' => now()->subMinutes(5),
+        ]);
+    }
+
+    app(App\Services\ArenaMatchmakingService::class)
+        ->cancelMatch($s['match']->fresh(), 'timeout', null, false);
+
+    expect(ArenaMatch::find($id))->toBeNull();
+
+    // Y ninguna cola se queda apuntando a una fila que ya no existe.
+    expect(App\Models\Queue::where('match_id', (string) $id)->count())->toBe(0);
+});
+
+it('no borra un cruce que ya tenia reporte', function () {
+    // Salvaguarda: si hay reporte es que si hubo partida, pase lo que pase con
+    // el estado. Ahi se marca, no se borra.
+    $s = combateEnCurso('t');
+    $s['match']->update(['status' => 'accepted']);
+    $id = $s['match']->id;
+
+    App\Models\MatchReport::create([
+        'match_id' => $id,
+        'reported_by_player_id' => $s['mio']->id,
+        'reporting_team' => 'team_a',
+        'claimed_winner_team' => 'team_a',
+        'claimed_winner_realm' => 'alsius',
+        'status' => 'pending_confirmation',
+        'final_screenshot_path' => 'match-reports/testing/aban/final.png',
+        'encounter_screenshot_path' => 'match-reports/testing/aban/enc.png',
+    ]);
+
+    app(App\Services\ArenaMatchmakingService::class)
+        ->cancelMatch($s['match']->fresh(), 'timeout', null, false);
+
+    expect(ArenaMatch::find($id))->not->toBeNull();
+    expect(ArenaMatch::find($id)->status)->toBe('cancelled');
+});

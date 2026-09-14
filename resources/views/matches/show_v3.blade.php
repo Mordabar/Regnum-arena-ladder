@@ -231,6 +231,8 @@
                 </a>
             </div>
         </section>
+
+        @include('matches.partials.abandonment', ['match' => $match, 'viewerPlayer' => $viewerPlayer])
     @elseif($canConfirmReport)
         <section class="arena-panel mb-6 p-6 arena-animate-in arena-stagger-1 border-l-4 border-l-sky-500/60">
             <div class="flex flex-wrap items-center justify-between gap-4">

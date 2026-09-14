@@ -77,6 +77,8 @@ class ArenaMatchController extends Controller
             'report.rejector',
             'report.reviewer',
             'results.player',
+            'abandonmentReports.accused',
+            'abandonmentReports.reporter',
         ]);
 
         $userPlayerIds = Auth::user()->players()->pluck('id');
