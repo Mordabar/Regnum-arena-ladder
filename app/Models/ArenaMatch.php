@@ -123,10 +123,19 @@ class ArenaMatch extends Model
         'pending_acceptance' => 'Esperando aceptacion',
         'in_progress'        => 'En progreso',
         'completed'          => 'Completado',
+        // 'cancelled' es el que nunca llego a empezar: nadie acepto a tiempo o
+        // alguien rechazo el cruce. No hubo pelea, asi que no cuenta como
+        // historial de nadie.
         'cancelled'          => 'Cancelado',
         'void'               => 'Anulado',
         'disputed'           => 'En disputa',
+        // 'abandoned' es lo contrario: la pelea empezo y alguien se fue. Solo
+        // se castiga a quien se fue; su compañero y los rivales no se tocan.
+        'abandoned'          => 'Abandonado',
     ];
+
+    /** Estados en los que el enfrentamiento nunca llego a jugarse. */
+    const NEVER_PLAYED_STATUSES = ['cancelled'];
 
     const REALMS = [
         'ignis' => 'Ignis',
@@ -191,6 +200,12 @@ class ArenaMatch extends Model
     public function report()
     {
         return $this->hasOne(MatchReport::class, 'match_id');
+    }
+
+    /** Avisos de abandono. Hay varios porque puede avisar mas de un jugador. */
+    public function abandonmentReports()
+    {
+        return $this->hasMany(MatchAbandonmentReport::class, 'match_id');
     }
 
     public function getAllPlayers()

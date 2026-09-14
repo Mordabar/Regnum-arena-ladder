@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\ArenaMatch;
+use App\Models\MatchAbandonmentReport;
 use App\Models\MatchReport;
 use App\Models\Queue;
+use App\Services\ArenaAbandonmentService;
 use App\Services\ArenaMatchResultService;
 use App\Services\ArenaMatchmakingService;
 use Illuminate\Database\Eloquent\Builder;
@@ -34,16 +36,19 @@ class ArenaMatchController extends Controller
         $activeMatches = $this->constrainMatchesToPlayers(
             ArenaMatch::query()
                 ->with('report')
-                ->whereNotIn('status', ['completed', 'cancelled', 'void', 'disputed']),
+                ->whereNotIn('status', ['completed', 'cancelled', 'void', 'disputed', 'abandoned']),
             $userPlayerIds
         )
             ->latest('created_at')
             ->get();
 
+        // 'cancelled' se queda fuera: son los cruces que nunca llegaron a
+        // empezar -nadie acepto a tiempo, o alguien rechazo- y no hubo combate
+        // que recordar. 'abandoned' si entra: ahi se peleo, aunque acabara mal.
         $completedMatches = $this->constrainMatchesToPlayers(
             ArenaMatch::query()
                 ->with(['report', 'results'])
-                ->whereIn('status', ['completed', 'cancelled', 'void', 'disputed']),
+                ->whereIn('status', ['completed', 'void', 'disputed', 'abandoned']),
             $userPlayerIds
         )
             ->latest('created_at')
@@ -365,6 +370,99 @@ class ArenaMatchController extends Controller
         }
 
         return Storage::disk($diskName)->response(
+            $path,
+            basename($path),
+            ['Content-Disposition' => 'inline; filename="' . basename($path) . '"']
+        );
+    }
+
+    /**
+     * Un jugador avisa de que alguien se fue del combate.
+     *
+     * No sanciona a nadie: manda el enfrentamiento a disputa y lo deja en manos
+     * de moderacion. Se puede señalar a un rival o al propio compañero.
+     */
+    public function reportAbandonment(Request $request, ArenaAbandonmentService $abandonmentService)
+    {
+        if (!Auth::check()) {
+            return redirect()->route('auth.discord');
+        }
+
+        $request->validate([
+            'match_id' => 'required|exists:matches,id',
+            'player_id' => 'required|exists:players,id',
+            'accused_player_id' => 'required|exists:players,id',
+            'note' => 'required|string|min:5|max:500',
+            'files' => 'nullable|array|max:3',
+            'files.*' => 'image|max:5120',
+        ], [
+            'note.required' => 'Explica que paso: sin motivo no hay nada que revisar.',
+            'note.min' => 'Escribe algo mas de detalle sobre el abandono.',
+            'files.*.image' => 'Las pruebas tienen que ser imagenes.',
+            'files.*.max' => 'Cada captura debe pesar menos de 5 MB.',
+        ]);
+
+        $match = ArenaMatch::findOrFail($request->match_id);
+        $player = Auth::user()->players()->findOrFail($request->player_id);
+
+        try {
+            $abandonmentService->report(
+                $match,
+                $player,
+                (int) $request->accused_player_id,
+                $request->note,
+                $request->file('files', [])
+            );
+        } catch (\Illuminate\Database\QueryException $e) {
+            Log::error('Fallo de base de datos al reportar un abandono', [
+                'match_id' => $match->id,
+                'player_id' => $player->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return back()->withInput()->withErrors([
+                'error' => 'No se pudo registrar el aviso por un problema del servidor. Avisa en el Discord con la hora exacta.',
+            ]);
+        } catch (\RuntimeException $e) {
+            return back()->withInput()->withErrors(['error' => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            Log::error('Fallo inesperado al reportar un abandono', [
+                'match_id' => $match->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return back()->withInput()->withErrors(['error' => 'No se pudo registrar el aviso. Intentalo de nuevo.']);
+        }
+
+        return back()->with('success', 'Aviso enviado. Un administrador revisara el abandono.');
+    }
+
+    public function abandonmentEvidence(MatchAbandonmentReport $abandonment, string $slot)
+    {
+        if (!Auth::check()) {
+            return redirect()->route('auth.discord');
+        }
+
+        $match = $abandonment->match()->firstOrFail();
+        $user = Auth::user();
+        $canAccess = $user->isAdmin()
+            || $match->getAllPlayers()
+                ->pluck('player_id')
+                ->intersect($user->players()->pluck('id'))
+                ->isNotEmpty();
+
+        if (!$canAccess) {
+            abort(403, 'No tienes acceso a esta evidencia.');
+        }
+
+        $path = $abandonment->evidencePath($slot);
+        $disk = Storage::disk(MatchAbandonmentReport::EVIDENCE_DISK);
+
+        if (!$path || !$disk->exists($path)) {
+            abort(404, 'La evidencia solicitada no existe en el servidor.');
+        }
+
+        return $disk->response(
             $path,
             basename($path),
             ['Content-Disposition' => 'inline; filename="' . basename($path) . '"']

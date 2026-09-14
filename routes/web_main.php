@@ -81,6 +81,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/matches/report/confirm', [ArenaMatchController::class, 'confirmReport'])->name('matches.report.confirm');
     Route::post('/matches/report/reject', [ArenaMatchController::class, 'rejectReport'])->name('matches.report.reject');
     Route::get('/matches/report/{report}/evidence/{slot}', [ArenaMatchController::class, 'evidence'])->name('matches.report.evidence');
+    Route::post('/matches/abandonment', [ArenaMatchController::class, 'reportAbandonment'])->name('matches.abandonment.report');
+    Route::get('/matches/abandonment/{abandonment}/evidence/{slot}', [ArenaMatchController::class, 'abandonmentEvidence'])->name('matches.abandonment.evidence');
 });
 
 Route::prefix('/' . $arenaAdminPath)->group(function () {
