@@ -610,6 +610,93 @@
                     @endforeach
                 </div>
 
+                {{--
+                    El rastro del arbitraje. Estaba todo guardado -quien
+                    rechazo, con que motivo, con que capturas, y que dijo
+                    moderacion al resolver- pero no se pintaba en ningun sitio,
+                    asi que ante una queja no habia nada que enseñar y habia que
+                    ir a mirarlo a la base de datos. Queda aqui, en el mismo
+                    enfrentamiento, para quien lo jugo y para quien lo revisa.
+                --}}
+                @php
+                    $huboRechazo = $report->rejected_at || $report->rejection_note || $report->rejectionEvidencePaths() !== [];
+                    $huboArbitraje = $report->reviewed_at || $report->admin_note;
+                    $nombreRechazador = $report->rejector?->character_name;
+                    $rechazoEsMio = $report->rejected_by_player_id
+                        && $viewerPlayer
+                        && (int) $report->rejected_by_player_id === (int) $viewerPlayer['player_id'];
+                @endphp
+
+                @if($huboRechazo || $huboArbitraje)
+                    <div class="space-y-3 border-t border-[color:var(--arena-line)] pt-5" data-arbitration-record>
+                        <p class="arena-kicker">Expediente</p>
+
+                        @if($huboRechazo)
+                            <div class="arena-card border-l-4 border-l-amber-500/60 p-4">
+                                <div class="flex flex-wrap items-baseline justify-between gap-2">
+                                    <p class="text-xs font-semibold text-amber-300">
+                                        Rechazado por
+                                        @if($rechazoEsMio)
+                                            ti
+                                        @elseif($nombreRechazador && $showRivalNames)
+                                            {{ $nombreRechazador }}
+                                        @else
+                                            el equipo rival
+                                        @endif
+                                    </p>
+                                    @if($report->rejected_at)
+                                        <p class="text-[0.7rem] text-[color:var(--arena-muted)]">
+                                            {{ $report->rejected_at->locale('es')->isoFormat('D MMM YYYY, HH:mm') }}
+                                        </p>
+                                    @endif
+                                </div>
+
+                                @if($report->rejection_note)
+                                    <p class="mt-2 whitespace-pre-line text-sm text-[color:var(--arena-text)] arena-body-text">{{ $report->rejection_note }}</p>
+                                @else
+                                    <p class="mt-2 text-sm italic text-[color:var(--arena-muted)] arena-body-text">Sin motivo escrito.</p>
+                                @endif
+
+                                @if($report->rejectionEvidenceItems() !== [])
+                                    <div class="mt-3 grid gap-2 sm:grid-cols-{{ count($report->rejectionEvidenceItems()) > 1 ? '2' : '1' }}">
+                                        @foreach($report->rejectionEvidenceItems() as $prueba)
+                                            <a href="{{ $prueba['url'] }}" target="_blank" class="arena-btn-ghost justify-center text-xs">
+                                                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg>
+                                                {{ $prueba['label'] }}
+                                            </a>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
+                        @endif
+
+                        @if($huboArbitraje)
+                            <div class="arena-card border-l-4 border-l-sky-500/60 p-4">
+                                <div class="flex flex-wrap items-baseline justify-between gap-2">
+                                    <p class="text-xs font-semibold text-sky-300">Resolución de moderación</p>
+                                    @if($report->reviewed_at)
+                                        <p class="text-[0.7rem] text-[color:var(--arena-muted)]">
+                                            {{ $report->reviewed_at->locale('es')->isoFormat('D MMM YYYY, HH:mm') }}
+                                        </p>
+                                    @endif
+                                </div>
+
+                                @if($report->admin_note)
+                                    <p class="mt-2 whitespace-pre-line text-sm text-[color:var(--arena-text)] arena-body-text">{{ $report->admin_note }}</p>
+                                @else
+                                    <p class="mt-2 text-sm italic text-[color:var(--arena-muted)] arena-body-text">Resuelto sin comentario.</p>
+                                @endif
+
+                                @if($match->status === 'void')
+                                    <p class="mt-2 text-xs text-[color:var(--arena-muted)] arena-body-text">
+                                        El enfrentamiento quedó anulado y los puntos que había repartido se devolvieron.
+                                    </p>
+                                @endif
+                            </div>
+                        @endif
+                    </div>
+                @endif
+
                 @if($canConfirmReport)
                     <div class="grid gap-4 sm:grid-cols-2">
                         <form method="POST" action="{{ route('matches.report.confirm') }}">
