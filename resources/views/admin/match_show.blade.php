@@ -98,6 +98,76 @@
     @endforeach
 </div>
 
+{{--
+    Avisos de abandono. Cada uno se resuelve por separado porque cada uno
+    señala a alguien: confirmar el de un jugador no dice nada sobre el otro.
+    Se resuelven aqui y no en el selector de decision de abajo, que actua sobre
+    el enfrentamiento entero.
+--}}
+@if($match->abandonmentReports->isNotEmpty())
+    <section class="ap-card ap-rise ap-delay-2 mb-4 p-4" data-abandonment-admin>
+        <div class="ap-section-head">
+            <span class="ap-section-lead">
+                <span class="ap-section-mark"><x-admin.icon name="shield" class="h-4 w-4" /></span>
+                <h2 class="ap-section-title">Avisos de abandono</h2>
+            </span>
+            <span class="ap-hint">{{ $match->abandonmentReports->where('status', 'pending')->count() }} sin resolver</span>
+        </div>
+
+        <div class="mt-3 space-y-3">
+            @foreach($match->abandonmentReports as $aviso)
+                <article class="rounded-lg border border-[color:var(--ap-line)] p-3">
+                    <div class="flex flex-wrap items-baseline justify-between gap-2">
+                        <p class="text-sm font-semibold">
+                            {{ $aviso->reporter?->character_name ?? 'Jugador retirado' }}
+                            señala a
+                            <span class="text-[color:var(--ap-danger)]">{{ $aviso->accused?->character_name ?? 'jugador retirado' }}</span>
+                        </p>
+                        <span class="ap-hint">{{ $aviso->created_at?->isoFormat('D MMM, HH:mm') }} · {{ $aviso->status_name }}</span>
+                    </div>
+
+                    @if($aviso->note)
+                        <p class="mt-2 whitespace-pre-line text-sm">{{ $aviso->note }}</p>
+                    @endif
+
+                    @if($aviso->evidenceItems() !== [])
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            @foreach($aviso->evidenceItems() as $prueba)
+                                <a href="{{ $prueba['url'] }}" target="_blank" rel="noopener" class="ap-btn ap-btn-sm">{{ $prueba['label'] }}</a>
+                            @endforeach
+                        </div>
+                    @endif
+
+                    @if($aviso->status === 'pending')
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <form method="POST" action="{{ route('admin.matches.resolve', $match) }}">
+                                @csrf
+                                <input type="hidden" name="action" value="confirm_abandonment">
+                                <input type="hidden" name="abandonment_id" value="{{ $aviso->id }}">
+                                <button type="submit" class="ap-btn ap-btn-sm ap-btn-danger">
+                                    Confirmar: sancionar a {{ $aviso->accused?->character_name ?? 'el señalado' }}
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ route('admin.matches.resolve', $match) }}">
+                                @csrf
+                                <input type="hidden" name="action" value="dismiss_abandonment">
+                                <input type="hidden" name="abandonment_id" value="{{ $aviso->id }}">
+                                <button type="submit" class="ap-btn ap-btn-sm ap-btn-quiet">Descartar aviso</button>
+                            </form>
+                        </div>
+                        <p class="ap-hint mt-2">
+                            Confirmar castiga <strong>solo</strong> al señalado: pierde PL, confianza y no puede
+                            encolar durante unas horas. Su compañero y los rivales no se tocan.
+                        </p>
+                    @elseif($aviso->admin_note)
+                        <p class="ap-hint mt-2">Resuelto: {{ $aviso->admin_note }}</p>
+                    @endif
+                </article>
+            @endforeach
+        </div>
+    </section>
+@endif
+
 <div class="grid gap-4 lg:grid-cols-2 mb-4">
     {{-- Reporte y pruebas --}}
     <section class="ap-card ap-rise ap-delay-3 p-4">
@@ -277,6 +347,11 @@
                     <option value="abandonment_walkover">Alguien abandono: derrota y sancion</option>
                     <option value="support_infraction">Infraccion de soporte</option>
                     <option value="void">{{ $yaPuntuado ? 'Anular y devolver los puntos' : 'Anular sin puntos' }}</option>
+                    {{-- Interrumpido: alguien ajeno al PvP se metio y el combate
+                         no pudo decidirse. Ni abandono -nadie se fue- ni
+                         anulacion -no hubo reporte malo-. No cuenta y no
+                         castiga a nadie. --}}
+                    <option value="interrupted">Interrumpido por un jugador externo</option>
                 </select>
             </div>
 

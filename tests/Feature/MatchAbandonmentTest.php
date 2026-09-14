@@ -392,3 +392,96 @@ it('no borra un cruce que ya tenia reporte', function () {
     expect(ArenaMatch::find($id))->not->toBeNull();
     expect(ArenaMatch::find($id)->status)->toBe('cancelled');
 });
+
+function sesionAdminAbandono(): array
+{
+    return [
+        'arena_admin.authenticated' => true,
+        'arena_admin.account_id' => 1,
+        'arena_admin.username' => 'admin',
+        'arena_admin.display_name' => 'admin',
+    ];
+}
+
+it('el panel enseña los avisos y deja confirmarlos', function () {
+    $s = combateEnCurso('u');
+    $aviso = app(ArenaAbandonmentService::class)
+        ->report($s['match'], $s['mio'], $s['rival']->id, 'Se fue al minuto dos');
+
+    $this->withSession(sesionAdminAbandono())
+        ->get(route('admin.matches.show', $s['match']))
+        ->assertOk()
+        ->assertSee('Avisos de abandono')
+        ->assertSee('Se fue al minuto dos')
+        ->assertSee($s['rival']->character_name);
+
+    $this->withSession(sesionAdminAbandono())
+        ->post(route('admin.matches.resolve', $s['match']), [
+            'action' => 'confirm_abandonment',
+            'abandonment_id' => $aviso->id,
+            'note' => 'Se ve en el video',
+        ])
+        ->assertSessionHasNoErrors()
+        ->assertRedirect();
+
+    expect($s['match']->fresh()->status)->toBe('abandoned');
+    expect((float) $s['rival']->fresh()->pl_points)->toBe(28.0);
+    expect((float) $s['mio']->fresh()->pl_points)->toBe(30.0);
+});
+
+it('el panel deja descartar un aviso sin sancionar', function () {
+    $s = combateEnCurso('v');
+    $aviso = app(ArenaAbandonmentService::class)
+        ->report($s['match'], $s['mio'], $s['rival']->id, 'Creo que se fue');
+
+    $this->withSession(sesionAdminAbandono())
+        ->post(route('admin.matches.resolve', $s['match']), [
+            'action' => 'dismiss_abandonment',
+            'abandonment_id' => $aviso->id,
+            'note' => 'Estaba jugando',
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($s['match']->fresh()->status)->toBe('in_progress');
+    expect((float) $s['rival']->fresh()->pl_points)->toBe(30.0);
+    expect($s['rival']->fresh()->trust_score)->toBe(100);
+});
+
+it('no se resuelve un aviso de otro enfrentamiento', function () {
+    // Un id colado a mano en el formulario no puede resolver un aviso ajeno.
+    $uno = combateEnCurso('w');
+    $otro = combateEnCurso('x');
+
+    $avisoAjeno = app(ArenaAbandonmentService::class)
+        ->report($otro['match'], $otro['mio'], $otro['rival']->id, 'Se fue');
+
+    $this->withSession(sesionAdminAbandono())
+        ->post(route('admin.matches.resolve', $uno['match']), [
+            'action' => 'confirm_abandonment',
+            'abandonment_id' => $avisoAjeno->id,
+        ])
+        ->assertSessionHasErrors();
+
+    expect($avisoAjeno->fresh()->status)->toBe('pending');
+    expect((float) $otro['rival']->fresh()->pl_points)->toBe(30.0);
+});
+
+it('marcar interrumpido no castiga a nadie', function () {
+    $s = combateEnCurso('y');
+
+    $this->withSession(sesionAdminAbandono())
+        ->post(route('admin.matches.resolve', $s['match']), [
+            'action' => 'interrupted',
+            'note' => 'Entro un tercero a molestar',
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($s['match']->fresh()->status)->toBe('cancelled');
+
+    foreach (['mio', 'companero', 'rival', 'rival2'] as $quien) {
+        $p = $s[$quien]->fresh();
+        expect((float) $p->pl_points)->toBe(30.0);
+        expect($p->penalty_strikes)->toBe(0);
+        expect($p->queue_locked_until)->toBeNull();
+    }
+});

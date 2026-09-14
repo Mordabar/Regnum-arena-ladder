@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\AppSetting;
 use App\Models\ArenaMatch;
+use App\Models\MatchAbandonmentReport;
 use App\Models\MatchReport;
 use App\Models\Party;
 use App\Models\Player;
 use App\Models\Queue;
 use App\Models\User;
+use App\Services\ArenaAbandonmentService;
 use App\Services\ArenaMatchResultService;
 use App\Services\ArenaMatchmakingService;
 use App\Services\PlayerCleanupService;
@@ -104,7 +106,11 @@ class AdminController extends Controller
 
     public function showMatch(ArenaMatch $match)
     {
-        $match->load(['report.reporter', 'report.confirmer', 'report.rejector', 'report.reviewer', 'results.player']);
+        $match->load([
+            'report.reporter', 'report.confirmer', 'report.rejector', 'report.reviewer',
+            'results.player',
+            'abandonmentReports.reporter', 'abandonmentReports.accused', 'abandonmentReports.reviewer',
+        ]);
 
         return view('admin.match_show', compact('match'));
     }
@@ -112,9 +118,10 @@ class AdminController extends Controller
     public function resolveMatch(Request $request, ArenaMatch $match, ArenaMatchResultService $resultService)
     {
         $validated = $request->validate([
-            'action' => 'required|in:confirm_report,force_complete,void,dispute,lock_player,abandonment_walkover,support_infraction',
+            'action' => 'required|in:confirm_report,force_complete,void,dispute,lock_player,abandonment_walkover,support_infraction,confirm_abandonment,dismiss_abandonment,interrupted',
             'winner_team' => 'nullable|in:team_a,team_b,draw',
             'player_id' => 'nullable|exists:players,id',
+            'abandonment_id' => 'nullable|exists:match_abandonment_reports,id',
             'note' => 'nullable|string|max:1000',
         ]);
 
@@ -189,6 +196,44 @@ class AdminController extends Controller
                         $validated['note'] ?? null
                     );
                     $message = 'Abandono procesado con derrota automatica para el infractor.';
+                    break;
+
+                case 'confirm_abandonment':
+                case 'dismiss_abandonment':
+                    if (empty($validated['abandonment_id'])) {
+                        throw new \RuntimeException('Debes indicar que aviso de abandono resuelves.');
+                    }
+
+                    $aviso = MatchAbandonmentReport::findOrFail((int) $validated['abandonment_id']);
+
+                    // Que el aviso sea de ESTE enfrentamiento. Sin esto, un id
+                    // de otro match colado en el formulario resolveria un aviso
+                    // ajeno desde la pantalla equivocada.
+                    if ((int) $aviso->match_id !== (int) $match->id) {
+                        throw new \RuntimeException('Ese aviso de abandono no pertenece a este enfrentamiento.');
+                    }
+
+                    if ($validated['action'] === 'confirm_abandonment') {
+                        app(ArenaAbandonmentService::class)
+                            ->confirm($aviso, null, $validated['note'] ?? null);
+                        $message = 'Abandono confirmado. Solo el jugador señalado ha sido sancionado.';
+                    } else {
+                        app(ArenaAbandonmentService::class)
+                            ->dismiss($aviso, null, $validated['note'] ?? null);
+                        $message = 'Aviso descartado. Nadie ha sido sancionado.';
+                    }
+                    break;
+
+                case 'interrupted':
+                    // Un jugador ajeno al PvP se metio y el combate no pudo
+                    // decidirse. No es abandono -nadie se fue- ni anulacion
+                    // -no hubo reporte malo-: no cuenta y no castiga a nadie.
+                    $resultService->markVoid($match, null, trim(
+                        'Combate interrumpido por un jugador externo'
+                        . ($validated['note'] ? ': ' . $validated['note'] : '')
+                    ));
+                    $match->fresh()->update(['status' => 'cancelled']);
+                    $message = 'Marcado como interrumpido. No cuenta para nadie y no hay sancion.';
                     break;
 
                 case 'support_infraction':
