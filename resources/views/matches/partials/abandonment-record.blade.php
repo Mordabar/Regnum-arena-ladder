@@ -9,6 +9,18 @@
 @php
     $avisos = $match->abandonmentReports ?? collect();
     $yo = (int) ($viewerPlayer['player_id'] ?? 0);
+
+    // TODOS los personajes de quien mira que esten en este combate, no solo el
+    // primero. Con dos personajes en la misma partida, si el rival señalaba al
+    // segundo, la vista tomaba al primero como "yo" y el propio acusado leia
+    // "se abren cuando termine el enfrentamiento": no podia defenderse de una
+    // acusacion que le cuesta strike, confianza, PL y bloqueo de cola. La ruta
+    // de la evidencia ya miraba todos sus personajes; la vista no.
+    $mios = $match->getAllPlayers()
+        ->pluck('player_id')
+        ->map(fn ($id) => (int) $id)
+        ->intersect(auth()->user()->players()->pluck('id')->map(fn ($id) => (int) $id))
+        ->values();
 @endphp
 
 @if($avisos->isNotEmpty())
@@ -23,8 +35,8 @@
                 @php
                     $acusadoId = (int) $aviso->accused_player_id;
                     $avisadorId = (int) $aviso->reported_by_player_id;
-                    $meSeñalan = $acusadoId === $yo;
-                    $loAviseYo = $avisadorId === $yo;
+                    $meSeñalan = $mios->contains($acusadoId);
+                    $loAviseYo = $mios->contains($avisadorId);
 
                     $borde = match ($aviso->status) {
                         'confirmed' => 'border-l-rose-500/60',
@@ -34,7 +46,9 @@
 
                     // El motivo y las capturas solo se abren a quien toca: en
                     // un combate en curso son informacion de la pelea en vivo.
-                    $verDetalle = $aviso->visibleParaJugador($yo, $match);
+                    $verDetalle = $mios->contains(
+                        fn (int $id) => $aviso->visibleParaJugador($id, $match)
+                    );
 
                     // Mismo criterio que el resto de la pantalla: los nombres
                     // del rival solo se enseñan con el enfrentamiento cerrado.
@@ -122,7 +136,13 @@
                             @default
                                 Pendiente de revisión. Nadie ha sido sancionado todavía.
                         @endswitch
-                        @if($aviso->admin_note)
+                        {{-- La nota de moderación va DENTRO del guard, como el
+                             motivo y las capturas. Estaba fuera, y era la única
+                             vía por la que un tercero leía lo ocurrido en un
+                             combate en curso: una nota del tipo "quedaba A con
+                             10% de vida y B ya no estaba" es información de la
+                             pelea en vivo, da igual quién la escriba. --}}
+                        @if($verDetalle && $aviso->admin_note)
                             <span class="mt-1 block break-words text-[color:var(--arena-text)]">{{ $aviso->admin_note }}</span>
                         @endif
                     </p>

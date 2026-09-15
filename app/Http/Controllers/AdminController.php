@@ -18,6 +18,7 @@ use App\Services\LadderCacheService;
 use App\Services\LadderMaintenanceService;
 use App\Support\ArenaMode;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class AdminController extends Controller
@@ -101,7 +102,23 @@ class AdminController extends Controller
             ->latest('updated_at')
             ->get();
 
-        return view('admin.inbox', compact('pendingConfirmations', 'disputedMatches'));
+        // Los avisos de abandono no cambian el estado del enfrentamiento -a
+        // proposito, porque hacerlo dejaba anular derrotas con un boton-, asi
+        // que no aparecian por la via de 'disputed'. Y tampoco escriben en el
+        // match ni avisan por Discord. Resultado: existian y nadie se enteraba,
+        // salvo entrando enfrentamiento por enfrentamiento a mano. Si la
+        // bandeja no los lista, no hay moderacion que valga.
+        $pendingAbandonments = MatchAbandonmentReport::query()
+            ->with(['match', 'reporter', 'accused'])
+            ->where('status', 'pending')
+            ->oldest('created_at')
+            ->get();
+
+        return view('admin.inbox', compact(
+            'pendingConfirmations',
+            'disputedMatches',
+            'pendingAbandonments'
+        ));
     }
 
     public function showMatch(ArenaMatch $match)
@@ -196,20 +213,42 @@ class AdminController extends Controller
                         $validated['note'] ?? null
                     );
 
-                    // El walkover ES la resolucion del abandono. Si se dejan
-                    // los avisos pendientes, el siguiente admin ve el boton de
-                    // confirmar y lo pulsa -es el camino natural-, y entonces
-                    // el infractor paga dos veces y el equipo que gano pierde
-                    // su victoria.
+                    // El walkover ES la resolucion del enfrentamiento entero,
+                    // asi que cierra TODOS sus avisos, no solo los del jugador
+                    // señalado.
+                    //
+                    // Cerrar solo los suyos tapaba medio agujero: si los dos
+                    // rivales se van y hay un aviso contra cada uno, resolver
+                    // por uno dejaba el otro pendiente, con su boton de
+                    // "Confirmar: sancionar" a la vista. El siguiente admin lo
+                    // pulsaba -es el camino natural- y eso anulaba el combate:
+                    // la victoria por walkover desaparecia y el equipo limpio
+                    // perdia los puntos que acababa de ganar.
+                    $notaWalkover = trim('Resuelto con derrota automatica'
+                        . (($validated['note'] ?? '') !== '' ? ': ' . $validated['note'] : ''));
+
                     MatchAbandonmentReport::query()
                         ->where('match_id', $match->id)
-                        ->where('accused_player_id', (int) $validated['player_id'])
                         ->where('status', 'pending')
+                        ->where('accused_player_id', (int) $validated['player_id'])
                         ->update([
                             'status' => 'confirmed',
+                            'reviewed_by_user_id' => $request->session()->get('arena_admin.account_id'),
                             'reviewed_at' => now(),
-                            'admin_note' => trim('Resuelto con derrota automatica'
-                                . ($validated['note'] ?? '' ? ': ' . $validated['note'] : '')),
+                            'admin_note' => $notaWalkover,
+                        ]);
+
+                    // Los avisos contra otros jugadores quedan descartados: el
+                    // enfrentamiento ya tiene resultado, y reabrirlo por otra
+                    // via deshace ese resultado.
+                    MatchAbandonmentReport::query()
+                        ->where('match_id', $match->id)
+                        ->where('status', 'pending')
+                        ->update([
+                            'status' => 'dismissed',
+                            'reviewed_by_user_id' => $request->session()->get('arena_admin.account_id'),
+                            'reviewed_at' => now(),
+                            'admin_note' => 'El enfrentamiento se cerro con derrota automatica para otro jugador.',
                         ]);
 
                     $message = 'Abandono procesado con derrota automatica para el infractor.';
@@ -246,21 +285,37 @@ class AdminController extends Controller
                     // decidirse. No es abandono -nadie se fue- ni anulacion
                     // -no hubo reporte malo-: no cuenta y no castiga a nadie.
                     //
-                    // Idempotente a proposito: markVoid solo se corta cuando ve
-                    // 'void', y aqui lo dejamos en 'cancelled', asi que sin esto
-                    // el segundo clic volvia a recorrer todo el camino de
-                    // anulacion y duplicaba la nota.
-                    if ($match->status === 'cancelled') {
-                        $message = 'Este enfrentamiento ya estaba marcado como interrumpido.';
-                        break;
-                    }
+                    // Con bloqueo de fila, el mismo patron que usa markVoid.
+                    // Comprobar `$match->status` sobre el objeto que cargo la
+                    // ruta dejaba pasar dos peticiones que leyeron antes de que
+                    // ninguna escribiera -doble clic, dos pestañas- y las dos
+                    // recorrian markVoid, que solo se corta viendo 'void' y
+                    // aqui lo dejamos en 'cancelled': la nota acababa escrita
+                    // dos veces. Un estado intermedio no vale, porque si algo
+                    // revienta el enfrentamiento se queda en el.
+                    $seHizo = DB::transaction(function () use ($match, $resultService, $validated) {
+                        $bloqueado = ArenaMatch::query()
+                            ->whereKey($match->getKey())
+                            ->lockForUpdate()
+                            ->first();
 
-                    $resultService->markVoid($match, null, trim(
-                        'Combate interrumpido por un jugador externo'
-                        . (($validated['note'] ?? null) ? ': ' . $validated['note'] : '')
-                    ));
-                    $match->fresh()->update(['status' => 'cancelled']);
-                    $message = 'Marcado como interrumpido. No cuenta para nadie y no hay sancion.';
+                        if (!$bloqueado || $bloqueado->status === 'cancelled') {
+                            return false;
+                        }
+
+                        $resultService->markVoid($bloqueado, null, trim(
+                            'Combate interrumpido por un jugador externo'
+                            . (($validated['note'] ?? null) ? ': ' . $validated['note'] : '')
+                        ));
+
+                        $bloqueado->fresh()->update(['status' => 'cancelled']);
+
+                        return true;
+                    });
+
+                    $message = $seHizo
+                        ? 'Marcado como interrumpido. No cuenta para nadie y no hay sancion.'
+                        : 'Este enfrentamiento ya estaba marcado como interrumpido.';
                     break;
 
                 case 'support_infraction':

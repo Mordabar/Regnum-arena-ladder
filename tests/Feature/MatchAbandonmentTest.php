@@ -922,3 +922,202 @@ it('la frase del aviso se lee bien desde los tres lados', function () {
         ->assertSee('señala a')
         ->assertDontSee('señala a tú');
 });
+
+it('el walkover cierra TODOS los avisos, no solo los del sancionado', function () {
+    // El agujero: cerraba solo los del acusado. Con un aviso contra cada rival,
+    // resolver por uno dejaba el otro pendiente con su boton de "Confirmar";
+    // el siguiente admin lo pulsaba y eso ANULABA el combate: la victoria por
+    // walkover desaparecia y el equipo limpio perdia los puntos ganados.
+    $s = combateEnCurso('j1');
+    $servicio = app(ArenaAbandonmentService::class);
+
+    $contraUno = $servicio->report($s['match'], $s['mio'], $s['rival']->id, 'Se fue el primero');
+    $contraOtro = $servicio->report($s['match']->fresh(), $s['companero'], $s['rival2']->id, 'Y el segundo');
+
+    $this->withSession(sesionAdminAbandono())
+        ->post(route('admin.matches.resolve', $s['match']), [
+            'action' => 'abandonment_walkover',
+            'player_id' => $s['rival']->id,
+            'note' => 'Se fueron',
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($contraUno->fresh()->status)->toBe('confirmed');
+    expect($contraOtro->fresh()->status)->toBe('dismissed');
+
+    // Ninguno queda pendiente, asi que nadie puede deshacer el walkover.
+    expect(MatchAbandonmentReport::where('match_id', $s['match']->id)
+        ->where('status', 'pending')->count())->toBe(0);
+
+    $estadoTrasWalkover = $s['match']->fresh()->status;
+    $plGanador = (float) $s['mio']->fresh()->pl_points;
+
+    // Y si alguien intenta confirmar el otro igualmente, no pasa nada.
+    $servicio->confirm($contraOtro->fresh());
+
+    expect($s['match']->fresh()->status)->toBe($estadoTrasWalkover);
+    expect((float) $s['mio']->fresh()->pl_points)->toBe($plGanador);
+});
+
+it('un aviso pendiente aparece en la bandeja de moderacion', function () {
+    // El agujero: el aviso no cambia el estado del match, no escribe notas y no
+    // avisa por Discord. Si ademas la bandeja no lo lista, existe y nadie se
+    // entera salvo entrando enfrentamiento por enfrentamiento a mano.
+    $s = combateEnCurso('j2');
+    app(ArenaAbandonmentService::class)
+        ->report($s['match'], $s['mio'], $s['rival']->id, 'Se fue al minuto dos');
+
+    $this->withSession(sesionAdminAbandono())
+        ->get(route('admin.inbox'))
+        ->assertOk()
+        ->assertSee($s['match']->match_code)
+        ->assertSee('Aviso de abandono')
+        ->assertSee('Se fue al minuto dos');
+});
+
+it('un fallo a mitad de confirmar no deja el combate destrozado', function () {
+    // El agujero: markVoid corria FUERA de la transaccion. Si la sancion
+    // reventaba despues, el aviso volvia a 'pending' pero el combate ya estaba
+    // anulado, sus resultados borrados y el PL devuelto, sin vuelta atras. El
+    // admin veia un error y creia que no habia pasado nada.
+    $s = combateEnCurso('j3');
+    $servicio = app(ArenaAbandonmentService::class);
+    $aviso = $servicio->report($s['match'], $s['mio'], $s['rival']->id, 'Se fue');
+
+    $reporte = App\Models\MatchReport::create([
+        'match_id' => $s['match']->id,
+        'reported_by_player_id' => $s['rival']->id,
+        'reporting_team' => 'team_b',
+        'claimed_winner_team' => 'team_b',
+        'claimed_winner_realm' => 'ignis',
+        'status' => 'pending_confirmation',
+        'final_screenshot_path' => 'match-reports/testing/aban/final.png',
+        'encounter_screenshot_path' => 'match-reports/testing/aban/enc.png',
+    ]);
+    app(App\Services\ArenaMatchResultService::class)->confirmReportForRival($reporte, 'ok');
+
+    $antes = [
+        'estado' => $s['match']->fresh()->status,
+        'filas' => $s['match']->fresh()->results()->count(),
+        'plGanador' => (float) $s['rival']->fresh()->pl_points,
+    ];
+    expect($antes['filas'])->toBeGreaterThan(0);
+
+    // Se fuerza el fallo en la sancion, DESPUES de la devolucion de puntos.
+    // Borrar datos para provocarlo no vale: cambiaria lo que el test mide.
+    $this->partialMock(App\Services\ArenaMatchResultService::class, function ($doble) {
+        $doble->shouldReceive('applyAbandonmentPenalty')
+            ->andThrow(new RuntimeException('fallo simulado en la sancion'));
+    });
+
+    try {
+        app(ArenaAbandonmentService::class)->confirm($aviso->fresh());
+    } catch (\Throwable $e) {
+        // Se espera que reviente.
+    }
+
+    // El combate sigue exactamente como estaba.
+    $match = $s['match']->fresh();
+    expect($match->status)->toBe($antes['estado']);
+    expect($match->results()->count())->toBe($antes['filas']);
+
+    // Y el aviso vuelve a pendiente limpio, sin nota de una resolucion que no
+    // ocurrio.
+    $vuelto = $aviso->fresh();
+    expect($vuelto->status)->toBe('pending');
+    expect($vuelto->admin_note)->toBeNull();
+    expect($vuelto->reviewed_by_user_id)->toBeNull();
+});
+
+it('la nota de moderacion tampoco se filtra en combate en curso', function () {
+    // El agujero: admin_note se pintaba FUERA del guard de visibilidad. Una
+    // nota como "quedaba A con 10% de vida" es informacion de la pelea en vivo,
+    // da igual quien la escriba.
+    $s = combateEnCurso('j4');
+    $servicio = app(ArenaAbandonmentService::class);
+    $aviso = $servicio->report($s['match'], $s['mio'], $s['companero']->id, 'Me dejo solo');
+    $servicio->dismiss($aviso->fresh(), null, 'NOTAADMIN quedaba con poca vida');
+
+    // El combate sigue en curso: descartar no lo movio.
+    expect($s['match']->fresh()->status)->toBe('in_progress');
+
+    $this->actingAs($s['rival']->user)
+        ->get(route('matches.show', $s['match']))
+        ->assertOk()
+        ->assertDontSee('NOTAADMIN');
+
+    // Pero el señalado si, porque le concierne.
+    $this->actingAs($s['companero']->user)
+        ->get(route('matches.show', $s['match']))
+        ->assertOk()
+        ->assertSee('NOTAADMIN');
+});
+
+it('con dos personajes en el mismo combate, el acusado puede defenderse', function () {
+    $s = combateEnCurso('j5');
+
+    // El compañero pasa a ser otro personaje del MISMO usuario que "mio".
+    $s['companero']->update(['user_id' => $s['mio']->user_id]);
+    $aviso = app(ArenaAbandonmentService::class)
+        ->report($s['match'], $s['rival'], $s['companero']->id, 'ACUSACION concreta');
+
+    // La vista tomaba solo el primer personaje como "yo": el acusado no podia
+    // leer de que se le acusa.
+    $this->actingAs($s['mio']->user)
+        ->get(route('matches.show', $s['match']))
+        ->assertOk()
+        ->assertSee('ACUSACION concreta');
+});
+
+it('el admin del panel puede abrir la evidencia de un aviso', function () {
+    // El boton que sanciona estaba a un clic y la prueba en la que basarse
+    // devolvia un 302 al login de Discord.
+    $s = combateEnCurso('j6');
+    $aviso = app(ArenaAbandonmentService::class)
+        ->report($s['match'], $s['mio'], $s['rival']->id, 'Se fue');
+    $aviso->update(['evidence_paths' => ['match-reports/testing/aban/prueba.png']]);
+
+    Illuminate\Support\Facades\Storage::disk(App\Models\MatchAbandonmentReport::EVIDENCE_DISK)
+        ->put('match-reports/testing/aban/prueba.png', 'contenido');
+
+    $this->withSession(sesionAdminAbandono())
+        ->get(route('matches.abandonment.evidence', ['abandonment' => $aviso, 'slot' => 1]))
+        ->assertOk();
+});
+
+it('el registro interno de moderacion no se le enseña al jugador', function () {
+    // La pantalla del jugador volcaba `matches.notes` en crudo bajo "Notas del
+    // sistema". Esa columna es el registro interno: se le anotan las sanciones
+    // con su letra pequeña -horas de bloqueo, numero de strike- y las notas que
+    // escribe un admin al resolver. Cualquiera de los cuatro leia la sancion de
+    // otro, y las notas de moderacion se filtraban aunque el guard de
+    // visibilidad de los avisos las tapara: salian por esta otra puerta.
+    $s = combateEnCurso('k1');
+    $servicio = app(ArenaAbandonmentService::class);
+
+    $aviso = $servicio->report($s['match'], $s['mio'], $s['rival']->id, 'Se fue');
+    $servicio->confirm($aviso->fresh(), null, 'NOTAINTERNA del admin');
+
+    $notas = (string) $s['match']->fresh()->notes;
+    expect($notas)->toContain('NOTAINTERNA');
+    expect($notas)->toContain('Abandonment penalty');
+
+    // Ninguno de los cuatro ve el registro, ni el sancionado. La nota de
+    // resolucion si la ven, pero contada en el expediente y en su idioma, no
+    // volcada junto a las horas de bloqueo y el numero de strike.
+    foreach (['mio', 'companero', 'rival', 'rival2'] as $quien) {
+        $this->actingAs($s[$quien]->user)
+            ->get(route('matches.show', $s['match']))
+            ->assertOk()
+            ->assertDontSee('Notas del sistema')
+            ->assertDontSee('Abandonment penalty')
+            ->assertDontSee('lock, strike');
+    }
+
+    // Pero moderacion si, que es de quien es.
+    $this->withSession(sesionAdminAbandono())
+        ->get(route('admin.matches.show', $s['match']))
+        ->assertOk()
+        ->assertSee('Registro interno del enfrentamiento')
+        ->assertSee('NOTAINTERNA');
+});

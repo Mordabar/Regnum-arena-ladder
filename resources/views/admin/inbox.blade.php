@@ -37,8 +37,25 @@
         ]);
     }
 
+    // Los avisos de abandono no cambian el estado del enfrentamiento -hacerlo
+    // dejaba anular una derrota con un boton-, asi que no llegan por la via de
+    // 'disputed'. Sin listarlos aqui, existian y nadie se enteraba.
+    foreach ($pendingAbandonments ?? [] as $aviso) {
+        if (!$aviso->match) {
+            continue;
+        }
+        $items->push([
+            'kind' => 'abandonment',
+            'match' => $aviso->match,
+            'report' => null,
+            'aviso' => $aviso,
+            'deadline' => null,
+        ]);
+    }
+
     $disputeCount = $disputedMatches->count();
     $confirmationCount = $pendingConfirmations->count();
+    $abandonmentCount = collect($pendingAbandonments ?? [])->filter(fn ($a) => (bool) $a->match)->count();
 @endphp
 
 <div class="ap-rise mb-5 flex flex-wrap items-center gap-2" role="group" aria-label="Filtrar casos">
@@ -51,6 +68,9 @@
     <button type="button" class="ap-btn ap-btn-sm" data-ap-filter="confirmation" aria-pressed="false">
         Sin confirmar <span class="ap-num">{{ $confirmationCount }}</span>
     </button>
+    <button type="button" class="ap-btn ap-btn-sm" data-ap-filter="abandonment" aria-pressed="false">
+        Abandonos <span class="ap-num">{{ $abandonmentCount }}</span>
+    </button>
 </div>
 
 <div class="ap-rise ap-delay-1 flex flex-col gap-3" id="ap-worklist">
@@ -59,6 +79,8 @@
             $match = $item['match'];
             $report = $item['report'];
             $isDispute = $item['kind'] === 'dispute';
+            $esAbandono = $item['kind'] === 'abandonment';
+            $aviso = $item['aviso'] ?? null;
         @endphp
         <article class="ap-card p-4" data-ap-kind="{{ $item['kind'] }}">
             <div class="flex flex-wrap items-start justify-between gap-4">
@@ -66,17 +88,34 @@
                     <div class="flex flex-wrap items-center gap-2">
                         <span class="text-[13.5px] font-semibold">{{ $match->match_code }}</span>
                         <x-admin.mode :mode="$match->arena_mode" />
-                        <x-admin.status :value="$isDispute ? 'disputed' : 'pending_confirmation'" :kind="$isDispute ? 'match' : 'report'" />
+                        @if($esAbandono)
+                            <span class="ap-badge ap-badge-warn">Aviso de abandono</span>
+                        @else
+                            <x-admin.status :value="$isDispute ? 'disputed' : 'pending_confirmation'" :kind="$isDispute ? 'match' : 'report'" />
+                        @endif
                     </div>
 
                     <p class="ap-section-note mt-1.5">
                         <x-admin.realm :realm="$match->team_a_realm" /> contra <x-admin.realm :realm="$match->team_b_realm" />
                         · {{ $match->zone_name }}
-                        · reportado por {{ $report?->reporter?->character_name ?? 'jugador eliminado' }}
-                        <x-admin.ago :date="$report?->created_at" empty="" />
+                        @if($esAbandono)
+                            · {{ $aviso->reporter?->character_name ?? 'jugador eliminado' }}
+                            señala a {{ $aviso->accused?->character_name ?? 'jugador eliminado' }}
+                            <x-admin.ago :date="$aviso->created_at" empty="" />
+                        @else
+                            · reportado por {{ $report?->reporter?->character_name ?? 'jugador eliminado' }}
+                            <x-admin.ago :date="$report?->created_at" empty="" />
+                        @endif
                     </p>
 
-                    @if($isDispute)
+                    @if($esAbandono)
+                        <p class="ap-section-note mt-2" style="color: var(--ap-text-muted)">
+                            El combate sigue su curso; esto no lo bloquea. Nadie sera sancionado hasta que lo mires.
+                        </p>
+                        @if($aviso->note)
+                            <p class="ap-quote mt-2">“{{ \Illuminate\Support\Str::limit($aviso->note, 160) }}”</p>
+                        @endif
+                    @elseif($isDispute)
                         <p class="ap-section-note mt-2" style="color: var(--ap-text-muted)">
                             El rival rechazo el resultado. Nadie mas puede desbloquearlo: hay que decidir aqui.
                         </p>
@@ -91,7 +130,7 @@
                 </div>
 
                 <a href="{{ route('admin.matches.show', $match) }}" class="ap-btn {{ $isDispute ? 'ap-btn-primary' : '' }}">
-                    {{ $isDispute ? 'Resolver' : 'Revisar' }}
+                    {{ $isDispute || $esAbandono ? 'Resolver' : 'Revisar' }}
                     <x-admin.icon name="arrow-right" class="h-3.5 w-3.5" />
                 </a>
             </div>
@@ -101,7 +140,7 @@
             <div class="ap-empty">
                 <x-admin.icon name="check" class="h-7 w-7" style="color: var(--ap-ok)" />
                 <p class="m-0 text-[13.5px]" style="color: var(--ap-text)">La bandeja esta vacia</p>
-                <p class="m-0">No hay reportes sin confirmar ni disputas abiertas.</p>
+                <p class="m-0">No hay reportes sin confirmar, disputas abiertas ni avisos de abandono.</p>
             </div>
         </div>
     @endforelse

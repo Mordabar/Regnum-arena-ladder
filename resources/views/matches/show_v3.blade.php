@@ -851,17 +851,22 @@
         </details>
     @endif
 
-    @if($match->notes)
-        <details class="arena-panel mt-6 group">
-            <summary class="cursor-pointer p-6 flex items-center justify-between">
-                <h2 class="text-lg font-semibold text-white">Notas del sistema</h2>
-                <svg class="h-5 w-5 text-[color:var(--arena-muted)] transition-transform group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
-            </summary>
-            <div class="px-6 pb-6">
-                <pre class="whitespace-pre-wrap text-sm text-[color:var(--arena-muted)] arena-body-text">{{ $match->notes }}</pre>
-            </div>
-        </details>
-    @endif
+    {{--
+        Aqui vivia un bloque "Notas del sistema" que volcaba `matches.notes` en
+        crudo a cualquier jugador del combate. Esa columna no es informacion
+        para el jugador: es el registro interno de moderacion. Se le anotan las
+        sanciones con su letra pequeña -"Abandonment penalty applied a X (12h
+        lock, strike 1)"-, los motivos de cancelacion y las notas que escribe
+        un admin al resolver.
+
+        O sea, cualquiera de los cuatro leia que sancion se le habia puesto a
+        otro y cuanto le duraba, y las notas de moderacion se filtraban enteras,
+        incluso en un combate en curso. El rastro que SI le concierne al jugador
+        ya lo tiene contado en su idioma: el expediente del arbitraje y el
+        bloque de avisos de abandono.
+
+        El registro completo va donde corresponde, en la ficha del panel.
+    --}}
 
     {{-- ── ZONE MAP MODAL ── --}}
     <div id="modal-zone-map" class="fixed inset-0 z-50 items-center justify-center" style="display:none" role="dialog" aria-modal="true">

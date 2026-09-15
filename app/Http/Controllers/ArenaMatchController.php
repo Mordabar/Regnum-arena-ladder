@@ -442,13 +442,25 @@ class ArenaMatchController extends Controller
         return back()->with('success', 'Aviso enviado. Un administrador revisara el abandono.');
     }
 
-    public function abandonmentEvidence(MatchAbandonmentReport $abandonment, string $slot)
+    public function abandonmentEvidence(Request $request, MatchAbandonmentReport $abandonment, string $slot)
     {
+        $match = $abandonment->match()->firstOrFail();
+
+        // La sesion del panel vale aqui.
+        //
+        // Esta ruta vive en el area de jugador y solo miraba la sesion de
+        // Discord, pero el panel autentica con `arena_admin.*`: la ficha del
+        // enfrentamiento pintaba el enlace "Captura 1" y pulsarlo devolvia al
+        // login de Discord. O sea, el boton que sanciona a un jugador estaba a
+        // un clic y la prueba en la que hay que basarse era inalcanzable.
+        if ($request->session()->get('arena_admin.authenticated') === true) {
+            return $this->servirEvidenciaAbandono($abandonment, $slot);
+        }
+
         if (!Auth::check()) {
             return redirect()->route('auth.discord');
         }
 
-        $match = $abandonment->match()->firstOrFail();
         $user = Auth::user();
 
         if (!$user->isAdmin()) {
@@ -468,6 +480,11 @@ class ArenaMatchController extends Controller
             }
         }
 
+        return $this->servirEvidenciaAbandono($abandonment, $slot);
+    }
+
+    private function servirEvidenciaAbandono(MatchAbandonmentReport $abandonment, string $slot)
+    {
         $path = $abandonment->evidencePath($slot);
         $disk = Storage::disk(MatchAbandonmentReport::EVIDENCE_DISK);
 

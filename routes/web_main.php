@@ -82,8 +82,15 @@ Route::middleware('auth')->group(function () {
     Route::post('/matches/report/reject', [ArenaMatchController::class, 'rejectReport'])->name('matches.report.reject');
     Route::get('/matches/report/{report}/evidence/{slot}', [ArenaMatchController::class, 'evidence'])->name('matches.report.evidence');
     Route::post('/matches/abandonment', [ArenaMatchController::class, 'reportAbandonment'])->name('matches.abandonment.report');
-    Route::get('/matches/abandonment/{abandonment}/evidence/{slot}', [ArenaMatchController::class, 'abandonmentEvidence'])->name('matches.abandonment.evidence');
 });
+
+// Fuera del grupo 'auth' a proposito: la evidencia de un aviso la miran tanto
+// un jugador del combate -sesion de Discord- como moderacion desde el panel,
+// que autentica con su propia sesion. Con el middleware delante, al admin le
+// devolvia un 302 al login de Discord y la prueba en la que debe basarse para
+// sancionar era inalcanzable. El controlador comprueba las dos vias.
+Route::get('/matches/abandonment/{abandonment}/evidence/{slot}', [ArenaMatchController::class, 'abandonmentEvidence'])
+    ->name('matches.abandonment.evidence');
 
 Route::prefix('/' . $arenaAdminPath)->group(function () {
     Route::get('/', [AdminAuthController::class, 'entry'])->name('admin.login');

@@ -156,9 +156,19 @@ class ArenaAbandonmentService
         } catch (\Throwable $e) {
             // Si algo revienta a mitad, el aviso vuelve a estar pendiente: peor
             // que reintentarlo es dejarlo marcado como resuelto sin efecto.
+            //
+            // Se borran TODOS los campos de la resolucion, no solo el estado.
+            // Dejar admin_note escrito pintaba en la pantalla del jugador un
+            // aviso "pendiente, nadie sancionado todavia" con debajo el texto
+            // de una resolucion que nunca ocurrio.
             MatchAbandonmentReport::query()
                 ->whereKey($aviso->getKey())
-                ->update(['status' => 'pending', 'reviewed_at' => null]);
+                ->update([
+                    'status' => 'pending',
+                    'reviewed_at' => null,
+                    'reviewed_by_user_id' => null,
+                    'admin_note' => null,
+                ]);
 
             throw $e;
         }
@@ -176,19 +186,28 @@ class ArenaAbandonmentService
         ?User $admin,
         ?string $note
     ): void {
-        // Si el combate llego a puntuar -se reporto y se confirmo mientras el
-        // aviso esperaba-, esos puntos no pueden quedarse: un abandonado no
-        // reparte resultado.
-        if ($match->results()->exists()) {
-            $this->resultService->markVoid(
-                $match,
-                $admin,
-                'Puntos devueltos antes de marcar el abandono'
-            );
-            $match->refresh();
-        }
-
+        // TODO el efecto va dentro de una sola transaccion, devolucion de
+        // puntos incluida.
+        //
+        // markVoid() estaba fuera: si la sancion reventaba despues, el catch
+        // devolvia el aviso a 'pending' pero el combate ya estaba anulado, sus
+        // resultados borrados y el PL devuelto, y eso no se deshacia. El admin
+        // veia un error y creia que no habia pasado nada, con la partida del
+        // ganador ya destruida. Anidar transacciones en Laravel usa puntos de
+        // guardado, asi que la de markVoid se integra en esta.
         DB::transaction(function () use ($aviso, $match, $acusado, $admin, $note) {
+            // Si el combate llego a puntuar -se reporto y se confirmo mientras
+            // el aviso esperaba-, esos puntos no pueden quedarse: un abandonado
+            // no reparte resultado.
+            if ($match->results()->exists()) {
+                $this->resultService->markVoid(
+                    $match,
+                    $admin,
+                    'Puntos devueltos antes de marcar el abandono'
+                );
+                $match->refresh();
+            }
+
             // Los demas avisos del mismo enfrentamiento contra el mismo
             // jugador quedan resueltos con este; no se sanciona dos veces.
             MatchAbandonmentReport::query()

@@ -338,6 +338,19 @@
         </div>
     </div>
 
+    @if($match->notes)
+        {{-- El registro interno del enfrentamiento. Estaba al reves: se le
+             volcaba en crudo al jugador, con las sanciones de los demas y su
+             letra pequeña, y aqui no salia. Es informacion de moderacion y
+             este es su sitio. --}}
+        <details class="ap-card mb-4 p-4">
+            <summary class="cursor-pointer text-[13.5px] font-semibold">
+                Registro interno del enfrentamiento
+            </summary>
+            <pre class="ap-hint mt-2 whitespace-pre-wrap break-words">{{ trim($match->notes) }}</pre>
+        </details>
+    @endif
+
     <form method="POST" action="{{ route('admin.matches.resolve', $match) }}" id="ap-decision-form">
         @csrf
 
