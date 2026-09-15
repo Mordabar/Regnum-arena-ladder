@@ -33,6 +33,9 @@ return new class extends Migration
             $table->json('evidence_paths')->nullable();
             $table->string('status', 32)->default('pending');
             $table->unsignedBigInteger('reviewed_by_user_id')->nullable();
+            // Moderacion entra al panel con su propia cuenta, que no es un
+            // `users`. Su nombre va aparte para no falsear el otro campo.
+            $table->string('reviewed_by_admin', 64)->nullable();
             $table->timestamp('reviewed_at')->nullable();
             $table->text('admin_note')->nullable();
             $table->timestamps();

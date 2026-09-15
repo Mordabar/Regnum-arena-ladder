@@ -165,8 +165,12 @@
                             Confirmar castiga <strong>solo</strong> al señalado: pierde PL, confianza y no puede
                             encolar durante unas horas. Su compañero y los rivales no se tocan.
                         </p>
-                    @elseif($aviso->admin_note)
-                        <p class="ap-hint mt-2">Resuelto: {{ $aviso->admin_note }}</p>
+                    @elseif($aviso->admin_note || $aviso->reviewed_by_admin)
+                        @php
+                            $quien = $aviso->reviewed_by_admin ? ' por ' . $aviso->reviewed_by_admin : '';
+                            $porQue = $aviso->admin_note ? ': ' . $aviso->admin_note : '';
+                        @endphp
+                        <p class="ap-hint mt-2 break-words">Resuelto{{ $quien }}{{ $porQue }}</p>
                     @endif
                 </article>
             @endforeach

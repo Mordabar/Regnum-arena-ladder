@@ -16,11 +16,21 @@
     // "se abren cuando termine el enfrentamiento": no podia defenderse de una
     // acusacion que le cuesta strike, confianza, PL y bloqueo de cola. La ruta
     // de la evidencia ya miraba todos sus personajes; la vista no.
-    $mios = $match->getAllPlayers()
-        ->pluck('player_id')
-        ->map(fn ($id) => (int) $id)
-        ->intersect(auth()->user()->players()->pluck('id')->map(fn ($id) => (int) $id))
-        ->values();
+    // Con `auth()->user()->players()` a pelo, un render sin sesion -un correo,
+    // un trabajo en cola, un historial publico el dia de mañana- reventaba con
+    // un fatal en vez de degradar. Sin usuario no hay personajes y ya esta.
+    $mios = auth()->check()
+        ? $match->getAllPlayers()
+            ->pluck('player_id')
+            ->map(fn ($id) => (int) $id)
+            ->intersect(auth()->user()->players()->pluck('id')->map(fn ($id) => (int) $id))
+            ->values()
+        : collect();
+
+    // Y si quien incluye el parcial se olvida de pasarlo, se cae al lado
+    // prudente -nombres ocultos- en vez de romper la pagina entera.
+    $showRivalNames = $showRivalNames
+        ?? in_array($match->status, ['completed', 'disputed', 'void', 'abandoned', 'cancelled'], true);
 @endphp
 
 @if($avisos->isNotEmpty())

@@ -33,6 +33,7 @@ class MatchAbandonmentReport extends Model
         'evidence_paths',
         'status',
         'reviewed_by_user_id',
+        'reviewed_by_admin',
         'reviewed_at',
         'admin_note',
     ];

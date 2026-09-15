@@ -468,19 +468,30 @@ class ArenaMatchResultService
             $this->closeMatchQueues($bloqueado);
         });
 
-        $this->ladderCacheService->forgetRecentMatches();
+        // Despues del commit, no antes.
+        //
+        // markVoid se llama ahora desde dentro de otra transaccion -la del
+        // abandono, la de "interrumpido"-, asi que estas lineas corrian con
+        // todo sin confirmar: si la operacion externa reventaba despues, la
+        // base volvia atras pero Discord ya habia anunciado que se anulo el
+        // resultado y se devolvieron los puntos. Cuatro jugadores leyendo algo
+        // que no paso. DB::afterCommit() lo ejecuta cuando ya no hay vuelta
+        // atras, y fuera de transaccion corre igual, en el acto.
+        DB::afterCommit(function () use ($match, $devueltos, $note) {
+            $this->ladderCacheService->forgetRecentMatches();
 
-        if ($devueltos !== []) {
-            // Quien pierde PL y MMR por una decision de moderacion tiene que
-            // enterarse, igual que cuando se corrige un resultado.
-            $this->ladderCacheService->forgetSummary();
-            $this->discordBotService->notifyReportResolved($match->fresh(['report', 'results']), [
-                'resolution_source' => 'admin_void_scored',
-                'winner_team' => null,
-                'winner_realm' => null,
-                'note' => $note,
-            ]);
-        }
+            if ($devueltos !== []) {
+                // Quien pierde PL y MMR por una decision de moderacion tiene
+                // que enterarse, igual que cuando se corrige un resultado.
+                $this->ladderCacheService->forgetSummary();
+                $this->discordBotService->notifyReportResolved($match->fresh(['report', 'results']), [
+                    'resolution_source' => 'admin_void_scored',
+                    'winner_team' => null,
+                    'winner_realm' => null,
+                    'note' => $note,
+                ]);
+            }
+        });
     }
 
     /**
@@ -1928,6 +1939,18 @@ SVG;
         $clean = trim((string) $notes);
 
         return trim($clean . PHP_EOL . '[' . now()->toDateTimeString() . '] ' . $line);
+    }
+
+    /**
+     * Cerrar las colas de un enfrentamiento terminado, desde fuera.
+     *
+     * El servicio de abandonos lo necesita: era la unica via que terminaba un
+     * combate sin cerrarlas, y dejaba a los cuatro jugadores con su fila en
+     * 'accepted' apuntando a una partida acabada.
+     */
+    public function cerrarColasDelEnfrentamiento(ArenaMatch $match): void
+    {
+        $this->closeMatchQueues($match);
     }
 
     private function closeMatchQueues(ArenaMatch $match): void

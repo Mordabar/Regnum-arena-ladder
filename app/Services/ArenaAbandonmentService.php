@@ -123,10 +123,26 @@ class ArenaAbandonmentService
     public function confirm(
         MatchAbandonmentReport $aviso,
         ?User $admin = null,
-        ?string $note = null
+        ?string $note = null,
+        ?string $adminPanel = null
     ): void {
         $match = $aviso->match()->firstOrFail();
         $acusado = Player::findOrFail($aviso->accused_player_id);
+
+        // Si el enfrentamiento ya esta cerrado, se sanciona y punto: no se
+        // toca el resultado.
+        //
+        // Confirmar un aviso viejo deshacia lo que ya estaba decidido. Un
+        // 'force_complete' del panel, un cierre por el barrido automatico, un
+        // 'interrumpido', una anulacion... el aviso seguia pendiente y al
+        // pulsar Confirmar el combate pasaba a 'abandoned', se borraban las
+        // filas de resultados y el ganador perdia sus puntos. Lo empeoro la
+        // bandeja nueva, que antes no enseñaba estos avisos y ahora los pone
+        // delante del moderador.
+        //
+        // Quien se fue sigue pagando -para eso se pulsa el boton-, pero lo que
+        // ya se decidio se queda como esta.
+        $yaCerrado = in_array($match->status, ['completed', 'cancelled', 'void', 'abandoned'], true);
 
         // PRIMERO se reclama el aviso, y solo despues se toca nada.
         //
@@ -143,6 +159,7 @@ class ArenaAbandonmentService
             ->update([
                 'status' => 'confirmed',
                 'reviewed_by_user_id' => $admin?->id,
+                'reviewed_by_admin' => $adminPanel,
                 'reviewed_at' => now(),
                 'admin_note' => $note,
             ]);
@@ -152,7 +169,7 @@ class ArenaAbandonmentService
         }
 
         try {
-            $this->aplicarAbandono($aviso, $match, $acusado, $admin, $note);
+            $this->aplicarAbandono($aviso, $match, $acusado, $admin, $note, $yaCerrado);
         } catch (\Throwable $e) {
             // Si algo revienta a mitad, el aviso vuelve a estar pendiente: peor
             // que reintentarlo es dejarlo marcado como resuelto sin efecto.
@@ -167,6 +184,7 @@ class ArenaAbandonmentService
                     'status' => 'pending',
                     'reviewed_at' => null,
                     'reviewed_by_user_id' => null,
+                    'reviewed_by_admin' => null,
                     'admin_note' => null,
                 ]);
 
@@ -184,7 +202,8 @@ class ArenaAbandonmentService
         ArenaMatch $match,
         Player $acusado,
         ?User $admin,
-        ?string $note
+        ?string $note,
+        bool $yaCerrado = false
     ): void {
         // TODO el efecto va dentro de una sola transaccion, devolucion de
         // puntos incluida.
@@ -195,11 +214,11 @@ class ArenaAbandonmentService
         // veia un error y creia que no habia pasado nada, con la partida del
         // ganador ya destruida. Anidar transacciones en Laravel usa puntos de
         // guardado, asi que la de markVoid se integra en esta.
-        DB::transaction(function () use ($aviso, $match, $acusado, $admin, $note) {
+        DB::transaction(function () use ($aviso, $match, $acusado, $admin, $note, $yaCerrado) {
             // Si el combate llego a puntuar -se reporto y se confirmo mientras
             // el aviso esperaba-, esos puntos no pueden quedarse: un abandonado
             // no reparte resultado.
-            if ($match->results()->exists()) {
+            if (!$yaCerrado && $match->results()->exists()) {
                 $this->resultService->markVoid(
                     $match,
                     $admin,
@@ -242,26 +261,42 @@ class ArenaAbandonmentService
                 'pl_points' => max(0.0, round((float) $acusado->pl_points - $castigoPl, 1)),
             ]);
 
+            $anotacion = 'Abandono confirmado: ' . $acusado->character_name
+                . ' (-' . $castigoPl . ' PL, de ' . $plAntes . ')'
+                . ($note ? ': ' . $note : '')
+                . ($yaCerrado ? ' [el enfrentamiento ya estaba cerrado: solo se sanciona]' : '');
+
+            if ($yaCerrado) {
+                // Ya decidido: se anota la sancion y no se toca el resultado.
+                $match->update(['notes' => $this->añadirNota($match->notes, $anotacion)]);
+
+                return;
+            }
+
             $match->update([
                 'status' => 'abandoned',
                 'winner_team' => null,
                 'winner_realm' => null,
                 'completed_at' => $match->completed_at ?? now(),
                 'expires_at' => null,
-                'notes' => $this->añadirNota(
-                    $match->notes,
-                    'Abandono confirmado: ' . $acusado->character_name
-                    . ' (-' . $castigoPl . ' PL, de ' . $plAntes . ')'
-                    . ($note ? ': ' . $note : '')
-                ),
+                'notes' => $this->añadirNota($match->notes, $anotacion),
             ]);
+
+            // Las colas del enfrentamiento se cierran, como en cualquier otra
+            // via que lo termina -markVoid, markDisputed, forceComplete-. Aqui
+            // se habia olvidado, y los cuatro jugadores se quedaban con su fila
+            // en 'accepted' apuntando a un combate ya acabado.
+            $this->resultService->cerrarColasDelEnfrentamiento($match);
 
             if ($match->report) {
                 $match->report->update([
                     'status' => 'admin_resolved',
                     'reviewed_by_user_id' => $admin?->id,
                     'reviewed_at' => now(),
-                    'admin_note' => $note,
+                    // La nota del abandono no se copia aqui: se republicaba
+                    // bajo "arbitraje del resultado", que es otra cosa, y sin
+                    // el guard de visibilidad que si tiene en su propio bloque.
+                    'admin_note' => 'Resuelto por abandono confirmado.',
                 ]);
             }
         });
@@ -273,17 +308,19 @@ class ArenaAbandonmentService
     public function dismiss(
         MatchAbandonmentReport $aviso,
         ?User $admin = null,
-        ?string $note = null
+        ?string $note = null,
+        ?string $adminPanel = null
     ): void {
         $match = $aviso->match()->firstOrFail();
 
-        DB::transaction(function () use ($aviso, $match, $admin, $note) {
+        DB::transaction(function () use ($aviso, $match, $admin, $note, $adminPanel) {
             $tomado = MatchAbandonmentReport::query()
                 ->whereKey($aviso->getKey())
                 ->where('status', 'pending')
                 ->update([
                     'status' => 'dismissed',
                     'reviewed_by_user_id' => $admin?->id,
+                    'reviewed_by_admin' => $adminPanel,
                     'reviewed_at' => now(),
                     'admin_note' => $note,
                 ]);

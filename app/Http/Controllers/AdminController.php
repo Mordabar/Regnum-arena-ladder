@@ -233,23 +233,28 @@ class AdminController extends Controller
                         ->where('accused_player_id', (int) $validated['player_id'])
                         ->update([
                             'status' => 'confirmed',
-                            'reviewed_by_user_id' => $request->session()->get('arena_admin.account_id'),
+                            // Por nombre, no por id: `reviewed_by_user_id`
+                            // apunta a `users` -cuentas de Discord de
+                            // jugadores- y meter ahi el id de la cuenta del
+                            // panel hacia que la ficha atribuyera la
+                            // resolucion a un jugador cualquiera.
+                            'reviewed_by_admin' => (string) $request->session()->get('arena_admin.username', 'panel'),
                             'reviewed_at' => now(),
                             'admin_note' => $notaWalkover,
                         ]);
 
-                    // Los avisos contra otros jugadores quedan descartados: el
-                    // enfrentamiento ya tiene resultado, y reabrirlo por otra
-                    // via deshace ese resultado.
-                    MatchAbandonmentReport::query()
-                        ->where('match_id', $match->id)
-                        ->where('status', 'pending')
-                        ->update([
-                            'status' => 'dismissed',
-                            'reviewed_by_user_id' => $request->session()->get('arena_admin.account_id'),
-                            'reviewed_at' => now(),
-                            'admin_note' => 'El enfrentamiento se cerro con derrota automatica para otro jugador.',
-                        ]);
+                    // Los avisos contra OTROS jugadores se quedan pendientes a
+                    // proposito.
+                    //
+                    // Descartarlos en bloque, que es lo que se hacia, dejaba
+                    // libre a un abandonador del equipo que gana: si se van un
+                    // rival y mi compañero, el walkover contra el rival
+                    // archivaba sin mirar el aviso contra mi compañero, que se
+                    // quedaba sin strike, sin bloqueo y encima ganando PL.
+                    //
+                    // Dejarlos vivos ya no es peligroso: confirmar un aviso
+                    // sobre un enfrentamiento cerrado sanciona al señalado sin
+                    // tocar el resultado.
 
                     $message = 'Abandono procesado con derrota automatica para el infractor.';
                     break;
@@ -269,13 +274,21 @@ class AdminController extends Controller
                         throw new \RuntimeException('Ese aviso de abandono no pertenece a este enfrentamiento.');
                     }
 
+                    // Quien decide queda firmado. Antes se pasaba null y no
+                    // quedaba rastro de quien aplico un strike y un bloqueo.
+                    $quienDecide = (string) $request->session()->get('arena_admin.username', 'panel');
+                    $cerrado = in_array($aviso->match?->status, ['completed', 'cancelled', 'void', 'abandoned'], true);
+
                     if ($validated['action'] === 'confirm_abandonment') {
                         app(ArenaAbandonmentService::class)
-                            ->confirm($aviso, null, $validated['note'] ?? null);
-                        $message = 'Abandono confirmado. Solo el jugador señalado ha sido sancionado.';
+                            ->confirm($aviso, null, $validated['note'] ?? null, $quienDecide);
+
+                        $message = $cerrado
+                            ? 'Abandono confirmado y jugador sancionado. El resultado del enfrentamiento no se ha tocado: para deshacerlo, usa Anular.'
+                            : 'Abandono confirmado. Solo el jugador señalado ha sido sancionado.';
                     } else {
                         app(ArenaAbandonmentService::class)
-                            ->dismiss($aviso, null, $validated['note'] ?? null);
+                            ->dismiss($aviso, null, $validated['note'] ?? null, $quienDecide);
                         $message = 'Aviso descartado. Nadie ha sido sancionado.';
                     }
                     break;
