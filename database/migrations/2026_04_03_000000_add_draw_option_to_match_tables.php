@@ -9,8 +9,14 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // ENUM y MODIFY son exclusivos de MySQL. En sqlite (suite de tests) la
-        // columna es texto libre, asi que ya acepta 'draw' sin tocar nada.
+        // ENUM y MODIFY son exclusivos de MySQL.
+        //
+        // OJO: lo que decia aqui -"en sqlite la columna es texto libre, asi que
+        // ya acepta 'draw' sin tocar nada"- era falso. $table->enum() en SQLite
+        // no crea un ENUM, pero si un CHECK con la lista de valores, y ese
+        // CHECK se quedaba sin 'draw': el empate reventaba en local y en el
+        // banco de pruebas mientras en produccion funcionaba. Lo arregla la
+        // migracion 2026_09_15_000004.
         if (DB::getDriverName() !== 'mysql') {
             return;
         }
