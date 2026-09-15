@@ -892,3 +892,33 @@ it('un aviso no aplaza el cierre automatico de una disputa', function () {
     expect(ArenaMatch::find($s['match']->id)->updated_at->diffInHours(now()))
         ->toBeGreaterThanOrEqual(49);
 });
+
+it('la frase del aviso se lee bien desde los tres lados', function () {
+    // Decia "Sarkhan señala a tú", que no es castellano, y es lo primero que
+    // lee alguien a quien acaban de acusar.
+    $s = combateEnCurso('i1');
+    $servicio = app(ArenaAbandonmentService::class);
+    $servicio->report($s['match'], $s['mio'], $s['companero']->id, 'Me dejo solo');
+    $s['match']->fresh()->update(['status' => 'abandoned']);
+
+    // Quien avisa.
+    $this->actingAs($s['mio']->user)
+        ->get(route('matches.show', $s['match']))
+        ->assertOk()
+        ->assertSee('Señalaste a')
+        ->assertDontSee('señala a tú');
+
+    // Quien esta señalado.
+    $this->actingAs($s['companero']->user)
+        ->get(route('matches.show', $s['match']))
+        ->assertOk()
+        ->assertSee('te señala')
+        ->assertDontSee('señala a tú');
+
+    // Un tercero.
+    $this->actingAs($s['rival']->user)
+        ->get(route('matches.show', $s['match']))
+        ->assertOk()
+        ->assertSee('señala a')
+        ->assertDontSee('señala a tú');
+});

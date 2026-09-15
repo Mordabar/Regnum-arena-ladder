@@ -1971,7 +1971,11 @@
     <nav class="arena-navbar sticky top-0 z-40" data-arena-navbar>
         <div class="mx-auto max-w-7xl px-4 py-3">
             <div class="flex items-center justify-between gap-4">
-                <a href="{{ route('home') }}" class="shrink-0">
+                {{-- `shrink-0` aqui le prohibia encoger, y la marca mide 381 px:
+                     en una pantalla de 400 el boton de menu se quedaba sin
+                     sitio y empujaba el documento 55 px a la derecha, asi que
+                     la pagina se movia de lado al arrastrarla en el movil. --}}
+                <a href="{{ route('home') }}" class="min-w-0">
                     <x-arena-brand compact />
                 </a>
 

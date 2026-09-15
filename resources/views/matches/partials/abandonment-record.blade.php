@@ -68,10 +68,22 @@
 
                 <article class="arena-card border-l-4 {{ $borde }} p-4">
                     <div class="flex flex-wrap items-baseline justify-between gap-2">
+                        {{-- Tres frases distintas porque "señala a tú" no es
+                             castellano, y esta linea es lo primero que lee
+                             alguien a quien acaban de acusar. --}}
                         <p class="text-sm font-semibold text-[color:var(--arena-text)]">
-                            {{ ucfirst($nombre($aviso->reporter, $avisadorId)) }}
-                            {{ $loAviseYo ? 'señalaste a' : 'señala a' }}
-                            <span class="{{ $meSeñalan ? 'text-rose-300' : '' }}">{{ $nombre($aviso->accused, $acusadoId) }}</span>
+                            @if($loAviseYo)
+                                Señalaste a
+                                <span>{{ $nombre($aviso->accused, $acusadoId) }}</span>
+                            @elseif($meSeñalan)
+                                <span class="text-rose-300">
+                                    {{ ucfirst($nombre($aviso->reporter, $avisadorId)) }} te señala
+                                </span>
+                            @else
+                                {{ ucfirst($nombre($aviso->reporter, $avisadorId)) }}
+                                señala a
+                                <span>{{ $nombre($aviso->accused, $acusadoId) }}</span>
+                            @endif
                         </p>
                         <span class="text-[0.7rem] text-[color:var(--arena-muted)]">
                             {{ $aviso->created_at?->locale('es')->isoFormat('D MMM YYYY, HH:mm') }}
