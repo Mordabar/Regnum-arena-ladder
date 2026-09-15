@@ -36,3 +36,4 @@
 
 # Tests de auditoria del arbitro: demuestran fallos, no verifican producto
 /tests/Feature/AuditoriaAbandonoTest.php
+/tests/Feature/ZZAud*Test.php

@@ -101,4 +101,23 @@ php artisan about
 ./vendor/bin/pest
 ```
 
+### Probar contra MySQL, no solo contra SQLite
+
+El banco de pruebas corre en SQLite por comodidad, y SQLite se traga cosas que
+MySQL rechaza. Asi se colo el fallo del rechazo de reportes: `matches.status`
+era un ENUM heredado sin `disputed`, MySQL respondia "Data truncated" y tumbaba
+la operacion, mientras la suite seguia en verde porque SQLite guarda cualquier
+texto.
+
+La suite entera se puede correr contra MySQL sin tocar nada del proyecto,
+pasandole la conexion por variables de entorno:
+
+```bash
+mysql -e "CREATE DATABASE arena_test CHARACTER SET utf8mb4;"
+
+DB_CONNECTION=mysql DB_HOST=127.0.0.1 DB_DATABASE=arena_test \
+DB_USERNAME=tu_usuario DB_PASSWORD=tu_clave \
+./vendor/bin/pest
+```
+
 Comprueba despues el login de Discord, una cola 2v2, una cola 3v3, la subida de evidencias y el panel de modalidades en la configuracion administrativa.

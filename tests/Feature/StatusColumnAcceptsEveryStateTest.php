@@ -118,7 +118,13 @@ it('no deja la columna como un ENUM al que le falten estados', function () {
     foreach ($porTabla as $tabla => $estados) {
         $tipo = strtolower((string) (collect(Schema::getColumns($tabla))->firstWhere('name', 'status')['type'] ?? ''));
 
+        // Con `continue` a secas, el caso bueno -la columna ya es texto- no
+        // afirmaba nada, y el test salia como "arriesgado" en MySQL: pasaba sin
+        // comprobar una sola cosa, que es la forma mas silenciosa de no probar
+        // nada. Se afirma tambien el caso bueno.
         if (!str_starts_with($tipo, 'enum(')) {
+            expect($tipo)->not->toBe('');
+
             continue;
         }
 
