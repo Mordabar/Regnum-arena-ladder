@@ -7,7 +7,9 @@ use App\Models\ArenaMatch;
 use App\Models\Player;
 use App\Models\Queue;
 use App\Support\ArenaMode;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -35,6 +37,57 @@ class ArenaMatchmakingService
     private const PAIR_CONJURER_MISMATCH_PENALTY = 12;
     private const PAIR_SUPPORT_MISMATCH_PENALTY = 16;
     private const PAIR_SUBCLASS_MISMATCH_WEIGHT = 5;
+
+    /**
+     * Cuantos vecinos de MMR mira cada equipo al buscar rival.
+     *
+     * Puntuar la cola entera contra la cola entera es lo que no escala, y no
+     * hace falta: ordenados por MMR, un equipo nunca se empareja con otro que
+     * tenga ochenta puestos por medio salvo que no le quede nadie mas. Ochenta
+     * es holgado de sobra -con tres reinos repartidos, ahi dentro caben mas de
+     * cincuenta rivales de reino contrario-, y si aun asi alguien se queda
+     * suelto, emparejarRezagados() le busca pareja sin ventana ninguna.
+     */
+    private const PAIRING_MMR_WINDOW = 80;
+
+    /**
+     * Tope de pasadas de mejora por intercambio.
+     *
+     * En la practica converge en dos o tres. El tope existe para que la mejora
+     * no pueda convertirse en el problema de rendimiento que venia a arreglar.
+     */
+    private const PAIRING_IMPROVEMENT_PASSES = 6;
+
+    /**
+     * Cuantos cruces vecinos mira cada cruce al buscar un intercambio.
+     *
+     * Mismo motivo que la ventana de MMR del barrido: dos cruces solo se
+     * mejoran intercambiando rivales si los cuatro andan por el mismo nivel.
+     * Veinte vecinos cubren de sobra los intercambios que de verdad salen, y
+     * es la diferencia entre que la cola llena tarde dos segundos o un minuto.
+     */
+    private const PAIRING_SWAP_WINDOW = 20;
+
+    /**
+     * Vueltas de rescate de sueltos.
+     *
+     * Cada vuelta coloca a todos los que encuentran donante cerca, asi que con
+     * dos o tres ya no queda nadie. El tope existe para que esto no pueda
+     * quedarse dando vueltas si algun dia el grafo deja de ser el que es.
+     */
+    private const PAIRING_AUGMENT_ROUNDS = 8;
+
+    /** Vueltas de pulido alternando los dos tipos de mejora. */
+    private const PAIRING_POLISH_ROUNDS = 3;
+
+    /** Turno unico para emparejar, para que no barran varios a la vez. */
+    private const PAIRING_LOCK = 'arena:emparejamiento';
+
+    /** Lo que dura el turno antes de caducar solo, en segundos. */
+    private const PAIRING_LOCK_TTL = 120;
+
+    /** Lo que espera quien llega y lo encuentra ocupado, en segundos. */
+    private const PAIRING_LOCK_WAIT = 6;
 
     /**
      * Cuanto MMR tiene que encajar mejor un rival de otro estilo para ganarle
@@ -69,6 +122,9 @@ class ArenaMatchmakingService
     private const DUEL_SUBCLASS_MISMATCH_PENALTY = 8;
 
     private ?Collection $matchesColumnsCache = null;
+
+    /** Si esta instancia ya tiene el turno del barrido. */
+    private bool $barriendo = false;
 
     public function __construct(
         private readonly DiscordBotService $discordBotService
@@ -132,7 +188,52 @@ class ArenaMatchmakingService
         return $this->processQueue($expirePendingMatches);
     }
 
+    /**
+     * Empareja la cola, pero de uno en uno en todo el servidor.
+     *
+     * Esto corre dentro de la peticion HTTP de quien entra a la cola. Si entran
+     * cinco personas a la vez, antes se lanzaban cinco barridos en paralelo
+     * sobre las mismas filas: cinco veces el mismo trabajo, cinco tandas de
+     * candados sobre `queues` peleandose entre ellas, y en un hosting
+     * compartido eso es la pagina cayendose, no yendo lenta.
+     *
+     * Con el candado, el primero barre y los demas esperan su turno un momento
+     * -no mucho- y barren despues, ya con las filas nuevas dentro. Quien no
+     * consiga el turno a tiempo no pierde nada: su fila esta guardada y la coge
+     * el barrido siguiente o el reloj del minuto. Lo unico que se pierde es la
+     * respuesta inmediata "ya tienes rival", y es preferible a tumbar el sitio.
+     *
+     * El candado caduca solo, para que un proceso muerto a media faena no deje
+     * la cola congelada.
+     */
     public function processQueue(bool $expirePendingMatches = true): int
+    {
+        // Las llamadas que salen del propio barrido -cancelar un cruce vencido
+        // vuelve a emparejar- ya estan dentro del turno. Volver a pedirlo seria
+        // esperarse a uno mismo.
+        if ($this->barriendo) {
+            return $this->barrerCola($expirePendingMatches);
+        }
+
+        try {
+            return Cache::lock(self::PAIRING_LOCK, self::PAIRING_LOCK_TTL)
+                ->block(self::PAIRING_LOCK_WAIT, function () use ($expirePendingMatches) {
+                    $this->barriendo = true;
+
+                    try {
+                        return $this->barrerCola($expirePendingMatches);
+                    } finally {
+                        $this->barriendo = false;
+                    }
+                });
+        } catch (LockTimeoutException $e) {
+            Log::info('ArenaMatchmakingService: otro barrido tenia el turno, se deja para el siguiente.');
+
+            return 0;
+        }
+    }
+
+    private function barrerCola(bool $expirePendingMatches): int
     {
         if (!$this->isMatchesSchemaReady()) {
             Log::warning('ArenaMatchmakingService skipped: matches schema is not ready.');
@@ -214,10 +315,14 @@ class ArenaMatchmakingService
         $pairings = $this->buildMatchPairings($candidateTeams);
         $matchesCreated = 0;
 
+        // Las zonas ocupadas se leen UNA vez por barrido y se van actualizando
+        // en memoria conforme se crean partidas. Ver pickZone().
+        $activeMatches = $this->cargarEnfrentamientosVivos();
+
         foreach ($pairings as $pairing) {
             try {
-                $match = DB::transaction(function () use ($pairing) {
-                    return $this->createArenaMatch($pairing['team_a'], $pairing['team_b']);
+                $match = DB::transaction(function () use ($pairing, $activeMatches) {
+                    return $this->createArenaMatch($pairing['team_a'], $pairing['team_b'], $activeMatches);
                 });
             } catch (\Throwable $e) {
                 Log::warning('ArenaMatchmakingService skipped stale pairing', [
@@ -234,6 +339,10 @@ class ArenaMatchmakingService
             if (!$match instanceof ArenaMatch) {
                 continue;
             }
+
+            // La zona que acaba de ocuparse cuenta para la siguiente partida
+            // del mismo barrido, igual que contaria si se releyera la base.
+            $activeMatches->push($match);
 
             try {
                 $this->discordBotService->notifyMatchFound($match);
@@ -602,92 +711,703 @@ class ArenaMatchmakingService
         }
     }
 
+    /**
+     * Reparte a todos los equipos en cola en los mejores cruces posibles.
+     *
+     * Antes esto era avido y cubico: buscaba el mejor cruce de TODA la cola,
+     * lo sacaba, y volvia a mirarlo todo desde cero. Dos problemas, y los dos
+     * se notaban.
+     *
+     * El primero, el tiempo. Reevaluar la cola entera en cada vuelta sale a
+     * unos n^3/12 pares, y esto corre dentro de la peticion HTTP de quien entra
+     * a la cola: con 240 en cola eran 47 segundos, o sea un timeout en un
+     * hosting compartido, no una espera.
+     *
+     * El segundo, la calidad. Ser avido no reparte bien: con seis duelistas a
+     * 1000/1300/1600 contra 1200/1500/1800 se llevaba primero los dos cruces
+     * mas ajustados y dejaba al de 1000 contra el de 1800 -800 puntos de MMR,
+     * unas cincuenta partidas de diferencia- porque ya se habia gastado a sus
+     * rivales buenos.
+     *
+     * Ahora son tres pasos:
+     *
+     *   1. Puntuar cada cruce legal UNA vez (~n^2/2 en vez de n^3/12).
+     *   2. Barrerlos en orden, quedandose con los que tengan los dos lados
+     *      libres. Es el mismo criterio avido de antes pero sin repetir trabajo.
+     *   3. Mejorar el reparto intercambiando rivales entre cruces ya hechos
+     *      mientras el resultado mejore. Esto es lo que arregla el caso de los
+     *      seis: el paso 2 deja 100+100+800 y los intercambios lo bajan a
+     *      200+200+200.
+     *
+     * Y si tras el barrido queda alguien suelto teniendo rival legal, se le
+     * empareja igual en un repaso final. La regla no negociable es que nadie se
+     * quede en cola habiendo con quien jugar.
+     */
     private function buildMatchPairings(Collection $candidateTeams): array
     {
-        $available = $candidateTeams->values();
-        $pairings = [];
+        $teams = $candidateTeams->values()->all();
+        $total = count($teams);
+
+        if ($total < 2) {
+            return [];
+        }
+
         $recentPairHistory = $this->buildRecentPairHistory();
         $recentMatchSnapshots = $this->buildRecentMatchSnapshots();
 
-        while ($available->count() >= 2) {
-            $bestPair = null;
+        // Memoria de puntuaciones: un cruce se puntua una vez y ya. La usan
+        // tanto el barrido como los intercambios, que preguntan por cruces que
+        // el barrido nunca llego a mirar.
+        $cache = [];
+        $puntuar = function (int $i, int $j) use (&$cache, $teams, $recentPairHistory, $recentMatchSnapshots): ?array {
+            $clave = $i < $j ? "$i:$j" : "$j:$i";
 
-            for ($i = 0; $i < $available->count() - 1; $i++) {
-                for ($j = $i + 1; $j < $available->count(); $j++) {
-                    $teamA = $available[$i];
-                    $teamB = $available[$j];
+            if (array_key_exists($clave, $cache)) {
+                return $cache[$clave];
+            }
 
-                    // Nunca se enfrenta un equipo de 2v2 contra uno de 3v3.
-                    if ($teamA['arena_mode'] !== $teamB['arena_mode']) {
-                        continue;
-                    }
+            return $cache[$clave] = $this->puntuarCruce(
+                $teams[$i], $teams[$j], $recentPairHistory, $recentMatchSnapshots
+            );
+        };
 
-                    if ($teamA['realm'] === $teamB['realm']) {
-                        continue;
-                    }
+        $orden = $this->ordenPorMmr($teams);
+        $candidatos = [];
 
-                    // Ni una cuenta contra si misma. evaluateQueueTeam ya lo
-                    // impide DENTRO de un equipo, pero entre los dos bandos no
-                    // lo miraba nadie: una cuenta con un personaje en cada
-                    // reino -se permiten cinco- podia acabar peleando contra
-                    // ella misma y regalarse victorias, PL y MMR.
-                    //
-                    // Por la pantalla no se llega: join() bloquea todos los
-                    // personajes de la cuenta y rechaza la segunda cola. Pero el
-                    // emparejador no puede depender de que el controlador se
-                    // acuerde, y el laboratorio de bots si encola por personaje.
-                    if ($this->compartenCuenta($teamA, $teamB)) {
-                        continue;
-                    }
+        // Solo se puntuan cruces entre equipos cercanos en MMR. Mirar la cola
+        // entera contra la cola entera es lo que no escala, y un equipo no se
+        // empareja jamas con otro que tenga ochenta puestos de MMR por medio
+        // salvo que no le quede nadie mas: para eso esta el repaso final.
+        foreach ($orden as $pos => $i) {
+            $hasta = min($total - 1, $pos + self::PAIRING_MMR_WINDOW);
 
-                    $diff = abs($teamA['avg_mmr'] - $teamB['avg_mmr']);
-                    $repeatCount = $this->getRepeatPairCount($teamA, $teamB, $recentPairHistory);
-                    $repeatPenalty = $repeatCount * self::EXACT_REPEAT_PAIRING_PENALTY;
-                    $overlapPenalty = $this->calculateRepeatOverlapPenalty($teamA, $teamB, $recentMatchSnapshots);
-                    $compositionPenalty = $this->calculatePairCompositionPenalty($teamA, $teamB);
-                    $score = $diff + $repeatPenalty + $overlapPenalty + $compositionPenalty;
+            for ($siguiente = $pos + 1; $siguiente <= $hasta; $siguiente++) {
+                $j = $orden[$siguiente];
+                $puntos = $puntuar($i, $j);
 
-                    if (
-                        $bestPair === null
-                        || $score < $bestPair['score']
-                        || ($score === $bestPair['score'] && $diff < $bestPair['diff'])
-                    ) {
-                        $bestPair = [
-                            'diff' => $diff,
-                            'score' => $score,
-                            'repeat_count' => $repeatCount,
-                            'overlap_penalty' => $overlapPenalty,
-                            'composition_penalty' => $compositionPenalty,
-                            'i' => $i,
-                            'j' => $j,
-                            'team_a' => $teamA,
-                            'team_b' => $teamB,
-                        ];
-                    }
+                if ($puntos !== null) {
+                    $candidatos[] = [$puntos['score'], $puntos['diff'], $i, $j];
                 }
             }
+        }
 
-            if ($bestPair === null) {
+        // Mejor puntuacion primero y, a igualdad, menor diferencia de MMR: el
+        // mismo desempate que aplicaba el bucle avido.
+        usort($candidatos, static function (array $a, array $b): int {
+            return [$a[0], $a[1]] <=> [$b[0], $b[1]];
+        });
+
+        $pareja = array_fill(0, $total, null);
+
+        foreach ($candidatos as [, , $i, $j]) {
+            if ($pareja[$i] === null && $pareja[$j] === null) {
+                $pareja[$i] = $j;
+                $pareja[$j] = $i;
+            }
+        }
+
+        $this->emparejarRezagados($pareja, $total, $puntuar);
+        $this->aumentarCardinalidad($pareja, $teams, $puntuar);
+
+        // Los dos pasos de pulido se alternan: cambiar a un emparejado por un
+        // suelto abre intercambios nuevos entre cruces, y al reves. Con dos
+        // vueltas ya no se mueve nada en ningun tamaño de cola probado.
+        for ($pulido = 0; $pulido < self::PAIRING_POLISH_ROUNDS; $pulido++) {
+            $cambioConSueltos = $this->mejorarConSueltos($pareja, $teams, $puntuar);
+            $cambioEntreCruces = $this->mejorarPorIntercambios($pareja, $teams, $puntuar);
+
+            if (!$cambioConSueltos && !$cambioEntreCruces) {
                 break;
             }
+        }
 
-            $pairings[] = [
-                'team_a' => $bestPair['team_a'],
-                'team_b' => $bestPair['team_b'],
-            ];
+        $pairings = [];
 
-            $historyKey = $this->pairingHistoryKey($bestPair['team_a'], $bestPair['team_b']);
-            $recentPairHistory[$historyKey] = ($recentPairHistory[$historyKey] ?? 0) + 1;
-
-            $available = $available
-                ->except([$bestPair['i'], $bestPair['j']])
-                ->values();
+        foreach ($pareja as $i => $j) {
+            if ($j !== null && $i < $j) {
+                $pairings[] = [
+                    'team_a' => $teams[$i],
+                    'team_b' => $teams[$j],
+                ];
+            }
         }
 
         return $pairings;
     }
 
-    private function createArenaMatch(array $teamA, array $teamB): ArenaMatch
+    /**
+     * Puntua un cruce, o devuelve null si no se puede jugar.
+     *
+     * Cuanto mas bajo, mejor. La base es la diferencia de MMR y encima se
+     * suman los recargos: repetir un cruce reciente, solaparse con una partida
+     * de hace poco, y lo que separa a los dos equipos en composicion.
+     *
+     * @return array{score: int, diff: int}|null
+     */
+    private function puntuarCruce(
+        array $teamA,
+        array $teamB,
+        array $recentPairHistory,
+        Collection $recentMatchSnapshots
+    ): ?array {
+        // Nunca se enfrenta un equipo de 2v2 contra uno de 3v3.
+        if ($teamA['arena_mode'] !== $teamB['arena_mode']) {
+            return null;
+        }
+
+        if ($teamA['realm'] === $teamB['realm']) {
+            return null;
+        }
+
+        // Ni una cuenta contra si misma. evaluateQueueTeam ya lo impide DENTRO
+        // de un equipo, pero entre los dos bandos no lo miraba nadie: una cuenta
+        // con un personaje en cada reino -se permiten cinco- podia acabar
+        // peleando contra ella misma y regalarse victorias, PL y MMR.
+        //
+        // Por la pantalla no se llega: join() bloquea todos los personajes de la
+        // cuenta y rechaza la segunda cola. Pero el emparejador no puede
+        // depender de que el controlador se acuerde, y el laboratorio de bots si
+        // encola por personaje.
+        if ($this->compartenCuenta($teamA, $teamB)) {
+            return null;
+        }
+
+        $diff = abs($teamA['avg_mmr'] - $teamB['avg_mmr']);
+
+        $score = $diff
+            + $this->getRepeatPairCount($teamA, $teamB, $recentPairHistory) * self::EXACT_REPEAT_PAIRING_PENALTY
+            + $this->calculateRepeatOverlapPenalty($teamA, $teamB, $recentMatchSnapshots)
+            + $this->calculatePairCompositionPenalty($teamA, $teamB);
+
+        return ['score' => $score, 'diff' => $diff];
+    }
+
+    /**
+     * Indices de los equipos ordenados por su MMR medio.
+     *
+     * @param  array<int, array<string, mixed>>  $teams
+     * @return list<int>
+     */
+    private function ordenPorMmr(array $teams): array
+    {
+        $orden = array_keys($teams);
+
+        usort($orden, static function (int $a, int $b) use ($teams): int {
+            return [(int) $teams[$a]['avg_mmr'], $a] <=> [(int) $teams[$b]['avg_mmr'], $b];
+        });
+
+        return $orden;
+    }
+
+    /**
+     * Empareja a quien quedo suelto tras el barrido.
+     *
+     * La ventana de MMR del barrido deja fuera cruces muy separados, y en una
+     * cola pequeña o con los reinos descompensados eso puede dejar a alguien
+     * sin pareja teniendo rival legal. Aqui se miran todos contra todos, sin
+     * ventana: son pocos y la regla es que nadie espere habiendo con quien
+     * jugar.
+     *
+     * @param  array<int, int|null>  $pareja
+     */
+    private function emparejarRezagados(array &$pareja, int $total, callable $puntuar): void
+    {
+        $sueltos = [];
+
+        for ($i = 0; $i < $total; $i++) {
+            if ($pareja[$i] === null) {
+                $sueltos[] = $i;
+            }
+        }
+
+        if (count($sueltos) < 2) {
+            return;
+        }
+
+        $extra = [];
+
+        foreach ($sueltos as $posA => $i) {
+            foreach (array_slice($sueltos, $posA + 1) as $j) {
+                $puntos = $puntuar($i, $j);
+
+                if ($puntos !== null) {
+                    $extra[] = [$puntos['score'], $puntos['diff'], $i, $j];
+                }
+            }
+        }
+
+        usort($extra, static function (array $a, array $b): int {
+            return [$a[0], $a[1]] <=> [$b[0], $b[1]];
+        });
+
+        foreach ($extra as [, , $i, $j]) {
+            if ($pareja[$i] === null && $pareja[$j] === null) {
+                $pareja[$i] = $j;
+                $pareja[$j] = $i;
+            }
+        }
+    }
+
+    /**
+     * Saca mas partidas deshaciendo cruces ya hechos.
+     *
+     * Quedarse corto de partidas teniendo gente con rival legal es lo unico que
+     * este emparejador no puede hacer, y el barrido por puntuacion lo hace solo.
+     * El caso tipico, medido con 900 en cola y 300 por reino: el barrido se
+     * lleva 355 cruces y deja 190 sueltos, y los 190 son TODOS del mismo reino,
+     * asi que entre ellos no pueden jugar. Cabian 450 partidas.
+     *
+     * Ejemplo pequeño del mismo fallo, con cuatro en cola: Alsius 1070, Alsius
+     * 1151, Ignis 893 y Syrtis 778. El cruce mas ajustado es Syrtis contra
+     * Ignis -115 puntos-, y en cuanto se lo lleva, los dos Alsius se quedan
+     * mirandose. Una partida donde caben dos.
+     *
+     * La salida es deshacer ese cruce y rehacerlo con los sueltos: Ignis 893
+     * contra Alsius 1070, y Syrtis 778 contra Alsius 1151. Dos partidas. Cuesta
+     * mas MMR en total, y da igual: mas vale un cruce regular que quedarse en
+     * cola mirando.
+     *
+     * Por que basta con esto: el grafo de cruces posibles es "todos contra
+     * todos menos los de tu reino". Si quedan dos sueltos de reinos distintos,
+     * emparejarRezagados ya los caso. Si todos los sueltos son del mismo reino y
+     * aun cabe otra partida, forzosamente existe un cruce hecho con sus DOS
+     * lados fuera de ese reino, y deshacerlo da sitio a dos sueltos. Cuando no
+     * existe ese cruce es que ya no caben mas partidas. -La excepcion teorica es
+     * el veto de "una cuenta no juega contra si misma", que quita alguna arista
+     * suelta; en la practica no se llega porque entrar a la cola bloquea la
+     * cuenta entera.-
+     *
+     * El reparto se hace por cercania de MMR y no probandolo todo: emparejar a
+     * cada pareja de sueltos con el donante mas proximo en nivel coloca a los
+     * 190 de una pasada. Buscar el mejor donante para cada pareja mirandolos
+     * todos costaba cuarenta segundos y solo colocaba a doce.
+     *
+     * @param  array<int, int|null>  $pareja
+     */
+    private function aumentarCardinalidad(array &$pareja, array $teams, callable $puntuar): void
+    {
+        $total = count($teams);
+
+        for ($vuelta = 0; $vuelta < self::PAIRING_AUGMENT_ROUNDS; $vuelta++) {
+            $sueltos = [];
+            $cruces = [];
+
+            for ($i = 0; $i < $total; $i++) {
+                if ($pareja[$i] === null) {
+                    $sueltos[] = $i;
+                } elseif ($i < $pareja[$i]) {
+                    $cruces[] = [$i, $pareja[$i]];
+                }
+            }
+
+            // Con menos de dos sueltos no hay ninguna partida que ganar: hace
+            // falta uno para cada lado del cruce que se deshace.
+            if (count($sueltos) < 2 || $cruces === []) {
+                return;
+            }
+
+            usort($sueltos, static function (int $a, int $b) use ($teams): int {
+                return [(int) $teams[$a]['avg_mmr'], $a] <=> [(int) $teams[$b]['avg_mmr'], $b];
+            });
+
+            usort($cruces, function (array $a, array $b) use ($teams): int {
+                return $this->mmrDelCruce($teams, $a) <=> $this->mmrDelCruce($teams, $b);
+            });
+
+            $nivelDelCruce = [];
+
+            foreach ($cruces as $posicion => $cruce) {
+                $nivelDelCruce[$posicion] = $this->mmrDelCruce($teams, $cruce);
+            }
+
+            $gastados = [];
+            $colocados = 0;
+
+            // Los sueltos van de dos en dos y por nivel, asi que cada pareja
+            // que entra a un cruce deshecho son los dos mas parecidos que
+            // quedaban.
+            for ($t = 0; $t + 1 < count($sueltos); $t += 2) {
+                $u = $sueltos[$t];
+                $u2 = $sueltos[$t + 1];
+                $nivel = (int) (((int) $teams[$u]['avg_mmr'] + (int) $teams[$u2]['avg_mmr']) / 2);
+
+                $mejor = $this->donanteMasCercano(
+                    $cruces, $nivelDelCruce, $gastados, $nivel, $u, $u2, $puntuar
+                );
+
+                if ($mejor === null) {
+                    continue;
+                }
+
+                $gastados[$mejor['posicion']] = true;
+
+                foreach ($mejor['reparto'] as [$a, $b]) {
+                    $pareja[$a] = $b;
+                    $pareja[$b] = $a;
+                }
+
+                $colocados++;
+            }
+
+            if ($colocados === 0) {
+                return;
+            }
+        }
+    }
+
+    /**
+     * El cruce hecho mas cercano en nivel que admite a estos dos sueltos.
+     *
+     * Se busca por biseccion la posicion del nivel pedido y se mira una ventana
+     * a cada lado, no la lista entera: el donante que sirve siempre esta cerca,
+     * y recorrerlos todos por cada pareja de sueltos es lo que hacia que esto
+     * tardase cuarenta segundos.
+     *
+     * @return array{posicion: int, reparto: list<array{0: int, 1: int}>}|null
+     */
+    private function donanteMasCercano(
+        array $cruces,
+        array $nivelDelCruce,
+        array $gastados,
+        int $nivel,
+        int $u,
+        int $u2,
+        callable $puntuar
+    ): ?array {
+        $numero = count($cruces);
+
+        if ($numero === 0) {
+            return null;
+        }
+
+        $bajo = 0;
+        $alto = $numero - 1;
+
+        while ($bajo < $alto) {
+            $medio = intdiv($bajo + $alto, 2);
+
+            if ($nivelDelCruce[$medio] < $nivel) {
+                $bajo = $medio + 1;
+            } else {
+                $alto = $medio;
+            }
+        }
+
+        $desde = max(0, $bajo - self::PAIRING_SWAP_WINDOW);
+        $hasta = min($numero - 1, $bajo + self::PAIRING_SWAP_WINDOW);
+
+        $mejor = null;
+
+        for ($posicion = $desde; $posicion <= $hasta; $posicion++) {
+            if (isset($gastados[$posicion])) {
+                continue;
+            }
+
+            [$v, $w] = $cruces[$posicion];
+            $costeActual = $puntuar($v, $w)['score'];
+
+            foreach ([[$u, $v, $u2, $w], [$u, $w, $u2, $v]] as [$p1, $p2, $p3, $p4]) {
+                $uno = $puntuar($p1, $p2);
+                $otro = $puntuar($p3, $p4);
+
+                if ($uno === null || $otro === null) {
+                    continue;
+                }
+
+                $sobrecoste = $uno['score'] + $otro['score'] - $costeActual;
+
+                if ($mejor === null || $sobrecoste < $mejor['sobrecoste']) {
+                    $mejor = [
+                        'sobrecoste' => $sobrecoste,
+                        'posicion' => $posicion,
+                        'reparto' => [[$p1, $p2], [$p3, $p4]],
+                    ];
+                }
+            }
+        }
+
+        return $mejor;
+    }
+
+    /**
+     * Cambia a un emparejado por alguien que se quedo suelto, si mejora.
+     *
+     * Cuando no caben partidas para todos -tres reinos descompensados, por
+     * ejemplo- siempre sobra gente, y quien sobra no tiene por que ser el que
+     * peor encajaba. Este paso mira, para cada suelto, si entrando el en algun
+     * cruce cercano ese cruce queda mejor, y en ese caso se cambian los papeles:
+     * el suelto juega y el otro pasa al banquillo. El numero de partidas no
+     * cambia; cambia quien las juega y lo bien que encajan.
+     *
+     * Hace falta porque el intercambio entre dos cruces no llega aqui. Caso
+     * real: cinco Alsius, dos Ignis y un Syrtis, donde solo caben tres
+     * partidas. El reparto quedaba en 338 puntos de MMR y el mejor posible era
+     * 242; ninguna permuta entre los tres cruces lo arreglaba, porque la mejora
+     * pasaba por sacar a un Alsius de 857 y meter al de 1171, que estaba
+     * sentado. Con este paso y el de intercambios despues, sale el 242 exacto.
+     *
+     * @param  array<int, int|null>  $pareja
+     */
+    private function mejorarConSueltos(array &$pareja, array $teams, callable $puntuar): bool
+    {
+        $total = count($teams);
+        $sueltos = [];
+        $cruces = [];
+
+        for ($i = 0; $i < $total; $i++) {
+            if ($pareja[$i] === null) {
+                $sueltos[] = $i;
+            } elseif ($i < $pareja[$i]) {
+                $cruces[] = [$i, $pareja[$i]];
+            }
+        }
+
+        if ($sueltos === [] || $cruces === []) {
+            return false;
+        }
+
+        usort($cruces, function (array $a, array $b) use ($teams): int {
+            return $this->mmrDelCruce($teams, $a) <=> $this->mmrDelCruce($teams, $b);
+        });
+
+        $nivelDelCruce = [];
+
+        foreach ($cruces as $posicion => $cruce) {
+            $nivelDelCruce[$posicion] = $this->mmrDelCruce($teams, $cruce);
+        }
+
+        $numero = count($cruces);
+        $hubo = false;
+
+        foreach ($sueltos as $u) {
+            $nivel = (int) $teams[$u]['avg_mmr'];
+
+            $bajo = 0;
+            $alto = $numero - 1;
+
+            while ($bajo < $alto) {
+                $medio = intdiv($bajo + $alto, 2);
+
+                if ($nivelDelCruce[$medio] < $nivel) {
+                    $bajo = $medio + 1;
+                } else {
+                    $alto = $medio;
+                }
+            }
+
+            $desde = max(0, $bajo - self::PAIRING_SWAP_WINDOW);
+            $hasta = min($numero - 1, $bajo + self::PAIRING_SWAP_WINDOW);
+            $mejor = null;
+
+            for ($posicion = $desde; $posicion <= $hasta; $posicion++) {
+                [$a, $b] = $cruces[$posicion];
+
+                // El cruce pudo cambiar en una vuelta anterior de este mismo
+                // bucle; si ya no es el que era, se deja para la siguiente.
+                if ($pareja[$a] !== $b) {
+                    continue;
+                }
+
+                $actual = $puntuar($a, $b)['score'];
+
+                foreach ([[$a, $b], [$b, $a]] as [$sale, $queda]) {
+                    $nuevo = $puntuar($u, $queda);
+
+                    if ($nuevo === null || $nuevo['score'] >= $actual) {
+                        continue;
+                    }
+
+                    if ($mejor === null || $nuevo['score'] - $actual < $mejor['ganancia']) {
+                        $mejor = [
+                            'ganancia' => $nuevo['score'] - $actual,
+                            'posicion' => $posicion,
+                            'sale' => $sale,
+                            'queda' => $queda,
+                        ];
+                    }
+                }
+            }
+
+            if ($mejor === null) {
+                continue;
+            }
+
+            $pareja[$mejor['sale']] = null;
+            $pareja[$u] = $mejor['queda'];
+            $pareja[$mejor['queda']] = $u;
+            $cruces[$mejor['posicion']] = $u < $mejor['queda'] ? [$u, $mejor['queda']] : [$mejor['queda'], $u];
+            $hubo = true;
+        }
+
+        return $hubo;
+    }
+
+    /** El MMR medio de los dos lados de un cruce. */
+    private function mmrDelCruce(array $teams, array $cruce): int
+    {
+        return (int) (((int) $teams[$cruce[0]]['avg_mmr'] + (int) $teams[$cruce[1]]['avg_mmr']) / 2);
+    }
+
+    /**
+     * Los cruces que vale la pena deshacer para colocar a los sueltos.
+     *
+     * Deshacer un cruce del otro extremo de la tabla para meter ahi a un suelto
+     * sale carisimo y nunca se elige, asi que ni se mira: solo los cruces cuyo
+     * nivel anda cerca del de algun suelto. Con la cola vacia esto no cambia
+     * nada -son cuatro cruces- y con la cola llena es lo que evita repasar
+     * cientos por cada persona suelta.
+     *
+     * @param  list<array{0: int, 1: int}>  $cruces  ordenados por MMR del cruce
+     * @param  list<int>  $sueltos
+     * @return list<array{0: int, 1: int}>
+     */
+    private function crucesCercanos(array $cruces, array $sueltos, array $teams): array
+    {
+        $numero = count($cruces);
+
+        if ($numero <= self::PAIRING_SWAP_WINDOW) {
+            return $cruces;
+        }
+
+        $elegidos = [];
+
+        foreach ($sueltos as $suelto) {
+            $mmr = (int) $teams[$suelto]['avg_mmr'];
+
+            // Busqueda binaria del cruce mas cercano en nivel, y de ahi una
+            // ventana a cada lado.
+            $bajo = 0;
+            $alto = $numero - 1;
+
+            while ($bajo < $alto) {
+                $medio = intdiv($bajo + $alto, 2);
+
+                if ($this->mmrDelCruce($teams, $cruces[$medio]) < $mmr) {
+                    $bajo = $medio + 1;
+                } else {
+                    $alto = $medio;
+                }
+            }
+
+            $desde = max(0, $bajo - self::PAIRING_SWAP_WINDOW);
+            $hasta = min($numero - 1, $bajo + self::PAIRING_SWAP_WINDOW);
+
+            for ($i = $desde; $i <= $hasta; $i++) {
+                $elegidos[$i] = $cruces[$i];
+            }
+        }
+
+        return array_values($elegidos);
+    }
+
+    /**
+     * Mejora el reparto intercambiando rivales entre dos cruces ya hechos.
+     *
+     * Con los cruces (a-b) y (c-d) sobre la mesa, se prueban las otras dos
+     * formas de repartir a esos cuatro -(a-c, b-d) y (a-d, b-c)- y se acepta la
+     * que deje el conjunto mejor. "Mejor" son dos cosas en este orden: que baje
+     * la suma de las puntuaciones, y a igualdad, que baje el peor cruce de los
+     * dos. Lo segundo importa porque la suma sola tolera un cruce horrible si
+     * el otro compensa, y el cruce horrible se lo come una persona.
+     *
+     * Se repite mientras algo mejore, con un tope de pasadas para que esto no
+     * pueda convertirse en el problema de rendimiento que venia a arreglar.
+     *
+     * @param  array<int, int|null>  $pareja
+     */
+    private function mejorarPorIntercambios(array &$pareja, array $teams, callable $puntuar): bool
+    {
+        $total = count($teams);
+        $cruces = [];
+
+        for ($i = 0; $i < $total; $i++) {
+            if ($pareja[$i] !== null && $i < $pareja[$i]) {
+                $cruces[] = [$i, $pareja[$i]];
+            }
+        }
+
+        $numero = count($cruces);
+
+        if ($numero < 2) {
+            return false;
+        }
+
+        // Ordenados por el MMR medio del cruce. Intercambiar rivales entre dos
+        // cruces solo puede mejorar algo si los cuatro andan por el mismo nivel:
+        // cambiar al de 1900 por el de 800 no arregla nada. Ordenar permite
+        // mirar solo los vecinos, que es lo que hace que esto siga siendo barato
+        // con la cola llena -mirarlos todos contra todos eran mas de sesenta mil
+        // comprobaciones con 360 cruces, y ahi se iban los segundos-.
+        usort($cruces, function (array $a, array $b) use ($teams): int {
+            return $this->mmrDelCruce($teams, $a) <=> $this->mmrDelCruce($teams, $b);
+        });
+
+        $puntos = static function (?array $p): ?int {
+            return $p === null ? null : $p['score'];
+        };
+
+        for ($pasada = 0; $pasada < self::PAIRING_IMPROVEMENT_PASSES; $pasada++) {
+            $cambio = false;
+
+            for ($x = 0; $x < $numero - 1; $x++) {
+                $hasta = min($numero - 1, $x + self::PAIRING_SWAP_WINDOW);
+
+                for ($y = $x + 1; $y <= $hasta; $y++) {
+                    [$a, $b] = $cruces[$x];
+                    [$c, $d] = $cruces[$y];
+
+                    $actualA = $puntos($puntuar($a, $b));
+                    $actualB = $puntos($puntuar($c, $d));
+
+                    // Los dos cruces existen, asi que sus puntuaciones tambien.
+                    $actual = [$actualA + $actualB, max($actualA, $actualB)];
+
+                    $mejor = null;
+
+                    foreach ([[[$a, $c], [$b, $d]], [[$a, $d], [$b, $c]]] as $opcion) {
+                        $uno = $puntos($puntuar($opcion[0][0], $opcion[0][1]));
+                        $otro = $puntos($puntuar($opcion[1][0], $opcion[1][1]));
+
+                        // Una de las dos reparticiones puede ser ilegal -mismo
+                        // reino, misma cuenta, otra modalidad-. Se descarta.
+                        if ($uno === null || $otro === null) {
+                            continue;
+                        }
+
+                        $valor = [$uno + $otro, max($uno, $otro)];
+
+                        if ($valor < $actual && ($mejor === null || $valor < $mejor['valor'])) {
+                            $mejor = ['valor' => $valor, 'opcion' => $opcion];
+                        }
+                    }
+
+                    if ($mejor === null) {
+                        continue;
+                    }
+
+                    [[$n1, $n2], [$n3, $n4]] = $mejor['opcion'];
+
+                    $pareja[$n1] = $n2;
+                    $pareja[$n2] = $n1;
+                    $pareja[$n3] = $n4;
+                    $pareja[$n4] = $n3;
+
+                    $cruces[$x] = $n1 < $n2 ? [$n1, $n2] : [$n2, $n1];
+                    $cruces[$y] = $n3 < $n4 ? [$n3, $n4] : [$n4, $n3];
+
+                    $cambio = true;
+                }
+            }
+
+            if (!$cambio) {
+                return $pasada > 0;
+            }
+        }
+
+        return true;
+    }
+
+    private function createArenaMatch(array $teamA, array $teamB, Collection $activeMatches): ArenaMatch
     {
         $expiresAt = now()->addMinutes((int) AppSetting::getValue('accept_window_minutes', 5));
 
@@ -734,7 +1454,7 @@ class ArenaMatchmakingService
             'team_b_realm' => $teamB['realm'],
             'team_a' => $teamAPayload,
             'team_b' => $teamBPayload,
-            'zone' => $this->pickZone($teamA['realm'], $teamB['realm']),
+            'zone' => $this->pickZone($teamA['realm'], $teamB['realm'], $activeMatches),
             'status' => 'pending_acceptance',
             'estimated_mmr_avg' => (int) round(($teamA['avg_mmr'] + $teamB['avg_mmr']) / 2),
             'expires_at' => $expiresAt,
@@ -783,11 +1503,31 @@ class ArenaMatchmakingService
         })->values()->all();
     }
 
-    private function pickZone(string $teamARealm, string $teamBRealm): string
+    /** Los enfrentamientos que ocupan zona ahora mismo. */
+    private function cargarEnfrentamientosVivos(): Collection
     {
-        $activeMatches = ArenaMatch::query()
+        return ArenaMatch::query()
             ->whereIn('status', ['pending_acceptance', 'accepted', 'in_progress'])
             ->get(['zone', 'team_a_realm', 'team_b_realm']);
+    }
+
+    /**
+     * En que zona se juega este cruce.
+     *
+     * $activeMatches son los enfrentamientos vivos, y llega YA cargado desde
+     * fuera. Antes lo consultaba aqui dentro, o sea una consulta a la base y un
+     * repaso del mapa entero por cada partida creada: con la cola llena, crear
+     * 450 partidas eran 450 consultas sobre una lista que crecia con cada una, y
+     * ahi se iban tres cuartas partes del tiempo del emparejamiento -45 de los
+     * 49 segundos que tardaba una cola de 900-. Se carga una vez por barrido y
+     * cada partida nueva se le añade en memoria, que es lo mismo que leerla de
+     * la base pero sin ir.
+     */
+    private function pickZone(string $teamARealm, string $teamBRealm, ?Collection $activeMatches = null): string
+    {
+        // Sin lista, se consulta: asi quien llame a esto suelto -los tests de
+        // zonas, por ejemplo- sigue viendo el mismo comportamiento de siempre.
+        $activeMatches ??= $this->cargarEnfrentamientosVivos();
 
         $activeZones = $activeMatches
             ->pluck('zone')
