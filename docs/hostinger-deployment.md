@@ -76,10 +76,20 @@ php artisan view:cache
 
 ### Modalidades tras el despliegue
 
-La migracion deja encendida la modalidad que ya estaba corriendo (2v2 en el caso
-normal) y **3v3 apagado**. Estrenar 3v3 es una decision explicita: se activa
-desde *Panel admin → Ajustes → Modalidades activas*. Ambas pueden convivir y
-comparten el mismo ladder.
+Las migraciones dejan encendida la modalidad que ya estaba corriendo (2v2 en el
+caso normal) y **3v3 y 1v1 apagados**. Estrenar una modalidad es una decision
+explicita: se activan desde *Panel admin → Reglas del ladder → Modalidades
+abiertas*. Las tres pueden convivir y comparten el mismo ladder.
+
+El duelo 1v1 se comporta como las otras salvo en tres cosas, que estan escritas
+en la pantalla del panel: no tiene party, publica el nombre del rival desde el
+cruce, y su emparejamiento prefiere el mismo tipo de personaje -arquero contra
+arquero, mago contra mago, guerrero contra guerrero- sin quitarle la ultima
+palabra al MMR.
+
+La migracion `2026_09_16_000001_register_one_v_one_mode.php` solo siembra el
+interruptor apagado. Es idempotente y nunca pisa el valor si ya existe: correrla
+otra vez sobre un servidor donde el duelo ya esta abierto lo deja abierto.
 
 Las migraciones `2026_07_06_000001_add_arena_modes.php` y `2026_07_06_000002_create_arena_seasons.php` conservan los datos actuales, crean Alpha como temporada activa y preparan el Salon de la Fama.
 

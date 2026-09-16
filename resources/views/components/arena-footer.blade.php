@@ -4,7 +4,9 @@
             <div>
                 <x-arena-brand compact />
                 <p class="mt-4 max-w-xs text-sm text-[color:var(--arena-muted)]">
-                    Sistema competitivo por reino y subclase con ranking automático, anonimato rival y scoring justo.
+                    {{-- "Anonimato rival" a secas dejo de ser cierto al entrar el
+                         duelo 1v1, que publica los nombres desde el cruce. --}}
+                    Sistema competitivo por reino y subclase con ranking automático, anonimato rival en las arenas por equipos y scoring justo.
                 </p>
             </div>
             <div>
