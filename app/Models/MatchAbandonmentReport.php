@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\MatchLineupService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -91,7 +92,16 @@ class MatchAbandonmentReport extends Model
         }
 
         // Cerrado: ya no hay ventaja que robar.
-        if (in_array($match->status, ['completed', 'disputed', 'void', 'abandoned', 'cancelled'], true)) {
+        //
+        // Se mira el ESTADO y nada mas. Tentador seria llamar a
+        // MatchLineupService::namesRevealed(), que usa esta misma lista, pero
+        // ese metodo tambien dice que si en los duelos 1v1 -donde los nombres
+        // son publicos desde el cruce- y aqui no se decide quien se llama como,
+        // sino quien ve una captura tomada a mitad de la pelea. Un duelo en
+        // curso es justo el caso en el que esa captura es la pantalla del
+        // enemigo: vida, posicion y cooldowns de la unica persona contra la que
+        // estas peleando.
+        if (in_array($match->status, MatchLineupService::REVEAL_STATUSES, true)) {
             return true;
         }
 

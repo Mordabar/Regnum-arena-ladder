@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ArenaMatch;
 use App\Models\MatchReport;
 use App\Models\Player;
+use App\Support\ArenaMode;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -81,16 +82,29 @@ class DiscordBotService
         $rivalRealmName = ArenaMatch::REALMS[$rivalRealm] ?? strtoupper((string) $rivalRealm);
         $matchUrl = route('matches.show', $match);
 
+        // En el duelo el nombre del rival es publico, y este aviso es justo
+        // donde hace falta: es lo que el jugador lee antes de ir a la zona. Con
+        // "Tu equipo" a solas no decia nada -el equipo es el mismo que lo lee-,
+        // asi que el hueco lo ocupa a quien va a buscar.
+        $esDuelo = ArenaMode::revealsRivalNames($match->arena_mode);
+        $rivalTeam = $match->getTeamBySide($teamSide === 'team_a' ? 'team_b' : 'team_a');
+
         $embed = [
             'title' => '🎯 ¡Match Encontrado!',
             'description' => "**Codigo:** `{$match->match_code}`\n**Zona:** {$match->zone_name}\n**Reino rival:** {$rivalRealmName}",
             'color' => 0xFF6B35, // Orange color
             'fields' => [
-                [
-                    'name' => 'Tu equipo',
-                    'value' => $this->formatTeamList($ownTeam),
-                    'inline' => true
-                ],
+                $esDuelo
+                    ? [
+                        'name' => 'Tu rival',
+                        'value' => $this->formatTeamList($rivalTeam, true),
+                        'inline' => true,
+                    ]
+                    : [
+                        'name' => 'Tu equipo',
+                        'value' => $this->formatTeamList($ownTeam),
+                        'inline' => true,
+                    ],
                 [
                     'name' => 'Modo',
                     'value' => $match->queue_mode_name,
@@ -156,11 +170,21 @@ class DiscordBotService
     /**
      * Formatear lista de jugadores para embed
      */
-    private function formatTeamList(array $team): string
+    private function formatTeamList(array $team, bool $conSubclase = false): string
     {
         $lines = [];
         foreach ($team as $player) {
-            $lines[] = "• {$player['character_name']}";
+            $linea = "• {$player['character_name']}";
+
+            if ($conSubclase) {
+                $subclase = Player::SUBCLASSES[$player['subclass'] ?? ''] ?? null;
+
+                if ($subclase !== null) {
+                    $linea .= " ({$subclase})";
+                }
+            }
+
+            $lines[] = $linea;
         }
         return implode("\n", $lines) ?: "Sin jugadores";
     }

@@ -16,6 +16,7 @@
         ->values();
 
     $miEquipo = $match->getTeamSideForPlayer($yo);
+    $nombresVisibles = \App\Services\MatchLineupService::namesRevealed($match);
     $avisosMios = $match->abandonmentReports
         ->where('reported_by_player_id', $yo)
         ->pluck('accused_player_id')
@@ -80,8 +81,11 @@
                                 <span class="flex-1">
                                     <span class="text-sm font-semibold text-[color:var(--arena-text)]">
                                         {{-- Al rival se le nombra por su subclase mientras siga siendo
-                                             anonimo; al compañero por su nombre, que ya se conoce. --}}
-                                        @if($esCompanero)
+                                             anonimo; al compañero por su nombre, que ya se conoce. En
+                                             el duelo el rival tampoco es anonimo, y senalar a "Cazador
+                                             rival" cuando tienes su nombre delante sonaba a que el
+                                             sistema no sabia contra quien estabas jugando. --}}
+                                        @if($esCompanero || $nombresVisibles)
                                             {{ $candidato['character_name'] }}
                                         @else
                                             {{ \App\Models\Player::SUBCLASSES[$candidato['subclass']] ?? 'Guerrero' }} rival

@@ -277,14 +277,19 @@
                                                value="{{ $featured?->id }}">
                                         <button type="submit" class="arena-console-action is-primary" @disabled($featured?->isQueueLocked())>
                                             <x-admin.icon name="play" class="h-4 w-4" />
-                                            Entrar a Random {{ $arenaMode }}
+                                            {{ $premadeSupported ? 'Entrar a Random ' . $arenaMode : 'Entrar al duelo ' . $arenaMode }}
                                         </button>
                                     </form>
 
-                                    <button type="button" class="arena-console-action" data-modal-open="modal-premade">
-                                        <x-admin.icon name="users" class="h-4 w-4" />
-                                        Invitar aliado {{ $arenaMode }}
-                                    </button>
+                                    {{-- En el duelo no hay a quien invitar: el
+                                         boton entero desaparece en vez de abrir
+                                         una ventana con huecos vacios. --}}
+                                    @if($premadeSupported)
+                                        <button type="button" class="arena-console-action" data-modal-open="modal-premade">
+                                            <x-admin.icon name="users" class="h-4 w-4" />
+                                            Invitar aliado {{ $arenaMode }}
+                                        </button>
+                                    @endif
                                 @endif
                             </div>
 

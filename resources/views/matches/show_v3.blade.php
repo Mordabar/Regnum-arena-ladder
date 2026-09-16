@@ -28,9 +28,11 @@
     $canConfirmReport = $report && $report->status === 'pending_confirmation' && $viewerSide !== $report->reporting_team;
     $canRejectReport = $canConfirmReport;
     $reportPendingConfirmation = $report && $report->status === 'pending_confirmation';
-    // 'abandoned' y 'cancelled' tambien son cerrados: el combate termino, asi
-    // que los nombres ya se pueden enseñar como en los demas.
-    $showRivalNames = in_array($match->status, ['completed', 'disputed', 'void', 'abandoned', 'cancelled'], true);
+    // Quien ve el nombre del rival lo decide una sola regla, en el servicio:
+    // o el combate ya termino, o es un duelo 1v1 y los nombres son publicos
+    // desde el cruce. Tenerla escrita aqui aparte era pedir que una de las dos
+    // copias se quedara atras.
+    $showRivalNames = \App\Services\MatchLineupService::namesRevealed($match);
 
     // Aspecto de cada combatiente para las figuras 3D. El propio equipo va con
     // su raza y su sexo reales; al rival se le dibuja con el maniqui humano del

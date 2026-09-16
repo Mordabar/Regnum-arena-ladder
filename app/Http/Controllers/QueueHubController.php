@@ -267,7 +267,12 @@ class QueueHubController extends Controller
             'queueTypeLabel' => $currentQueue
                 ? trim((Queue::QUEUE_TYPES[$currentQueue->queue_type] ?? ucfirst($currentQueue->queue_type)) . ' ' . ArenaMode::label($currentQueue->arena_mode))
                 : null,
-            'premadeSlots' => range(2, $data['teamSize']),
+            // El duelo no tiene companeros, asi que no tiene huecos. Ojo con el
+            // range() a secas: range(2, 1) no devuelve una lista vacia, devuelve
+            // [2, 1] contando hacia atras, y la ventana de invitar habria pintado
+            // dos huecos de companero en una modalidad de un jugador.
+            'premadeSupported' => ArenaMode::supportsPremade($data['arenaMode']),
+            'premadeSlots' => $data['teamSize'] > 1 ? range(2, $data['teamSize']) : [],
             'queueReportPendingConfirmation' => $queueReportPendingConfirmation,
             'shouldPoll' => $hasRoster,
             'shouldAutoRefresh' => (bool) ($hasActiveState || $activeParty || $pendingInvites->isNotEmpty()),
@@ -613,6 +618,17 @@ class QueueHubController extends Controller
 
             if (!ArenaMode::isEnabled($arenaMode)) {
                 return back()->withErrors(['error' => 'La modalidad ' . $arenaMode . ' no esta activa en este momento.']);
+            }
+
+            // Un duelo no tiene con quien hacer grupo. La vista ya no ofrece el
+            // boton, pero el formulario es una peticion como cualquier otra y
+            // sin esto una party de una persona entraba: pasaba la validacion
+            // de tamano -exactamente 1 personaje- y se colaba en la cola premade
+            // como un equipo valido.
+            if (!ArenaMode::supportsPremade($arenaMode)) {
+                return back()->withErrors([
+                    'error' => 'El duelo ' . ArenaMode::label($arenaMode) . ' se juega en solitario: no hay grupo que armar.',
+                ]);
             }
 
             $selectedIds = collect($validated['party_player_ids'] ?? [])
@@ -1442,6 +1458,16 @@ class QueueHubController extends Controller
 
         if (!ArenaMode::isEnabled($arenaMode)) {
             return back()->withErrors(['error' => 'La modalidad ' . $arenaMode . ' no esta activa.']);
+        }
+
+        // En el duelo harian falta cero bots, y con cero bots esto seguia
+        // adelante: la party se creaba con `$bots->first()` -null- de lider y
+        // reventaba al leerle el id. Un duelo se prueba entrando a la cola
+        // normal, que es exactamente lo que hace un jugador.
+        if (!ArenaMode::supportsPremade($arenaMode)) {
+            return back()->withErrors([
+                'error' => 'El duelo ' . ArenaMode::label($arenaMode) . ' no arma party: prueba la cola normal con dos personajes de reinos distintos.',
+            ]);
         }
 
         $requiredBots = ArenaMode::teamSize($arenaMode) - 1;

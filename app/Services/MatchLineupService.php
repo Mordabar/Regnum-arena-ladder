@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ArenaMatch;
 use App\Models\Player;
 use App\Models\Queue;
+use App\Support\ArenaMode;
 use Illuminate\Support\Collection;
 
 /**
@@ -17,8 +18,33 @@ use Illuminate\Support\Collection;
  */
 class MatchLineupService
 {
-    /** Estados en los que ya se pueden ver los nombres del rival. */
-    public const REVEAL_STATUSES = ['completed', 'disputed', 'void'];
+    /**
+     * Estados en los que ya se pueden ver los nombres del rival.
+     *
+     * Todos son finales: el combate termino y el anonimato ya no protege nada.
+     * 'abandoned' y 'cancelled' entran por eso mismo -son partidas jugadas que
+     * acabaron mal-, y estaban en la lista que la pagina del enfrentamiento se
+     * calculaba por su cuenta. Una sola lista, aqui.
+     */
+    public const REVEAL_STATUSES = ['completed', 'disputed', 'void', 'abandoned', 'cancelled'];
+
+    /**
+     * Si a este enfrentamiento se le ven los nombres del rival.
+     *
+     * Dos motivos distintos: o la partida ya acabo, o es un duelo. El duelo los
+     * publica desde el cruce porque con un rival suelto el anonimato deja de
+     * proteger y empieza a estorbar: los dos llegan a la zona sin saber a quien
+     * buscar, y entre varios cazadores del mismo reino se pelea con quien no
+     * era. En 2v2 y 3v3 el anonimato sigue exactamente igual.
+     *
+     * Vive aqui, junto al resto de la regla, y no repartido por las vistas: la
+     * promesa de anonimato se rompe con que UNA pantalla se despiste.
+     */
+    public static function namesRevealed(ArenaMatch $match): bool
+    {
+        return ArenaMode::revealsRivalNames($match->arena_mode)
+            || in_array($match->status, self::REVEAL_STATUSES, true);
+    }
 
     /**
      * @param  array<int, int>  $viewerPlayerIds  personajes de quien mira
@@ -51,7 +77,7 @@ class MatchLineupService
         $rivalSide = $ownSide === 'team_a' ? 'team_b' : 'team_a';
 
         $accepted = $this->acceptedPlayerIds($match);
-        $revealed = in_array($match->status, self::REVEAL_STATUSES, true);
+        $revealed = self::namesRevealed($match);
 
         $ownRealm = $ownSide === 'team_a' ? $match->team_a_realm : $match->team_b_realm;
         $rivalRealm = $rivalSide === 'team_a' ? $match->team_a_realm : $match->team_b_realm;

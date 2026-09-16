@@ -15,10 +15,14 @@
                  hay juego o no. --}}
             <section class="ap-card ap-rise p-4">
                 <x-admin.section-head title="Modalidades abiertas" icon="swords"
-                                        note="Se encienden por separado y pueden convivir. El ranking es uno solo: una partida de 2v2 y una de 3v3 suman los mismos puntos a la misma tabla." />
+                                        note="Se encienden por separado y pueden convivir. El ranking es uno solo: un duelo 1v1, una partida de 2v2 y una de 3v3 suman los mismos puntos a la misma tabla." />
 
                 <div class="flex flex-col gap-2">
-                    @foreach(['2v2' => ['Arena 2v2', 'Equipos de dos jugadores'], '3v3' => ['Arena 3v3', 'Equipos de tres jugadores']] as $modeKey => $modeInfo)
+                    @foreach([
+                        '1v1' => ['Duelo 1v1', 'Uno contra uno. Sin party, y el nombre del rival se ve desde el cruce'],
+                        '2v2' => ['Arena 2v2', 'Equipos de dos jugadores'],
+                        '3v3' => ['Arena 3v3', 'Equipos de tres jugadores'],
+                    ] as $modeKey => $modeInfo)
                         <label class="ap-switch-row">
                             <span class="min-w-0">
                                 <span class="ap-switch-title">{{ $modeInfo[0] }}</span>
@@ -33,11 +37,11 @@
                     @endforeach
                 </div>
 
-                @if(!$settings['mode_2v2_enabled'] && !$settings['mode_3v3_enabled'])
+                @if(!$settings['mode_1v1_enabled'] && !$settings['mode_2v2_enabled'] && !$settings['mode_3v3_enabled'])
                     <div class="ap-flash ap-flash-danger mt-3 mb-0">
                         <x-admin.icon name="alert" class="h-4 w-4 shrink-0" />
                         <span>
-                            Con las dos apagadas nadie puede entrar en cola. Las partidas ya empezadas
+                            Con las tres apagadas nadie puede entrar en cola. Las partidas ya empezadas
                             siguen su curso normal hasta que se reporten.
                         </span>
                     </div>

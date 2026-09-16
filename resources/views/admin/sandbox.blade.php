@@ -28,9 +28,18 @@
         ->map(function (string $mode) {
             $size = \App\Support\ArenaMode::teamSize($mode);
 
+            // En el duelo no hay companeros de reino que buscar: hace falta un
+            // bot del reino rival y nada mas. "0 de tu reino" era ruido.
+            if ($size === 1) {
+                return $mode . ': 1 del rival';
+            }
+
             return $mode . ': ' . ($size - 1) . ' de tu reino y ' . $size . ' del rival';
         })
         ->implode(' · ');
+
+    // Invitar a una party solo tiene sentido donde hay party.
+    $premadeModes = array_values(array_filter($enabledModes, fn (string $mode) => \App\Support\ArenaMode::supportsPremade($mode)));
 @endphp
 
 {{-- Aviso primero: estos bots escriben en las mismas tablas que produccion. --}}
@@ -55,7 +64,7 @@
         <x-admin.icon name="alert" class="h-4 w-4 shrink-0" />
         <span>
             No hay ninguna modalidad abierta, asi que nadie puede entrar en cola ni aqui ni en el sitio.
-            <a href="{{ route('admin.settings') }}" style="color: inherit; text-decoration: underline">Abrir 2v2 o 3v3</a>.
+            <a href="{{ route('admin.settings') }}" style="color: inherit; text-decoration: underline">Abrir alguna modalidad</a>.
         </span>
     </div>
 @endif
@@ -196,11 +205,11 @@
                     <form method="POST" action="{{ route('admin.testing.invite-me') }}" class="flex gap-2">
                         @csrf
                         <select name="arena_mode" class="ap-select ap-select-sm" aria-label="Modalidad de la invitacion">
-                            @foreach($enabledModes as $sandboxMode)
+                            @foreach($premadeModes as $sandboxMode)
                                 <option value="{{ $sandboxMode }}">{{ $sandboxMode }}</option>
                             @endforeach
                         </select>
-                        <button type="submit" class="ap-btn ap-btn-sm" @disabled(empty($enabledModes))>Que un bot me invite</button>
+                        <button type="submit" class="ap-btn ap-btn-sm" @disabled(empty($premadeModes))>Que un bot me invite</button>
                     </form>
                     <form method="POST" action="{{ route('admin.testing.accept-parties') }}">
                         @csrf

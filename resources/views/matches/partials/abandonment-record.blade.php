@@ -29,8 +29,7 @@
 
     // Y si quien incluye el parcial se olvida de pasarlo, se cae al lado
     // prudente -nombres ocultos- en vez de romper la pagina entera.
-    $showRivalNames = $showRivalNames
-        ?? in_array($match->status, ['completed', 'disputed', 'void', 'abandoned', 'cancelled'], true);
+    $showRivalNames = $showRivalNames ?? \App\Services\MatchLineupService::namesRevealed($match);
 @endphp
 
 @if($avisos->isNotEmpty())

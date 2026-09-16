@@ -7,17 +7,27 @@ use App\Models\AppSetting;
 /**
  * Modalidades de arena.
  *
- * 2v2 y 3v3 conviven: cada una se enciende o apaga por separado desde el panel
- * admin y ambas alimentan el mismo ladder (mismos PL, mismo MMR, misma tabla).
- * Lo unico que cambia entre modalidades es cuanta gente entra por equipo.
+ * 1v1, 2v2 y 3v3 conviven: cada una se enciende o apaga por separado desde el
+ * panel admin y todas alimentan el mismo ladder (mismos PL, mismo MMR, misma
+ * tabla). Lo que cambia entre modalidades es cuanta gente entra por equipo y,
+ * de ahi, dos reglas que dependen del tamano:
+ *
+ * - Con equipos de uno no hay a quien invitar, asi que el premade no existe.
+ * - Con equipos de uno el anonimato del rival estorba: en un 2v2 "Guerrero
+ *   Anonimo, cazador" identifica a alguien porque hay dos figuras y un
+ *   companero al lado; en un duelo suelto, con decenas de cazadores en cola,
+ *   los dos llegan a la zona sin saber a quien buscar. Por eso el duelo publica
+ *   el nombre desde el cruce.
  */
 final class ArenaMode
 {
+    public const ONE_V_ONE = '1v1';
     public const TWO_V_TWO = '2v2';
     public const THREE_V_THREE = '3v3';
 
     /** Modalidad => jugadores por equipo. */
     public const MODES = [
+        self::ONE_V_ONE => 1,
         self::TWO_V_TWO => 2,
         self::THREE_V_THREE => 3,
     ];
@@ -55,12 +65,24 @@ final class ArenaMode
     }
 
     /**
-     * Primera modalidad encendida. Si no hay ninguna, cae en FALLBACK para que
-     * las vistas y rutas sigan resolviendo.
+     * Modalidad en la que cae quien entra sin pedir ninguna.
+     *
+     * Se prefiere 2v2 mientras este encendida, y no "la primera de la lista":
+     * MODES va en orden natural -1v1, 2v2, 3v3- para que las pestanas salgan
+     * asi, y con la primera ganando, encender el duelo habria movido a todo el
+     * mundo de pantalla de golpe. Si 2v2 esta apagada si manda el orden, y si no
+     * hay ninguna encendida se cae en FALLBACK para que rutas y etiquetas sigan
+     * resolviendo.
      */
     public static function default(): string
     {
-        return self::enabled()[0] ?? self::FALLBACK;
+        $enabled = self::enabled();
+
+        if (in_array(self::FALLBACK, $enabled, true)) {
+            return self::FALLBACK;
+        }
+
+        return $enabled[0] ?? self::FALLBACK;
     }
 
     public static function isEnabled(?string $mode): bool
@@ -92,9 +114,36 @@ final class ArenaMode
         return self::MODES[self::normalize($mode) ?? self::FALLBACK];
     }
 
+    /**
+     * Un equipo de uno no se puede formar con nadie.
+     *
+     * Es una consecuencia del tamano, no una lista de modalidades: si algun dia
+     * entra un 5v5, hereda el premade sin tocar esto.
+     */
+    public static function supportsPremade(?string $mode): bool
+    {
+        return self::teamSize($mode) > 1;
+    }
+
+    /**
+     * Si el nombre del rival se publica desde el cruce en vez de al cerrarse.
+     *
+     * Solo el duelo. En el resto el anonimato sigue igual que siempre.
+     */
+    public static function revealsRivalNames(?string $mode): bool
+    {
+        return self::teamSize($mode) === 1;
+    }
+
     public static function label(?string $mode): string
     {
         return self::normalize($mode) ?? self::FALLBACK;
+    }
+
+    /** Como se nombra la modalidad en pantalla. */
+    public static function displayName(?string $mode): string
+    {
+        return self::revealsRivalNames($mode) ? 'Duelo 1v1' : 'Arena ' . self::label($mode);
     }
 
     public static function settingKey(string $mode): string

@@ -55,8 +55,15 @@ it('la url vieja de la cola apunta al lobby y conserva la modalidad', function (
         ->assertRedirect(route('lobby', ['mode' => '2v2']));
 });
 
-/** Un enfrentamiento ya en marcha, con el jugador dentro. */
-function hubLiveMatch(Player $mine, Player $foe): ArenaMatch
+/**
+ * Un enfrentamiento ya en marcha, con el jugador dentro.
+ *
+ * La modalidad importa desde que existe el duelo: en 1v1 los nombres del rival
+ * son publicos desde el cruce y en el resto no. Antes decia '1v1' cuando esa
+ * modalidad no existia -y por tanto se resolvia como 2v2-, asi que se etiqueta
+ * por lo que es: un cruce de equipos de uno, en la modalidad que pida el test.
+ */
+function hubLiveMatch(Player $mine, Player $foe, string $arenaMode = '2v2'): ArenaMatch
 {
     $pack = fn (Player $p) => [
         'player_id' => $p->id,
@@ -70,7 +77,7 @@ function hubLiveMatch(Player $mine, Player $foe): ArenaMatch
         'match_code' => 'ARENA-9001',
         'report_token' => 'HUBLIVE1',
         'queue_mode' => 'random',
-        'arena_mode' => '1v1',
+        'arena_mode' => $arenaMode,
         'team_a_realm' => $mine->realm,
         'team_b_realm' => $foe->realm,
         'team_a' => [$pack($mine)],
@@ -87,7 +94,7 @@ function hubLiveMatch(Player $mine, Player $foe): ArenaMatch
         Queue::create([
             'player_id' => $player->id,
             'queue_type' => 'random',
-            'arena_mode' => '1v1',
+            'arena_mode' => $arenaMode,
             'status' => 'accepted',
             'match_id' => (string) $match->id,
             'estimated_mmr' => $player->mmr,
@@ -134,6 +141,21 @@ it('el combate en curso no destapa el nombre del rival', function () {
         ->assertOk()
         ->assertSee('Guerrero Anónimo')
         ->assertDontSee('NombreSecreto');
+});
+
+it('el duelo 1v1 si destapa el nombre del rival', function () {
+    // La excepcion a la regla de arriba, y la razon de que exista el 1v1: con
+    // un rival suelto entre decenas de la misma subclase, el anonimato no
+    // protege de nada y hace que los dos lleguen a la zona sin saber a quien
+    // buscar.
+    $mine = hubPlayer(hubUser('duel-a'), 'Retadora', 'alsius', 'knight');
+    $foe = hubPlayer(hubUser('duel-b'), 'NombreVisible', 'ignis', 'warlock');
+    hubLiveMatch($mine, $foe, '1v1');
+
+    $this->actingAs($mine->user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('NombreVisible')
+        ->assertDontSee('Guerrero Anónimo');
 });
 
 it('en cola el reloj cuenta desde que entro y se ve el pulso por reino', function () {

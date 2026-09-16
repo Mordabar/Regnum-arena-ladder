@@ -4,7 +4,7 @@
      consola, sobre la figura. Aqui solo queda lo que se abre cuando hace
      falta. --}}
 
-@if($canJoinQueue && $modesAreOpen && !$activeParty)
+@if($canJoinQueue && $modesAreOpen && $premadeSupported && !$activeParty)
     <x-arena-modal id="modal-premade" :title="'Invitar aliado ' . $arenaMode">
         <p class="arena-queue-hint mb-4">
             Juegas con el guerrero que tienes elegido. Busca a
@@ -95,11 +95,20 @@
 
 <x-arena-modal id="modal-arena-rules" title="Reglas de juego">
     <ul class="space-y-3 text-sm text-[color:var(--arena-muted)] arena-body-text">
-        <li><strong class="text-white">Random:</strong> entras con 1 personaje y el sistema completa tu equipo con gente de tu reino.</li>
-        <li><strong class="text-white">Premade:</strong> {{ $teamSize }} personajes exactos, todos del mismo reino y de {{ $teamSize }} usuarios distintos. Maximo {{ $premadeDailyLimit }} al dia por equipo.</li>
-        <li><strong class="text-white">Random contra premade:</strong> el equipo random gana mas puntos si vence, y pierde menos si cae.</li>
-        <li><strong class="text-white">Conjuradores:</strong> solo puede haber uno de soporte por equipo.</li>
-        <li><strong class="text-white">Anonimato:</strong> del rival ves reino y subclase, nunca el nombre, hasta que el enfrentamiento se cierra.</li>
+        @if($premadeSupported)
+            <li><strong class="text-white">Random:</strong> entras con 1 personaje y el sistema completa tu equipo con gente de tu reino.</li>
+            <li><strong class="text-white">Premade:</strong> {{ $teamSize }} personajes exactos, todos del mismo reino y de {{ $teamSize }} usuarios distintos. Maximo {{ $premadeDailyLimit }} al dia por equipo.</li>
+            <li><strong class="text-white">Random contra premade:</strong> el equipo random gana mas puntos si vence, y pierde menos si cae.</li>
+            <li><strong class="text-white">Conjuradores:</strong> solo puede haber uno de soporte por equipo.</li>
+            <li><strong class="text-white">Anonimato:</strong> del rival ves reino y subclase, nunca el nombre, hasta que el enfrentamiento se cierra.</li>
+        @else
+            {{-- El duelo cambia tres reglas, asi que las tres se cuentan aparte
+                 en vez de dejar al jugador leyendo las de equipos y deducir. --}}
+            <li><strong class="text-white">Duelo:</strong> entras solo con 1 personaje y peleas contra un unico rival de otro reino. No hay grupo que armar.</li>
+            <li><strong class="text-white">Rival:</strong> ves su nombre desde el cruce. Con un rival suelto el anonimato solo servia para llegar a la zona sin saber a quien buscar.</li>
+            <li><strong class="text-white">Emparejamiento:</strong> se busca tu mismo tipo -arquero contra arquero, mago contra mago, guerrero contra guerrero-, pero manda el MMR: si encaja mejor un rival de otro tipo, ese sale.</li>
+            <li><strong class="text-white">Ranking:</strong> el mismo de siempre. Un duelo suma y resta en la misma tabla que un 2v2 o un 3v3.</li>
+        @endif
         <li><strong class="text-white">Reporte:</strong> quien reporta sube entre 1 y 3 capturas. El rival confirma o rechaza; si deja pasar el plazo sin decir nada, el reporte se da por bueno.</li>
         <li><strong class="text-white">Rechazo:</strong> rechazar manda el enfrentamiento a disputa y lo revisa moderacion. Puedes adjuntar tus propias capturas, y con ellas se resuelve mucho antes.</li>
         <li><strong class="text-white">Sin reporte:</strong> si nadie reporta antes de que se agote el reloj, el enfrentamiento se anula y no reparte puntos.</li>

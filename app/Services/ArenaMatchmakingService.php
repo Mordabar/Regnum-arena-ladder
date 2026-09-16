@@ -36,6 +36,22 @@ class ArenaMatchmakingService
     private const PAIR_SUPPORT_MISMATCH_PENALTY = 16;
     private const PAIR_SUBCLASS_MISMATCH_WEIGHT = 5;
 
+    /**
+     * Cuanto MMR vale emparejar un duelo con dos estilos distintos.
+     *
+     * El duelo prefiere el espejo -cazador contra cazador- porque es la pelea
+     * mas limpia de leer, pero es una preferencia, no una regla: las dos cifras
+     * estan en puntos de MMR y se suman a la diferencia de MMR del cruce, asi
+     * que un rival de otra clase gana en cuanto encaje mejor por ese margen.
+     *
+     * Con 70, un mago y un guerrero se emparejan si estan a menos de 70 de MMR
+     * y el espejo disponible esta mas lejos. Con 25, un caballero contra un
+     * barbaro -misma clase, distinta subclase- casi siempre pasa por delante de
+     * un espejo lejano.
+     */
+    private const DUEL_ARCHETYPE_MISMATCH_PENALTY = 70;
+    private const DUEL_SUBCLASS_MISMATCH_PENALTY = 25;
+
     private ?Collection $matchesColumnsCache = null;
 
     public function __construct(
@@ -1245,7 +1261,14 @@ class ArenaMatchmakingService
         }
 
         $compositionPenalty += max(0, $profile['conjurer_count'] - 1) * self::TEAM_EXTRA_CONJURER_PENALTY;
-        $compositionPenalty += max(0, 2 - $profile['archetype_count']) * self::TEAM_ARCHETYPE_PENALTY;
+
+        // "Mezcla al menos dos roles" es una regla de plantilla. Con un jugador
+        // por equipo no hay plantilla que mezclar: cobrarsela dejaba a todo el
+        // mundo con el mismo recargo fijo, que no ordena nada y solo ensuciaba
+        // la cifra.
+        if ($teamSize >= 2) {
+            $compositionPenalty += max(0, 2 - $profile['archetype_count']) * self::TEAM_ARCHETYPE_PENALTY;
+        }
 
         return [
             'profile' => $profile,
@@ -1308,6 +1331,18 @@ class ArenaMatchmakingService
         $profileA = $teamA['profile'] ?? $this->buildQueueTeamProfile($teamA['entries']);
         $profileB = $teamB['profile'] ?? $this->buildQueueTeamProfile($teamB['entries']);
 
+        // El duelo tiene su propia escala. La de equipos suma tres castigos
+        // pensados para comparar plantillas -cuantos conjuradores, cuantos
+        // soportes, cuantas subclases repetidas- y con un jugador por lado esas
+        // tres cuentas miden lo mismo tres veces: un brujo contra un caballero
+        // pagaba 10 por las subclases y un conjurador contra cualquiera pagaba
+        // 12 mas solo por ser conjurador, asi que el conjurador era el peor
+        // rival posible para todos y el espejo conjurador contra conjurador no
+        // valia mas que un brujo contra un barbaro.
+        if (ArenaMode::teamSize($teamA['arena_mode'] ?? null) === 1) {
+            return $this->calculateDuelStylePenalty($teamA, $teamB);
+        }
+
         $subclassKeys = collect(array_keys($profileA['subclasses']))
             ->merge(array_keys($profileB['subclasses']))
             ->unique();
@@ -1320,6 +1355,58 @@ class ArenaMatchmakingService
         $supportPenalty = abs($profileA['support_conjurers'] - $profileB['support_conjurers']) * self::PAIR_SUPPORT_MISMATCH_PENALTY;
 
         return $subclassPenalty + $conjurerPenalty + $supportPenalty;
+    }
+
+    /**
+     * Lo lejos que queda un duelo de ser un espejo.
+     *
+     * Tres escalones: misma subclase no paga nada, misma clase con otra
+     * subclase paga poco, y clase distinta paga lo maximo. La cifra esta en
+     * puntos de MMR y se suma a la diferencia de MMR del cruce, que es lo que
+     * mantiene al MMR por delante: la preferencia solo decide entre rivales que
+     * ya encajan parecido.
+     *
+     * Las clases son las del juego -guerrero, arquero, mago-, no los roles de
+     * combate que usa resolveSubclassArchetype() para equilibrar equipos: un
+     * jugador reconoce "mago contra mago", no "utilidad contra dano".
+     */
+    private function calculateDuelStylePenalty(array $teamA, array $teamB): int
+    {
+        $subclassA = $this->duelSubclass($teamA);
+        $subclassB = $this->duelSubclass($teamB);
+
+        if ($subclassA === null || $subclassB === null) {
+            return 0;
+        }
+
+        if ($subclassA === $subclassB) {
+            return 0;
+        }
+
+        $claseA = Player::SUBCLASS_ARCHETYPES[$subclassA] ?? null;
+        $claseB = Player::SUBCLASS_ARCHETYPES[$subclassB] ?? null;
+
+        // Una subclase desconocida -un dato viejo o un personaje raro- no puede
+        // salir premiada con 0: se trata como el cruce mas lejano.
+        if ($claseA === null || $claseB === null || $claseA !== $claseB) {
+            return self::DUEL_ARCHETYPE_MISMATCH_PENALTY;
+        }
+
+        return self::DUEL_SUBCLASS_MISMATCH_PENALTY;
+    }
+
+    /** La subclase del unico jugador de un lado del duelo. */
+    private function duelSubclass(array $team): ?string
+    {
+        $entries = $team['entries'] ?? null;
+
+        if (!$entries instanceof Collection || $entries->count() !== 1) {
+            return null;
+        }
+
+        $subclass = (string) ($entries->first()->player->subclass ?? '');
+
+        return $subclass === '' ? null : $subclass;
     }
 
     private function calculateRepeatOverlapPenalty(array $teamA, array $teamB, Collection $recentMatchSnapshots): int

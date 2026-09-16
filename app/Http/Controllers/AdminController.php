@@ -664,6 +664,7 @@ class AdminController extends Controller
     {
         $settings = [
             'season_name' => AppSetting::getValue('season_name', 'Alpha Season'),
+            'mode_1v1_enabled' => ArenaMode::isEnabled(ArenaMode::ONE_V_ONE),
             'mode_2v2_enabled' => ArenaMode::isEnabled(ArenaMode::TWO_V_TWO),
             'mode_3v3_enabled' => ArenaMode::isEnabled(ArenaMode::THREE_V_THREE),
             'home_tagline' => AppSetting::getValue('home_tagline', 'Conquest PvP por reino y subclase'),
@@ -702,6 +703,7 @@ class AdminController extends Controller
     {
         $validated = $request->validate([
             'season_name' => 'required|string|max:120',
+            'mode_1v1_enabled' => 'nullable|boolean',
             'mode_2v2_enabled' => 'nullable|boolean',
             'mode_3v3_enabled' => 'nullable|boolean',
             'home_tagline' => 'required|string|max:180',
@@ -727,6 +729,7 @@ class AdminController extends Controller
         ]);
 
         $this->applyArenaModeToggles([
+            ArenaMode::ONE_V_ONE => $request->boolean('mode_1v1_enabled'),
             ArenaMode::TWO_V_TWO => $request->boolean('mode_2v2_enabled'),
             ArenaMode::THREE_V_THREE => $request->boolean('mode_3v3_enabled'),
         ]);
