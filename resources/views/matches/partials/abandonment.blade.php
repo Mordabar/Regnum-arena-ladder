@@ -27,9 +27,16 @@
         || $errors->has('note')
         || $errors->has('accused_player_id')
         || $errors->has('files.*');
+
+    // Quedan personas a las que todavia no has avisado. No basta con "hay
+    // alguien mas en la partida": en 2v2 y 3v3 siempre sobran candidatos y el
+    // caso no se notaba, pero en un duelo el unico señalable es el rival, asi
+    // que en cuanto avisas de el la ventana se queda con una sola opcion
+    // deshabilitada y un boton que solo puede acabar en error de validacion.
+    $quedaPorAvisar = $senalables->contains(fn ($p) => !in_array((int) $p['player_id'], $avisosMios, true));
 @endphp
 
-@if($senalables->isNotEmpty())
+@if($quedaPorAvisar)
     <section class="arena-panel mb-6 p-5 arena-animate-in arena-stagger-2" data-abandonment-panel>
         <div class="flex flex-wrap items-center justify-between gap-4">
             <div>

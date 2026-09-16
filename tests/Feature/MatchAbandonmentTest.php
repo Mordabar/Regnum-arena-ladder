@@ -785,6 +785,61 @@ it('tras una derrota por abandono el aviso queda resuelto', function () {
     expect((float) $s['mio']->fresh()->pl_points)->toBe($plGanador);
 });
 
+it('el rival señalado lee la acusacion, pero NO descarga la captura en directo', function () {
+    // El agujero: ser el acusado bastaba para abrir la evidencia, y el acusado
+    // suele ser el enemigo. En 2v2 ya se podia; en un duelo 1v1 seria SIEMPRE,
+    // porque ahi el unico a quien se puede señalar es el rival. Una captura de
+    // mitad de pelea es la pantalla del enemigo: vida, posicion, quien queda
+    // en pie.
+    //
+    // Las dos mitades de la regla, que son distintas a proposito: la frase de
+    // la acusacion si se lee -a alguien acusado hay que decirle de que-, la
+    // imagen no hasta que el combate cierre.
+    $s = combateEnCurso('ev1');
+    $aviso = app(ArenaAbandonmentService::class)->report(
+        $s['match'], $s['mio'], $s['rival']->id, 'ACUSACION-VISIBLE se fue al minuto dos'
+    );
+    $aviso->update(['evidence_paths' => ['match-reports/testing/aban/prueba.png']]);
+
+    $this->actingAs($s['rival']->user)
+        ->get(route('matches.show', $s['match']))
+        ->assertOk()
+        ->assertSee('ACUSACION-VISIBLE')
+        ->assertSee('Hay capturas adjuntas');
+
+    $this->actingAs($s['rival']->user)
+        ->get(route('matches.abandonment.evidence', ['abandonment' => $aviso, 'slot' => 1]))
+        ->assertForbidden();
+
+    // Quien aviso si la abre: es suya.
+    $this->actingAs($s['mio']->user)
+        ->get(route('matches.abandonment.evidence', ['abandonment' => $aviso, 'slot' => 1]))
+        ->assertOk();
+
+    // Y con el combate cerrado se abre tambien para el acusado, que es cuando
+    // le hace falta para defenderse y ya no para pelear.
+    $s['match']->fresh()->update(['status' => 'completed']);
+
+    $this->actingAs($s['rival']->user)
+        ->get(route('matches.abandonment.evidence', ['abandonment' => $aviso, 'slot' => 1]))
+        ->assertOk();
+});
+
+it('el compañero señalado si abre la captura en directo: es de su propio bando', function () {
+    // La otra cara, para que el arreglo no se pase de largo. Quedarte solo en
+    // un 2v2 es el caso que hay que poder denunciar, y ahi el señalado juega
+    // de tu lado: la captura no le da ninguna ventaja que no tuviera.
+    $s = combateEnCurso('ev2');
+    $aviso = app(ArenaAbandonmentService::class)->report(
+        $s['match'], $s['mio'], $s['companero']->id, 'Se fue y me dejo solo'
+    );
+    $aviso->update(['evidence_paths' => ['match-reports/testing/aban/prueba.png']]);
+
+    $this->actingAs($s['companero']->user)
+        ->get(route('matches.abandonment.evidence', ['abandonment' => $aviso, 'slot' => 1]))
+        ->assertOk();
+});
+
 it('el rival no ve el motivo ni las capturas mientras se pelea', function () {
     // Las capturas de un aviso se toman A MITAD del combate: enseñarlas al
     // bando contrario en directo le regala la pantalla del enemigo.

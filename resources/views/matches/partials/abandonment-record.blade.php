@@ -59,6 +59,16 @@
                         fn (int $id) => $aviso->visibleParaJugador($id, $match)
                     );
 
+                    // Las capturas tienen su propia puerta, mas estrecha que la
+                    // del motivo: se toman a mitad de la pelea, asi que en
+                    // combate vivo solo las abre el bando de quien aviso. El
+                    // acusado lee de que se le acusa igual; las pruebas las ve
+                    // al cerrarse, que es cuando le sirven para defenderse y ya
+                    // no para pelear.
+                    $verPruebas = $mios->contains(
+                        fn (int $id) => $aviso->evidenciaVisibleParaJugador($id, $match)
+                    );
+
                     // Mismo criterio que el resto de la pantalla: los nombres
                     // del rival solo se enseñan con el enfrentamiento cerrado.
                     // Si hay dos rivales de la misma subclase se les numera,
@@ -118,11 +128,17 @@
                             El motivo y las capturas se abren cuando termine el enfrentamiento.
                         </p>
                     @else
+                        @if(!$verPruebas && $aviso->evidenceItems() !== [])
+                            <p class="mt-2 text-xs italic text-[color:var(--arena-muted)] arena-body-text">
+                                Hay capturas adjuntas. Se abren cuando termine el enfrentamiento:
+                                son de la pelea en curso.
+                            </p>
+                        @endif
                         @if($aviso->note)
                             <p class="mt-2 whitespace-pre-line break-words text-sm text-[color:var(--arena-text)] arena-body-text">{{ $aviso->note }}</p>
                         @endif
 
-                        @if($aviso->evidenceItems() !== [])
+                        @if($verPruebas && $aviso->evidenceItems() !== [])
                             <div class="mt-3 grid gap-2 {{ count($aviso->evidenceItems()) > 1 ? 'sm:grid-cols-2' : '' }}">
                                 @foreach($aviso->evidenceItems() as $prueba)
                                     <a href="{{ $prueba['url'] }}" target="_blank" class="arena-btn-ghost justify-center text-xs">

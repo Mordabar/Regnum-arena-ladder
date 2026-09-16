@@ -471,9 +471,11 @@ class ArenaMatchController extends Controller
 
             // Ser participante no basta mientras el combate sigue abierto: la
             // captura de un aviso es de la pelea EN CURSO, y darsela al bando
-            // contrario es regalarle la pantalla del enemigo.
+            // contrario es regalarle la pantalla del enemigo. Ni siquiera basta
+            // con ser el acusado -que si puede leer de que se le acusa-, porque
+            // el acusado suele ser justo el rival.
             $puede = $mios->isNotEmpty()
-                && $mios->contains(fn (int $id) => $abandonment->visibleParaJugador($id, $match));
+                && $mios->contains(fn (int $id) => $abandonment->evidenciaVisibleParaJugador($id, $match));
 
             if (!$puede) {
                 abort(403, 'No tienes acceso a esta evidencia.');

@@ -98,7 +98,13 @@ class MatchAbandonmentReport extends Model
      * aqui.
      *
      * Con el enfrentamiento cerrado se abre para todos los que lo jugaron, que
-     * es cuando hace falta para defenderse de una acusacion.
+     * es cuando hace falta para defenderse de una acusacion. En curso, lo leen
+     * quien lo escribio y el señalado: a alguien acusado hay que decirle de que
+     * se le acusa, y una frase como "se desconecto al minuto dos" no da ninguna
+     * ventaja en la pelea.
+     *
+     * Las capturas del aviso son otra cosa y tienen su propia puerta, mas
+     * estrecha: ver evidenciaVisibleParaJugador().
      */
     public function visibleParaJugador(?int $playerId, ArenaMatch $match): bool
     {
@@ -114,6 +120,49 @@ class MatchAbandonmentReport extends Model
         // En curso: solo quien lo escribio y quien esta señalado.
         return (int) $this->reported_by_player_id === $playerId
             || (int) $this->accused_player_id === $playerId;
+    }
+
+    /**
+     * Si un jugador puede ABRIR las capturas de este aviso.
+     *
+     * Mas estrecha que leer el motivo, y por un motivo concreto: estas capturas
+     * se toman A MITAD de la pelea, al reves que las del reporte de resultado,
+     * que solo existen cuando ya termino. Una frase no da ventaja; una captura
+     * en directo es la pantalla del enemigo -vida, posicion, quien queda en
+     * pie-, y con ella se pelea.
+     *
+     * Por eso, mientras el combate sigue vivo, no vale ser "el señalado": se
+     * mira el BANDO. Lo abre quien escribio el aviso y quien juegue de su lado.
+     * El acusado que sea rival lee la acusacion igual y ve las pruebas cuando
+     * el combate cierre, que es cuando le hacen falta para defenderse.
+     *
+     * La puerta llevaba abierta desde el principio -en 2v2 el rival acusado ya
+     * podia descargarlas- y el duelo la convertia en la norma: ahi el unico a
+     * quien se puede señalar es el rival, asi que el 100% de los avisos le
+     * habria entregado al enemigo la pantalla de quien le acusa.
+     */
+    public function evidenciaVisibleParaJugador(?int $playerId, ArenaMatch $match): bool
+    {
+        if (!$this->visibleParaJugador($playerId, $match)) {
+            return false;
+        }
+
+        if (in_array($match->status, self::ESTADOS_CERRADOS, true)) {
+            return true;
+        }
+
+        if ((int) $this->reported_by_player_id === $playerId) {
+            return true;
+        }
+
+        // Si alguno de los dos lados no se resuelve, no se enseña: ante la
+        // duda, cerrado.
+        $ladoDelAviso = $match->getTeamSideForPlayer((int) $this->reported_by_player_id);
+        $ladoDeQuienMira = $match->getTeamSideForPlayer((int) $playerId);
+
+        return $ladoDelAviso !== null
+            && $ladoDeQuienMira !== null
+            && $ladoDelAviso === $ladoDeQuienMira;
     }
 
     /**

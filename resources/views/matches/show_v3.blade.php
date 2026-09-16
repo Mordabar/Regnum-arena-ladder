@@ -34,6 +34,11 @@
     // copias se quedara atras.
     $showRivalNames = \App\Services\MatchLineupService::namesRevealed($match);
 
+    // En un duelo "tu equipo" eres tu solo. La misma correccion se hizo en el
+    // panel del lobby; esta pagina tiene su propia copia del formulario de
+    // reporte -es la que se abre desde el enlace de Discord- y se quedo atras.
+    $esDuelo = \App\Support\ArenaMode::revealsRivalNames($match->arena_mode);
+
     // Aspecto de cada combatiente para las figuras 3D. El propio equipo va con
     // su raza y su sexo reales; al rival se le dibuja con el maniqui humano del
     // reino mientras siga siendo anonimo, porque raza y sexo sumados al reino y
@@ -321,7 +326,7 @@
                 <div>
                     <p class="font-semibold">Reporte enviado — esperando confirmación rival</p>
                     <p class="mt-1 text-sm text-sky-200/70 arena-body-text">
-                        El equipo rival debe confirmar o disputar tu reporte.
+                        {{ $esDuelo ? 'Tu rival' : 'El equipo rival' }} debe confirmar o disputar tu reporte.
                         @if($match->expires_at)
                             Tiempo restante: {{ $match->expires_at->locale('es')->diffForHumans() }}
                         @endif
@@ -339,7 +344,7 @@
                 <div class="flex items-center gap-2">
                     <x-arena-realm-icon :realm="$ownRealm" size="md" />
                     <div>
-                        <p class="arena-kicker">Tu equipo</p>
+                        <p class="arena-kicker">{{ $esDuelo ? 'Tú' : 'Tu equipo' }}</p>
                         <h2 class="mt-1 text-xl font-semibold text-white">{{ \App\Models\ArenaMatch::REALMS[$ownRealm] ?? strtoupper($ownRealm) }}</h2>
                     </div>
                 </div>
@@ -480,7 +485,7 @@
                 <label class="block">
                     <span class="mb-2 block text-sm font-medium text-[color:var(--arena-text)] arena-body-text">Equipo ganador</span>
                     <select name="claimed_winner_team" class="arena-select">
-                        <option value="{{ $ownSide }}">Tu equipo ({{ \App\Models\ArenaMatch::REALMS[$ownRealm] ?? strtoupper($ownRealm) }})</option>
+                        <option value="{{ $ownSide }}">{{ $esDuelo ? 'Yo' : 'Tu equipo' }} ({{ \App\Models\ArenaMatch::REALMS[$ownRealm] ?? strtoupper($ownRealm) }})</option>
                         <option value="{{ $rivalSide }}">Rival ({{ \App\Models\ArenaMatch::REALMS[$rivalRealm] ?? strtoupper($rivalRealm) }})</option>
                         <option value="draw">Empate (Interrumpido / Inconcluso)</option>
                     </select>
@@ -646,7 +651,7 @@
                                         @elseif($nombreRechazador && $showRivalNames)
                                             {{ $nombreRechazador }}
                                         @else
-                                            el equipo rival
+                                            {{ $esDuelo ? 'tu rival' : 'el equipo rival' }}
                                         @endif
                                     </p>
                                     @if($report->rejected_at)

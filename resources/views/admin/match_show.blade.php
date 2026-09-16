@@ -163,7 +163,7 @@
                         </div>
                         <p class="ap-hint mt-2">
                             Confirmar castiga <strong>solo</strong> al señalado: pierde PL, confianza y no puede
-                            encolar durante unas horas. Su compañero y los rivales no se tocan.
+                            encolar durante unas horas. Nadie mas se toca: ni su equipo, si lo tiene, ni el rival.
                         </p>
                     @elseif($aviso->admin_note || $aviso->reviewed_by_admin)
                         @php
@@ -399,7 +399,7 @@
                         <option value="{{ $player['player_id'] }}">{{ $player['character_name'] }}</option>
                     @endforeach
                 </select>
-                <span class="ap-hint">Su equipo pierde la partida y el jugador queda bloqueado.</span>
+                <span class="ap-hint">Su bando pierde la partida y el jugador queda bloqueado.</span>
             </div>
 
             <div class="ap-field md:col-span-2">
@@ -465,9 +465,9 @@
                 danger: false,
             },
             abandonment_walkover: {
-                text: 'El equipo del jugador elegido pierde, y el jugador recibe bloqueo de cola y baja de confianza.',
+                text: 'El bando del jugador elegido pierde, y el jugador recibe bloqueo de cola y baja de confianza.',
                 label: 'Aplicar derrota por abandono',
-                confirm: 'Vas a dar la partida por perdida a su equipo y sancionar al jugador.',
+                confirm: 'Vas a dar la partida por perdida a su bando y sancionar al jugador.',
                 danger: true,
             },
             support_infraction: {

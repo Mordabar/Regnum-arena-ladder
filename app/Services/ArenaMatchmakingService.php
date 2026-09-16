@@ -37,29 +37,34 @@ class ArenaMatchmakingService
     private const PAIR_SUBCLASS_MISMATCH_WEIGHT = 5;
 
     /**
-     * El escalon de MMR dentro del cual dos duelos encajan igual de bien.
+     * Cuanto MMR tiene que encajar mejor un rival de otro estilo para ganarle
+     * al espejo.
      *
      * El duelo prefiere el espejo -cazador contra cazador-, pero el MMR manda.
-     * "Mandar" tiene que significar algo concreto, y aqui significa esto: dos
-     * cruces cuya diferencia de MMR cae en el mismo escalon de 50 puntos se
-     * consideran igual de buenos, y entre ellos decide el estilo; en cuanto uno
-     * baja de escalon, gana por MMR y el estilo no tiene nada que decir.
+     * La forma es deliberadamente aditiva y continua: la cifra se suma a la
+     * diferencia de MMR del cruce, asi que un rival de otra clase sale elegido
+     * en cuanto encaje mejor por mas de estos puntos. Leido al reves, que es lo
+     * que importa: la preferencia NUNCA puede imponer un rival que encaje peor
+     * por mas de 20 puntos de MMR.
      *
-     * La primera version sumaba la preferencia al MMR como si fueran puntos -70
-     * por cruzar clase-, y eso no era ordenar sino sobornar: un espejo a 69 de
-     * MMR le ganaba a un rival de otra clase con el MMR clavado. Justo el caso
-     * que no se queria.
-     */
-    private const DUEL_MMR_BAND = 50;
-
-    /**
-     * Lo lejos que queda un duelo de ser un espejo, en unidades de desempate.
+     * De donde sale el 20: una partida mueve el MMR unos 16 puntos. O sea que
+     * el techo del capricho es, como mucho, lo que se gana o se pierde en un
+     * combate. Por debajo de eso los dos rivales son el mismo rival a efectos
+     * practicos y se elige el que hace la pelea mas limpia de leer.
      *
-     * Deliberadamente minusculas al lado del escalon de MMR: solo sirven para
-     * ordenar cruces que ya empataron por MMR, nunca para remontar uno peor.
+     * Dos formas descartadas, y por que:
+     *
+     * - 70 y 25, los primeros valores. Demasiado: un espejo a 69 de MMR le
+     *   ganaba a un rival de otra clase con el MMR clavado.
+     * - Agrupar la diferencia de MMR en escalones de 50 y dejar el estilo como
+     *   calderilla. Parecia mas limpio y era peor: el techo seguia siendo 49,
+     *   pero ademas saltaba de golpe en cada borde de escalon -un punto de MMR
+     *   invertia la decision- y, sobre todo, este ladder arranca con todo el
+     *   mundo en 1000, asi que durante las primeras semanas la gente entera
+     *   cabia en el primer escalon y el estilo decidia TODOS los duelos.
      */
-    private const DUEL_ARCHETYPE_MISMATCH_PENALTY = 3;
-    private const DUEL_SUBCLASS_MISMATCH_PENALTY = 1;
+    private const DUEL_ARCHETYPE_MISMATCH_PENALTY = 20;
+    private const DUEL_SUBCLASS_MISMATCH_PENALTY = 8;
 
     private ?Collection $matchesColumnsCache = null;
 
@@ -624,7 +629,7 @@ class ArenaMatchmakingService
                     $repeatPenalty = $repeatCount * self::EXACT_REPEAT_PAIRING_PENALTY;
                     $overlapPenalty = $this->calculateRepeatOverlapPenalty($teamA, $teamB, $recentMatchSnapshots);
                     $compositionPenalty = $this->calculatePairCompositionPenalty($teamA, $teamB);
-                    $score = $this->mmrCostForPairing($teamA, $diff) + $repeatPenalty + $overlapPenalty + $compositionPenalty;
+                    $score = $diff + $repeatPenalty + $overlapPenalty + $compositionPenalty;
 
                     if (
                         $bestPair === null
@@ -1367,35 +1372,18 @@ class ArenaMatchmakingService
     }
 
     /**
-     * Lo que pesa la diferencia de MMR de un cruce en su puntuacion.
-     *
-     * En 2v2 y 3v3 pesa tal cual, como siempre. En el duelo se redondea hacia
-     * abajo al escalon de DUEL_MMR_BAND, y eso es lo que le da la ultima
-     * palabra al MMR: dos cruces del mismo escalon quedan empatados y los
-     * desempata el estilo -que vale 1 o 3-, mientras que bajar un escalon son
-     * 50 puntos, imposibles de remontar con el estilo.
-     *
-     * Los demas recargos -repetir cruce, solaparse con una partida reciente-
-     * siguen en puntos de MMR y conservan su significado: 900 sigue queriendo
-     * decir "vale 900 de MMR evitar esta repeticion".
-     */
-    private function mmrCostForPairing(array $teamA, int $diff): int
-    {
-        if (ArenaMode::teamSize($teamA['arena_mode'] ?? null) !== 1) {
-            return $diff;
-        }
-
-        return intdiv($diff, self::DUEL_MMR_BAND) * self::DUEL_MMR_BAND;
-    }
-
-    /**
      * Lo lejos que queda un duelo de ser un espejo.
      *
      * Tres escalones: misma subclase no paga nada, misma clase con otra
-     * subclase paga 1, y clase distinta paga 3. Son unidades de desempate, no
-     * puntos de MMR: al lado del escalon de 50 en el que se agrupa la
-     * diferencia de MMR (ver mmrCostForPairing) no pueden remontar nada, asi
-     * que la preferencia solo decide entre cruces que ya encajan igual.
+     * subclase paga 8, y clase distinta paga 20. La cifra esta en puntos de MMR
+     * y se suma a la diferencia de MMR del cruce, asi que dice exactamente
+     * cuanto tiene que encajar mejor un rival de otro estilo para ganarle al
+     * espejo -y, al reves, cuanto puede como mucho torcer la preferencia una
+     * eleccion que el MMR habria hecho de otra forma.
+     *
+     * Los demas recargos -repetir cruce, solaparse con una partida reciente-
+     * viven en la misma escala y conservan su significado: 900 sigue queriendo
+     * decir "vale 900 de MMR evitar esta repeticion".
      *
      * Las clases son las del juego -guerrero, arquero, mago-, no los roles de
      * combate que usa resolveSubclassArchetype() para equilibrar equipos: un
