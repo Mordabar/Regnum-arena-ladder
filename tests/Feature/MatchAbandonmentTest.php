@@ -825,6 +825,47 @@ it('el rival señalado lee la acusacion, pero NO descarga la captura en directo'
         ->assertOk();
 });
 
+it('mandar el combate a disputa no le abre al rival las capturas', function () {
+    // El agujero que quedaba despues de cerrar 'in_progress': 'disputed' vivia
+    // en la lista de "cerrados", y llevar el combate a disputa es algo que el
+    // acusado puede hacer EL SOLO rechazando el reporte de resultado. O sea,
+    // tenia el interruptor de su propia fuga.
+    //
+    // Y una disputa no es una partida acabada: el propio servicio de abandonos
+    // sigue admitiendo avisos ahi con la frase "mientras el combate esta en
+    // curso".
+    $s = combateEnCurso('disp');
+    $aviso = app(ArenaAbandonmentService::class)->report(
+        $s['match'], $s['mio'], $s['rival']->id, 'SECRETO se fue a mitad'
+    );
+    $aviso->update(['evidence_paths' => ['match-reports/testing/aban/prueba.png']]);
+
+    $s['match']->fresh()->update(['status' => 'disputed']);
+
+    // Sigue leyendo de que se le acusa...
+    $this->actingAs($s['rival']->user)
+        ->get(route('matches.show', $s['match']))
+        ->assertOk()
+        ->assertSee('SECRETO');
+
+    // ...pero la captura no, hasta que la disputa se resuelva.
+    $this->actingAs($s['rival']->user)
+        ->get(route('matches.abandonment.evidence', ['abandonment' => $aviso, 'slot' => 1]))
+        ->assertForbidden();
+
+    // Quien aviso si, que es suya.
+    $this->actingAs($s['mio']->user)
+        ->get(route('matches.abandonment.evidence', ['abandonment' => $aviso, 'slot' => 1]))
+        ->assertOk();
+
+    // Resuelta la disputa, se abre para todos los que la jugaron.
+    $s['match']->fresh()->update(['status' => 'void']);
+
+    $this->actingAs($s['rival']->user)
+        ->get(route('matches.abandonment.evidence', ['abandonment' => $aviso, 'slot' => 1]))
+        ->assertOk();
+});
+
 it('el compañero señalado si abre la captura en directo: es de su propio bando', function () {
     // La otra cara, para que el arreglo no se pase de largo. Quedarte solo en
     // un 2v2 es el caso que hay que poder denunciar, y ahi el señalado juega

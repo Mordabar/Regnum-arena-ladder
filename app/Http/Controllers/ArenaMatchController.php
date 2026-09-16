@@ -149,13 +149,41 @@ class ArenaMatchController extends Controller
                     ->where('match_id', (string) $match->id)
                     ->where('status', 'matched')
                     ->latest('id')
+                    // Sin el candado, leer la fila y escribirla despues son dos
+                    // momentos distintos, y entre medias cabe entero el rechazo
+                    // del rival: cancelMatch devolvia esta cola a 'waiting' y
+                    // borraba el cruce, y este UPDATE la dejaba luego en
+                    // 'accepted' apuntando a un match que ya no existe.
+                    //
+                    // Esa fila no salia por ningun lado: join() bloqueaba la
+                    // cuenta entera por tenerla, leave() solo busca 'waiting',
+                    // la limpieza automatica solo toca 'waiting' y el
+                    // emparejador solo mira 'waiting'. O sea, la cuenta se
+                    // quedaba fuera del ladder para siempre, con todos sus
+                    // personajes, hasta que un admin la sacara a mano.
+                    //
+                    // En un duelo es donde mas facil salta: hay exactamente una
+                    // persona al otro lado con el boton de rechazar delante.
+                    ->lockForUpdate()
                     ->first();
 
                 if (!$queue) {
                     throw new \RuntimeException('La cola de este match ya no está disponible.');
                 }
 
-                $queue->update(['status' => 'accepted']);
+                // Y aun con el candado se escribe condicionado al estado leido:
+                // si alguien la movio, este UPDATE no toca nada y se aborta, en
+                // vez de pisar su decision.
+                $aceptada = Queue::query()
+                    ->whereKey($queue->getKey())
+                    ->where('status', 'matched')
+                    ->where('match_id', (string) $match->id)
+                    ->update(['status' => 'accepted']);
+
+                if ($aceptada === 0) {
+                    throw new \RuntimeException('La cola de este match ya no está disponible.');
+                }
+
                 $resultService->promoteMatchToInProgressIfReady($match->fresh());
             });
         } catch (\Throwable $e) {

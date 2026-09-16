@@ -43,9 +43,11 @@ class ArenaMatchmakingService
      * El duelo prefiere el espejo -cazador contra cazador-, pero el MMR manda.
      * La forma es deliberadamente aditiva y continua: la cifra se suma a la
      * diferencia de MMR del cruce, asi que un rival de otra clase sale elegido
-     * en cuanto encaje mejor por mas de estos puntos. Leido al reves, que es lo
-     * que importa: la preferencia NUNCA puede imponer un rival que encaje peor
-     * por mas de 20 puntos de MMR.
+     * en cuanto encaje mejor A PARTIR de estos puntos -los empates exactos se
+     * los lleva el MMR por el desempate de buildMatchPairings-. Leido al reves,
+     * que es lo que importa: la preferencia NUNCA puede imponer un rival que
+     * encaje peor por 20 puntos de MMR o mas. El techo real, medido barriendo
+     * distancias, es 19 al cruzar clase y 7 al cambiar de subclase.
      *
      * De donde sale el 20: una partida mueve el MMR unos 16 puntos. O sea que
      * el techo del capricho es, como mucho, lo que se gana o se pierde en un
@@ -621,6 +623,20 @@ class ArenaMatchmakingService
                     }
 
                     if ($teamA['realm'] === $teamB['realm']) {
+                        continue;
+                    }
+
+                    // Ni una cuenta contra si misma. evaluateQueueTeam ya lo
+                    // impide DENTRO de un equipo, pero entre los dos bandos no
+                    // lo miraba nadie: una cuenta con un personaje en cada
+                    // reino -se permiten cinco- podia acabar peleando contra
+                    // ella misma y regalarse victorias, PL y MMR.
+                    //
+                    // Por la pantalla no se llega: join() bloquea todos los
+                    // personajes de la cuenta y rechaza la segunda cola. Pero el
+                    // emparejador no puede depender de que el controlador se
+                    // acuerde, y el laboratorio de bots si encola por personaje.
+                    if ($this->compartenCuenta($teamA, $teamB)) {
                         continue;
                     }
 
@@ -1374,6 +1390,17 @@ class ArenaMatchmakingService
         $supportPenalty = abs($profileA['support_conjurers'] - $profileB['support_conjurers']) * self::PAIR_SUPPORT_MISMATCH_PENALTY;
 
         return $subclassPenalty + $conjurerPenalty + $supportPenalty;
+    }
+
+    /** Si los dos bandos comparten alguna cuenta de usuario. */
+    private function compartenCuenta(array $teamA, array $teamB): bool
+    {
+        $cuentas = fn (array $team) => collect($team['entries'] ?? [])
+            ->map(fn (Queue $queue) => (int) ($queue->player->user_id ?? 0))
+            ->filter()
+            ->all();
+
+        return array_intersect($cuentas($teamA), $cuentas($teamB)) !== [];
     }
 
     /**

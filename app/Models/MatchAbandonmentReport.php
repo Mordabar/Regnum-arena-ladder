@@ -88,6 +88,30 @@ class MatchAbandonmentReport extends Model
     private const ESTADOS_CERRADOS = ['completed', 'disputed', 'void', 'abandoned', 'cancelled'];
 
     /**
+     * Estados en los que el combate esta RESUELTO del todo.
+     *
+     * Mas corto que ESTADOS_CERRADOS por un estado: 'disputed'. Una disputa no
+     * es una partida acabada, es una partida sin decidir, y el propio codigo lo
+     * dice en ArenaAbandonmentService, que sigue admitiendo avisos de abandono
+     * ahi con la frase "mientras el combate esta en curso". Las dos cosas no
+     * pueden ser verdad a la vez.
+     *
+     * Y el que quiere la pantalla del enemigo es justo el que tiene el
+     * interruptor: rechazar un reporte de resultado manda el enfrentamiento a
+     * disputa, es una accion legitima que el acusado puede pulsar siempre, y
+     * con 'disputed' en la lista le abria de par en par las capturas de su
+     * rival, las ya subidas y las que vinieran despues. El mismo agujero que se
+     * cerro en 'in_progress', un estado mas alla.
+     *
+     * Durante la disputa, el señalado sigue leyendo de que se le acusa y puede
+     * subir sus propias capturas; moderacion las ve todas. Las del contrario se
+     * le abren cuando la disputa se resuelve.
+     *
+     * @var list<string>
+     */
+    private const ESTADOS_RESUELTOS = ['completed', 'void', 'abandoned', 'cancelled'];
+
+    /**
      * Si un jugador puede leer el motivo y abrir las capturas de este aviso.
      *
      * Mientras el combate sigue abierto, no. Las capturas de un aviso se toman
@@ -147,7 +171,8 @@ class MatchAbandonmentReport extends Model
             return false;
         }
 
-        if (in_array($match->status, self::ESTADOS_CERRADOS, true)) {
+        // Resuelto de verdad, no solo "cerrado": una disputa sigue viva.
+        if (in_array($match->status, self::ESTADOS_RESUELTOS, true)) {
             return true;
         }
 

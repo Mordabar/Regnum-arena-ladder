@@ -257,7 +257,14 @@ function aQuienElijeElDuelo(int $distancia): string
 
     app(ArenaMatchmakingService::class)->processQueue();
 
-    return rivalDe($yo)?->id === $espejo->id ? 'espejo' : 'clavado';
+    // Sin esto, el helper no distingue "gano el MMR" de "no se emparejo a
+    // nadie": sin partida, rivalDe() devuelve null y la comparacion informaria
+    // 'clavado', que es justo lo que el barrido espera en 60 de sus 61 pasos.
+    // O sea, el test entero saldria verde con el emparejador muerto.
+    $rival = rivalDe($yo);
+    expect($rival)->not->toBeNull("a distancia {$distancia} no se emparejo a nadie");
+
+    return $rival->id === $espejo->id ? 'espejo' : 'clavado';
 }
 
 it('la preferencia nunca impone un rival que encaje mucho peor de MMR', function () {
@@ -702,4 +709,117 @@ it('el laboratorio corre un duelo entero con bots, de la cola al resultado', fun
         expect($duelo->results()->count())->toBe(2)
             ->and($duelo->winner_team)->not->toBeNull();
     }
+});
+
+// ------------------------------------------------------ carreras entre rutas
+
+it('aceptar mientras el rival rechaza no deja la cuenta bloqueada para siempre', function () {
+    // La carrera: los dos botones viven en la misma pantalla y en un duelo hay
+    // exactamente una persona al otro lado con "Rechazar" delante.
+    //
+    // Antes, aceptar leia su fila de cola sin candado y la escribia despues.
+    // Entre esos dos momentos cabia entero el rechazo del rival: cancelMatch
+    // devolvia la fila a 'waiting' y borraba el cruce, y el UPDATE de aceptar
+    // la dejaba luego en 'accepted' apuntando a un match que ya no existe.
+    //
+    // De ahi no salia por ningun lado: join() bloquea la cuenta entera por
+    // tener una cola activa, leave() solo busca 'waiting', y ni la limpieza
+    // automatica ni el emparejador miran nada que no sea 'waiting'. La cuenta
+    // se quedaba fuera del ladder con todos sus personajes.
+    $yo = duelistaEn('race-a', 'alsius', 'knight');
+    $rival = duelistaEn('race-b', 'ignis', 'knight');
+    encolarDuelista($yo);
+    encolarDuelista($rival);
+
+    app(ArenaMatchmakingService::class)->processQueue();
+    $match = ArenaMatch::query()->where('arena_mode', ArenaMode::ONE_V_ONE)->firstOrFail();
+
+    // El rival rechaza primero: el cruce se descarta entero.
+    app(ArenaMatchmakingService::class)->cancelMatch($match, 'player_rejected', $rival->id, false);
+
+    expect(ArenaMatch::query()->whereKey($match->getKey())->exists())->toBeFalse();
+
+    // Y ahora llega mi "aceptar", tarde. No puede dejar la fila en 'accepted'.
+    $this->actingAs($yo->user)->post(route('matches.accept'), [
+        'match_id' => $match->id,
+        'player_id' => $yo->id,
+    ]);
+
+    $mia = Queue::query()->where('player_id', $yo->id)->latest('id')->first();
+
+    // Rechazar por parte del rival me devuelve a la cola, asi que lo correcto
+    // es quedarme esperando otro cruce. Lo que NO puede pasar es quedarme en
+    // 'accepted' apuntando a un match borrado, que es la fila de la que no se
+    // sale por ningun lado.
+    expect($mia?->status)->toBe('waiting')
+        ->and($mia?->match_id)->toBeNull();
+
+    // Y el emparejador vuelve a verme: sigo vivo en el ladder.
+    encolarDuelista(duelistaEn('race-c', 'ignis', 'knight'));
+
+    expect(app(ArenaMatchmakingService::class)->processQueue())->toBe(1);
+});
+
+it('el mantenimiento recoge una cola que apunta a un match que ya no existe', function () {
+    // La red de debajo, para las filas que ya quedaran rotas en produccion
+    // antes del candado. Sin esto, la unica salida era un UPDATE a mano.
+    $yo = duelistaEn('huerf-a', 'alsius', 'knight');
+
+    $cola = Queue::create([
+        'player_id' => $yo->id,
+        'queue_type' => 'random',
+        'arena_mode' => ArenaMode::ONE_V_ONE,
+        'status' => 'accepted',
+        'match_id' => '999999',
+        'estimated_mmr' => 1000,
+        'joined_at' => now()->subMinutes(10),
+    ]);
+
+    // Antes de barrer, la cuenta esta bloqueada: no puede entrar a la cola.
+    $this->actingAs($yo->user)->post(route('queue.join'), [
+        'player_id' => $yo->id,
+        'queue_type' => 'random',
+        'arena_mode' => ArenaMode::ONE_V_ONE,
+    ])->assertSessionHasErrors('error');
+
+    expect(app(\App\Services\ArenaMaintenanceService::class)->cleanupOrphanQueues())->toBe(1);
+    expect($cola->fresh()->status)->toBe('cancelled');
+
+    // Y ya puede volver a jugar.
+    $this->actingAs($yo->user)->post(route('queue.join'), [
+        'player_id' => $yo->id,
+        'queue_type' => 'random',
+        'arena_mode' => ArenaMode::ONE_V_ONE,
+    ])->assertSessionHasNoErrors();
+});
+
+it('nadie se empareja contra si mismo con dos personajes de reinos distintos', function () {
+    // Se permiten cinco personajes por cuenta y pueden ser de reinos distintos.
+    // evaluateQueueTeam ya impedia dos personajes de la misma cuenta DENTRO de
+    // un equipo, pero entre los dos bandos no lo miraba nadie: en un duelo eso
+    // es pelear contra uno mismo y regalarse victorias, PL y MMR.
+    //
+    // Por la pantalla no se llega -join() bloquea la cuenta entera-, pero el
+    // laboratorio de bots encola por personaje, asi que el guard tiene que
+    // estar en el emparejador y no solo en el controlador.
+    $uno = duelistaEn('mismo-a', 'alsius', 'knight');
+
+    $dos = Player::create([
+        'user_id' => $uno->user_id,
+        'character_name' => 'MismoDos',
+        'subclass' => 'knight',
+        'realm' => 'ignis',
+        'pl_points' => 30,
+        'mmr' => 1000,
+        'trust_score' => 100,
+        'matches_played' => 0,
+        'wins' => 0,
+        'losses' => 0,
+        'is_active' => true,
+    ]);
+
+    encolarDuelista($uno);
+    encolarDuelista($dos);
+
+    expect(app(ArenaMatchmakingService::class)->processQueue())->toBe(0);
 });

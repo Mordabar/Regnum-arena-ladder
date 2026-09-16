@@ -33,6 +33,7 @@ class ArenaMaintenanceService
             ];
         }
 
+        $orphanQueues = $this->cleanupOrphanQueues();
         $staleQueues = $this->cleanupStaleWaitingQueues();
         $expiredMatches = $this->matchmakingService->expirePendingAcceptanceMatches(false);
         // Despues de expirar matches: al cancelarlos se reencola a los jugadores
@@ -45,6 +46,7 @@ class ArenaMaintenanceService
         return [
             'skipped' => false,
             'reason' => null,
+            'orphan_queues' => $orphanQueues,
             'stale_queues' => $staleQueues,
             'disabled_mode_queues' => $disabledModeQueues,
             'expired_matches' => $expiredMatches,
@@ -105,6 +107,58 @@ class ArenaMaintenanceService
         ]);
 
         return $stuckQueues->count();
+    }
+
+    /**
+     * Cierra las colas que apuntan a un enfrentamiento que ya no existe.
+     *
+     * Son huerfanas: 'matched' o 'accepted' con un match_id que no esta en la
+     * tabla, o sin match_id ninguno. Un estado del que el jugador no sale por
+     * ningun lado: join() le bloquea la cuenta entera por tener una cola activa,
+     * leave() solo busca 'waiting', y ni la limpieza de caducadas ni el
+     * emparejador miran nada que no sea 'waiting'. O sea, fuera del ladder para
+     * siempre, con todos sus personajes, hasta que un admin lo saque a mano.
+     *
+     * La carrera que las creaba -aceptar mientras el rival rechaza- ya esta
+     * cerrada con un candado en ArenaMatchController::accept(). Esto es la red
+     * de debajo: recoge las que quedaran de antes en produccion y cualquier otra
+     * que aparezca por un camino que no hayamos visto.
+     */
+    public function cleanupOrphanQueues(): int
+    {
+        $huerfanas = Queue::query()
+            ->whereIn('status', ['matched', 'accepted'])
+            ->where(function ($query) {
+                $query->whereNull('match_id')
+                    ->orWhereNotExists(function ($sub) {
+                        $sub->selectRaw('1')
+                            ->from('matches')
+                            ->whereColumn('matches.id', 'queues.match_id');
+                    });
+            })
+            ->pluck('id');
+
+        if ($huerfanas->isEmpty()) {
+            return 0;
+        }
+
+        Queue::query()
+            ->whereIn('id', $huerfanas)
+            ->update([
+                'status' => 'cancelled',
+                'matched_at' => null,
+                'expires_at' => null,
+                'team_id' => null,
+                'match_id' => null,
+            ]);
+
+        $this->releaseQueuedPartiesWithoutQueues();
+
+        Log::warning('ArenaMaintenanceService cerro colas huerfanas', [
+            'queues' => $huerfanas->count(),
+        ]);
+
+        return $huerfanas->count();
     }
 
     public function cleanupStaleWaitingQueues(): int
