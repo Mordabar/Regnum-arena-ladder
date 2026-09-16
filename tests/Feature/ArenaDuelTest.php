@@ -547,3 +547,159 @@ it('en un duelo, tras avisar del rival ya no se ofrece reportar abandono', funct
         ->assertOk()
         ->assertDontSee('data-abandonment-panel', false);
 });
+
+// ------------------------------------------------- conjurador y cola atascada
+
+it('un conjurador entra al duelo sin elegir rol, y entra ofensivo', function () {
+    // En equipos el rol es obligatorio -la regla es "un soporte por equipo"-.
+    // En el duelo no hay a quien apoyar, asi que no se pregunta y se fija
+    // ofensivo. Antes esta misma peticion se rechazaba con "Elige el rol del
+    // conjurador" y el conjurador no podia entrar al duelo por la pantalla.
+    $mago = duelistaEn('rol-a', 'alsius', 'conjurer');
+
+    $this->actingAs($mago->user)->post(route('queue.join'), [
+        'player_id' => $mago->id,
+        'queue_type' => 'random',
+        'arena_mode' => ArenaMode::ONE_V_ONE,
+    ])->assertSessionHasNoErrors();
+
+    expect(Queue::query()->where('player_id', $mago->id)->value('conjurer_role'))->toBe('offensive');
+});
+
+it('en 2v2 el conjurador sigue teniendo que elegir rol', function () {
+    // La red de seguridad: quitar la pregunta en el duelo no podia quitarla en
+    // las modalidades donde la regla de plantilla si existe.
+    foreach (ArenaMode::all() as $mode) {
+        AppSetting::setValue(ArenaMode::settingKey($mode), '1', 'modes', 'boolean', true);
+    }
+
+    $mago = duelistaEn('rol-b', 'alsius', 'conjurer');
+
+    $this->actingAs($mago->user)->post(route('queue.join'), [
+        'player_id' => $mago->id,
+        'queue_type' => 'random',
+        'arena_mode' => ArenaMode::TWO_V_TWO,
+    ])->assertSessionHasErrors('error');
+
+    expect(Queue::query()->where('player_id', $mago->id)->exists())->toBeFalse();
+});
+
+it('la pantalla del duelo no pide el rol del conjurador', function () {
+    $mago = duelistaEn('rol-c', 'alsius', 'conjurer');
+
+    $this->actingAs($mago->user)
+        ->get(route('lobby', ['mode' => ArenaMode::ONE_V_ONE]))
+        ->assertOk()
+        ->assertDontSee('Rol del conjurador')
+        ->assertDontSee('name="conjurer_role"', false);
+});
+
+it('ningun par de duelistas de reinos distintos se queda sin emparejar', function () {
+    // Lo que no puede pasar nunca: gente en cola y sin partidas. La preferencia
+    // de estilo ORDENA, no filtra, asi que cualquier combinacion de subclases
+    // se empareja en el primer barrido. Se prueba con las 36 parejas posibles,
+    // brujo contra barbaro incluido.
+    $subclases = array_keys(\App\Models\Player::SUBCLASSES);
+
+    foreach ($subclases as $i => $unaSubclase) {
+        foreach ($subclases as $j => $otraSubclase) {
+            Queue::query()->delete();
+            ArenaMatch::query()->delete();
+            Player::query()->delete();
+            User::query()->delete();
+
+            $a = duelistaEn("par-{$i}-{$j}-a", 'alsius', $unaSubclase);
+            $b = duelistaEn("par-{$i}-{$j}-b", 'ignis', $otraSubclase);
+            encolarDuelista($a);
+            encolarDuelista($b);
+
+            expect(app(ArenaMatchmakingService::class)->processQueue())
+                ->toBe(1, "{$unaSubclase} contra {$otraSubclase} no se emparejo");
+        }
+    }
+});
+
+it('con muchos duelistas en cola no queda nadie sin pareja', function () {
+    // Ocho duelistas de estilos mezclados: cuatro duelos y cero esperando. El
+    // emparejador es avido y podria dejar a alguien colgado si la preferencia
+    // llegara a funcionar como filtro en vez de como orden.
+    $estilos = ['hunter', 'warlock', 'knight', 'conjurer'];
+
+    foreach ($estilos as $i => $subclase) {
+        encolarDuelista(duelistaEn("mul-a{$i}", 'alsius', $subclase, 1000 + $i * 7));
+        encolarDuelista(duelistaEn("mul-b{$i}", 'ignis', $estilos[3 - $i], 1000 + $i * 11));
+    }
+
+    expect(app(ArenaMatchmakingService::class)->processQueue())->toBe(4);
+
+    expect(Queue::query()->where('status', 'waiting')->whereNull('match_id')->count())->toBe(0);
+});
+
+// ------------------------------------------------ laboratorio de bots en 1v1
+
+/** La sesion del panel, como en el resto de tests del admin. */
+function sesionPanelDuelo(): array
+{
+    return [
+        'arena_admin.authenticated' => true,
+        'arena_admin.account_id' => 1,
+        'arena_admin.username' => 'admin',
+        'arena_admin.display_name' => 'admin',
+    ];
+}
+
+it('el laboratorio corre un duelo entero con bots, de la cola al resultado', function () {
+    // Lo unico que se cerro en 1v1 fue "que un bot me invite", que es una party
+    // y en duelo no existe. Encolar bots, emparejar, aceptar y cerrar tiene que
+    // seguir funcionando igual, porque es la unica forma de probar la modalidad
+    // sin dos personas de verdad.
+    $panel = sesionPanelDuelo();
+
+    $this->withSession($panel)->post(route('admin.testing.seed'), [
+        'ignis_count' => 4,
+        'syrtis_count' => 0,
+        'alsius_count' => 4,
+        'replace_existing' => 1,
+    ])->assertSessionHasNoErrors();
+
+    foreach (['ignis', 'alsius'] as $reino) {
+        $this->withSession($panel)->post(route('admin.testing.enqueue-realm'), [
+            'realm' => $reino,
+            'count' => 4,
+            'arena_mode' => ArenaMode::ONE_V_ONE,
+        ])->assertSessionHasNoErrors();
+    }
+
+    // enqueue-realm ya llama al emparejamiento, pero se pulsa igual el boton
+    // "Emparejar la cola" del panel, que es lo que hara quien pruebe.
+    $this->withSession($panel)->post(route('admin.testing.process'))
+        ->assertSessionHasNoErrors();
+
+    $duelos = ArenaMatch::query()->where('arena_mode', ArenaMode::ONE_V_ONE)->get();
+
+    expect($duelos)->toHaveCount(4)
+        ->and($duelos->every(fn (ArenaMatch $m) => (int) $m->player_count === 2))->toBeTrue()
+        // Cuatro bots por reino y ni uno esperando: la cola no se atasca.
+        ->and(Queue::query()->where('status', 'waiting')->whereNull('match_id')->count())->toBe(0);
+
+    $this->withSession($panel)->post(route('admin.testing.accept'))
+        ->assertSessionHasNoErrors();
+
+    expect(ArenaMatch::query()->where('arena_mode', ArenaMode::ONE_V_ONE)
+        ->where('status', 'in_progress')->count())->toBe(4);
+
+    $this->withSession($panel)->post(route('admin.testing.resolve-all'))
+        ->assertSessionHasNoErrors();
+
+    $cerrados = ArenaMatch::query()->where('arena_mode', ArenaMode::ONE_V_ONE)
+        ->where('status', 'completed')->get();
+
+    expect($cerrados)->toHaveCount(4);
+
+    // Y el ladder se movio: dos filas de resultado por duelo, un ganador y un
+    // perdedor en cada uno.
+    foreach ($cerrados as $duelo) {
+        expect($duelo->results()->count())->toBe(2)
+            ->and($duelo->winner_team)->not->toBeNull();
+    }
+});

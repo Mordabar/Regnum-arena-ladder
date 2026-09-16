@@ -464,14 +464,17 @@ class QueueHubController extends Controller
 
             // Falta de rol no es una averia del sistema: es algo que el jugador
             // puede arreglar, asi que se le dice en vez de dejarlo caer en el
-            // "no se pudo crear la cola" de mas abajo.
-            if ($player->subclass === 'conjurer' && !in_array($request->conjurer_role, ['support', 'offensive'], true)) {
+            // "no se pudo crear la cola" de mas abajo. En el duelo no se pide:
+            // ahi el rol se fija en ofensivo porque no hay a quien apoyar.
+            if ($player->subclass === 'conjurer'
+                && ArenaMode::supportsPremade($arenaMode)
+                && !in_array($request->conjurer_role, ['support', 'offensive'], true)) {
                 return back()->withErrors([
                     'error' => 'Elige el rol del conjurador -soporte u ofensivo- antes de entrar a la cola.',
                 ]);
             }
 
-            $conjurerRole = $this->resolveConjurerRoleForPlayer($player, $request->conjurer_role);
+            $conjurerRole = $this->resolveConjurerRoleForPlayer($player, $request->conjurer_role, $arenaMode);
 
             // Comprobar y crear dentro de una transaccion con los personajes de
             // la cuenta bloqueados: sin esto, dos peticiones simultaneas (doble
@@ -1151,10 +1154,23 @@ class QueueHubController extends Controller
         }
     }
 
-    private function resolveConjurerRoleForPlayer(Player $player, ?string $role): ?string
+    /**
+     * El rol con el que entra un conjurador a la cola.
+     *
+     * En el duelo no se pregunta: un conjurador que entra a pelear solo tiene
+     * que hacer daño, porque no hay a quien apoyar. Ademas el rol solo existe
+     * para una regla de plantilla -"un soporte por equipo"- que con equipos de
+     * uno no significa nada. Asi que en 1v1 se fija ofensivo y punto; en 2v2 y
+     * 3v3 sigue siendo obligatorio elegir.
+     */
+    private function resolveConjurerRoleForPlayer(Player $player, ?string $role, ?string $arenaMode = null): ?string
     {
         if ($player->subclass !== 'conjurer') {
             return null;
+        }
+
+        if (!ArenaMode::supportsPremade($arenaMode ?? ArenaMode::FALLBACK)) {
+            return 'offensive';
         }
 
         if (!in_array($role, ['support', 'offensive'], true)) {
@@ -1253,7 +1269,7 @@ class QueueHubController extends Controller
             'queue_type' => 'random',
             'arena_mode' => $sandboxMode,
             'status' => 'waiting',
-            'conjurer_role' => $this->assignSandboxConjurerRole($player),
+            'conjurer_role' => $this->assignSandboxConjurerRole($player, $sandboxMode),
             'estimated_mmr' => $player->mmr ?? 800,
             'joined_at' => now(),
             'expires_at' => now()->addMinutes(30),
@@ -1306,7 +1322,7 @@ class QueueHubController extends Controller
                 'queue_type' => 'random',
                 'arena_mode' => $arenaMode,
                 'status' => 'waiting',
-                'conjurer_role' => $this->assignSandboxConjurerRole($player),
+                'conjurer_role' => $this->assignSandboxConjurerRole($player, $arenaMode),
                 'estimated_mmr' => $player->mmr ?? 800,
                 'joined_at' => now(),
                 'expires_at' => now()->addMinutes(30),
@@ -1974,10 +1990,16 @@ class QueueHubController extends Controller
             ->exists();
     }
 
-    private function assignSandboxConjurerRole(Player $player): ?string
+    private function assignSandboxConjurerRole(Player $player, ?string $arenaMode = null): ?string
     {
         if ($player->subclass !== 'conjurer') {
             return null;
+        }
+
+        // Los bots juegan con las mismas reglas que la gente: en el duelo, el
+        // conjurador entra ofensivo siempre.
+        if (!ArenaMode::supportsPremade($arenaMode ?? ArenaMode::FALLBACK)) {
+            return 'offensive';
         }
 
         return random_int(1, 100) <= 30 ? 'support' : 'offensive';

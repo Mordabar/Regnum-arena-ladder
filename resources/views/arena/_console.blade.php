@@ -205,7 +205,11 @@
                              de un juego: lo que se puede hacer con el guerrero
                              que estas viendo, dentro de su propio panel. --}}
                         @if($canJoinQueue)
-                            @if($modesAreOpen && !$activeParty)
+                            {{-- En el duelo no se pregunta el rol: un conjurador
+                                 que entra a pelear solo tiene que hacer daño,
+                                 porque no hay a quien apoyar. El servidor lo fija
+                                 en ofensivo, asi que el campo sobra. --}}
+                            @if($modesAreOpen && !$activeParty && $premadeSupported)
                                 {{-- Un conjurador entra a cola como soporte o
                                      como ofensivo, y el emparejamiento cuenta
                                      los dos por separado. El campo se pinta
@@ -224,21 +228,6 @@
                                         <option value="offensive">Ofensivo</option>
                                         <option value="support">Soporte</option>
                                     </select>
-                                    @if(!$premadeSupported)
-                                        {{-- En el duelo el rol no cambia nada del
-                                             emparejamiento -la regla de "un solo
-                                             soporte por equipo" no tiene sentido
-                                             con equipos de uno-, pero el
-                                             desplegable seguia ofreciendo Soporte
-                                             sin una palabra de contexto. Se avisa
-                                             en vez de decidir por el jugador: es
-                                             su personaje y su build. --}}
-                                        <p class="arena-queue-hint">
-                                            En el duelo el rol no cambia con quien te emparejan. Un
-                                            soporte puro no tiene a quien apoyar, asi que peleara en
-                                            desventaja.
-                                        </p>
-                                    @endif
                                 </div>
                             @endif
 

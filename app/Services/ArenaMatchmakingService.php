@@ -1257,7 +1257,12 @@ class ArenaMatchmakingService
 
         $profile = $this->buildQueueTeamProfile($team);
 
-        if ($profile['support_conjurers'] > 1 || $profile['invalid_conjurer_roles'] > 0) {
+        // El rol del conjurador es una regla de plantilla -"un soporte por
+        // equipo"- y solo se exige donde hay plantilla. En el duelo no se
+        // pregunta, se fija ofensivo al encolar, y una fila antigua o un dato
+        // raro con el rol en blanco no puede dejar a alguien esperando para
+        // siempre en una cola donde la regla ni existe.
+        if ($teamSize >= 2 && ($profile['support_conjurers'] > 1 || $profile['invalid_conjurer_roles'] > 0)) {
             return null;
         }
 
