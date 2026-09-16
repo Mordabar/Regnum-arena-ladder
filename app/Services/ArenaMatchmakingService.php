@@ -39,6 +39,12 @@ class ArenaMatchmakingService
      * prohibicion.
      */
     private const RECENT_OPPONENT_PENALTY = 5000;
+
+    /** Donde se apuntan las parejas de los cruces que se borran sin jugarse. */
+    private const RIVALES_ANOTADOS_KEY = 'arena:rivales-recientes';
+
+    /** Tope de parejas anotadas, para que la clave no crezca sin freno. */
+    private const RIVALES_ANOTADOS_TOPE = 5000;
     private const LIGHT_OVERLAP_PAIRING_PENALTY = 180;
     private const TEAM_SEARCH_WINDOW = 10;
     private const TEAM_DUPLICATE_SUBCLASS_PENALTY = 14;
@@ -280,7 +286,10 @@ class ArenaMatchmakingService
             return $this->barrerCola($expirePendingMatches, $ignorarEspera);
         }
 
-        if ($this->colaDemasiadoGrandeParaLaPeticion()) {
+        // Quien fuerza el reparto -los botones del panel- tampoco cede el turno
+        // al reloj: es la unica palanca manual que le queda al admin, y es justo
+        // cuando hay cola cuando la va a pulsar.
+        if (!$ignorarEspera && $this->colaDemasiadoGrandeParaLaPeticion()) {
             Log::info('ArenaMatchmakingService: la cola es grande, se deja el reparto al reloj.', [
                 'esperando' => $this->cuantosEsperan(),
             ]);
@@ -398,9 +407,12 @@ class ArenaMatchmakingService
             ->where('queue_type', 'random')
             ->whereIn('arena_mode', $enabledModes)
             ->where('status', 'waiting')
-            // Sin joined_at no hay forma de saber cuando llego, y una fila que
-            // no madura nunca es una persona en cola para siempre. Se da por
-            // madura: mas vale emparejarla de mas que dejarla ahi.
+            // La columna es NOT NULL, asi que hoy este OR no salva a nadie: es
+            // un seguro barato por si algun dia se hace nullable o aparece una
+            // fila de un esquema viejo. Una fila que no madura nunca seria una
+            // persona en cola para siempre, y eso no puede depender de que nadie
+            // toque la migracion. La red de verdad contra atascarse es
+            // expires_at, pero esa CANCELA la cola en vez de emparejarla.
             ->where(function ($query) use ($maduros) {
                 $query->whereNull('joined_at')
                     ->orWhere('joined_at', '<=', $maduros);
@@ -424,9 +436,12 @@ class ArenaMatchmakingService
             ->where('queue_type', 'premade')
             ->whereIn('arena_mode', $enabledModes)
             ->where('status', 'waiting')
-            // Sin joined_at no hay forma de saber cuando llego, y una fila que
-            // no madura nunca es una persona en cola para siempre. Se da por
-            // madura: mas vale emparejarla de mas que dejarla ahi.
+            // La columna es NOT NULL, asi que hoy este OR no salva a nadie: es
+            // un seguro barato por si algun dia se hace nullable o aparece una
+            // fila de un esquema viejo. Una fila que no madura nunca seria una
+            // persona en cola para siempre, y eso no puede depender de que nadie
+            // toque la migracion. La red de verdad contra atascarse es
+            // expires_at, pero esa CANCELA la cola en vez de emparejarla.
             ->where(function ($query) use ($maduros) {
                 $query->whereNull('joined_at')
                     ->orWhere('joined_at', '<=', $maduros);
@@ -594,7 +609,79 @@ class ArenaMatchmakingService
             return;
         }
 
+        // Antes de que desaparezca: se apunta quien se cruzo con quien.
+        //
+        // Sin esto, el descanso entre revanchas no servia para NADA en el unico
+        // caso donde de verdad hace falta. El descanso se calcula leyendo
+        // `matches`, y aqui la fila se esta borrando: rechazar, dejar pasar el
+        // plazo de aceptacion o cancelar borran el rastro del cruce, asi que
+        // quien cancelaba y volvia a entrar se reencontraba con el mismo rival
+        // al instante. Que es, palabra por palabra, lo que se venia a arreglar.
+        $this->anotarRivalesDeUnCruceBorrado($match);
+
         $match->delete();
+    }
+
+    /**
+     * Guarda en cache las parejas de un cruce que se va a borrar.
+     *
+     * Una sola clave con todas las parejas y su hora, podada al escribir. Con
+     * claves sueltas no habria forma de recuperarlas -no se puede listar la
+     * cache por prefijo-, y preguntar cruce a cruce serian miles de lecturas
+     * por barrido.
+     *
+     * Si dos procesos escriben a la vez, uno puede pisar al otro y perderse una
+     * anotacion. Se acepta: lo peor que pasa es que a alguien le vuelva a tocar
+     * el mismo rival, que es exactamente lo que pasaba siempre hasta ahora.
+     */
+    private function anotarRivalesDeUnCruceBorrado(ArenaMatch $match): void
+    {
+        $minutos = $this->minutosDeDescanso();
+
+        if ($minutos <= 0) {
+            return;
+        }
+
+        $ladoA = array_values(array_filter(array_map('intval', $match->getTeamPlayerIds('team_a'))));
+        $ladoB = array_values(array_filter(array_map('intval', $match->getTeamPlayerIds('team_b'))));
+
+        if ($ladoA === [] || $ladoB === []) {
+            return;
+        }
+
+        $ahora = now()->timestamp;
+        $lista = $this->rivalesAnotados($ahora - $minutos * 60);
+
+        foreach ($ladoA as $unoA) {
+            foreach ($ladoB as $unoB) {
+                $lista[$this->claveDeRivales($unoA, $unoB)] = $ahora;
+            }
+        }
+
+        // Tope duro por si alguna vez la poda por tiempo no basta: se quedan las
+        // mas recientes, que son las que importan.
+        if (count($lista) > self::RIVALES_ANOTADOS_TOPE) {
+            arsort($lista);
+            $lista = array_slice($lista, 0, self::RIVALES_ANOTADOS_TOPE, true);
+        }
+
+        Cache::put(self::RIVALES_ANOTADOS_KEY, $lista, now()->addMinutes($minutos + 1));
+    }
+
+    /**
+     * Las parejas anotadas que siguen dentro del descanso.
+     *
+     * @return array<string, int>
+     */
+    private function rivalesAnotados(int $desde): array
+    {
+        $lista = Cache::get(self::RIVALES_ANOTADOS_KEY, []);
+
+        if (!is_array($lista)) {
+            return [];
+        }
+
+        return array_filter($lista, fn ($cuando) => is_int($cuando) && $cuando >= $desde);
     }
 
     public function cancelMatch(
@@ -667,7 +754,10 @@ class ArenaMatchmakingService
                                         'expires_at' => now()->addMinutes(30),
                                         'team_id' => null,
                                         'match_id' => null,
-                                        'joined_at' => now(),
+                                        // joined_at NO se toca: quien vuelve a
+                                        // la cola porque otro tumbo el cruce ya
+                                        // hizo su espera, y no tiene por que
+                                        // hacerla otra vez por culpa ajena.
                                     ]);
                             }
                         }
@@ -683,7 +773,7 @@ class ArenaMatchmakingService
                                     'expires_at' => now()->addMinutes(30),
                                     'team_id' => null,
                                     'match_id' => null,
-                                    'joined_at' => now(),
+                                    // joined_at NO se toca: ya espero su turno una vez.
                                 ]);
                         }
                     }
@@ -2135,7 +2225,7 @@ class ArenaMatchmakingService
                 'matched_at' => null,
                 'expires_at' => now()->addMinutes(30),
                 'match_id' => null,
-                'joined_at' => now(),
+                // joined_at NO se toca: ya espero su turno una vez.
             ]);
     }
 
@@ -2154,7 +2244,7 @@ class ArenaMatchmakingService
                     'expires_at' => now()->addMinutes(30),
                     'team_id' => null,
                     'match_id' => null,
-                    'joined_at' => now(),
+                    // joined_at NO se toca: ya espero su turno una vez.
                 ]);
         }
 
@@ -2324,7 +2414,7 @@ class ArenaMatchmakingService
      */
     private function minutosDeDescanso(): int
     {
-        $porDefecto = (int) config('arena.rematch_cooldown_minutes', 2);
+        $porDefecto = (int) config('arena.rematch_rest_minutes', 2);
         $minutos = (int) AppSetting::getValue('rematch_rest_minutes', $porDefecto);
 
         return max(0, min(720, $minutos));
@@ -2355,7 +2445,9 @@ class ArenaMatchmakingService
             return [];
         }
 
-        $rivales = [];
+        // Los cruces que nunca llegaron a jugarse ya no estan en la tabla: se
+        // borran al cancelarlos. Sus parejas quedaron anotadas aparte.
+        $rivales = array_map(fn () => true, $this->rivalesAnotados(now()->timestamp - $minutos * 60));
 
         ArenaMatch::query()
             // Solo las tres columnas que se miran. Esto corre dentro de la
@@ -2364,8 +2456,12 @@ class ArenaMatchmakingService
             // doce horas seria pagar la memoria de media jornada por una lista
             // de parejas de numeros.
             ->select(['id', 'team_a', 'team_b'])
+            // El filtro, el orden y el indice, los tres por created_at: pedir
+            // el orden por id empuja al motor a recorrer la clave primaria
+            // hacia atras hasta juntar el tope, y con dos minutos de ventana
+            // casi nunca hay tantas, asi que se recorreria la tabla entera.
             ->where('created_at', '>=', now()->subMinutes($minutos))
-            ->orderByDesc('id')
+            ->orderByDesc('created_at')
             ->limit(2000)
             ->get()
             ->each(function (ArenaMatch $match) use (&$rivales) {

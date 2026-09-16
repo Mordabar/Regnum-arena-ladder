@@ -85,7 +85,7 @@ function partidaPrevia(Player $a, Player $b, string $status, int $haceSegundos):
 {
     static $n = 8000;
 
-    return ArenaMatch::create([
+    $match = ArenaMatch::create([
         'match_code' => 'ESP-' . (++$n),
         'report_token' => 'tok-esp-' . $n,
         'queue_mode' => 'random',
@@ -98,8 +98,16 @@ function partidaPrevia(Player $a, Player $b, string $status, int $haceSegundos):
         'status' => $status,
         'estimated_mmr_avg' => 1000,
         'player_count' => 2,
-        'created_at' => now()->subSeconds($haceSegundos),
     ]);
+
+    // Eloquent pone su propio created_at al insertar, asi que pasarlo en el
+    // array no sirve de nada: hay que escribirlo despues, y sin tocar los
+    // timestamps otra vez.
+    ArenaMatch::query()
+        ->where('id', $match->id)
+        ->update(['created_at' => now()->subSeconds($haceSegundos)]);
+
+    return $match->refresh();
 }
 
 function empareja(bool $ignorarEspera = false): int
@@ -109,7 +117,11 @@ function empareja(bool $ignorarEspera = false): int
 
 function rivalActualDe(Player $player): ?int
 {
+    // El mas reciente, no el primero que salga: los fixtures de partidas previas
+    // se crean ANTES del reparto, asi que sin ordenar esto devolvia siempre el
+    // rival viejo y el test pasaba hiciera lo que hiciera el emparejador.
     $match = ArenaMatch::query()
+        ->orderByDesc('id')
         ->get()
         ->first(function (ArenaMatch $m) use ($player) {
             return in_array($player->id, $m->getTeamPlayerIds('team_a'), true)
@@ -324,4 +336,37 @@ it('el check de borrar los bots que ya existan se respeta en los dos sentidos', 
 
     expect($trasReemplazar)->toHaveCount(1)
         ->and($trasReemplazar->intersect($trasSumar)->count())->toBe(0);
+});
+
+it('rechazar la partida tampoco te devuelve al mismo rival', function () {
+    // Este es EL caso, y estuvo roto en el primer intento: el descanso se
+    // calculaba leyendo la tabla de enfrentamientos, y un cruce que nadie acepta
+    // se BORRA de esa tabla. O sea que rechazar, dejar pasar el plazo o cancelar
+    // borraban la prueba de que os habiais cruzado, y al volver a entrar te
+    // tocaba el mismo al instante. Justo lo que se venia a arreglar.
+    AppSetting::setValue('matchmaking_hold_seconds', 0, 'runtime', 'integer', false);
+    AppSetting::setValue('rematch_rest_minutes', 2, 'runtime', 'integer', false);
+
+    $uno = jugadorEnEspera('rech-uno', 'ignis', 1000);
+    $rechaza = jugadorEnEspera('rech-dos', 'alsius', 1000);
+
+    expect(empareja())->toBe(1);
+
+    $cruce = ArenaMatch::query()->latest('id')->firstOrFail();
+
+    app(ArenaMatchmakingService::class)->cancelMatch($cruce, 'declined', $rechaza->id, false);
+
+    // El cruce ya no existe en la tabla: el rastro tiene que estar en otro sitio.
+    expect(ArenaMatch::count())->toBe(0);
+
+    // Los dos vuelven a la cola y entra alguien mas, que encaja peor por MMR.
+    Queue::query()->update(['status' => 'waiting', 'match_id' => null, 'matched_at' => null]);
+    $otro = jugadorEnEspera('rech-tres', 'alsius', 1150);
+
+    // El que rechazo sigue jugable si no hay nadie mas, pero habiendo alternativa
+    // le toca la alternativa.
+    app(Player::class)->newQuery()->whereKey($rechaza->id)->update(['queue_locked_until' => null]);
+
+    expect(empareja())->toBeGreaterThan(0)
+        ->and(rivalActualDe($uno->fresh()))->toBe($otro->id);
 });

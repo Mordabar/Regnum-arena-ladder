@@ -675,7 +675,7 @@ class AdminController extends Controller
             'discord_invite_url' => AppSetting::getValue('discord_invite_url', ''),
             'discord_server_label' => AppSetting::getValue('discord_server_label', ''),
             'matchmaking_hold_seconds' => AppSetting::getValue('matchmaking_hold_seconds', (int) config('arena.matchmaking_hold_seconds', 30)),
-            'rematch_rest_minutes' => AppSetting::getValue('rematch_rest_minutes', (int) config('arena.rematch_cooldown_minutes', 2)),
+            'rematch_rest_minutes' => AppSetting::getValue('rematch_rest_minutes', (int) config('arena.rematch_rest_minutes', 2)),
             'accept_window_minutes' => AppSetting::getValue('accept_window_minutes', 5),
             'hunt_window_minutes' => AppSetting::getValue('hunt_window_minutes', 30),
             'report_confirmation_window_minutes' => AppSetting::getValue('report_confirmation_window_minutes', 15),
@@ -749,6 +749,8 @@ class AdminController extends Controller
         AppSetting::setValue('support_contact', $validated['support_contact'] ?? '', 'branding', 'string', true);
         AppSetting::setValue('discord_invite_url', $validated['discord_invite_url'] ?? '', 'branding', 'string', true);
         AppSetting::setValue('discord_server_label', $validated['discord_server_label'] ?? '', 'branding', 'string', true);
+        // Un campo vacio llega como null y NO cambia nada: el ajuste se queda
+        // como estaba y la pagina se repinta con su valor, asi que no engaña.
         if (($validated['matchmaking_hold_seconds'] ?? null) !== null) {
             AppSetting::setValue('matchmaking_hold_seconds', $validated['matchmaking_hold_seconds'], 'runtime', 'integer', false);
         }

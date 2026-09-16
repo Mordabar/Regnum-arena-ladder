@@ -58,7 +58,7 @@ function encolarDuelista(Player $player, ?string $conjurerRole = null): Queue
         'status' => 'waiting',
         'conjurer_role' => $conjurerRole ?? ($player->subclass === 'conjurer' ? 'offensive' : null),
         'estimated_mmr' => $player->mmr,
-        'joined_at' => now(),
+        'joined_at' => now()->subMinutes(5),
         'expires_at' => now()->addMinutes(30),
     ]);
 }
@@ -169,7 +169,7 @@ it('nunca cruza un duelo contra un equipo de 2v2', function () {
             'arena_mode' => ArenaMode::TWO_V_TWO,
             'status' => 'waiting',
             'estimated_mmr' => $p->mmr,
-            'joined_at' => now(),
+            'joined_at' => now()->subMinutes(5),
             'expires_at' => now()->addMinutes(30),
         ]);
     }

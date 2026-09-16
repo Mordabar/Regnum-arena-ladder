@@ -48,7 +48,7 @@ function queueConceptPlayer(Player $player, ?string $conjurerRole = null): Queue
         'status' => 'waiting',
         'conjurer_role' => $conjurerRole,
         'estimated_mmr' => $player->mmr,
-        'joined_at' => now(),
+        'joined_at' => now()->subMinutes(5),
         'expires_at' => now()->addMinutes(30),
     ]);
 }

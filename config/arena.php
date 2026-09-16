@@ -25,8 +25,11 @@ return [
     | si de verdad no hay nadie mas, se repite igual antes que dejar a los dos
     | en cola.
     |
+    | Se llama igual en los tres sitios -aqui, el env y el ajuste del panel- a
+    | proposito: buscar "rematch_rest_minutes" tiene que encontrarlos todos.
+    |
     */
 
-    'rematch_cooldown_minutes' => (int) env('ARENA_REMATCH_COOLDOWN_MINUTES', 2),
+    'rematch_rest_minutes' => (int) env('ARENA_REMATCH_REST_MINUTES', 2),
 
 ];

@@ -482,6 +482,11 @@ class TestingLabService
 
         app(LadderCacheService::class)->forgetSummary();
 
+        // Una transaccion por tanda, no una para todo. El precio de trocear es
+        // que un fallo a mitad deja partidas borradas y los jugadores intactos;
+        // se asume porque la alternativa -una transaccion con miles de filas
+        // dentro- es la que tumbaba la peticion, y repetir el borrado termina
+        // el trabajo sin dañar nada.
         foreach ($matchIds->chunk(self::PURGE_CHUNK) as $tanda) {
             DB::transaction(function () use ($tanda, &$result) {
                 MatchResult::query()->whereIn('match_id', $tanda)->delete();

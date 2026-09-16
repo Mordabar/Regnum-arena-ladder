@@ -53,7 +53,7 @@ function duelistaCola(string $sufijo, string $realm, int $mmr, string $subclass 
         'status' => 'waiting',
         'conjurer_role' => $subclass === 'conjurer' ? 'offensive' : null,
         'estimated_mmr' => $mmr,
-        'joined_at' => now(),
+        'joined_at' => now()->subMinutes(5),
         'expires_at' => now()->addMinutes(30),
     ]);
 
@@ -367,7 +367,7 @@ it('una cuenta no se empareja contra si misma aunque sea el mejor cruce', functi
         'arena_mode' => ArenaMode::ONE_V_ONE,
         'status' => 'waiting',
         'estimated_mmr' => 1000,
-        'joined_at' => now(),
+        'joined_at' => now()->subMinutes(5),
         'expires_at' => now()->addMinutes(30),
     ]);
 

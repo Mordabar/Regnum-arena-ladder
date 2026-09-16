@@ -33,7 +33,8 @@ Tres cosas que conviene tener claras:
 - **No se acumula.** El reloj corre desde que entras, no desde la última pasada.
   Quien lleva un minuto en cola entra al reparto siguiente sin esperar más.
 - **El reparto siguiente llega solo.** El mantenimiento corre como mucho cada
-  15 segundos, así que la espera real es poco más que la configurada.
+  15 segundos. Sumando el sondeo de la pantalla, la espera real con 30
+  configurados son **45-60 segundos** en el peor caso, no 30 clavados.
 - **Los dos botones de "procesar la cola ahora" del panel la saltan**, que es
   justo para lo que están: ver qué sale con lo que hay en cola en ese momento.
   Eso es lo que permite meter varios bots, dejarlos esperando y mirar el reparto
@@ -65,12 +66,20 @@ el que hacía falta:
   volvía a entrar se reencontraba con el mismo rival al instante.
 - El de "hace un momento" mira **persona contra persona** y partidas en
   **cualquier estado**, por fecha de creación. La ventana son **2 minutos** por
-  defecto, ajustable en el panel.
+  defecto, ajustable en el panel. Cuenta también los cruces que **ya no
+  existen**: uno que nadie acepta se borra de la tabla, así que sus parejas se
+  apuntan aparte en caché justo antes de borrarlo. Sin eso, rechazar era la
+  forma de saltarse el descanso — y era justo el caso que había que cubrir.
 
-Los 5000 son deliberadamente absurdos: la cola entera cabe en dos mil puntos de
-MMR, así que cualquier alternativa legal gana. Pero es un recargo, no un veto:
-cuando de verdad no hay nadie más, el cruce repetido sigue siendo el único
-candidato y se hace igual. **La promesa nº 1 manda también aquí.**
+Los 5000 son **por persona repetida**: en 3v3, un equipo entero repetido son 9
+parejas, o sea 45000. Cuatro veces y media el recargo de 24 h, que en la tabla
+parece el grande y no lo es. Es a propósito: repetir a los seis es peor que
+repetir a uno.
+
+Y son deliberadamente absurdos. La cola entera cabe en dos mil puntos de MMR,
+así que cualquier alternativa legal gana. Pero es un recargo, no un veto: cuando
+de verdad no hay nadie más, el cruce repetido sigue siendo el único candidato y
+se hace igual. **La promesa nº 1 manda también aquí.**
 
 ## Los seis pasos
 

@@ -1283,7 +1283,7 @@ class QueueHubController extends Controller
         return back()->with('success', $player->character_name . ' entro a la cola sandbox.');
     }
 
-    public function sandboxEnqueueRealm(Request $request, TestingLabService $testingLabService, ArenaMatchmakingService $matchmakingService)
+    public function sandboxEnqueueRealm(Request $request, TestingLabService $testingLabService)
     {
         $this->ensureSandboxAccess();
 
@@ -1334,7 +1334,9 @@ class QueueHubController extends Controller
             ]);
         }
 
-        $matchmakingService->processQueue();
+        // Y NO se reparte aqui: los bots se quedan en cola a proposito, que es
+        // lo que permite meter unos cuantos y mirar como los reparte de una
+        // pasada. Barrer aqui ademas mentiria con la espera en cero.
 
         return back()->with('success', 'Se encolaron ' . $players->count() . ' bots de ' . ucfirst($validated['realm']) . ' en ' . $arenaMode . '. Se quedan esperando: pulsa "Procesar cola" cuando tengas dentro a todos los que quieras ver repartidos.');
     }

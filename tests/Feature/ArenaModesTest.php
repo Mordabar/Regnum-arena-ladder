@@ -58,7 +58,7 @@ function queueModePlayer(Player $player, string $mode): Queue
         'arena_mode' => $mode,
         'status' => 'waiting',
         'estimated_mmr' => $player->mmr,
-        'joined_at' => now(),
+        'joined_at' => now()->subMinutes(5),
         'expires_at' => now()->addMinutes(30),
     ]);
 }
@@ -339,7 +339,7 @@ it('canoniza la modalidad al guardar colas y partys', function () {
         'arena_mode' => '  3V3  ',
         'status' => 'waiting',
         'estimated_mmr' => 1000,
-        'joined_at' => now(),
+        'joined_at' => now()->subMinutes(5),
         'expires_at' => now()->addMinutes(30),
     ]);
 
