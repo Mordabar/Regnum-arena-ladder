@@ -77,17 +77,55 @@ class ArenaMatchmakingService
      */
     private const PAIRING_AUGMENT_ROUNDS = 8;
 
-    /** Vueltas de pulido alternando los dos tipos de mejora. */
+    /** Vueltas de pulido alternando los tipos de mejora. */
     private const PAIRING_POLISH_ROUNDS = 3;
+
+    /** Cuantos de los peores cruces se intentan desatascar moviendo tres. */
+    private const PAIRING_ROTATION_SEEDS = 12;
+
+    /** Cuantos vecinos de nivel entran en esas rotaciones. */
+    private const PAIRING_ROTATION_WINDOW = 4;
 
     /** Turno unico para emparejar, para que no barran varios a la vez. */
     private const PAIRING_LOCK = 'arena:emparejamiento';
 
-    /** Lo que dura el turno antes de caducar solo, en segundos. */
-    private const PAIRING_LOCK_TTL = 120;
+    /**
+     * Lo que dura el turno antes de caducar solo, en segundos.
+     *
+     * Es el tiempo que la cola se queda congelada si un proceso muere a media
+     * faena -en un hosting compartido, lo normal es que lo mate el limite de
+     * memoria o el de tiempo de la peticion-. Estaba en 120, y 120 segundos sin
+     * emparejar a nadie es una cola que crece y vuelve a matar al siguiente.
+     *
+     * Treinta da de sobra: el barrido mas lento medido con la cola razonable
+     * -240 esperando- son 1,4 segundos.
+     */
+    private const PAIRING_LOCK_TTL = 30;
 
-    /** Lo que espera quien llega y lo encuentra ocupado, en segundos. */
-    private const PAIRING_LOCK_WAIT = 6;
+    /**
+     * Lo que espera quien llega y lo encuentra ocupado, en segundos.
+     *
+     * Muy corto a proposito. Esperar sale caro: cada peticion que espera es un
+     * proceso del servidor parado sin hacer nada, y en un compartido hay pocos.
+     * Con seis segundos de espera y ocho entradas a la vez, siete procesos se
+     * quedaban 40 segundos en total para acabar sin emparejar a nadie.
+     *
+     * Con uno, el que llega segundo casi siempre pilla el turno igual -el
+     * barrido normal dura decimas- y el que no, se va enseguida: su fila esta
+     * guardada y la coge el barrido siguiente o el reloj del minuto.
+     */
+    private const PAIRING_LOCK_WAIT = 1;
+
+    /**
+     * A partir de cuantos esperando el barrido deja de hacerse en la peticion.
+     *
+     * Una cola de cientos tarda segundos en repartirse, y hacerlo mientras
+     * alguien espera con la pagina en blanco es la forma de que el servidor
+     * corte la peticion a medias -y, peor, de que la corte con el turno cogido-.
+     * Pasado este tamaño, quien entra a la cola entra y ya: el reparto lo hace
+     * el reloj del minuto, que corre por linea de comandos y no tiene prisa.
+     */
+    private const PAIRING_INLINE_LIMIT = 250;
 
     /**
      * Cuanto MMR tiene que encajar mejor un rival de otro estilo para ganarle
@@ -215,6 +253,14 @@ class ArenaMatchmakingService
             return $this->barrerCola($expirePendingMatches);
         }
 
+        if ($this->colaDemasiadoGrandeParaLaPeticion()) {
+            Log::info('ArenaMatchmakingService: la cola es grande, se deja el reparto al reloj.', [
+                'esperando' => $this->cuantosEsperan(),
+            ]);
+
+            return 0;
+        }
+
         try {
             return Cache::lock(self::PAIRING_LOCK, self::PAIRING_LOCK_TTL)
                 ->block(self::PAIRING_LOCK_WAIT, function () use ($expirePendingMatches) {
@@ -231,6 +277,39 @@ class ArenaMatchmakingService
 
             return 0;
         }
+    }
+
+    /**
+     * Si conviene dejarle el reparto al reloj en vez de hacerlo aqui.
+     *
+     * Solo aplica dentro de una peticion web. Por linea de comandos -el cron
+     * del minuto, o un comando a mano- se reparte siempre, sea del tamaño que
+     * sea: ahi no hay nadie esperando delante de una pagina en blanco ni un
+     * limite de tiempo de peticion que pueda cortar el proceso a medias.
+     */
+    private function colaDemasiadoGrandeParaLaPeticion(): bool
+    {
+        if (app()->runningInConsole()) {
+            return false;
+        }
+
+        return $this->cuantosEsperan() > self::PAIRING_INLINE_LIMIT;
+    }
+
+    /** Cuanta gente hay esperando ahora mismo en alguna modalidad encendida. */
+    private function cuantosEsperan(): int
+    {
+        $enabledModes = ArenaMode::enabled();
+
+        if ($enabledModes === []) {
+            return 0;
+        }
+
+        return Queue::query()
+            ->whereIn('arena_mode', $enabledModes)
+            ->where('status', 'waiting')
+            ->whereNull('match_id')
+            ->count();
     }
 
     private function barrerCola(bool $expirePendingMatches): int
@@ -815,8 +894,9 @@ class ArenaMatchmakingService
         for ($pulido = 0; $pulido < self::PAIRING_POLISH_ROUNDS; $pulido++) {
             $cambioConSueltos = $this->mejorarConSueltos($pareja, $teams, $puntuar);
             $cambioEntreCruces = $this->mejorarPorIntercambios($pareja, $teams, $puntuar);
+            $cambioEnTercetos = $this->mejorarPorRotaciones($pareja, $teams, $puntuar);
 
-            if (!$cambioConSueltos && !$cambioEntreCruces) {
+            if (!$cambioConSueltos && !$cambioEntreCruces && !$cambioEnTercetos) {
                 break;
             }
         }
@@ -883,17 +963,46 @@ class ArenaMatchmakingService
     }
 
     /**
-     * Indices de los equipos ordenados por su MMR medio.
+     * Indices de los equipos ordenados por su MMR medio, con los reinos
+     * mezclados cuando hay empate.
+     *
+     * Lo del empate no es un detalle: es el dia del lanzamiento. Todo el mundo
+     * arranca con 1000 de MMR, asi que durante las primeras semanas la cola
+     * entera empata. Y los equipos llegan aqui agrupados por reino -asi los
+     * arma processQueue-, de modo que desempatar por su posicion en el array
+     * ordenaba por reino: alsius, alsius, alsius... La ventana de vecinos que
+     * mira cada equipo solo veia gente de su propio reino, que es justo con
+     * quien no puede jugar.
+     *
+     * Medido con 900 en cola y todos a 1000: de los 68.760 pares que miraba la
+     * ventana, solo 6.480 eran legales -un 9%-, el barrido armaba 160 cruces de
+     * los 450 posibles y dejaba 580 personas sueltas, que luego habia que
+     * rescatar con un repaso completo de cuarenta segundos. Con los reinos
+     * mezclados, los mismos 900 salen en 449 cruces y 2 sueltos.
+     *
+     * El desempate es el puesto que ocupa cada equipo DENTRO de su reino, asi
+     * que los empatados salen intercalados -alsius, ignis, syrtis, alsius...- y
+     * la ventana ve rivales de verdad.
      *
      * @param  array<int, array<string, mixed>>  $teams
      * @return list<int>
      */
     private function ordenPorMmr(array $teams): array
     {
+        $puestoEnSuReino = [];
+        $cuantosLlevaElReino = [];
+
+        foreach ($teams as $indice => $team) {
+            $realm = (string) ($team['realm'] ?? '');
+            $puestoEnSuReino[$indice] = $cuantosLlevaElReino[$realm] ?? 0;
+            $cuantosLlevaElReino[$realm] = $puestoEnSuReino[$indice] + 1;
+        }
+
         $orden = array_keys($teams);
 
-        usort($orden, static function (int $a, int $b) use ($teams): int {
-            return [(int) $teams[$a]['avg_mmr'], $a] <=> [(int) $teams[$b]['avg_mmr'], $b];
+        usort($orden, static function (int $a, int $b) use ($teams, $puestoEnSuReino): int {
+            return [(int) $teams[$a]['avg_mmr'], $puestoEnSuReino[$a], $a]
+                <=> [(int) $teams[$b]['avg_mmr'], $puestoEnSuReino[$b], $b];
         });
 
         return $orden;
@@ -1006,47 +1115,89 @@ class ArenaMatchmakingService
                 return;
             }
 
-            usort($sueltos, static function (int $a, int $b) use ($teams): int {
-                return [(int) $teams[$a]['avg_mmr'], $a] <=> [(int) $teams[$b]['avg_mmr'], $b];
-            });
+            // Los sueltos se agrupan por reino, y se atiende primero al reino
+            // con mas gente esperando, que es el que desborda.
+            $porReino = [];
 
-            usort($cruces, function (array $a, array $b) use ($teams): int {
-                return $this->mmrDelCruce($teams, $a) <=> $this->mmrDelCruce($teams, $b);
-            });
-
-            $nivelDelCruce = [];
-
-            foreach ($cruces as $posicion => $cruce) {
-                $nivelDelCruce[$posicion] = $this->mmrDelCruce($teams, $cruce);
+            foreach ($sueltos as $suelto) {
+                $porReino[(string) $teams[$suelto]['realm']][] = $suelto;
             }
+
+            uasort($porReino, static fn (array $a, array $b): int => count($b) <=> count($a));
 
             $gastados = [];
             $colocados = 0;
 
-            // Los sueltos van de dos en dos y por nivel, asi que cada pareja
-            // que entra a un cruce deshecho son los dos mas parecidos que
-            // quedaban.
-            for ($t = 0; $t + 1 < count($sueltos); $t += 2) {
-                $u = $sueltos[$t];
-                $u2 = $sueltos[$t + 1];
-                $nivel = (int) (((int) $teams[$u]['avg_mmr'] + (int) $teams[$u2]['avg_mmr']) / 2);
-
-                $mejor = $this->donanteMasCercano(
-                    $cruces, $nivelDelCruce, $gastados, $nivel, $u, $u2, $puntuar
-                );
-
-                if ($mejor === null) {
+            foreach ($porReino as $realm => $delReino) {
+                if (count($delReino) < 2) {
                     continue;
                 }
 
-                $gastados[$mejor['posicion']] = true;
+                // Solo sirven los cruces que NO tienen ningun lado de ese reino:
+                // son los unicos que al deshacerse dejan dos huecos que estos
+                // sueltos pueden ocupar. Antes se buscaba sobre la lista entera
+                // de cruces y se miraba una ventana de veinte a cada lado, y los
+                // que servian eran una minoria diminuta ahi dentro: con 162 en
+                // cola y 30 sueltos, habia 6 cruces validos entre 66 y la
+                // ventana solo alcanzaba a 5. Gente en cola con rival esperando.
+                $donantes = [];
 
-                foreach ($mejor['reparto'] as [$a, $b]) {
-                    $pareja[$a] = $b;
-                    $pareja[$b] = $a;
+                foreach ($cruces as $posicion => [$v, $w]) {
+                    if (isset($gastados[$posicion])) {
+                        continue;
+                    }
+
+                    if ((string) $teams[$v]['realm'] === $realm || (string) $teams[$w]['realm'] === $realm) {
+                        continue;
+                    }
+
+                    $donantes[] = [
+                        'cruce' => [$v, $w],
+                        'nivel' => $this->mmrDelCruce($teams, [$v, $w]),
+                        'origen' => $posicion,
+                    ];
                 }
 
-                $colocados++;
+                if ($donantes === []) {
+                    continue;
+                }
+
+                usort($donantes, static fn (array $a, array $b): int => $a['nivel'] <=> $b['nivel']);
+
+                usort($delReino, static function (int $a, int $b) use ($teams): int {
+                    return [(int) $teams[$a]['avg_mmr'], $a] <=> [(int) $teams[$b]['avg_mmr'], $b];
+                });
+
+                $usados = [];
+
+                // Los sueltos van de dos en dos y por nivel, asi que cada pareja
+                // que entra a un cruce deshecho son los dos mas parecidos que
+                // quedaban.
+                for ($t = 0; $t + 1 < count($delReino); $t += 2) {
+                    $u = $delReino[$t];
+                    $u2 = $delReino[$t + 1];
+                    $nivel = (int) (((int) $teams[$u]['avg_mmr'] + (int) $teams[$u2]['avg_mmr']) / 2);
+
+                    $mejor = $this->donanteMasCercano($donantes, $usados, $nivel, $u, $u2, $puntuar);
+
+                    if ($mejor === null) {
+                        continue;
+                    }
+
+                    $usados[$mejor['posicion']] = true;
+
+                    foreach ($mejor['reparto'] as [$a, $b]) {
+                        $pareja[$a] = $b;
+                        $pareja[$b] = $a;
+                    }
+
+                    $colocados++;
+                }
+
+                // Los cruces que se han deshecho ya no valen para otro reino.
+                foreach (array_keys($usados) as $posicion) {
+                    $gastados[$donantes[$posicion]['origen']] = true;
+                }
             }
 
             if ($colocados === 0) {
@@ -1056,25 +1207,31 @@ class ArenaMatchmakingService
     }
 
     /**
-     * El cruce hecho mas cercano en nivel que admite a estos dos sueltos.
+     * El donante mas cercano en nivel que admite a estos dos sueltos.
      *
-     * Se busca por biseccion la posicion del nivel pedido y se mira una ventana
-     * a cada lado, no la lista entera: el donante que sirve siempre esta cerca,
-     * y recorrerlos todos por cada pareja de sueltos es lo que hacia que esto
-     * tardase cuarenta segundos.
+     * $donantes llega YA filtrado: solo cruces que, al deshacerse, dejan dos
+     * huecos que estos sueltos pueden ocupar. Ese filtro es lo que hace que la
+     * busqueda por ventana valga: buscar sobre la lista entera de cruces y
+     * quedarse con veinte a cada lado miraba sobre todo cruces que no servian,
+     * y dejaba gente en cola teniendo rival.
      *
+     * Dentro de la lista filtrada si se busca por biseccion y ventana, porque
+     * el donante que mejor encaja siempre esta cerca en nivel y recorrerlos
+     * todos por cada pareja de sueltos vuelve a costar segundos.
+     *
+     * @param  list<array{cruce: array{0: int, 1: int}, nivel: int, origen: int}>  $donantes
+     * @param  array<int, true>  $usados
      * @return array{posicion: int, reparto: list<array{0: int, 1: int}>}|null
      */
     private function donanteMasCercano(
-        array $cruces,
-        array $nivelDelCruce,
-        array $gastados,
+        array $donantes,
+        array $usados,
         int $nivel,
         int $u,
         int $u2,
         callable $puntuar
     ): ?array {
-        $numero = count($cruces);
+        $numero = count($donantes);
 
         if ($numero === 0) {
             return null;
@@ -1086,7 +1243,7 @@ class ArenaMatchmakingService
         while ($bajo < $alto) {
             $medio = intdiv($bajo + $alto, 2);
 
-            if ($nivelDelCruce[$medio] < $nivel) {
+            if ($donantes[$medio]['nivel'] < $nivel) {
                 $bajo = $medio + 1;
             } else {
                 $alto = $medio;
@@ -1096,14 +1253,41 @@ class ArenaMatchmakingService
         $desde = max(0, $bajo - self::PAIRING_SWAP_WINDOW);
         $hasta = min($numero - 1, $bajo + self::PAIRING_SWAP_WINDOW);
 
+        $mejor = $this->mejorDonanteEntre($donantes, $usados, $desde, $hasta, $u, $u2, $puntuar);
+
+        if ($mejor !== null) {
+            return $mejor;
+        }
+
+        // Si en la ventana no habia ninguno libre, se mira la lista entera
+        // antes de rendirse. Es el caso raro -muchos sueltos del mismo reino
+        // agotando donantes-, y rendirse ahi significaria dejar a dos personas
+        // en cola teniendo con quien jugar, que es lo unico que no vale.
+        return $this->mejorDonanteEntre($donantes, $usados, 0, $numero - 1, $u, $u2, $puntuar);
+    }
+
+    /**
+     * El mejor donante libre dentro de un tramo de la lista.
+     *
+     * @return array{posicion: int, reparto: list<array{0: int, 1: int}>}|null
+     */
+    private function mejorDonanteEntre(
+        array $donantes,
+        array $usados,
+        int $desde,
+        int $hasta,
+        int $u,
+        int $u2,
+        callable $puntuar
+    ): ?array {
         $mejor = null;
 
         for ($posicion = $desde; $posicion <= $hasta; $posicion++) {
-            if (isset($gastados[$posicion])) {
+            if (isset($usados[$posicion])) {
                 continue;
             }
 
-            [$v, $w] = $cruces[$posicion];
+            [$v, $w] = $donantes[$posicion]['cruce'];
             $costeActual = $puntuar($v, $w)['score'];
 
             foreach ([[$u, $v, $u2, $w], [$u, $w, $u2, $v]] as [$p1, $p2, $p3, $p4]) {
@@ -1249,55 +1433,155 @@ class ArenaMatchmakingService
     }
 
     /**
-     * Los cruces que vale la pena deshacer para colocar a los sueltos.
+     * Las quince formas de repartir seis equipos en tres cruces.
      *
-     * Deshacer un cruce del otro extremo de la tabla para meter ahi a un suelto
-     * sale carisimo y nunca se elige, asi que ni se mira: solo los cruces cuyo
-     * nivel anda cerca del de algun suelto. Con la cola vacia esto no cambia
-     * nada -son cuatro cruces- y con la cola llena es lo que evita repasar
-     * cientos por cada persona suelta.
-     *
-     * @param  list<array{0: int, 1: int}>  $cruces  ordenados por MMR del cruce
-     * @param  list<int>  $sueltos
-     * @return list<array{0: int, 1: int}>
+     * Se usan para desatascar los repartos que no mejoran tocando dos cruces
+     * pero si tocando tres. Son todas, no una seleccion: con seis elementos
+     * caben quince emparejamientos y probarlos es barato.
      */
-    private function crucesCercanos(array $cruces, array $sueltos, array $teams): array
+    private const ROTACIONES_DE_TRES = [
+        [[0, 1], [2, 3], [4, 5]], [[0, 1], [2, 4], [3, 5]], [[0, 1], [2, 5], [3, 4]],
+        [[0, 2], [1, 3], [4, 5]], [[0, 2], [1, 4], [3, 5]], [[0, 2], [1, 5], [3, 4]],
+        [[0, 3], [1, 2], [4, 5]], [[0, 3], [1, 4], [2, 5]], [[0, 3], [1, 5], [2, 4]],
+        [[0, 4], [1, 2], [3, 5]], [[0, 4], [1, 3], [2, 5]], [[0, 4], [1, 5], [2, 3]],
+        [[0, 5], [1, 2], [3, 4]], [[0, 5], [1, 3], [2, 4]], [[0, 5], [1, 4], [2, 3]],
+    ];
+
+    /**
+     * Reparte de nuevo tres cruces a la vez cuando tocando dos no se mejora.
+     *
+     * Hay repartos que estan atascados: ningun intercambio entre dos cruces los
+     * mejora, y sin embargo moviendo tres a la vez salen bastante mejor. Son
+     * pocos -dos de cada cien colas- pero cuando pasa el sobrecoste es grande,
+     * del orden de cincuenta puntos de MMR por partida, y se lo comen personas
+     * concretas.
+     *
+     * No se prueban todos los tercetos, que serian demasiados: solo los que
+     * incluyen alguno de los PEORES cruces del reparto, porque un terceto de
+     * cruces ya ajustados no tiene nada que ganar. Con eso el coste no depende
+     * del tamaño de la cola.
+     *
+     * @param  array<int, int|null>  $pareja
+     */
+    private function mejorarPorRotaciones(array &$pareja, array $teams, callable $puntuar): bool
     {
+        $total = count($teams);
+        $cruces = [];
+
+        for ($i = 0; $i < $total; $i++) {
+            if ($pareja[$i] !== null && $i < $pareja[$i]) {
+                $cruces[] = [$i, $pareja[$i]];
+            }
+        }
+
         $numero = count($cruces);
 
-        if ($numero <= self::PAIRING_SWAP_WINDOW) {
-            return $cruces;
+        if ($numero < 3) {
+            return false;
         }
 
-        $elegidos = [];
+        // Ordenados por nivel, para que los vecinos de un cruce sean los que de
+        // verdad podrian intercambiarse con el.
+        usort($cruces, function (array $a, array $b) use ($teams): int {
+            return $this->mmrDelCruce($teams, $a) <=> $this->mmrDelCruce($teams, $b);
+        });
 
-        foreach ($sueltos as $suelto) {
-            $mmr = (int) $teams[$suelto]['avg_mmr'];
+        // Los peores primero: son los unicos que tienen algo que ganar.
+        $porLoMalos = range(0, $numero - 1);
 
-            // Busqueda binaria del cruce mas cercano en nivel, y de ahi una
-            // ventana a cada lado.
-            $bajo = 0;
-            $alto = $numero - 1;
+        usort($porLoMalos, function (int $a, int $b) use ($cruces, $puntuar): int {
+            return $puntuar($cruces[$b][0], $cruces[$b][1])['score']
+                <=> $puntuar($cruces[$a][0], $cruces[$a][1])['score'];
+        });
 
-            while ($bajo < $alto) {
-                $medio = intdiv($bajo + $alto, 2);
+        $hubo = false;
 
-                if ($this->mmrDelCruce($teams, $cruces[$medio]) < $mmr) {
-                    $bajo = $medio + 1;
-                } else {
-                    $alto = $medio;
+        foreach (array_slice($porLoMalos, 0, self::PAIRING_ROTATION_SEEDS) as $centro) {
+            $desde = max(0, $centro - self::PAIRING_ROTATION_WINDOW);
+            $hasta = min($numero - 1, $centro + self::PAIRING_ROTATION_WINDOW);
+
+            for ($x = $desde; $x <= $hasta; $x++) {
+                for ($y = $x + 1; $y <= $hasta; $y++) {
+                    foreach ([$x, $y] as $tercero) {
+                        if ($tercero === $centro) {
+                            continue 2;
+                        }
+                    }
+
+                    if ($this->rotarTres($pareja, $cruces, [$centro, $x, $y], $puntuar)) {
+                        $hubo = true;
+                    }
                 }
             }
+        }
 
-            $desde = max(0, $bajo - self::PAIRING_SWAP_WINDOW);
-            $hasta = min($numero - 1, $bajo + self::PAIRING_SWAP_WINDOW);
+        return $hubo;
+    }
 
-            for ($i = $desde; $i <= $hasta; $i++) {
-                $elegidos[$i] = $cruces[$i];
+    /**
+     * Prueba las quince reparticiones de tres cruces y se queda con la mejor.
+     *
+     * @param  array<int, int|null>  $pareja
+     * @param  list<array{0: int, 1: int}>  $cruces
+     * @param  list<int>  $posiciones
+     */
+    private function rotarTres(array &$pareja, array &$cruces, array $posiciones, callable $puntuar): bool
+    {
+        $equipos = [];
+
+        foreach ($posiciones as $posicion) {
+            $equipos[] = $cruces[$posicion][0];
+            $equipos[] = $cruces[$posicion][1];
+        }
+
+        // Si alguno de los tres cruces ya se movio en otra rotacion, se deja.
+        foreach ($posiciones as $posicion) {
+            if ($pareja[$cruces[$posicion][0]] !== $cruces[$posicion][1]) {
+                return false;
             }
         }
 
-        return array_values($elegidos);
+        $actual = null;
+        $mejor = null;
+
+        foreach (self::ROTACIONES_DE_TRES as $reparto) {
+            $puntos = [];
+
+            foreach ($reparto as [$uno, $otro]) {
+                $valor = $puntuar($equipos[$uno], $equipos[$otro]);
+
+                if ($valor === null) {
+                    continue 2;
+                }
+
+                $puntos[] = $valor['score'];
+            }
+
+            $valor = [array_sum($puntos), max($puntos)];
+
+            // La primera de la lista es el reparto que ya esta puesto.
+            if ($reparto === self::ROTACIONES_DE_TRES[0]) {
+                $actual = $valor;
+            }
+
+            if ($mejor === null || $valor < $mejor['valor']) {
+                $mejor = ['valor' => $valor, 'reparto' => $reparto];
+            }
+        }
+
+        if ($actual === null || $mejor === null || $mejor['valor'] >= $actual) {
+            return false;
+        }
+
+        foreach ($mejor['reparto'] as $indice => [$uno, $otro]) {
+            $a = $equipos[$uno];
+            $b = $equipos[$otro];
+            $pareja[$a] = $b;
+            $pareja[$b] = $a;
+            $cruces[$posiciones[$indice]] = $a < $b ? [$a, $b] : [$b, $a];
+        }
+
+        return true;
     }
 
     /**

@@ -308,15 +308,22 @@ it('un barrido que ya tiene el turno no vuelve a pedirselo a si mismo', function
 
 // ------------------------------------------------------------ modalidades
 
-it('el reparto no mezcla modalidades', function () {
+it('el reparto no mezcla modalidades ni cuando el cruce mezclado seria el mejor', function () {
     foreach (ArenaMode::all() as $mode) {
         AppSetting::setValue(ArenaMode::settingKey($mode), '1', 'modes', 'boolean', true);
     }
 
-    // Dos duelistas que encajan perfecto, y dos de 2v2 del mismo reino que no
-    // llegan a formar equipo. Solo puede salir el duelo.
+    // Los MMR estan puestos para que el cruce ILEGAL sea el mas apetecible:
+    // el duelista de 1000 encaja clavado con el equipo de 2v2, y su unico
+    // rival legal esta a 400 puntos. Si el veto de modalidad no estuviera, el
+    // emparejador elegiria el mezclado, que es uno contra dos.
+    //
+    // La version anterior de este test ponia a los duelistas empatados y al
+    // equipo de 2v2 en el mismo sitio: el cruce mezclado empataba y perdia el
+    // desempate, asi que el test salia verde con el veto borrado. Probaba que
+    // gana el mejor cruce, no que el ilegal no se puede elegir.
     duelistaCola('mez-a', 'alsius', 1000);
-    duelistaCola('mez-b', 'ignis', 1000);
+    duelistaCola('mez-b', 'ignis', 1400);
 
     foreach ([['mez-c', 'syrtis'], ['mez-d', 'syrtis']] as [$sufijo, $realm]) {
         $p = duelistaCola($sufijo, $realm, 1000);
@@ -327,6 +334,180 @@ it('el reparto no mezcla modalidades', function () {
 
     $partidas = ArenaMatch::query()->get();
 
+    // Sale el duelo malo, no el mezclado bueno.
     expect($partidas)->toHaveCount(1)
-        ->and($partidas->first()->arena_mode)->toBe(ArenaMode::ONE_V_ONE);
+        ->and($partidas->first()->arena_mode)->toBe(ArenaMode::ONE_V_ONE)
+        ->and($partidas->first()->player_count)->toBe(2);
+});
+
+it('una cuenta no se empareja contra si misma aunque sea el mejor cruce', function () {
+    // Se permiten cinco personajes por cuenta y pueden ser de reinos distintos.
+    // Aqui los dos de la misma cuenta encajan clavados y el rival de verdad
+    // esta a 500 puntos: sin el veto, el emparejador elegiria el espejo y esa
+    // persona se regalaria una victoria, PL y MMR.
+    $mio = duelistaCola('cuenta-a', 'alsius', 1000);
+
+    $gemelo = Player::create([
+        'user_id' => $mio->user_id,
+        'character_name' => 'EmpGemelo',
+        'subclass' => 'hunter',
+        'realm' => 'ignis',
+        'pl_points' => 30,
+        'mmr' => 1000,
+        'trust_score' => 100,
+        'matches_played' => 0,
+        'wins' => 0,
+        'losses' => 0,
+        'is_active' => true,
+    ]);
+
+    Queue::create([
+        'player_id' => $gemelo->id,
+        'queue_type' => 'random',
+        'arena_mode' => ArenaMode::ONE_V_ONE,
+        'status' => 'waiting',
+        'estimated_mmr' => 1000,
+        'joined_at' => now(),
+        'expires_at' => now()->addMinutes(30),
+    ]);
+
+    duelistaCola('cuenta-b', 'syrtis', 1500);
+
+    app(ArenaMatchmakingService::class)->processQueue(false);
+
+    // Sale un cruce feo contra el de 1500, no el espejo contra uno mismo.
+    $partidas = ArenaMatch::query()->get();
+
+    expect($partidas)->toHaveCount(1);
+
+    $cuentas = $partidas->first()->getAllPlayers()
+        ->map(fn ($p) => (int) Player::find($p['player_id'])->user_id);
+
+    expect($cuentas->unique())->toHaveCount(2);
+});
+
+it('el orden del barrido importa: los cruces buenos se cogen primero', function () {
+    // Ocho en cola, cuatro por reino, emparejados de dos en dos con 10 puntos
+    // de diferencia y separados 400 entre parejas. Solo hay un reparto de 40
+    // puntos totales, y para dar con el hay que ir cogiendo los cruces buenos
+    // en orden. Barriendo del peor al mejor sale muchisimo peor.
+    $r = repartir([
+        ['alsius', 800], ['ignis', 810],
+        ['alsius', 1200], ['ignis', 1210],
+        ['alsius', 1600], ['ignis', 1610],
+        ['alsius', 2000], ['ignis', 2010],
+    ]);
+
+    expect($r['partidas'])->toBe(4)
+        ->and($r['suma'])->toBe(40)
+        ->and($r['peor'])->toBe(10);
+});
+
+it('la ventana de vecinos no puede dejar a nadie sin mirar', function () {
+    // Mas de ochenta del mismo reino seguidos -que es el tamaño de la ventana-
+    // y un puñado del reino contrario al final de la tabla de MMR. Si la
+    // ventana mirase solo a los ochenta vecinos inmediatos, los del principio
+    // no verian jamas a un rival legal.
+    $cola = [];
+
+    for ($i = 0; $i < 100; $i++) {
+        $cola[] = ['alsius', 800 + $i];
+    }
+
+    for ($i = 0; $i < 10; $i++) {
+        $cola[] = ['ignis', 1500 + $i];
+    }
+
+    $r = repartir($cola);
+
+    // Caben diez partidas -hay diez Ignis- y salen las diez.
+    expect($r['partidas'])->toBe(10)
+        ->and($r['sueltos'])->toBe(90);
+});
+
+it('rescatar a los sueltos hace falta de verdad con la cola grande', function () {
+    // Ciento veinte en cola repartidos a partes iguales. El barrido por
+    // puntuacion, el solo, deja fuera a decenas: los sueltos acaban siendo
+    // todos del mismo reino. Tienen que salir las sesenta partidas.
+    $cola = [];
+    $reinos = ['alsius', 'ignis', 'syrtis'];
+
+    for ($i = 0; $i < 120; $i++) {
+        $cola[] = [$reinos[$i % 3], 1000];
+    }
+
+    $r = repartir($cola);
+
+    expect($r['partidas'])->toBe(60)
+        ->and($r['sueltos'])->toBe(0);
+});
+
+// ---------------------------------------------------- el orden de la tabla
+
+it('con el MMR empatado, la tabla de niveles intercala los reinos', function () {
+    // El dia del lanzamiento todo el mundo tiene 1000 de MMR, asi que la cola
+    // entera empata. Los equipos llegan al emparejador agrupados por reino, de
+    // modo que desempatar por su posicion en la lista los ordenaba por reino:
+    // alsius, alsius, alsius... y la ventana de vecinos que mira cada equipo
+    // solo veia gente de su propio reino, que es justo con quien no puede
+    // jugar.
+    //
+    // Con 900 en cola y todos a 1000, eso costaba 13 segundos y 123 MB en vez
+    // de 8 y 70. Ya no rompe el reparto -el rescate de sueltos lo arregla
+    // igual-, pero lo hace cuesta arriba, asi que la propiedad se fija aqui.
+    $teams = [];
+
+    foreach (['alsius', 'ignis', 'syrtis'] as $realm) {
+        for ($i = 0; $i < 5; $i++) {
+            $teams[] = ['realm' => $realm, 'avg_mmr' => 1000];
+        }
+    }
+
+    $metodo = new ReflectionMethod(ArenaMatchmakingService::class, 'ordenPorMmr');
+    $metodo->setAccessible(true);
+    $orden = $metodo->invoke(app(ArenaMatchmakingService::class), $teams);
+
+    $reinos = array_map(fn (int $i) => $teams[$i]['realm'], $orden);
+
+    // Cada tres puestos consecutivos salen los tres reinos, uno de cada.
+    foreach (array_chunk($reinos, 3) as $tramo) {
+        expect(array_unique($tramo))->toHaveCount(3);
+    }
+});
+
+it('con el MMR distinto, la tabla sigue ordenada por nivel', function () {
+    // Mezclar reinos al empatar no puede alterar el orden cuando no hay empate.
+    $teams = [
+        ['realm' => 'alsius', 'avg_mmr' => 1400],
+        ['realm' => 'alsius', 'avg_mmr' => 900],
+        ['realm' => 'ignis', 'avg_mmr' => 1100],
+        ['realm' => 'syrtis', 'avg_mmr' => 1000],
+    ];
+
+    $metodo = new ReflectionMethod(ArenaMatchmakingService::class, 'ordenPorMmr');
+    $metodo->setAccessible(true);
+    $orden = $metodo->invoke(app(ArenaMatchmakingService::class), $teams);
+
+    expect(array_map(fn (int $i) => $teams[$i]['avg_mmr'], $orden))
+        ->toBe([900, 1000, 1100, 1400]);
+});
+
+// ----------------------------------------------- mover tres cruces a la vez
+
+it('desatasca un reparto que no mejora tocando dos cruces pero si tocando tres', function () {
+    // Hay repartos atascados: ningun intercambio entre dos cruces los mejora y
+    // aun asi, moviendo tres a la vez, salen bastante mejor. Son pocos -uno de
+    // cada cien- pero cuando pasan el sobrecoste es grande y se lo comen
+    // personas concretas.
+    //
+    // Esta cola sale en 1026 puntos sin las rotaciones de tres y en 766 con
+    // ellas, que es el optimo comprobado probandolos todos.
+    $r = repartir([
+        ['ignis', 1112], ['alsius', 996], ['ignis', 973], ['ignis', 1051],
+        ['alsius', 864], ['alsius', 856], ['alsius', 751], ['alsius', 1375],
+        ['ignis', 1350], ['syrtis', 1283], ['ignis', 964], ['syrtis', 1309],
+    ]);
+
+    expect($r['partidas'])->toBe(6)
+        ->and($r['suma'])->toBe(766);
 });

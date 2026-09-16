@@ -29,7 +29,7 @@ Cada cruce posible se puntúa, y cuanto más bajo mejor. La base es la
 Todo está en la misma escala, que son puntos de MMR. Así "evitar una repetición
 vale 900" quiere decir exactamente eso.
 
-## Los cinco pasos
+## Los seis pasos
 
 1. **Puntuar una vez.** Cada cruce legal se puntúa una sola vez, y solo entre
    equipos cercanos en MMR (una ventana de 80 puestos). Mirar la cola entera
@@ -43,8 +43,12 @@ vale 900" quiere decir exactamente eso.
 4. **Cambiar emparejado por banquillo.** Cuando no caben partidas para todos,
    quien sobra no tiene por qué ser el que peor encajaba.
 5. **Intercambiar rivales entre cruces vecinos** mientras el conjunto mejore.
+6. **Repartir tres cruces a la vez** cuando tocando dos no se mejora. Hay
+   repartos atascados donde ningún intercambio entre dos ayuda y moviendo tres
+   sí. Solo se prueba con los peores cruces, que son los únicos con algo que
+   ganar.
 
-Los pasos 4 y 5 se alternan, porque cada uno abre jugadas al otro.
+Los pasos 4, 5 y 6 se alternan, porque cada uno abre jugadas a los otros.
 
 ## Por qué el paso 3 basta
 
@@ -66,13 +70,26 @@ mandarlo.
 
 Para que cinco personas entrando a la vez no lancen cinco barridos en paralelo
 sobre las mismas filas, hay un **turno único** (un candado de caché). El primero
-barre; los demás esperan un momento corto y barren después, ya con las filas
-nuevas dentro. Quien no consiga el turno no pierde nada: su fila está guardada y
-la coge el barrido siguiente o el reloj del minuto. Lo único que se pierde es la
-respuesta inmediata "ya tienes rival".
+barre; los demás esperan **un segundo** y, si no les toca, se van. Quien no
+consiga el turno no pierde nada: su fila está guardada y la coge el barrido
+siguiente o el reloj del minuto. Lo único que se pierde es la respuesta
+inmediata "ya tienes rival".
 
-El candado **caduca solo** a los dos minutos, para que un proceso muerto a media
-faena no deje la cola congelada.
+Esperar poco es deliberado. Cada petición que espera es un proceso del servidor
+parado sin hacer nada, y en un compartido hay pocos: con seis segundos de espera
+y ocho entradas a la vez, siete procesos se quedaban cuarenta segundos en total
+para acabar sin emparejar a nadie. Con un segundo, ocho barridos simultáneos
+sobre 120 en cola salen todos por debajo de 0,8 s.
+
+El candado **caduca solo a los 30 segundos**, para que un proceso muerto a media
+faena no deje la cola congelada. Antes eran dos minutos, y dos minutos sin
+emparejar a nadie es una cola que crece y vuelve a matar al siguiente proceso.
+
+Y si la cola pasa de **250 esperando**, el reparto no se hace dentro de la
+petición: se deja al reloj del minuto, que corre por línea de comandos y no
+tiene límite de tiempo. Repartir una cola de cientos mientras alguien mira una
+página en blanco es la forma de que el servidor corte la petición a medias —y,
+peor, de que la corte con el turno cogido.
 
 ## Cuánto aguanta
 
@@ -98,10 +115,13 @@ Memoria y consultas a la base, en el caso más caro (1v1):
 | En cola | Memoria pico | Consultas |
 |---:|---:|---:|
 | 30 | 22 MB | 101 |
-| 120 | 26 MB | 740 |
-| 240 | 32 MB | 2 190 |
-| 480 | 46 MB | 5 816 |
-| 900 | 70 MB | 13 600 |
+| 120 | 28 MB | 370 |
+| 240 | 32 MB | 731 |
+| 480 | 46 MB | 1 450 |
+| 900 | 70 MB | 2 719 |
+
+Son unas **tres consultas por partida creada**, que es lo razonable: bloquear las
+filas de cola, insertar el enfrentamiento y marcar las colas.
 
 **Lectura práctica:** hasta 120 personas en cola a la vez, el emparejamiento no
 se nota. A 240 empieza a notarse pero sigue lejos de cualquier límite. El
@@ -109,11 +129,16 @@ servidor de Hostinger tiene su propio tope de tiempo por petición (30 s es lo
 habitual) y de memoria (256 MB), así que el margen es holgado incluso en el peor
 caso probado.
 
-Lo que antes convenga vigilar es el **número de consultas**, que crece con las
-partidas creadas: son unas 30 por partida. Con la cola llena de golpe eso son
-miles de idas y venidas a la base, y en un hosting compartido la base está en
-otra máquina. No es un problema con una comunidad normal; sí es el número que
-hay que mirar el día que la cola se llene de verdad.
+Lo que conviene vigilar es el **número de consultas**, que crece con las partidas
+creadas, porque en un hosting compartido la base está en otra máquina y cada ida
+y vuelta se paga. Por eso está el límite de 250: pasado ese tamaño, esas
+consultas las hace el cron y no una persona esperando.
+
+**Cifra para producción:** un hosting compartido es dos o tres veces más lento
+que donde se tomaron estas medidas. Contando eso, **200 en cola a la vez es un
+techo cómodo** y 400 el techo duro. Por encima de 250 el reparto ya no se hace
+en la petición, así que lo que nota el jugador es que el rival tarda hasta un
+minuto en aparecer, no que la página se caiga.
 
 Ojo: estos números son de una cola **llena de golpe**. En funcionamiento normal
 la cola se vacía sola con cada barrido, así que lo que se empareja en cada
@@ -122,13 +147,18 @@ pasada es lo que haya entrado desde la anterior, no toda la comunidad junta.
 ## Cómo se comprueba que empareja bien
 
 "Bien" no es una opinión. Para colas pequeñas se puede calcular el reparto
-**óptimo** probándolos todos, y contra eso se compara. En 160 colas al azar de 4
-a 10 jugadores:
+**óptimo** probándolos todos, y contra eso se compara. En 1 000 colas al azar de
+4 a 12 jugadores:
 
-- **156 repartos óptimos exactos.**
+- **990 repartos óptimos exactos** (99 %).
 - **0 colas dejando gente fuera** teniendo rival legal.
-- La peor desviación fueron 58 puntos de MMR repartidos entre cinco partidas,
-  unos 12 por partida: menos de lo que mueve un solo combate.
+- La peor desviación fueron 78 puntos de MMR repartidos entre seis partidas,
+  unos 13 por partida: menos de lo que mueve un solo combate.
+
+Y la promesa nº 1 se comprobó aparte, con las colas que de verdad la ponen a
+prueba: 240 colas de 40 a 300 jugadores con los reinos descompensados a
+propósito (el mayoritario entre el 40 % y el 70 %) y con el MMR desde totalmente
+plano hasta muy disperso. **Cero partidas perdidas** en las 240.
 
 Los casos que importan están fijados en `tests/Feature/EmparejamientoTest.php`,
 cada uno con el número exacto que debe salir y el porqué.
