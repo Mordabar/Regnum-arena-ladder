@@ -39,7 +39,9 @@ vale 900" quiere decir exactamente eso.
 3. **Rescatar a los sueltos.** El barrido puede dejar gente fuera: si se lleva
    primero el cruce más ajustado, los que quedan pueden ser todos del mismo
    reino y entre ellos no hay partida. Se deshace un cruce cuyos dos lados estén
-   fuera de ese reino y se rehace con dos sueltos.
+   fuera de ese reino y se rehace con dos sueltos. Los sueltos se agrupan por
+   **modalidad y reino**, porque las tres colas se reparten a la vez y un cruce
+   de 2v2 no deja hueco a nadie que espere un duelo.
 4. **Cambiar emparejado por banquillo.** Cuando no caben partidas para todos,
    quien sobra no tiene por qué ser el que peor encajaba.
 5. **Intercambiar rivales entre cruces vecinos** mientras el conjunto mejore.
@@ -156,9 +158,11 @@ pasada es lo que haya entrado desde la anterior, no toda la comunidad junta.
   unos 13 por partida: menos de lo que mueve un solo combate.
 
 Y la promesa nº 1 se comprobó aparte, con las colas que de verdad la ponen a
-prueba: 240 colas de 40 a 300 jugadores con los reinos descompensados a
-propósito (el mayoritario entre el 40 % y el 70 %) y con el MMR desde totalmente
-plano hasta muy disperso. **Cero partidas perdidas** en las 240.
+prueba: **200 colas de 40 a 600 jugadores**, con un solo reino llevándose hasta
+el 95 %, el MMR desde totalmente plano hasta muy disperso, cuentas compartidas
+entre reinos y las tres modalidades mezcladas en la misma cola. **Cero partidas
+perdidas, cero cruces ilegales, cero mezclas de modalidad** — y comprobado en
+los dos motores, SQLite y MySQL.
 
 Los casos que importan están fijados en `tests/Feature/EmparejamientoTest.php`,
 cada uno con el número exacto que debe salir y el porqué.

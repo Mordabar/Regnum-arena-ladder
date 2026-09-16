@@ -1157,20 +1157,31 @@ class ArenaMatchmakingService
                 return;
             }
 
-            // Los sueltos se agrupan por reino, y se atiende primero al reino
-            // con mas gente esperando, que es el que desborda.
-            $porReino = [];
+            // Los sueltos se agrupan por MODALIDAD y reino, y se atiende
+            // primero al grupo con mas gente esperando.
+            //
+            // La modalidad es tan importante como el reino, y olvidarla costaba
+            // partidas: las tres colas se reparten a la vez, asi que agrupando
+            // solo por reino se juntaban un suelto de 1v1 con uno de 3v3 para
+            // meterlos en el mismo cruce, cosa imposible, y se les ofrecian
+            // donantes de una modalidad que no era la suya. Medido con 226 en
+            // cola y las tres modalidades encendidas: cuatro donantes validos y
+            // solo tres aprovechados.
+            $porGrupo = [];
 
             foreach ($sueltos as $suelto) {
-                $porReino[(string) $teams[$suelto]['realm']][] = $suelto;
+                $clave = (string) $teams[$suelto]['arena_mode'] . '|' . (string) $teams[$suelto]['realm'];
+                $porGrupo[$clave][] = $suelto;
             }
 
-            uasort($porReino, static fn (array $a, array $b): int => count($b) <=> count($a));
+            uasort($porGrupo, static fn (array $a, array $b): int => count($b) <=> count($a));
 
             $gastados = [];
             $colocados = 0;
 
-            foreach ($porReino as $realm => $delReino) {
+            foreach ($porGrupo as $clave => $delReino) {
+                [$modo, $realm] = explode('|', $clave, 2);
+
                 if (count($delReino) < 2) {
                     continue;
                 }
@@ -1186,6 +1197,12 @@ class ArenaMatchmakingService
 
                 foreach ($cruces as $posicion => [$v, $w]) {
                     if (isset($gastados[$posicion])) {
+                        continue;
+                    }
+
+                    // De la misma modalidad que los sueltos: un cruce de 2v2 no
+                    // deja hueco a nadie que espere un duelo.
+                    if ((string) $teams[$v]['arena_mode'] !== $modo) {
                         continue;
                     }
 

@@ -628,3 +628,47 @@ it('con un reino muy desbordado y el MMR pegado, coloca a todos los que caben', 
     expect($r['partidas'])->toBe(72)
         ->and($r['sueltos'])->toBe(18);
 });
+
+it('con las tres modalidades a la vez, el rescate no mezcla sueltos de colas distintas', function () {
+    // Las tres colas se reparten en el mismo barrido. El rescate de sueltos
+    // agrupaba por reino y se olvidaba de la modalidad, asi que juntaba a un
+    // suelto de 1v1 con uno de 2v2 para meterlos en el mismo cruce -imposible-
+    // y les ofrecia donantes de una modalidad que no era la suya.
+    //
+    // Los sueltos se emparejan de dos en dos por nivel, asi que basta con que
+    // los de otra modalidad se intercalen por MMR para que los del duelo se
+    // gasten en parejas imposibles y el donante se quede sin usar.
+    //
+    // Aqui: en el duelo hay dos Alsius que no pueden jugar entre ellos y un
+    // cruce Ignis-Syrtis que se puede deshacer para colocarlos -dos partidas
+    // donde el barrido solo hace una-. Y en 2v2, dos equipos Alsius sueltos con
+    // el MMR justo en medio. Sin mirar la modalidad, el duelo se queda en una.
+    foreach (ArenaMode::all() as $mode) {
+        AppSetting::setValue(ArenaMode::settingKey($mode), '1', 'modes', 'boolean', true);
+    }
+
+    duelistaCola('tm-a0', 'alsius', 1000);
+    duelistaCola('tm-a1', 'alsius', 1010);
+    duelistaCola('tm-i0', 'ignis', 1002);
+    duelistaCola('tm-s0', 'syrtis', 1003);
+
+    // Cuatro Alsius de 2v2: forman dos equipos de nivel 1005 y 1015, que caen
+    // justo entre los dos duelistas sueltos.
+    foreach ([1004, 1006, 1014, 1016] as $i => $mmr) {
+        $p = duelistaCola('tm-2' . $i, 'alsius', $mmr);
+        Queue::query()->where('player_id', $p->id)->update(['arena_mode' => ArenaMode::TWO_V_TWO]);
+    }
+
+    app(ArenaMatchmakingService::class)->processQueue(false);
+
+    expect(ArenaMatch::query()->where('arena_mode', ArenaMode::ONE_V_ONE)->count())->toBe(2);
+
+    // Y ningun cruce mezcla gente de colas distintas.
+    foreach (ArenaMatch::all() as $partida) {
+        $modos = $partida->getAllPlayers()
+            ->map(fn ($p) => Queue::query()->where('player_id', $p['player_id'])->value('arena_mode'))
+            ->unique();
+
+        expect($modos)->toHaveCount(1);
+    }
+});
