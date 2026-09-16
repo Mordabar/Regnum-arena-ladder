@@ -127,6 +127,18 @@ class ArenaMatchmakingService
      */
     private const PAIRING_INLINE_LIMIT = 250;
 
+    /** Donde se apunta la ultima vez que el reloj repartio la cola. */
+    private const CONSOLE_SWEEP_KEY = 'arena:ultimo_barrido_del_reloj';
+
+    /**
+     * Cuanto se fia la web de que el reloj sigue vivo, en segundos.
+     *
+     * El cron corre cada minuto; con cinco de margen, un par de fallos
+     * seguidos no hacen que las peticiones se pongan a repartir colas enormes,
+     * y una caida de verdad si.
+     */
+    private const CONSOLE_SWEEP_GRACE = 300;
+
     /**
      * Cuanto MMR tiene que encajar mejor un rival de otro estilo para ganarle
      * al espejo.
@@ -286,6 +298,12 @@ class ArenaMatchmakingService
      * del minuto, o un comando a mano- se reparte siempre, sea del tamaño que
      * sea: ahi no hay nadie esperando delante de una pagina en blanco ni un
      * limite de tiempo de peticion que pueda cortar el proceso a medias.
+     *
+     * Y se le deja al reloj SOLO si el reloj esta vivo. Sin esa condicion, esto
+     * era una trampa que se cerraba sola: si el cron no esta configurado -o se
+     * cae- la cola crece, pasa de la raya, las peticiones dejan de repartir por
+     * respeto a un reloj que no existe, y la cola no se vacia nunca. Mejor una
+     * peticion lenta que un ladder muerto en silencio.
      */
     private function colaDemasiadoGrandeParaLaPeticion(): bool
     {
@@ -293,7 +311,29 @@ class ArenaMatchmakingService
             return false;
         }
 
+        if (!$this->elRelojEstaVivo()) {
+            return false;
+        }
+
         return $this->cuantosEsperan() > self::PAIRING_INLINE_LIMIT;
+    }
+
+    /** Si el cron ha repartido hace poco. */
+    private function elRelojEstaVivo(): bool
+    {
+        $ultimo = Cache::get(self::CONSOLE_SWEEP_KEY);
+
+        return $ultimo !== null && (int) $ultimo >= now()->timestamp - self::CONSOLE_SWEEP_GRACE;
+    }
+
+    /** Deja constancia de que el reloj acaba de repartir. */
+    private function anotarBarridoDeConsola(): void
+    {
+        if (!app()->runningInConsole()) {
+            return;
+        }
+
+        Cache::put(self::CONSOLE_SWEEP_KEY, now()->timestamp, self::CONSOLE_SWEEP_GRACE * 2);
     }
 
     /** Cuanta gente hay esperando ahora mismo en alguna modalidad encendida. */
@@ -390,6 +430,8 @@ class ArenaMatchmakingService
         $candidateTeams = $candidateTeams->merge(
             $this->buildPremadeTeams($premadeWaitingQueues)
         );
+
+        $this->anotarBarridoDeConsola();
 
         $pairings = $this->buildMatchPairings($candidateTeams);
         $matchesCreated = 0;
@@ -1502,10 +1544,9 @@ class ArenaMatchmakingService
 
             for ($x = $desde; $x <= $hasta; $x++) {
                 for ($y = $x + 1; $y <= $hasta; $y++) {
-                    foreach ([$x, $y] as $tercero) {
-                        if ($tercero === $centro) {
-                            continue 2;
-                        }
+                    // El terceto es el cruce malo mas otros dos distintos.
+                    if ($x === $centro || $y === $centro) {
+                        continue;
                     }
 
                     if ($this->rotarTres($pareja, $cruces, [$centro, $x, $y], $puntuar)) {

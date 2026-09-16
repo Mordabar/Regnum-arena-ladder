@@ -511,3 +511,120 @@ it('desatasca un reparto que no mejora tocando dos cruces pero si tocando tres',
     expect($r['partidas'])->toBe(6)
         ->and($r['suma'])->toBe(766);
 });
+
+// ------------------------------------------- repartir en la peticion o no
+
+it('con la cola enorme, una peticion web no reparte: lo deja al reloj', function () {
+    // Repartir una cola de cientos mientras alguien mira una pagina en blanco
+    // es la forma de que el servidor corte la peticion a medias, y peor, de que
+    // la corte con el turno cogido. Pasada la raya, quien entra a la cola entra
+    // y ya.
+    $cola = [];
+    $reinos = ['alsius', 'ignis', 'syrtis'];
+
+    for ($i = 0; $i < 260; $i++) {
+        $cola[] = [$reinos[$i % 3], 1000 + $i];
+    }
+
+    foreach ($cola as $i => [$realm, $mmr]) {
+        duelistaCola('gr' . $i, $realm, $mmr);
+    }
+
+    // El reloj ha pasado hace nada, asi que la web puede fiarse de el.
+    Cache::put('arena:ultimo_barrido_del_reloj', now()->timestamp, 600);
+
+    $servicio = app(ArenaMatchmakingService::class);
+    $enConsola = new ReflectionProperty(app(), 'isRunningInConsole');
+    $enConsola->setAccessible(true);
+    $enConsola->setValue(app(), false);
+
+    try {
+        expect($servicio->processQueue(false))->toBe(0)
+            ->and(ArenaMatch::query()->count())->toBe(0);
+    } finally {
+        $enConsola->setValue(app(), true);
+    }
+
+    // Y por linea de comandos -que es como corre el cron- si reparte.
+    expect($servicio->processQueue(false))->toBe(130);
+});
+
+it('si el reloj no da señales, la peticion reparte aunque la cola sea enorme', function () {
+    // Sin esta condicion el limite era una trampa que se cerraba sola: si el
+    // cron no esta configurado, la cola crece, pasa de la raya, las peticiones
+    // dejan de repartir por respeto a un reloj que no existe, y la cola no se
+    // vacia nunca. Mejor una peticion lenta que un ladder muerto en silencio.
+    $reinos = ['alsius', 'ignis', 'syrtis'];
+
+    for ($i = 0; $i < 260; $i++) {
+        duelistaCola('sr' . $i, $reinos[$i % 3], 1000 + $i);
+    }
+
+    Cache::forget('arena:ultimo_barrido_del_reloj');
+
+    $enConsola = new ReflectionProperty(app(), 'isRunningInConsole');
+    $enConsola->setAccessible(true);
+    $enConsola->setValue(app(), false);
+
+    try {
+        expect(app(ArenaMatchmakingService::class)->processQueue(false))->toBe(130);
+    } finally {
+        $enConsola->setValue(app(), true);
+    }
+});
+
+it('rescata a los sueltos buscando donante entre los cruces que de verdad sirven', function () {
+    // Noventa en cola con el MMR TODOS a 1000 y algo mas de la mitad de un solo
+    // reino. Caben 40 partidas. El barrido deja sueltos a decenas de Alsius, y
+    // para recolocarlos hay que deshacer cruces que NO tengan ningun Alsius
+    // dentro: esos son una minoria diminuta entre todos los cruces hechos.
+    //
+    // Buscarlos por cercania de MMR sobre la lista entera, sin filtrar, no daba
+    // con ellos: salian 31 partidas de 40, o sea dieciocho personas en cola con
+    // rival esperando. Es el caso mas pequeño que lo destapa; con 300 en cola la
+    // misma forma perdia 33 partidas.
+    $cola = [];
+    $mayoritario = 50;
+
+    for ($i = 0; $i < $mayoritario; $i++) {
+        $cola[] = ['alsius', 1000];
+    }
+
+    for ($i = 0; $i < 90 - $mayoritario; $i++) {
+        $cola[] = [['ignis', 'syrtis'][$i % 2], 1000];
+    }
+
+    $r = repartir($cola);
+
+    expect($r['partidas'])->toBe(40)
+        ->and($r['sueltos'])->toBe(10);
+});
+
+it('con un reino muy desbordado y el MMR pegado, coloca a todos los que caben', function () {
+    // El caso que encontro la auditoria, y el que mas cuesta acertar: noventa
+    // Alsius contra treinta y seis de cada uno de los otros dos, todos con el
+    // MMR pegado entre 990 y 1010.
+    //
+    // Caben 72 partidas -las que permiten los 72 no-Alsius-. El barrido deja
+    // sueltos a decenas de Alsius, y para recolocarlos hay que deshacer cruces
+    // que NO tengan ningun Alsius dentro. Esos son una minoria diminuta: seis
+    // entre sesenta y seis en la cola original. Buscarlos por cercania de MMR
+    // sobre la lista entera de cruces no daba con ellos, y dos personas se
+    // quedaban en cola con rival esperando.
+    $cola = [];
+
+    for ($i = 0; $i < 90; $i++) {
+        $cola[] = ['alsius', 990 + ($i % 21)];
+    }
+
+    foreach (['ignis', 'syrtis'] as $realm) {
+        for ($i = 0; $i < 36; $i++) {
+            $cola[] = [$realm, 990 + ($i % 21)];
+        }
+    }
+
+    $r = repartir($cola);
+
+    expect($r['partidas'])->toBe(72)
+        ->and($r['sueltos'])->toBe(18);
+});
