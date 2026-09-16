@@ -10,7 +10,20 @@ use Illuminate\Support\Facades\Log;
 
 class ArenaMaintenanceService
 {
-    private const TICK_THROTTLE_SECONDS = 50;
+    /**
+     * Cada cuanto, como mucho, corre el mantenimiento.
+     *
+     * Eran cincuenta segundos, casi el minuto del cron, porque el reparto
+     * pasaba dentro de la peticion de quien entraba a la cola y esto solo era
+     * la red de seguridad. Desde que las filas maduran unos segundos antes de
+     * entrar al reparto, ya no: quien entra el primero NO se empareja en su
+     * propia peticion, se empareja en la pasada siguiente. Con cincuenta
+     * segundos esa pasada podia tardar casi un minuto y medio en llegar.
+     *
+     * Quince segundos deja la espera real en poco mas de la espera configurada,
+     * y una pasada sobre una cola corta -que es lo normal- no cuesta nada.
+     */
+    private const TICK_THROTTLE_SECONDS = 15;
     private const TICK_THROTTLE_KEY = 'arena:maintenance:tick-window';
 
     public function __construct(

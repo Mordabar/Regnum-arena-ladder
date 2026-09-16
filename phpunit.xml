@@ -13,6 +13,8 @@
 
     <php>
         <env name="APP_ENV" value="testing"/>
+        <!-- Sin espera: cada test que quiera probarla la enciende a mano. -->
+        <env name="ARENA_MATCHMAKING_HOLD_SECONDS" value="0"/>
         <env name="APP_DEBUG" value="true"/>
         <env name="APP_KEY" value="base64:2uH+z3j/9NsdVvB5r0r4A2tQ6G7W3X7M4+J9J9Gx4mM="/>
         <env name="BCRYPT_ROUNDS" value="4"/>

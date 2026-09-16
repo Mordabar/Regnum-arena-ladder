@@ -1208,7 +1208,12 @@ class QueueHubController extends Controller
             'ignis' => (int) $validated['ignis_count'],
             'syrtis' => (int) $validated['syrtis_count'],
             'alsius' => (int) $validated['alsius_count'],
-        ], $request->boolean('replace_existing', true));
+            // Por defecto NO se borra. Estaba al reves, y como la casilla sin
+            // marcar no viaja en el formulario, ese defecto se aplicaba siempre:
+            // marcar o desmarcar daba lo mismo y los bots viejos desaparecian
+            // igual. Ahora el formulario manda un 0 explicito y el defecto
+            // prudente es conservar.
+        ], $request->boolean('replace_existing'));
 
         return redirect()->route('admin.testing')
             ->with('success', 'Sandbox de bots regenerado con ' . $createdPlayers . ' jugadores.');
@@ -1331,7 +1336,7 @@ class QueueHubController extends Controller
 
         $matchmakingService->processQueue();
 
-        return back()->with('success', 'Se encolaron ' . $players->count() . ' bots de ' . ucfirst($validated['realm']) . ' en ' . $arenaMode . ' y se ejecuto el matchmaking auto.');
+        return back()->with('success', 'Se encolaron ' . $players->count() . ' bots de ' . ucfirst($validated['realm']) . ' en ' . $arenaMode . '. Se quedan esperando: pulsa "Procesar cola" cuando tengas dentro a todos los que quieras ver repartidos.');
     }
 
     public function sandboxProcess(ArenaMatchmakingService $matchmakingService)
@@ -1345,7 +1350,9 @@ class QueueHubController extends Controller
         }
 
         try {
-            $created = $matchmakingService->processQueue();
+            // Igual que el boton del panel: aqui se esta probando el reparto a
+            // mano, asi que no se espera a que maduren las filas.
+            $created = $matchmakingService->processQueue(true, true);
         } catch (\Throwable $e) {
             Log::error('Queue sandbox process failed', [
                 'user_id' => Auth::id(),

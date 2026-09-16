@@ -14,6 +14,33 @@ En este orden, y el orden importa:
 La segunda nunca se come a la primera. Si para que jueguen dos personas más hay
 que romper el cruce más ajustado de la tabla, se rompe.
 
+La única excepción a la primera es de tiempo, no de resultado: una fila recién
+entrada espera unos segundos antes de contar (ver más abajo). Pasados esos
+segundos, la promesa vuelve a ser absoluta.
+
+## Antes de repartir: la cola reposa
+
+Una fila de cola no entra al reparto hasta que lleva unos segundos dentro
+(**30 por defecto**, ajustable en el panel).
+
+No es una espera arbitraria: el emparejador no puede elegir bien entre quien
+todavía no ha llegado. Repartiendo al instante, el primero que entra se lleva al
+único que hubiera, aunque dos segundos después aparezca alguien que encajaba
+mucho mejor. Con la espera, la misma pasada ve a los dos y elige.
+
+Tres cosas que conviene tener claras:
+
+- **No se acumula.** El reloj corre desde que entras, no desde la última pasada.
+  Quien lleva un minuto en cola entra al reparto siguiente sin esperar más.
+- **El reparto siguiente llega solo.** El mantenimiento corre como mucho cada
+  15 segundos, así que la espera real es poco más que la configurada.
+- **Los dos botones de "procesar la cola ahora" del panel la saltan**, que es
+  justo para lo que están: ver qué sale con lo que hay en cola en ese momento.
+  Eso es lo que permite meter varios bots, dejarlos esperando y mirar el reparto
+  entero de una pasada.
+
+Con la espera en **0** vuelve el comportamiento de antes.
+
 ## Qué decide si un cruce es bueno
 
 Cada cruce posible se puntúa, y cuanto más bajo mejor. La base es la
@@ -21,6 +48,7 @@ Cada cruce posible se puntúa, y cuanto más bajo mejor. La base es la
 
 | Recargo | Cuánto | Por qué |
 |---|---|---|
+| Repetir rival de hace un momento | 5000 por persona | Que varíe el rival mientras haya alternativa |
 | Repetir un cruce de las últimas 24 h | 10000 | Que no te toque el mismo rival una y otra vez |
 | Solaparse con una partida reciente | 900 | Lo mismo, pero cuando se repite parte del equipo |
 | Composición dispar (2v2 y 3v3) | variable | Que no se enfrenten plantillas muy distintas |
@@ -28,6 +56,21 @@ Cada cruce posible se puntúa, y cuanto más bajo mejor. La base es la
 
 Todo está en la misma escala, que son puntos de MMR. Así "evitar una repetición
 vale 900" quiere decir exactamente eso.
+
+Los dos primeros recargos se parecen pero no miran lo mismo, y el de arriba es
+el que hacía falta:
+
+- El de 24 h mira **equipos completos** y solo partidas **terminadas**. Mientras
+  una partida se está jugando no está terminada, así que quien cancelaba y
+  volvía a entrar se reencontraba con el mismo rival al instante.
+- El de "hace un momento" mira **persona contra persona** y partidas en
+  **cualquier estado**, por fecha de creación. La ventana son **2 minutos** por
+  defecto, ajustable en el panel.
+
+Los 5000 son deliberadamente absurdos: la cola entera cabe en dos mil puntos de
+MMR, así que cualquier alternativa legal gana. Pero es un recargo, no un veto:
+cuando de verdad no hay nadie más, el cruce repetido sigue siendo el único
+candidato y se hace igual. **La promesa nº 1 manda también aquí.**
 
 ## Los seis pasos
 

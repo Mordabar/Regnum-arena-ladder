@@ -28,6 +28,17 @@ class ArenaMatchmakingService
     private const REPEAT_PAIR_WINDOW_HOURS = 24;
     private const EXACT_REPEAT_PAIRING_PENALTY = 10000;
     private const HIGH_OVERLAP_PAIRING_PENALTY = 900;
+
+    /**
+     * Lo que cuesta volver a cruzarte con alguien al que acabas de enfrentarte.
+     *
+     * Cinco mil puntos de MMR es un numero que no existe: la cola entera cabe
+     * en dos mil. Sirve para que la revancha inmediata pierda contra
+     * literalmente cualquier otra opcion legal, pero sin ser un veto -si no hay
+     * mas nadie, es el unico cruce posible y se hace-. Es un desempate, no una
+     * prohibicion.
+     */
+    private const RECENT_OPPONENT_PENALTY = 5000;
     private const LIGHT_OVERLAP_PAIRING_PENALTY = 180;
     private const TEAM_SEARCH_WINDOW = 10;
     private const TEAM_DUPLICATE_SUBCLASS_PENALTY = 14;
@@ -255,14 +266,18 @@ class ArenaMatchmakingService
      *
      * El candado caduca solo, para que un proceso muerto a media faena no deje
      * la cola congelada.
+     *
+     * $ignorarEspera salta el tiempo de maduracion de las filas. Lo usan los dos
+     * botones de "procesar la cola ahora" del panel, donde el admin esta mirando
+     * a proposito lo que sale con lo que hay en cola en este instante.
      */
-    public function processQueue(bool $expirePendingMatches = true): int
+    public function processQueue(bool $expirePendingMatches = true, bool $ignorarEspera = false): int
     {
         // Las llamadas que salen del propio barrido -cancelar un cruce vencido
         // vuelve a emparejar- ya estan dentro del turno. Volver a pedirlo seria
         // esperarse a uno mismo.
         if ($this->barriendo) {
-            return $this->barrerCola($expirePendingMatches);
+            return $this->barrerCola($expirePendingMatches, $ignorarEspera);
         }
 
         if ($this->colaDemasiadoGrandeParaLaPeticion()) {
@@ -275,11 +290,11 @@ class ArenaMatchmakingService
 
         try {
             return Cache::lock(self::PAIRING_LOCK, self::PAIRING_LOCK_TTL)
-                ->block(self::PAIRING_LOCK_WAIT, function () use ($expirePendingMatches) {
+                ->block(self::PAIRING_LOCK_WAIT, function () use ($expirePendingMatches, $ignorarEspera) {
                     $this->barriendo = true;
 
                     try {
-                        return $this->barrerCola($expirePendingMatches);
+                        return $this->barrerCola($expirePendingMatches, $ignorarEspera);
                     } finally {
                         $this->barriendo = false;
                     }
@@ -352,7 +367,7 @@ class ArenaMatchmakingService
             ->count();
     }
 
-    private function barrerCola(bool $expirePendingMatches): int
+    private function barrerCola(bool $expirePendingMatches, bool $ignorarEspera = false): int
     {
         if (!$this->isMatchesSchemaReady()) {
             Log::warning('ArenaMatchmakingService skipped: matches schema is not ready.');
@@ -373,10 +388,23 @@ class ArenaMatchmakingService
             return 0;
         }
 
+        // Nadie entra al reparto recien llegado: primero se le deja un momento
+        // en cola para que se junte gente y el emparejador tenga entre quien
+        // elegir. Sin esto, dos personas que coinciden por casualidad se cruzan
+        // al instante aunque llegue un rival mucho mejor dos segundos despues.
+        $maduros = $ignorarEspera ? now() : now()->subSeconds($this->segundosDeEspera());
+
         $randomWaitingQueues = Queue::query()
             ->where('queue_type', 'random')
             ->whereIn('arena_mode', $enabledModes)
             ->where('status', 'waiting')
+            // Sin joined_at no hay forma de saber cuando llego, y una fila que
+            // no madura nunca es una persona en cola para siempre. Se da por
+            // madura: mas vale emparejarla de mas que dejarla ahi.
+            ->where(function ($query) use ($maduros) {
+                $query->whereNull('joined_at')
+                    ->orWhere('joined_at', '<=', $maduros);
+            })
             ->whereNull('match_id')
             ->whereHas('player', function ($query) {
                 // Un jugador sancionado no vuelve a emparejarse aunque su fila
@@ -396,6 +424,13 @@ class ArenaMatchmakingService
             ->where('queue_type', 'premade')
             ->whereIn('arena_mode', $enabledModes)
             ->where('status', 'waiting')
+            // Sin joined_at no hay forma de saber cuando llego, y una fila que
+            // no madura nunca es una persona en cola para siempre. Se da por
+            // madura: mas vale emparejarla de mas que dejarla ahi.
+            ->where(function ($query) use ($maduros) {
+                $query->whereNull('joined_at')
+                    ->orWhere('joined_at', '<=', $maduros);
+            })
             ->whereNull('match_id')
             ->whereNotNull('team_id')
             ->whereHas('player', function ($query) {
@@ -875,12 +910,13 @@ class ArenaMatchmakingService
 
         $recentPairHistory = $this->buildRecentPairHistory();
         $recentMatchSnapshots = $this->buildRecentMatchSnapshots();
+        $rivalesRecientes = $this->buildRecentOpponents();
 
         // Memoria de puntuaciones: un cruce se puntua una vez y ya. La usan
         // tanto el barrido como los intercambios, que preguntan por cruces que
         // el barrido nunca llego a mirar.
         $cache = [];
-        $puntuar = function (int $i, int $j) use (&$cache, $teams, $recentPairHistory, $recentMatchSnapshots): ?array {
+        $puntuar = function (int $i, int $j) use (&$cache, $teams, $recentPairHistory, $recentMatchSnapshots, $rivalesRecientes): ?array {
             $clave = $i < $j ? "$i:$j" : "$j:$i";
 
             if (array_key_exists($clave, $cache)) {
@@ -888,7 +924,7 @@ class ArenaMatchmakingService
             }
 
             return $cache[$clave] = $this->puntuarCruce(
-                $teams[$i], $teams[$j], $recentPairHistory, $recentMatchSnapshots
+                $teams[$i], $teams[$j], $recentPairHistory, $recentMatchSnapshots, $rivalesRecientes
             );
         };
 
@@ -970,7 +1006,8 @@ class ArenaMatchmakingService
         array $teamA,
         array $teamB,
         array $recentPairHistory,
-        Collection $recentMatchSnapshots
+        Collection $recentMatchSnapshots,
+        array $rivalesRecientes = []
     ): ?array {
         // Nunca se enfrenta un equipo de 2v2 contra uno de 3v3.
         if ($teamA['arena_mode'] !== $teamB['arena_mode']) {
@@ -998,6 +1035,7 @@ class ArenaMatchmakingService
 
         $score = $diff
             + $this->getRepeatPairCount($teamA, $teamB, $recentPairHistory) * self::EXACT_REPEAT_PAIRING_PENALTY
+            + $this->contarRivalesRepetidos($teamA, $teamB, $rivalesRecientes) * self::RECENT_OPPONENT_PENALTY
             + $this->calculateRepeatOverlapPenalty($teamA, $teamB, $recentMatchSnapshots)
             + $this->calculatePairCompositionPenalty($teamA, $teamB);
 
@@ -2254,6 +2292,141 @@ class ArenaMatchmakingService
             'obsidian_watch' => [$canonicalZone, $spaced, $hyphenated, 'obsidianwatch', 'watch'],
             default => [$canonicalZone, $spaced, $hyphenated],
         };
+    }
+
+    /**
+     * Segundos que una fila de cola pasa madurando antes de entrar al reparto.
+     *
+     * El emparejador no puede elegir bien entre quien todavia no ha llegado. Si
+     * reparte en el mismo instante en que alguien pulsa "entrar", el rival que
+     * le toca es el unico que habia, no el mejor: dos segundos despues entra
+     * uno con su mismo MMR y ya es tarde. Con una espera corta, la pasada ve a
+     * los dos y elige.
+     *
+     * Corta de verdad: treinta segundos es lo que tarda alguien en mirar quien
+     * hay conectado, no una sala de espera. Y no se acumula -el reloj corre
+     * desde que entras, no desde la ultima pasada-, asi que el que lleva un
+     * minuto en cola entra al reparto siguiente sin esperar nada mas.
+     */
+    private function segundosDeEspera(): int
+    {
+        $porDefecto = (int) config('arena.matchmaking_hold_seconds', 30);
+        $segundos = (int) AppSetting::getValue('matchmaking_hold_seconds', $porDefecto);
+
+        // Cinco minutos de tope: por encima de eso ya no es "que se junte
+        // gente", es una cola parada, y un valor absurdo tecleado en el panel no
+        // puede dejar la arena sin partidas.
+        return max(0, min(300, $segundos));
+    }
+
+    /**
+     * Minutos durante los que repetir rival sale caro.
+     */
+    private function minutosDeDescanso(): int
+    {
+        $porDefecto = (int) config('arena.rematch_cooldown_minutes', 2);
+        $minutos = (int) AppSetting::getValue('rematch_rest_minutes', $porDefecto);
+
+        return max(0, min(720, $minutos));
+    }
+
+    /**
+     * Quien se ha enfrentado a quien hace nada, persona a persona.
+     *
+     * Distinto de buildRecentPairHistory(), que mira EQUIPOS completos y solo
+     * partidas TERMINADAS de las ultimas 24 h. Ese historico no sirve para lo
+     * que pide el jugador: en 1v1 el equipo es una persona, pero sobre todo, en
+     * el rato en que se juega una partida esa partida no esta completed, asi
+     * que quien cancela y vuelve a entrar se reencuentra con el mismo rival al
+     * instante. Aqui se miran las partidas por FECHA DE CREACION y en CUALQUIER
+     * estado, que es justo el caso que molesta.
+     *
+     * Vale igual para 2v2 y 3v3: ahi cuenta cuantas personas del bando de
+     * enfrente ya te tocaron, asi que repetir a uno pesa menos que repetir al
+     * equipo entero.
+     *
+     * @return array<string, true>  claves "menor:mayor" de ids de jugador
+     */
+    private function buildRecentOpponents(): array
+    {
+        $minutos = $this->minutosDeDescanso();
+
+        if ($minutos <= 0) {
+            return [];
+        }
+
+        $rivales = [];
+
+        ArenaMatch::query()
+            // Solo las tres columnas que se miran. Esto corre dentro de la
+            // peticion de quien entra a la cola, y el admin puede subir el
+            // descanso a doce horas: traerse los enfrentamientos enteros de
+            // doce horas seria pagar la memoria de media jornada por una lista
+            // de parejas de numeros.
+            ->select(['id', 'team_a', 'team_b'])
+            ->where('created_at', '>=', now()->subMinutes($minutos))
+            ->orderByDesc('id')
+            ->limit(2000)
+            ->get()
+            ->each(function (ArenaMatch $match) use (&$rivales) {
+                $ladoA = array_values(array_filter(array_map('intval', $match->getTeamPlayerIds('team_a'))));
+                $ladoB = array_values(array_filter(array_map('intval', $match->getTeamPlayerIds('team_b'))));
+
+                foreach ($ladoA as $unoA) {
+                    foreach ($ladoB as $unoB) {
+                        $rivales[$this->claveDeRivales($unoA, $unoB)] = true;
+                    }
+                }
+            });
+
+        return $rivales;
+    }
+
+    /**
+     * Cuantas parejas de rivales recientes se repetirian en este cruce.
+     *
+     * Se multiplica por RECENT_OPPONENT_PENALTY, que es deliberadamente enorme:
+     * la regla es "que varie el rival", no "que no juegue". Con un recargo asi,
+     * cualquier alternativa legal gana, y cuando de verdad no hay nadie mas el
+     * cruce repetido sigue siendo el unico candidato y se hace igual. Nadie se
+     * queda en cola por esto.
+     */
+    private function contarRivalesRepetidos(array $teamA, array $teamB, array $rivalesRecientes): int
+    {
+        if ($rivalesRecientes === []) {
+            return 0;
+        }
+
+        $idsA = $this->idsDeEquipo($teamA);
+        $idsB = $this->idsDeEquipo($teamB);
+        $repetidos = 0;
+
+        foreach ($idsA as $unoA) {
+            foreach ($idsB as $unoB) {
+                if (isset($rivalesRecientes[$this->claveDeRivales($unoA, $unoB)])) {
+                    $repetidos++;
+                }
+            }
+        }
+
+        return $repetidos;
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function idsDeEquipo(array $team): array
+    {
+        return $team['entries']
+            ->map(fn (Queue $queue) => (int) $queue->player->id)
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    private function claveDeRivales(int $uno, int $otro): string
+    {
+        return $uno < $otro ? "$uno:$otro" : "$otro:$uno";
     }
 
     private function buildRecentPairHistory(): array

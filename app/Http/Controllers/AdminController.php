@@ -648,7 +648,9 @@ class AdminController extends Controller
 
     public function processQueue(ArenaMatchmakingService $matchmakingService)
     {
-        $created = $matchmakingService->processQueue();
+        // El boton de "procesar ahora" salta la espera a proposito: el admin lo
+        // pulsa justo para ver que sale con lo que hay en cola en este momento.
+        $created = $matchmakingService->processQueue(true, true);
 
         return back()->with('success', 'Matchmaking manual ejecutado. Se crearon ' . $created . ' matches.');
     }
@@ -672,6 +674,8 @@ class AdminController extends Controller
             'support_contact' => AppSetting::getValue('support_contact', ''),
             'discord_invite_url' => AppSetting::getValue('discord_invite_url', ''),
             'discord_server_label' => AppSetting::getValue('discord_server_label', ''),
+            'matchmaking_hold_seconds' => AppSetting::getValue('matchmaking_hold_seconds', (int) config('arena.matchmaking_hold_seconds', 30)),
+            'rematch_rest_minutes' => AppSetting::getValue('rematch_rest_minutes', (int) config('arena.rematch_cooldown_minutes', 2)),
             'accept_window_minutes' => AppSetting::getValue('accept_window_minutes', 5),
             'hunt_window_minutes' => AppSetting::getValue('hunt_window_minutes', 30),
             'report_confirmation_window_minutes' => AppSetting::getValue('report_confirmation_window_minutes', 15),
@@ -711,6 +715,11 @@ class AdminController extends Controller
             'support_contact' => 'nullable|string|max:180',
             'discord_invite_url' => 'nullable|url|max:255',
             'discord_server_label' => 'nullable|string|max:120',
+            // Nullable a proposito: son ajustes nuevos, y un formulario cacheado
+            // por el navegador -o cualquier otro sitio que empuje ajustes- no
+            // puede quedarse sin poder guardar nada por no traerlos.
+            'matchmaking_hold_seconds' => 'nullable|integer|min:0|max:300',
+            'rematch_rest_minutes' => 'nullable|integer|min:0|max:720',
             'accept_window_minutes' => 'required|integer|min:1|max:30',
             'hunt_window_minutes' => 'required|integer|min:5|max:120',
             'report_confirmation_window_minutes' => 'required|integer|min:1|max:60',
@@ -740,6 +749,13 @@ class AdminController extends Controller
         AppSetting::setValue('support_contact', $validated['support_contact'] ?? '', 'branding', 'string', true);
         AppSetting::setValue('discord_invite_url', $validated['discord_invite_url'] ?? '', 'branding', 'string', true);
         AppSetting::setValue('discord_server_label', $validated['discord_server_label'] ?? '', 'branding', 'string', true);
+        if (($validated['matchmaking_hold_seconds'] ?? null) !== null) {
+            AppSetting::setValue('matchmaking_hold_seconds', $validated['matchmaking_hold_seconds'], 'runtime', 'integer', false);
+        }
+
+        if (($validated['rematch_rest_minutes'] ?? null) !== null) {
+            AppSetting::setValue('rematch_rest_minutes', $validated['rematch_rest_minutes'], 'runtime', 'integer', false);
+        }
         AppSetting::setValue('accept_window_minutes', $validated['accept_window_minutes'], 'runtime', 'integer', false);
         AppSetting::setValue('hunt_window_minutes', $validated['hunt_window_minutes'], 'runtime', 'integer', false);
         AppSetting::setValue('report_confirmation_window_minutes', $validated['report_confirmation_window_minutes'], 'runtime', 'integer', false);

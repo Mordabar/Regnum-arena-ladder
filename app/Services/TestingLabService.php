@@ -12,11 +12,20 @@ use App\Services\LadderCacheService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class TestingLabService
 {
+    /**
+     * De cuantos en cuantos se recorre y se borra al limpiar el laboratorio.
+     *
+     * Ni la memoria ni el tamaño de las consultas pueden crecer con el
+     * historial: una purga es lo que mas filas toca de toda la aplicacion.
+     */
+    private const PURGE_CHUNK = 300;
+
     public const LEGACY_TEST_DISCORD_ID = '888888888888888888';
     public const LAB_EMAIL_DOMAIN = 'queue-lab.test';
     public const LAB_DISCORD_PREFIX = 'queue-lab-';
@@ -121,6 +130,104 @@ class TestingLabService
             ->values();
     }
 
+    /**
+     * Las columnas que hacen falta para saber quien jugo un enfrentamiento.
+     *
+     * Las tres `team_<reino>` son de un esquema antiguo y pueden no existir:
+     * getAllPlayers() las lee por si acaso, pero pedirlas en un SELECT donde no
+     * estan revienta la consulta. Se preguntan una vez y se guardan.
+     *
+     * @return list<string>
+     */
+    private function columnasDeEquipo(): array
+    {
+        static $columnas = null;
+
+        if ($columnas !== null) {
+            return $columnas;
+        }
+
+        $columnas = ['id', 'team_a', 'team_b'];
+
+        foreach (['team_ignis', 'team_syrtis', 'team_alsius'] as $heredada) {
+            if (Schema::hasColumn('matches', $heredada)) {
+                $columnas[] = $heredada;
+            }
+        }
+
+        return $columnas;
+    }
+
+    /**
+     * Los IDs de los enfrentamientos donde jugo alguno de estos personajes.
+     *
+     * Para BORRAR no hace falta cargar los enfrentamientos enteros, y cargarlos
+     * era justo lo que tumbaba el sitio: `collectMatchesInvolvingPlayers` sin
+     * tope trae la tabla completa de enfrentamientos CON sus reportes, sus
+     * resultados y el personaje de cada resultado, todo en memoria a la vez.
+     * Con unos cuantos bots y un rato de pruebas encima, la peticion se queda
+     * sin memoria y el navegador solo ve que la conexion se corto.
+     *
+     * Aqui se recorre por tandas y solo con las columnas de los equipos, que es
+     * lo unico que hace falta para saber quien jugo. La memoria no crece con el
+     * tamaño del historial.
+     *
+     * @return Collection<int, int>
+     */
+    public function matchIdsInvolvingPlayers(Collection $playerIds): Collection
+    {
+        if ($playerIds->isEmpty()) {
+            return collect();
+        }
+
+        $ids = collect();
+
+        ArenaMatch::query()
+            ->select($this->columnasDeEquipo())
+            ->orderBy('id')
+            ->chunk(self::PURGE_CHUNK, function (Collection $tanda) use ($playerIds, $ids) {
+                foreach ($tanda as $match) {
+                    if ($this->matchIntersectsPlayerPool($match, $playerIds)) {
+                        $ids->push((int) $match->id);
+                    }
+                }
+            });
+
+        return $ids;
+    }
+
+    /**
+     * Los IDs de los enfrentamientos jugados SOLO por estos personajes.
+     *
+     * La hermana estricta de matchIdsInvolvingPlayers: aqui no vale que haya
+     * jugado un bot, tienen que ser todos. Es lo que promete el borrado de
+     * "solo lo del laboratorio", que no debe tocar una partida donde participo
+     * alguien de verdad.
+     *
+     * @return Collection<int, int>
+     */
+    public function matchIdsUsingOnlyPlayers(Collection $playerIds): Collection
+    {
+        if ($playerIds->isEmpty()) {
+            return collect();
+        }
+
+        $ids = collect();
+
+        ArenaMatch::query()
+            ->select($this->columnasDeEquipo())
+            ->orderBy('id')
+            ->chunk(self::PURGE_CHUNK, function (Collection $tanda) use ($playerIds, $ids) {
+                foreach ($tanda as $match) {
+                    if ($this->matchUsesOnlyPlayerPool($match, $playerIds)) {
+                        $ids->push((int) $match->id);
+                    }
+                }
+            });
+
+        return $ids;
+    }
+
     public function isLabMatch(ArenaMatch $match, ?Collection $playerIds = null): bool
     {
         $playerIds ??= $this->testPlayerIds();
@@ -197,21 +304,29 @@ class TestingLabService
         }
 
         // Sin limite: si se deja un tope, las pruebas viejas se quedan dentro y
-        // el laboratorio nunca acaba de estar limpio.
-        $matchIds = $this->collectMatchesInvolvingPlayers($botIds, null)->pluck('id');
+        // el laboratorio nunca acaba de estar limpio. Pero solo los IDs: cargar
+        // los enfrentamientos enteros con sus relaciones es lo que tumbaba la
+        // peticion en cuanto habia unos cuantos bots y un rato de historial.
+        $matchIds = $this->matchIdsInvolvingPlayers($botIds);
 
         if ($matchIds->isEmpty()) {
             return $this->finishPurge($result, $botIds, $users, $deleteBots);
         }
 
-        DB::transaction(function () use ($matchIds, $botIds, &$result) {
-            $result['evidence_deleted'] = $this->deleteEvidenceFiles($matchIds);
-            $this->revertScores($matchIds, $botIds, $result);
+        // Y se borra por tandas, cada una en su transaccion. Meter miles de IDs
+        // en un solo `where in` genera una consulta enorme y deja la tabla
+        // bloqueada todo el rato; por tandas, cada paso es corto y si algo falla
+        // a mitad, lo ya borrado esta borrado y se puede repetir.
+        foreach ($matchIds->chunk(self::PURGE_CHUNK) as $tanda) {
+            DB::transaction(function () use ($tanda, $botIds, &$result) {
+                $result['evidence_deleted'] += $this->deleteEvidenceFiles($tanda);
+                $this->revertScores($tanda, $botIds, $result);
 
-            $result['reports_deleted'] = MatchReport::query()->whereIn('match_id', $matchIds)->delete();
-            MatchResult::query()->whereIn('match_id', $matchIds)->delete();
-            $result['matches_deleted'] = ArenaMatch::query()->whereIn('id', $matchIds)->delete();
-        });
+                $result['reports_deleted'] += MatchReport::query()->whereIn('match_id', $tanda)->delete();
+                MatchResult::query()->whereIn('match_id', $tanda)->delete();
+                $result['matches_deleted'] += ArenaMatch::query()->whereIn('id', $tanda)->delete();
+            });
+        }
 
         return $this->finishPurge($result, $botIds, $users, $deleteBots);
     }
@@ -350,7 +465,12 @@ class TestingLabService
         $users = $this->testUsersQuery()->get();
         $players = $this->testPlayersQuery()->get();
         $playerIds = $players->pluck('id');
-        $matchIds = $this->collectLabMatches($playerIds, null)->pluck('id');
+
+        // Solo los IDs y por tandas: cargar los enfrentamientos enteros con sus
+        // relaciones se come la memoria en cuanto hay historial. Aqui se pide
+        // ademas que el enfrentamiento sea SOLO de bots, que es lo que este
+        // borrado promete, al reves que purgeTrace.
+        $matchIds = $this->matchIdsUsingOnlyPlayers($playerIds);
 
         $result = [
             'users_deleted' => 0,
@@ -362,14 +482,16 @@ class TestingLabService
 
         app(LadderCacheService::class)->forgetSummary();
 
-        DB::transaction(function () use ($users, $playerIds, $matchIds, $deleteUsers, $resetPlayers, &$result) {
-            if ($matchIds->isNotEmpty()) {
-                MatchResult::query()->whereIn('match_id', $matchIds)->delete();
-                MatchReport::query()->whereIn('match_id', $matchIds)->delete();
-                ArenaMatch::query()->whereIn('id', $matchIds)->delete();
-                $result['matches_deleted'] = $matchIds->count();
-            }
+        foreach ($matchIds->chunk(self::PURGE_CHUNK) as $tanda) {
+            DB::transaction(function () use ($tanda, &$result) {
+                MatchResult::query()->whereIn('match_id', $tanda)->delete();
+                MatchReport::query()->whereIn('match_id', $tanda)->delete();
+                ArenaMatch::query()->whereIn('id', $tanda)->delete();
+                $result['matches_deleted'] += $tanda->count();
+            });
+        }
 
+        DB::transaction(function () use ($users, $playerIds, $deleteUsers, $resetPlayers, &$result) {
             if ($playerIds->isNotEmpty()) {
                 $result['queues_deleted'] = Queue::query()->whereIn('player_id', $playerIds)->delete();
             }

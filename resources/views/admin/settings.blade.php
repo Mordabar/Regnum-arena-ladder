@@ -54,6 +54,24 @@
                                         note="Cuanto espera el sistema antes de resolver algo por su cuenta." />
                 <div class="grid gap-3 md:grid-cols-3">
                     <div class="ap-field">
+                        <label class="ap-label" for="s-hold">Espera antes de emparejar (segundos)</label>
+                        <input type="number" min="0" max="300" id="s-hold" name="matchmaking_hold_seconds" value="{{ $settings['matchmaking_hold_seconds'] }}" class="ap-input">
+                        <span class="ap-hint">
+                            Lo que una cola reposa antes de entrar al reparto, para que se junte gente y el
+                            emparejador tenga entre quien elegir. Con 0 se empareja con el primero que haya,
+                            aunque dos segundos despues entre uno que encajaba mucho mejor.
+                        </span>
+                    </div>
+                    <div class="ap-field">
+                        <label class="ap-label" for="s-rematch">Descanso entre revanchas (minutos)</label>
+                        <input type="number" min="0" max="720" id="s-rematch" name="rematch_rest_minutes" value="{{ $settings['rematch_rest_minutes'] }}" class="ap-input">
+                        <span class="ap-hint">
+                            Durante este rato, repetir rival sale carisimo y el emparejador prefiere a
+                            cualquier otro. No es una prohibicion: si de verdad no hay nadie mas, se repite
+                            antes que dejar a los dos en cola.
+                        </span>
+                    </div>
+                    <div class="ap-field">
                         <label class="ap-label" for="s-accept">Aceptar la partida</label>
                         <input type="number" min="1" max="30" id="s-accept" name="accept_window_minutes" value="{{ $settings['accept_window_minutes'] }}" class="ap-input">
                         <span class="ap-hint">Minutos para aceptar. Si nadie lo hace, la partida se cancela.</span>

@@ -465,6 +465,8 @@ function defaultSettingsPayload(): array
         'support_contact' => '',
         'discord_invite_url' => '',
         'discord_server_label' => '',
+        'matchmaking_hold_seconds' => 0,
+        'rematch_rest_minutes' => 2,
         'accept_window_minutes' => 5,
         'hunt_window_minutes' => 30,
         'report_confirmation_window_minutes' => 15,

@@ -117,6 +117,11 @@
                 <button type="submit" class="ap-btn ap-btn-primary ap-btn-block">Generar</button>
             </div>
             <label class="flex items-center gap-2 sm:col-span-4" style="font-size: 12.5px; color: var(--ap-text-muted)">
+                {{-- El hidden es lo que hace que desmarcar la casilla signifique
+                     algo: un checkbox sin marcar no se envia, asi que sin esto
+                     el servidor no recibia nada y aplicaba su valor por defecto
+                     -borrar-. Daba igual marcarla o no: siempre borraba. --}}
+                <input type="hidden" name="replace_existing" value="0">
                 <input type="checkbox" name="replace_existing" value="1" checked class="ap-checkbox">
                 Borrar los bots que ya existan y empezar de cero
             </label>
