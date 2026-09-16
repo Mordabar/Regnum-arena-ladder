@@ -76,7 +76,12 @@ class DiscordBotService
     {
         $playerId = isset($playerData['player_id']) ? (int) $playerData['player_id'] : null;
         $discordId = isset($playerData['discord_id']) ? (string) $playerData['discord_id'] : null;
-        $teamSide = $match->getTeamSideForPlayer($playerId, $discordId) ?? 'team_a';
+        // Si no se resuelve el lado se asume team_a, como siempre. Ojo con esa
+        // suposicion mas abajo: en 2v2 equivocarse solo enseña el equipo que no
+        // era, pero en duelo el campo se llama "Tu rival", asi que un lado mal
+        // adivinado mandaria al jugador a buscarse a si mismo.
+        $ladoResuelto = $match->getTeamSideForPlayer($playerId, $discordId);
+        $teamSide = $ladoResuelto ?? 'team_a';
         $ownTeam = $match->getTeamBySide($teamSide);
         $rivalRealm = $match->getOpponentRealmForPlayer($playerId, $discordId);
         $rivalRealmName = ArenaMatch::REALMS[$rivalRealm] ?? strtoupper((string) $rivalRealm);
@@ -86,7 +91,10 @@ class DiscordBotService
         // donde hace falta: es lo que el jugador lee antes de ir a la zona. Con
         // "Tu equipo" a solas no decia nada -el equipo es el mismo que lo lee-,
         // asi que el hueco lo ocupa a quien va a buscar.
-        $esDuelo = ArenaMode::revealsRivalNames($match->arena_mode);
+        // Solo se nombra al rival cuando de verdad se sabe de que lado esta
+        // quien lee. Sin el $ladoResuelto, adivinar mal convertia el aviso en
+        // una mentira con nombre y apellidos.
+        $esDuelo = $ladoResuelto !== null && ArenaMode::revealsRivalNames($match->arena_mode);
         $rivalTeam = $match->getTeamBySide($teamSide === 'team_a' ? 'team_b' : 'team_a');
 
         $embed = [

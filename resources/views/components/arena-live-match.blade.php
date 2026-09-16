@@ -4,6 +4,8 @@
     use App\Support\ArenaMode;
 
     $teamSize = ArenaMode::teamSize($match->arena_mode);
+    // En un duelo "tu equipo" eres tu solo, asi que la etiqueta cambia.
+    $esDuelo = ArenaMode::revealsRivalNames($match->arena_mode);
     $running = $match->status === 'in_progress' && !$reportPending;
 
     // El reloj del combate. Cuando todos aceptan, el sistema fija expires_at a
@@ -55,7 +57,7 @@
 
     <header class="arena-duel-panel-head">
         <div class="min-w-0">
-            <p class="arena-kicker">{{ $match->match_code }} · Arena {{ $match->arena_mode }}</p>
+            <p class="arena-kicker">{{ $match->match_code }} · {{ \App\Support\ArenaMode::displayName($match->arena_mode) }}</p>
             <h2 id="arenaLiveTitle" class="arena-duel-panel-title">
                 @if($reportPending)
                     Esperando confirmación del rival
@@ -100,7 +102,7 @@
                     <div class="arena-duel-versus" aria-hidden="true">VS</div>
                 @endif
                 <div class="arena-duel-team" style="--team-color: {{ $realmVar($realm) }}">
-                    <h3>{{ PlayerModel::REALMS[$realm] ?? $realm }}{{ $isOwn ? ' · tu equipo' : '' }}</h3>
+                    <h3>{{ PlayerModel::REALMS[$realm] ?? $realm }}{{ $isOwn ? ($esDuelo ? ' · tú' : ' · tu equipo') : '' }}</h3>
                     @foreach($lineup[$side] as $fighter)
                         <div class="arena-duel-fighter is-ready">
                             <x-arena-champion
@@ -142,7 +144,7 @@
                 <label class="block">
                     <span class="mb-2 block text-sm font-medium arena-body-text">Equipo ganador</span>
                     <select name="claimed_winner_team" class="arena-select">
-                        <option value="{{ $lineup['own_side'] }}">Tu equipo ({{ PlayerModel::REALMS[$lineup['own_realm']] ?? $lineup['own_realm'] }})</option>
+                        <option value="{{ $lineup['own_side'] }}">{{ $esDuelo ? 'Yo' : 'Tu equipo' }} ({{ PlayerModel::REALMS[$lineup['own_realm']] ?? $lineup['own_realm'] }})</option>
                         <option value="{{ $lineup['rival_side'] }}">Rival ({{ PlayerModel::REALMS[$lineup['rival_realm']] ?? $lineup['rival_realm'] }})</option>
                         <option value="draw">Empate, sin ganador</option>
                     </select>

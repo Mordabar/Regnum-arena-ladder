@@ -40,7 +40,7 @@
     <div class="ap-field">
         <label class="ap-label" for="f-mode">Modalidad</label>
         <select name="mode" id="f-mode" class="ap-select">
-            <option value="">Las dos</option>
+            <option value="">Todas</option>
             @foreach(array_keys(\App\Support\ArenaMode::MODES) as $key)
                 <option value="{{ $key }}" @selected($mode === $key)>{{ $key }}</option>
             @endforeach

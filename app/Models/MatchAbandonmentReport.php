@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Services\MatchLineupService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -73,6 +72,22 @@ class MatchAbandonmentReport extends Model
     }
 
     /**
+     * Estados en los que el combate ya termino y sus capturas dejan de dar
+     * ventaja.
+     *
+     * Coincide valor por valor con MatchLineupService::REVEAL_STATUSES y aun
+     * asi vive aparte, a proposito. Son dos reglas distintas que hoy responden
+     * igual: alli se decide quien ve el NOMBRE del rival -y ese metodo tambien
+     * dice que si en los duelos, donde los nombres son publicos desde el
+     * cruce-, y aqui quien ve una CAPTURA tomada a mitad de la pelea. Si las
+     * dos compartieran constante, añadir un estado por una decision de
+     * anonimato abriria en silencio la puerta de las capturas.
+     *
+     * @var list<string>
+     */
+    private const ESTADOS_CERRADOS = ['completed', 'disputed', 'void', 'abandoned', 'cancelled'];
+
+    /**
      * Si un jugador puede leer el motivo y abrir las capturas de este aviso.
      *
      * Mientras el combate sigue abierto, no. Las capturas de un aviso se toman
@@ -92,16 +107,7 @@ class MatchAbandonmentReport extends Model
         }
 
         // Cerrado: ya no hay ventaja que robar.
-        //
-        // Se mira el ESTADO y nada mas. Tentador seria llamar a
-        // MatchLineupService::namesRevealed(), que usa esta misma lista, pero
-        // ese metodo tambien dice que si en los duelos 1v1 -donde los nombres
-        // son publicos desde el cruce- y aqui no se decide quien se llama como,
-        // sino quien ve una captura tomada a mitad de la pelea. Un duelo en
-        // curso es justo el caso en el que esa captura es la pantalla del
-        // enemigo: vida, posicion y cooldowns de la unica persona contra la que
-        // estas peleando.
-        if (in_array($match->status, MatchLineupService::REVEAL_STATUSES, true)) {
+        if (in_array($match->status, self::ESTADOS_CERRADOS, true)) {
             return true;
         }
 

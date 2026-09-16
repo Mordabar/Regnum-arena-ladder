@@ -4,6 +4,8 @@
 
     $waiting = $lineup['viewer_accepted'];
     $teamSize = \App\Support\ArenaMode::teamSize($match->arena_mode);
+    // En un duelo "tu equipo" eres tu solo, asi que la etiqueta cambia.
+    $esDuelo = \App\Support\ArenaMode::revealsRivalNames($match->arena_mode);
     $secondsLeft = $match->expires_at ? max(0, now()->diffInSeconds($match->expires_at, false)) : null;
     $totalSeconds = $match->expires_at && $match->created_at
         ? max(1, $match->created_at->diffInSeconds($match->expires_at))
@@ -29,7 +31,7 @@
 
     <header class="arena-duel-panel-head">
         <div class="min-w-0">
-            <p class="arena-kicker">{{ $match->match_code }} · Arena {{ $match->arena_mode }}</p>
+            <p class="arena-kicker">{{ $match->match_code }} · {{ \App\Support\ArenaMode::displayName($match->arena_mode) }}</p>
             <h2 id="arenaDuelTitle" class="arena-duel-panel-title">
                 {{ $waiting ? 'Esperando a los demás' : '¡Combate encontrado!' }}
             </h2>
@@ -69,7 +71,7 @@
                 <div class="arena-duel-versus" aria-hidden="true">VS</div>
             @endif
             <div class="arena-duel-team" style="--team-color: {{ $realmVar($realm) }}">
-                <h3>{{ PlayerModel::REALMS[$realm] ?? $realm }}{{ $isOwn ? ' · tu equipo' : '' }}</h3>
+                <h3>{{ PlayerModel::REALMS[$realm] ?? $realm }}{{ $isOwn ? ($esDuelo ? ' · tú' : ' · tu equipo') : '' }}</h3>
                 @foreach($lineup[$side] as $fighter)
                     {{-- Cada combatiente con su propio guerrero en 3D. Son
                          escenarios pequenos y sin parallax: lo que importa aqui

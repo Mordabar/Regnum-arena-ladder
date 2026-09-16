@@ -180,13 +180,18 @@ it('nunca cruza un duelo contra un equipo de 2v2', function () {
 });
 
 it('a igual MMR prefiere el espejo de subclase', function () {
+    // El rival CORRECTO se crea el ultimo a proposito. Con todos a 1000 de MMR
+    // los tres cruces empatan si la preferencia no existe, y el emparejador
+    // -que es avido- se queda con el primer par que evalua, o sea con el orden
+    // de creacion. Poniendo el espejo al final, un test que solo midiera ese
+    // orden saldria verde apuntando al rival equivocado.
     $yo = duelistaEn('esp-yo', 'alsius', 'marksman', 1000);
-    $espejo = duelistaEn('esp-si', 'ignis', 'marksman', 1000);
     $otro = duelistaEn('esp-no', 'syrtis', 'knight', 1000);
+    $espejo = duelistaEn('esp-si', 'ignis', 'marksman', 1000);
 
     encolarDuelista($yo);
-    encolarDuelista($espejo);
     encolarDuelista($otro);
+    encolarDuelista($espejo);
 
     app(ArenaMatchmakingService::class)->processQueue();
 
@@ -196,13 +201,15 @@ it('a igual MMR prefiere el espejo de subclase', function () {
 it('a igual MMR prefiere la misma clase antes que otra', function () {
     // Caballero y barbaro son los dos guerreros: no es el espejo exacto, pero
     // esta mas cerca que un mago.
+    // Mismo cuidado que arriba: el rival correcto va el ultimo, para que el
+    // test no pueda salir verde por el orden de creacion.
     $yo = duelistaEn('cls-yo', 'alsius', 'knight', 1000);
-    $mismaClase = duelistaEn('cls-si', 'ignis', 'barbarian', 1000);
     $otraClase = duelistaEn('cls-no', 'syrtis', 'warlock', 1000);
+    $mismaClase = duelistaEn('cls-si', 'ignis', 'barbarian', 1000);
 
     encolarDuelista($yo);
-    encolarDuelista($mismaClase);
     encolarDuelista($otraClase);
+    encolarDuelista($mismaClase);
 
     app(ArenaMatchmakingService::class)->processQueue();
 
@@ -224,6 +231,24 @@ it('el MMR manda: un rival de otra clase que encaja mejor gana al espejo lejano'
     app(ArenaMatchmakingService::class)->processQueue();
 
     expect(rivalDe($yo)?->id)->toBe($cercano->id);
+});
+
+it('un encaje de MMR perfecto le gana a un espejo por poco que sea la ventaja', function () {
+    // El caso exacto que delato que la version anterior estaba mal: la
+    // preferencia se sumaba al MMR como si fuera MMR, asi que un espejo a 69
+    // puntos de distancia le ganaba a un rival de otra clase con el MMR
+    // clavado. Eso no es "el MMR sigue siendo prioridad", es al reves.
+    $yo = duelistaEn('band-yo', 'alsius', 'hunter', 1000);
+    $espejoPeor = duelistaEn('band-esp', 'ignis', 'hunter', 1069);
+    $clavado = duelistaEn('band-cla', 'syrtis', 'warlock', 1000);
+
+    encolarDuelista($yo);
+    encolarDuelista($espejoPeor);
+    encolarDuelista($clavado);
+
+    app(ArenaMatchmakingService::class)->processQueue();
+
+    expect(rivalDe($yo)?->id)->toBe($clavado->id);
 });
 
 it('con el MMR casi igualado la preferencia decide', function () {

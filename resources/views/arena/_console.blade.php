@@ -161,7 +161,12 @@
                                                     <b>{{ $member->player->cleanName() }}</b>
                                                 </span>
                                             @endforeach
-                                            @for($i = $activeParty->members->count(); $i < $teamSize; $i++)
+                                            {{-- Los huecos son los de LA PARTY, no los de la pestaña
+                                                 que tengas abierta. Con el minimo en 2 daba igual;
+                                                 con el duelo -teamSize 1- una party de 3v3 a medio
+                                                 formar perdia sus huecos "Libre" solo por mirar la
+                                                 pestaña del 1v1. --}}
+                                            @for($i = $activeParty->members->count(); $i < \App\Support\ArenaMode::teamSize($activeParty->arena_mode); $i++)
                                                 <span class="arena-console-party-slot is-empty">
                                                     <span class="arena-console-party-portrait is-empty">+</span>
                                                     <b>Libre</b>
@@ -219,6 +224,21 @@
                                         <option value="offensive">Ofensivo</option>
                                         <option value="support">Soporte</option>
                                     </select>
+                                    @if(!$premadeSupported)
+                                        {{-- En el duelo el rol no cambia nada del
+                                             emparejamiento -la regla de "un solo
+                                             soporte por equipo" no tiene sentido
+                                             con equipos de uno-, pero el
+                                             desplegable seguia ofreciendo Soporte
+                                             sin una palabra de contexto. Se avisa
+                                             en vez de decidir por el jugador: es
+                                             su personaje y su build. --}}
+                                        <p class="arena-queue-hint">
+                                            En el duelo el rol no cambia con quien te emparejan. Un
+                                            soporte puro no tiene a quien apoyar, asi que peleara en
+                                            desventaja.
+                                        </p>
+                                    @endif
                                 </div>
                             @endif
 

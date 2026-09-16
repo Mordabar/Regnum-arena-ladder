@@ -138,7 +138,11 @@
                 <h2 class="text-xl font-semibold text-white">Anonimato rival</h2>
             </div>
             <p class="mt-3 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                Solo ves el reino rival hasta que el match se cierre o entre en disputa. Sin ventajas previas.
+                {{-- Prometer anonimato a secas dejo de ser cierto con el duelo
+                     1v1: ahi el nombre es publico desde el cruce, a proposito, y
+                     quien lee esto antes de entrar merece saberlo. --}}
+                En 2v2 y 3v3 solo ves el reino rival hasta que el match se cierre o entre en disputa. Sin ventajas previas.
+                En los duelos 1v1 el nombre del rival si se ve desde el cruce: con un solo contrincante, esconderlo solo servia para no encontrarse.
             </p>
         </article>
         <article class="arena-panel arena-animate-in arena-stagger-5 p-6">
