@@ -37,7 +37,7 @@
        Solo uno por figura: el ultimo sustituye al anterior. Lo que importa es
        lo ultimo que dijo; el historial completo esta en la lista de abajo. */
     function sacarBocadillo(ping) {
-        var figura = document.querySelector('[data-fighter="' + ping.player_id + '"]');
+        var figura = document.querySelector('[data-fighter="' + ping.fid + '"]');
         if (!figura) { return; }
 
         var globo = figura.querySelector('[data-fighter-bubble]');

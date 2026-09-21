@@ -115,7 +115,7 @@
                     <div class="arena-battle-fighters" data-count="{{ count($lineup[$side]) }}">
                         @foreach($lineup[$side] as $fighter)
                             <figure class="arena-battle-fighter"
-                                    @if(!empty($fighter['player_id'])) data-fighter="{{ $fighter['player_id'] }}" @endif>
+                                    @if(!empty($fighter['fighter_id'])) data-fighter="{{ $fighter['fighter_id'] }}" @endif>
 
                                 <div class="arena-battle-stage">
                                     {{-- El bocadillo del aviso, DENTRO del

@@ -1858,7 +1858,7 @@
 
                Debajo del titulo y de tres botones apilados quedaba a pantalla y
                media de scroll: lo que engancha a quien llega sin cuenta es ver
-               que hay 17 lingotes en juego y quien los lleva, no leer la
+               que hay un premio en juego y quien lo lleva, no leer la
                descripcion del sistema de puntos. */
             .arena-hero { gap: 22px; }
             .arena-hero-side { order: -1; }
@@ -2310,7 +2310,30 @@
             .arena-chat[data-open="1"] .arena-chat-preview { display: none; }
             .arena-chat-log { min-height: 84px; max-height: 148px; padding: 10px; }
             .arena-chat-bubble { max-width: 86%; }
-            .arena-chat-quick { padding: 8px 10px; }
+            .arena-chat-quick { padding: 8px 10px; gap: 8px; }
+
+            /* Dedos, no raton. Un boton de treinta pixeles de alto dentro de
+               una barra que ademas se arrastra de lado termina en toques
+               fallados o en frases mandadas sin querer, y esto se usa con
+               prisa y a mitad de un combate. */
+            .arena-chat-quick-btn {
+                min-height: 44px;
+                padding: 8px 14px;
+                font-size: 13px;
+            }
+            .arena-chat-head { min-height: 44px; }
+            .arena-chat-quick-wrap::after { width: 26px; }
+
+            /* La barra no puede tapar lo ultimo que se dijo: en un movil con la
+               caja abierta, el ultimo mensaje quedaba justo debajo del
+               degradado del final. */
+            .arena-chat-status { padding-bottom: 11px; }
+        }
+
+        /* Un movil bajo -o con el teclado fuera- no puede quedarse sin sitio
+           para el 3D por culpa del chat. */
+        @media (max-width: 720px) and (max-height: 700px) {
+            .arena-chat-log { min-height: 64px; max-height: 112px; }
         }
 
         .arena-duel-panel .arena-duel-lineups { padding: 18px 22px; }

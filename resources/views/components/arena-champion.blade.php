@@ -6,6 +6,7 @@
     'height' => '420px',
     'id' => null,
     'parallax' => true,
+    'defer' => false,
 ])
 @php
     // Un id estable permite que la vista que lo monta se refiera a este visor
@@ -25,6 +26,7 @@
      data-champion-race="{{ $race ?: \App\Models\Player::defaultRace($realm) }}"
      data-champion-gender="{{ $gender ?: 'male' }}"
      data-champion-parallax="{{ $parallax ? '1' : '0' }}"
+     @if($defer) data-champion-defer="1" @endif
      style="height: {{ $height }}">
 
     <canvas class="arena-champion-canvas" aria-hidden="true"></canvas>
@@ -85,6 +87,23 @@
                 });
             };
 
+            /* Monta un visor concreto, ya sin condiciones. */
+            window.arenaMontarVisor = function (host) {
+                if (!window.ArenaChampion || host.dataset.championMounted === '1') { return; }
+
+                var canvas = host.querySelector('canvas');
+                if (!canvas) { return; }
+
+                host.dataset.championMounted = '1';
+                window.arenaChampionViewers[host.dataset.championId] = window.ArenaChampion.mount(canvas, {
+                    realm: host.dataset.championRealm,
+                    subclass: host.dataset.championSubclass,
+                    race: host.dataset.championRace,
+                    gender: host.dataset.championGender,
+                    parallax: host.dataset.championParallax !== '0'
+                });
+            };
+
             /* Monta los visores que todavia no lo estan. Se puede llamar tantas
                veces como haga falta: el hueco ya montado lleva su marca. */
             window.arenaMountChampions = function (root) {
@@ -95,17 +114,27 @@
                 (root || document).querySelectorAll('[data-champion-viewer]').forEach(function (host) {
                     if (host.dataset.championMounted === '1') { return; }
 
-                    var canvas = host.querySelector('canvas');
-                    if (!canvas) { return; }
+                    /* Los marcados como diferidos esperan a estar a la vista.
+                       Montar cuesta un contexto WebGL y un modelo de varios
+                       cientos de kilobytes: tres visores a la vez en la portada
+                       se notan en el movil, y dos de ellos ni siquiera estan en
+                       pantalla cuando la pagina abre. */
+                    if (host.dataset.championDefer === '1' && 'IntersectionObserver' in window) {
+                        if (host.dataset.championWatched === '1') { return; }
+                        host.dataset.championWatched = '1';
 
-                    host.dataset.championMounted = '1';
-                    window.arenaChampionViewers[host.dataset.championId] = window.ArenaChampion.mount(canvas, {
-                        realm: host.dataset.championRealm,
-                        subclass: host.dataset.championSubclass,
-                        race: host.dataset.championRace,
-                        gender: host.dataset.championGender,
-                        parallax: host.dataset.championParallax !== '0'
-                    });
+                        var espera = new IntersectionObserver(function (entries) {
+                            if (!entries[0].isIntersecting) { return; }
+                            espera.disconnect();
+                            delete host.dataset.championDefer;
+                            window.arenaMontarVisor(host);
+                        }, { rootMargin: '200px' });
+
+                        espera.observe(host);
+                        return;
+                    }
+
+                    window.arenaMontarVisor(host);
                 });
 
                 document.dispatchEvent(new CustomEvent('arena:champions-ready'));

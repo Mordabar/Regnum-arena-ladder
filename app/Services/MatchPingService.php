@@ -111,11 +111,17 @@ class MatchPingService
      *
      * @return array<int, array<string, mixed>>
      */
-    public function historial(?ArenaMatch $match, ?Player $viewer = null): array
+    public function historial(?ArenaMatch $match, Player|int|null $viewer = null): array
     {
         if (!$this->disponible() || !$match instanceof ArenaMatch) {
             return [];
         }
+
+        // Basta con el id: de quien mira solo se necesita saber de que bando
+        // es. Traer el jugador entero era una consulta por sondeo, cada pocos
+        // segundos y por cada persona con el panel abierto, para no leer de el
+        // mas que la clave primaria.
+        $viewerId = $viewer instanceof Player ? (int) $viewer->id : $viewer;
 
         $pings = MatchPing::query()
             ->where('match_id', (string) $match->id)
@@ -129,7 +135,7 @@ class MatchPingService
 
         $nombres = $this->nombresDelCruce($match);
         $seVenLosNombres = MatchLineupService::namesRevealed($match);
-        $miBando = $viewer !== null ? $this->bandoDe($match, (int) $viewer->id) : null;
+        $miBando = $viewerId !== null ? $this->bandoDe($match, $viewerId) : null;
 
         return $pings
             ->sortBy('id')
@@ -139,7 +145,14 @@ class MatchPingService
 
                 return [
                     'id' => (int) $ping->id,
-                    'player_id' => (int) $ping->player_id,
+                    // El player_id NO sale de aqui mientras el rival sea
+                    // anonimo: es la direccion de su perfil publico, asi que
+                    // mandarlo es decir su nombre con un paso de mas.
+                    'fid' => MatchLineupService::fighterId(
+                        $match,
+                        (int) $ping->player_id,
+                        $seVenLosNombres || $esMio
+                    ),
                     'nombre' => ($seVenLosNombres || $esMio)
                         ? ($nombres[(int) $ping->player_id] ?? 'Alguien')
                         : 'Rival',

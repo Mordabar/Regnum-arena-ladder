@@ -78,10 +78,13 @@ class SeasonPrizeService
     {
         $reparto = $this->reparto();
 
+        // El limite es el puesto MAS ALTO premiado, no cuantos premios hay. Con
+        // un reparto salteado -pongamos 1.o y 5.o- contar da dos, y el quinto
+        // puesto se quedaria vacio para siempre aunque ese jugador exista.
         $lideres = Player::query()
             ->where('is_active', true)
             ->orderByPublicLadder()
-            ->limit(count($reparto))
+            ->limit($reparto === [] ? 0 : max(array_keys($reparto)))
             ->get(['id', 'character_name', 'realm', 'subclass', 'race', 'gender', 'pl_points', 'is_active', 'deactivated_reason']);
 
         return collect($reparto)

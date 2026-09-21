@@ -40,15 +40,35 @@ class SeasonClosingService
             return ['ok' => false, 'motivo' => 'Las temporadas no estan disponibles en este esquema.'];
         }
 
-        $actual = ArenaSeason::current();
-
-        if (!$actual instanceof ArenaSeason) {
+        if (!ArenaSeason::current() instanceof ArenaSeason) {
             return ['ok' => false, 'motivo' => 'No hay ninguna temporada abierta que cerrar.'];
         }
 
         $premios = app(SeasonPrizeService::class);
 
-        return DB::transaction(function () use ($actual, $premios, $nombreSiguiente) {
+        return DB::transaction(function () use ($premios, $nombreSiguiente) {
+            // La temporada se elige DENTRO de la transaccion y con candado.
+            // Cerrar deja otra abierta al instante, asi que dos peticiones a la
+            // vez -o el doble clic de siempre- archivarian dos temporadas y la
+            // segunda seria la que acaba de nacer: vacia, de un minuto y con el
+            // podio en blanco, metida en el Salon de la Fama para siempre.
+            $actual = ArenaSeason::query()
+                ->where('status', ArenaSeason::STATUS_ACTIVE)
+                ->lockForUpdate()
+                ->latest('id')
+                ->first();
+
+            if (!$actual instanceof ArenaSeason) {
+                return ['ok' => false, 'motivo' => 'No hay ninguna temporada abierta que cerrar.'];
+            }
+
+            if ($this->vieneDeUnCierreRecien($actual)) {
+                return [
+                    'ok' => false,
+                    'motivo' => 'Acabas de cerrar una temporada. La que esta abierta nacio hace un momento: si de verdad quieres cerrarla tambien, espera unos minutos.',
+                ];
+            }
+
             $congelados = $this->congelarCifras($actual);
 
             // Cualquier otra que hubiera quedado abierta se archiva tambien.
@@ -80,39 +100,88 @@ class SeasonClosingService
         });
     }
 
+    /** Minutos que un cierre "protege" a la temporada que acaba de abrir. */
+    private const GRACIA_MINUTOS = 5;
+
+    /**
+     * Si esta temporada es la que abrio un cierre de hace un momento.
+     *
+     * Es el doble clic de siempre: cerrar archiva y abre otra en el acto, asi
+     * que el segundo clic cae sobre una temporada de un segundo de vida y la
+     * mete en el Salon de la Fama con el podio en blanco, para siempre.
+     *
+     * Lo que se mira NO es si la temporada es reciente -una temporada corta y
+     * legitima tiene que poder cerrarse igual- sino si viene detras de un
+     * cierre recien hecho, que es lo unico que el doble clic produce.
+     */
+    private function vieneDeUnCierreRecien(ArenaSeason $season): bool
+    {
+        if ($season->starts_at === null || $season->starts_at->lt(now()->subMinutes(self::GRACIA_MINUTOS))) {
+            return false;
+        }
+
+        return ArenaSeason::query()
+            ->where('status', ArenaSeason::STATUS_ARCHIVED)
+            ->whereKeyNot($season->getKey())
+            ->where('ends_at', '>=', now()->subMinutes(self::GRACIA_MINUTOS))
+            ->exists();
+    }
+
     /**
      * Copia las cifras de cada jugador activo a la temporada que se cierra.
      *
      * Si ya habia filas -porque el sistema las fuera escribiendo durante la
      * temporada- se actualizan en vez de duplicarse.
+     *
+     * Va por lotes y con una sola escritura por lote. Fila a fila serian dos
+     * consultas por jugador, y con cinco mil jugadores eso son diez mil viajes
+     * a MySQL dentro de una peticion HTTP de hosting compartido: el cierre se
+     * quedaria a medias por tiempo agotado, con la transaccion abierta.
      */
     private function congelarCifras(ArenaSeason $season): int
     {
         $congelados = 0;
+        $ahora = now();
 
         Player::query()
             ->where('matches_played', '>', 0)
             ->orderBy('id')
-            ->chunk(300, function ($jugadores) use ($season, &$congelados) {
-                foreach ($jugadores as $player) {
-                    SeasonPlayerStat::updateOrCreate(
-                        ['season_id' => $season->id, 'player_id' => $player->id],
-                        [
-                            'character_name' => (string) $player->character_name,
-                            'realm' => (string) $player->realm,
-                            'subclass' => (string) $player->subclass,
-                            // Quien esta sancionado no entra en la vitrina.
-                            'is_hall_eligible' => (bool) $player->is_active,
-                            'pl_points' => (float) $player->pl_points,
-                            'mmr' => (int) $player->mmr,
-                            'matches_played' => (int) $player->matches_played,
-                            'wins' => (int) $player->wins,
-                            'losses' => (int) $player->losses,
-                        ]
-                    );
+            ->select([
+                'id', 'character_name', 'realm', 'subclass', 'is_active',
+                'pl_points', 'mmr', 'matches_played', 'wins', 'losses',
+            ])
+            ->chunk(500, function ($jugadores) use ($season, $ahora, &$congelados) {
+                $filas = $jugadores->map(fn (Player $player) => [
+                    'season_id' => $season->id,
+                    'player_id' => $player->id,
+                    'character_name' => (string) $player->character_name,
+                    'realm' => (string) $player->realm,
+                    'subclass' => (string) $player->subclass,
+                    // Quien esta sancionado no entra en la vitrina.
+                    'is_hall_eligible' => (bool) $player->is_active,
+                    'pl_points' => (float) $player->pl_points,
+                    'mmr' => (int) $player->mmr,
+                    'matches_played' => (int) $player->matches_played,
+                    'wins' => (int) $player->wins,
+                    'losses' => (int) $player->losses,
+                    'created_at' => $ahora,
+                    'updated_at' => $ahora,
+                ])->all();
 
-                    $congelados++;
+                if ($filas === []) {
+                    return;
                 }
+
+                SeasonPlayerStat::query()->upsert(
+                    $filas,
+                    ['season_id', 'player_id'],
+                    [
+                        'character_name', 'realm', 'subclass', 'is_hall_eligible',
+                        'pl_points', 'mmr', 'matches_played', 'wins', 'losses', 'updated_at',
+                    ]
+                );
+
+                $congelados += count($filas);
             });
 
         return $congelados;
@@ -141,14 +210,17 @@ class SeasonClosingService
         ]);
     }
 
-    /** "Season 2" despues de "Season 1", y si no se entiende, la fecha. */
+    /** "Season 2" despues de "Season 1", y si no se entiende, por numero. */
     private function nombrePorDefecto(ArenaSeason $anterior): string
     {
         if (preg_match('/^(.*?)(\d+)\s*$/u', (string) $anterior->name, $partes)) {
             return trim($partes[1]) . ' ' . ((int) $partes[2] + 1);
         }
 
-        return 'Temporada ' . now()->format('Y-m');
+        // Nada de la fecha: 'Temporada ' . now()->format('Y-m') sale como
+        // "Temporada 2026-09", y al cierre siguiente esa misma regla lee el
+        // "09" final y propone "Temporada 2026- 10".
+        return 'Temporada ' . (ArenaSeason::query()->count() + 1);
     }
 
     private function slugLibre(string $nombre): string

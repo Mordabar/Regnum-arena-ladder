@@ -1110,7 +1110,7 @@ class QueueHubController extends Controller
      * decidir si el nombre del que avisa se puede enseñar o el rival sigue
      * siendo anonimo.
      */
-    private function jugadorEnElCruce(?ArenaMatch $match, Collection $playerIds): ?Player
+    private function jugadorEnElCruce(?ArenaMatch $match, Collection $playerIds): ?int
     {
         if (!$match instanceof ArenaMatch) {
             return null;
@@ -1122,7 +1122,9 @@ class QueueHubController extends Controller
             $id = (int) ($fila['player_id'] ?? 0);
 
             if ($id !== 0 && in_array($id, $mios, true)) {
-                return Player::find($id);
+                // El id y nada mas: los avisos solo miran de que bando es, y
+                // cargar el jugador entero seria una consulta por sondeo.
+                return $id;
             }
         }
 

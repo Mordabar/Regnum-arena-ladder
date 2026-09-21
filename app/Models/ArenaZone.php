@@ -74,6 +74,22 @@ class ArenaZone extends Model
     }
 
     /**
+     * El punto ya en numeros, o null si no lo era.
+     *
+     * El casteo no es cosmetico. `is_numeric` de PHP acepta la cadena "430",
+     * pero `Number.isFinite("430")` del navegador la rechaza: un punto guardado
+     * como texto -que es como llega de un formulario- desaparece del mapa
+     * mientras el emparejador lo sigue usando. Los dos lados tienen que ver
+     * exactamente el mismo punto de encuentro.
+     *
+     * @return array{0: float, 1: float}|null
+     */
+    public static function punto(mixed $punto): ?array
+    {
+        return self::esUnPunto($punto) ? [(float) $punto[0], (float) $punto[1]] : null;
+    }
+
+    /**
      * La zona tal y como la espera el mapa del navegador.
      *
      * @return array<string, mixed>
@@ -90,12 +106,12 @@ class ArenaZone extends Model
         // Las claves ausentes valen "automatico". Mandarlas a null obligaria al
         // JavaScript a distinguir null de ausente, que es un matiz que no hace
         // falta para nada.
-        if (self::esUnPunto($this->meeting)) {
-            $fila['meeting'] = $this->meeting;
+        if (($meeting = self::punto($this->meeting)) !== null) {
+            $fila['meeting'] = $meeting;
         }
 
-        if (self::esUnPunto($this->meeting_b)) {
-            $fila['meeting_b'] = $this->meeting_b;
+        if (($meetingB = self::punto($this->meeting_b)) !== null) {
+            $fila['meeting_b'] = $meetingB;
         }
 
         return $fila;

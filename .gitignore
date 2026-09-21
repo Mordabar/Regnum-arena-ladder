@@ -37,3 +37,8 @@
 # Tests de auditoria del arbitro: demuestran fallos, no verifican producto
 /tests/Feature/AuditoriaAbandonoTest.php
 /tests/Feature/ZZAud*Test.php
+
+# Los respaldos del editor de zonas. Son datos del sitio, no del codigo: los
+# escribe el panel en cada publicacion y su razon de ser es sobrevivir a un
+# despliegue, que es justo lo que no hacen si van en git.
+/storage/app/arena-zones-backup-*.json

@@ -284,3 +284,83 @@ it('el nombre de la siguiente sale del anterior si no se dice otro', function ()
 
     expect(app(SeasonClosingService::class)->cerrar()['siguiente']->name)->toBe('Season 5');
 });
+
+it('un nombre sin numero no acaba produciendo Temporada 2026- 10', function () {
+    // Con la fecha por nombre, el cierre siguiente lee el "09" final de
+    // "Temporada 2026-09" y propone "Temporada 2026- 10".
+    ArenaSeason::query()->delete();
+
+    ArenaSeason::create([
+        'name' => 'Alpha', 'slug' => 'alpha', 'status' => ArenaSeason::STATUS_ACTIVE,
+        'enabled_modes' => ['2v2'], 'starts_at' => now()->subMonth(),
+    ]);
+
+    $siguiente = app(SeasonClosingService::class)->cerrar()['siguiente'];
+
+    expect($siguiente->name)->toBe('Temporada 2')
+        ->and($siguiente->name)->not->toContain('-');
+});
+
+it('el segundo clic de cerrar no archiva la temporada recien abierta', function () {
+    ArenaSeason::create([
+        'name' => 'Alpha Season', 'slug' => 'alpha', 'status' => ArenaSeason::STATUS_ACTIVE,
+        'enabled_modes' => ['2v2'], 'starts_at' => now()->subMonth(),
+    ]);
+
+    jugadorConPuntos('dc', 'ignis', 500);
+
+    $cerrar = app(SeasonClosingService::class);
+
+    expect($cerrar->cerrar('Season 1')['ok'])->toBeTrue();
+
+    // El segundo clic llega sobre la temporada que acaba de nacer: vacia, de
+    // un segundo de vida y con el podio en blanco.
+    $segundo = $cerrar->cerrar();
+
+    expect($segundo['ok'])->toBeFalse()
+        ->and(ArenaSeason::query()->where('slug', 'season-1')->value('status'))
+        ->toBe(ArenaSeason::STATUS_ACTIVE)
+        // Y no ha nacido una tercera temporada basura detras.
+        ->and(ArenaSeason::query()->where('status', ArenaSeason::STATUS_ACTIVE)->count())->toBe(1)
+        ->and(SeasonPlayerStat::query()->where('season_id', ArenaSeason::current()->id)->exists())->toBeFalse();
+});
+
+it('una temporada con podio si se puede cerrar el mismo dia que se abrio', function () {
+    // La guarda mira que este vacia, no solo que sea reciente: una temporada
+    // corta y legitima tiene que poder cerrarse igual.
+    ArenaSeason::create([
+        'name' => 'Relampago', 'slug' => 'relampago', 'status' => ArenaSeason::STATUS_ACTIVE,
+        'enabled_modes' => ['2v2'], 'starts_at' => now()->subMinute(),
+    ]);
+
+    jugadorConPuntos('rel', 'ignis', 400);
+
+    expect(app(SeasonClosingService::class)->cerrar('Siguiente 1')['ok'])->toBeTrue();
+});
+
+it('los cajones del podio usan la moneda configurada', function () {
+    // Con "lingotes" escrito a mano en la plantilla, cambiar el premio a otra
+    // cosa dejaba el titulo diciendo una moneda y los tres cajones otra.
+    AppSetting::setValue('season_prize_currency', 'monedas de oro');
+
+    jugadorConPuntos('mo', 'ignis', 700);
+
+    $this->get(route('home'))
+        ->assertOk()
+        ->assertSee('monedas de oro')
+        ->assertDontSee('lingotes');
+});
+
+it('el podio llega hasta el puesto premiado mas alto aunque haya huecos', function () {
+    // Con el 2.o puesto a cero el reparto es [1, 3]: contar premios da dos, y
+    // el tercero se quedaria vacio aunque ese jugador exista.
+    AppSetting::setValue('season_prize_2', 0);
+
+    jugadorConPuntos('p1', 'ignis', 900);
+    jugadorConPuntos('p2', 'alsius', 600);
+    $tercero = jugadorConPuntos('p3', 'syrtis', 300);
+
+    $podio = app(SeasonPrizeService::class)->podio();
+
+    expect($podio->firstWhere('puesto', 3)['player']?->id)->toBe($tercero->id);
+});

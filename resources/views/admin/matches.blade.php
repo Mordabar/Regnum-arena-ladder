@@ -210,6 +210,14 @@
                 Cierra la temporada en curso: congela el podio en el <b>Salon de la Fama</b> con las
                 cifras de hoy y abre la siguiente. <b>No</b> borra nada ni pone el ranking a cero.
             </p>
+            {{-- El orden importa y no se adivina: lo que se congela son las
+                 cifras VIVAS del jugador. Si primero se reinicia el ladder, la
+                 vitrina guarda ceros y la temporada se pierde sin remedio. --}}
+            <p class="ap-maint-text ap-maint-warn">
+                <b>Primero cerrar, despues reiniciar.</b> Lo que entra en la vitrina son las cifras
+                que tiene cada personaje en este momento: si reinicias el ranking antes, el Salon
+                de la Fama guarda la temporada en blanco y eso no se deshace.
+            </p>
             <label class="ap-field">
                 <span class="ap-label" for="next-season">Nombre de la siguiente (opcional)</span>
                 <input type="text" id="next-season" name="siguiente" class="ap-input" placeholder="Season 1" autocomplete="off">

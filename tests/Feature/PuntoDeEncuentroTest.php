@@ -10,6 +10,7 @@ use App\Services\ArenaMatchmakingService;
 use App\Services\ArenaZoneService;
 use App\Support\ArenaMode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
 
@@ -215,8 +216,6 @@ it('el sello cambia al publicar y no antes', function () {
     $servicio->olvidar();
     expect($servicio->sello())->toBe($antes);
 
-    $this->travel(2)->seconds();
-
     $servicio->publicar([[
         'key' => 'central_ruins',
         'name' => 'Zona de prueba',
@@ -225,6 +224,114 @@ it('el sello cambia al publicar y no antes', function () {
     ]]);
 
     expect($servicio->sello())->not->toBe($antes);
+});
+
+it('dos publicaciones en el mismo segundo dan sellos distintos', function () {
+    // Es el fallo original, otra vez: con el sello sacado del reloj, arrastrar
+    // el punto, ver que quedo mal y volver a arrastrarlo caia en el mismo
+    // segundo. Misma URL, y como la respuesta va con `immutable`, el navegador
+    // del jugador se quedaba el mapa viejo un año entero.
+    $servicio = app(ArenaZoneService::class);
+
+    $publicar = function (array $punto) use ($servicio) {
+        $servicio->publicar([[
+            'key' => 'central_ruins',
+            'name' => 'Zona de prueba',
+            'coords' => [[400, 400], [400, 500], [500, 500], [500, 400]],
+            'meeting' => $punto,
+        ]]);
+
+        return $servicio->sello();
+    };
+
+    // Sin viajar en el tiempo: los dos guardados caen en el mismo segundo.
+    $primero = $publicar([420, 420]);
+    $segundo = $publicar([495, 495]);
+
+    expect($segundo)->not->toBe($primero);
+});
+
+it('el sello no cambia si se publica lo mismo', function () {
+    // Al reves que el anterior: republicar sin tocar nada no puede invalidar la
+    // copia de todo el mundo. El sello es del contenido, no del momento.
+    $servicio = app(ArenaZoneService::class);
+
+    $zonas = [[
+        'key' => 'central_ruins',
+        'name' => 'Zona de prueba',
+        'coords' => [[400, 400], [400, 500], [500, 500], [500, 400]],
+        'meeting' => [420, 420],
+    ]];
+
+    $servicio->publicar($zonas);
+    $primero = $servicio->sello();
+
+    $this->travel(30)->seconds();
+    $servicio->publicar($zonas);
+
+    expect($servicio->sello())->toBe($primero);
+});
+
+it('un punto que llega como texto se guarda en numeros', function () {
+    // Del formulario del editor los puntos llegan como cadenas. PHP acepta
+    // "430" como numero y el emparejador lo usaba tan tranquilo, pero el
+    // navegador lo descarta con Number.isFinite: el mapa dejaba de dibujar el
+    // punto mientras los cruces seguian mandando a la gente ahi. Es la misma
+    // clase de desincronizacion que el fallo de cache.
+    $servicio = app(ArenaZoneService::class);
+
+    $servicio->publicar([[
+        'key' => 'central_ruins',
+        'name' => 'Zona de prueba',
+        'coords' => [[400, 400], [400, 500], [500, 500], [500, 400]],
+        'meeting' => ['430', '470'],
+        'meeting_b' => ['460', '440'],
+    ]]);
+
+    $zona = ArenaZone::query()->where('key', 'central_ruins')->firstOrFail();
+
+    // Lo que se comprueba es que NO son cadenas. Un 430.0 se escribe "430" en
+    // JSON y vuelve como entero, y eso al navegador le vale: lo que no le vale
+    // es el texto.
+    expect($zona->meeting[0])->not->toBeString()
+        ->and($zona->meeting_b[0])->not->toBeString()
+        ->and($zona->meeting)->toEqual([430, 470])
+        ->and($zona->meeting_b)->toEqual([460, 440]);
+
+    // Y lo que sale hacia el navegador son numeros de coma flotante.
+    $paraElMapa = $zona->paraElMapa();
+
+    expect($paraElMapa['meeting'][0])->toBeFloat()
+        ->and($paraElMapa['meeting_b'][1])->toBeFloat();
+});
+
+it('los respaldos de zonas no se acumulan sin fin', function () {
+    // Uno por publicacion. Una tarde de retoques son doscientos ficheros en un
+    // disco compartido que se paga por gigabyte.
+    Storage::disk('local')->delete(
+        collect(Storage::disk('local')->files())
+            ->filter(fn (string $f) => str_starts_with(basename($f), 'arena-zones-backup-'))
+            ->all()
+    );
+
+    $servicio = app(ArenaZoneService::class);
+
+    for ($i = 0; $i < 25; $i++) {
+        $servicio->publicar([[
+            'key' => 'central_ruins',
+            'name' => 'Zona de prueba',
+            'coords' => [[400, 400], [400, 500], [500, 500], [500, 400]],
+            'meeting' => [400 + $i, 460],
+        ]]);
+    }
+
+    $respaldos = collect(Storage::disk('local')->files())
+        ->filter(fn (string $f) => str_starts_with(basename($f), 'arena-zones-backup-'));
+
+    expect($respaldos->count())->toBeLessThanOrEqual(20)
+        // Y el que queda es el ultimo, no uno cualquiera.
+        ->and((string) Storage::disk('local')->get($respaldos->sort()->last()))
+        ->toContain('424');
 });
 
 it('el javascript de zonas se sirve desde la base de datos', function () {

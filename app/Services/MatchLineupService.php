@@ -92,8 +92,8 @@ class MatchLineupService
         $ownRealm = $ownSide === 'team_a' ? $match->team_a_realm : $match->team_b_realm;
         $rivalRealm = $rivalSide === 'team_a' ? $match->team_a_realm : $match->team_b_realm;
 
-        $own = $this->line($match->getTeamBySide($ownSide), $accepted, $viewerPlayerId, true, $revealed, $ownRealm);
-        $rival = $this->line($match->getTeamBySide($rivalSide), $accepted, $viewerPlayerId, false, $revealed, $rivalRealm);
+        $own = $this->line($match, $match->getTeamBySide($ownSide), $accepted, $viewerPlayerId, true, $revealed, $ownRealm);
+        $rival = $this->line($match, $match->getTeamBySide($rivalSide), $accepted, $viewerPlayerId, false, $revealed, $rivalRealm);
 
         return [
             'viewer_player_id' => $viewerPlayerId,
@@ -111,9 +111,33 @@ class MatchLineupService
     }
 
     /**
+     * El identificador con el que la pantalla se refiere a un luchador.
+     *
+     * Mientras el rival es anonimo NO puede ser su player_id. El id es la
+     * direccion de su perfil publico -/ladder/player/{id}- asi que publicarlo
+     * en un data- del HTML es publicar su nombre con un paso de mas: se mira el
+     * inspector, se abre el perfil y ya se sabe contra quien juegas. Eso es
+     * exactamente el filtro que el duelo acaba de cerrar, reabierto por detras.
+     *
+     * El sustituto es un hash del cruce y el jugador, firmado con la clave de
+     * la aplicacion: distinto en cada enfrentamiento -asi que no sirve para
+     * seguirle la pista de una partida a otra-, estable dentro de uno -asi que
+     * el bocadillo sabe sobre que figura ponerse- e imposible de invertir sin
+     * la clave.
+     */
+    public static function fighterId(ArenaMatch $match, int $playerId, bool $revelado): string
+    {
+        if ($revelado) {
+            return (string) $playerId;
+        }
+
+        return substr(hash_hmac('sha256', $match->id . '|' . $playerId, (string) config('app.key')), 0, 12);
+    }
+
+    /**
      * @param  array<int, array<string, mixed>>  $team
      */
-    private function line(array $team, Collection $accepted, int $viewerPlayerId, bool $isOwnTeam, bool $revealed, ?string $realm = null): array
+    private function line(ArenaMatch $match, array $team, Collection $accepted, int $viewerPlayerId, bool $isOwnTeam, bool $revealed, ?string $realm = null): array
     {
         // El aspecto (raza y sexo) no viaja en el equipo guardado del
         // enfrentamiento, asi que se consulta. Solo para los propios: al rival
@@ -125,7 +149,7 @@ class MatchLineupService
             $looks = Player::query()->whereIn('id', $ids)->get(['id', 'race', 'gender'])->keyBy('id');
         }
 
-        return collect($team)->map(function ($player) use ($accepted, $viewerPlayerId, $isOwnTeam, $revealed, $looks, $realm) {
+        return collect($team)->map(function ($player) use ($match, $accepted, $viewerPlayerId, $isOwnTeam, $revealed, $looks, $realm) {
             $playerId = (int) ($player['player_id'] ?? 0);
             $subclass = (string) ($player['subclass'] ?? 'knight');
             $playerRealm = (string) ($player['realm'] ?? $realm ?? 'ignis');
@@ -137,6 +161,9 @@ class MatchLineupService
 
             return [
                 'player_id' => $playerId,
+                // Lo que SI sale al HTML. El player_id se queda en el servidor
+                // mientras el rival sea anonimo.
+                'fighter_id' => self::fighterId($match, $playerId, $showName),
                 'name' => $showName ? (string) ($player['character_name'] ?? 'Sin nombre') : 'Guerrero Anónimo',
                 'subclass' => $subclass,
                 'subclass_name' => Player::SUBCLASSES[$subclass] ?? ucfirst($subclass),

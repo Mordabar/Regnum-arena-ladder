@@ -12,6 +12,15 @@
         ->values();
 
     $medallas = [1 => '🥇', 2 => '🥈', 3 => '🥉'];
+
+    // La unidad del cajon sale de la moneda configurada, no escrita a mano.
+    // Con "lingotes" fijo, cambiar el premio a otra cosa en los ajustes dejaba
+    // el titulo diciendo una moneda y los tres cajones otra.
+    $unidad = trim((string) explode(' ', trim($premios->moneda()))[0]);
+    $unidadPlural = $unidad !== '' ? $unidad : 'premios';
+    $unidadSingular = mb_strlen($unidadPlural) > 1 && mb_substr($unidadPlural, -1) === 's'
+        ? mb_substr($unidadPlural, 0, -1)
+        : $unidadPlural;
 @endphp
 
 {{-- El podio de la temporada.
@@ -49,6 +58,13 @@
                                 :race="$player->race"
                                 :gender="$player->gender"
                                 :parallax="false"
+                                {{-- El ganador se monta ya; los otros dos
+                                     esperan a estar a la vista. Tres visores de
+                                     golpe son tres contextos WebGL y un mega de
+                                     modelos en la primera pantalla, y en movil
+                                     los cajones van uno debajo de otro: el
+                                     segundo y el tercero ni se ven al abrir. --}}
+                                :defer="!$esPrimero"
                                 height="100%"
                                 class="arena-podium-viewer" />
                         </a>
@@ -72,7 +88,7 @@
 
                     <span class="arena-podium-prize">
                         <b>{{ $puesto['premio'] }}</b>
-                        <small>{{ $puesto['premio'] === 1 ? 'lingote' : 'lingotes' }}</small>
+                        <small>{{ $puesto['premio'] === 1 ? $unidadSingular : $unidadPlural }}</small>
                     </span>
 
                     <span class="arena-podium-who">

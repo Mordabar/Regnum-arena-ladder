@@ -319,6 +319,19 @@
             const el = document.getElementById(containerId);
                     if (!el || !window.ARENA_ZONES_CONFIG) return null;
 
+                    /* Una lista vacia es un error, no un mapa sin zonas.
+
+                       `[]` es truthy, asi que sin esta comprobacion el mapa se
+                       montaba igual: la imagen del terreno pelada, sin
+                       contornos, sin resaltado y -lo que de verdad importa- sin
+                       el punto de encuentro, que solo se pinta dentro del
+                       bucle. El jugador veia un mapa y no tenia ni idea de que
+                       estaba roto. Mejor el aviso de abajo, que al menos dice
+                       el nombre de la zona. */
+                    if (!window.ARENA_ZONES_CONFIG.length) {
+                        throw new Error('La configuracion de zonas llego vacia.');
+                    }
+
                     const w = 1086, h = 1086;
                     const map = L.map(containerId, {
                         crs: L.CRS.Simple,
@@ -567,8 +580,21 @@
                     // pero el boton no puede quedarse roto para siempre.
                     host.dataset.arenaMapReady = '';
 
-                    var aviso = host.querySelector('[data-arena-map-fallback-text]');
+                    var respaldo = host.querySelector('.arena-map-fallback');
+                    var aviso = respaldo ? respaldo.querySelector('[data-arena-map-fallback-text]') : null;
+
                     if (aviso) { aviso.textContent = 'No se pudo cargar el mapa. La zona asignada es:'; }
+
+                    // Leaflet pinta su propio contenedor dentro del hueco, y el
+                    // CSS esconde el aviso en cuanto eso pasa. Si el mapa monto
+                    // y despues fallo, hay que devolverlo a su sitio o el
+                    // jugador se queda con un rectangulo negro y ninguna
+                    // explicacion.
+                    if (respaldo) {
+                        host.classList.remove('leaflet-container');
+                        host.innerHTML = '';
+                        host.appendChild(respaldo);
+                    }
 
                     console.error(error);
                 });

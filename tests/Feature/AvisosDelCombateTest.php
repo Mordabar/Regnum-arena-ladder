@@ -287,3 +287,58 @@ it('sin sesion no se avisa', function () {
         'code' => 'voy',
     ])->assertStatus(401);
 });
+
+it('el aviso del rival anonimo no lleva su id de jugador', function () {
+    // Es por donde se escapaba el anonimato: el id es la direccion del perfil
+    // publico (/ladder/player/{id}), asi que mandarlo al HTML del rival es
+    // decirle su nombre con un paso de mas. Se mira el inspector, se abre el
+    // perfil, y ya sabes contra quien juegas antes de decidir nada.
+    $yo = jugadorAviso('ii', 'ignis', 'Miyo');
+    $rival = jugadorAviso('jj', 'alsius', 'Surival');
+    $match = cruceCon($yo, $rival, modo: ArenaMode::TWO_V_TWO);
+
+    app(MatchPingService::class)->enviar($match, $rival, 'llegue');
+
+    $suyo = app(MatchPingService::class)->historial($match, $yo)[0];
+
+    expect($suyo)->not->toHaveKey('player_id')
+        ->and($suyo['fid'])->not->toBe((string) $rival->id)
+        // Un hash, no un numero disfrazado: doce caracteres de hexadecimal.
+        ->and($suyo['fid'])->toMatch('/^[0-9a-f]{12}$/');
+
+    // Y el mio si va con el real: sobre mi propia figura tiene que poder
+    // ponerse el bocadillo.
+    app(MatchPingService::class)->enviar($match, $yo, 'voy');
+    $mio = collect(app(MatchPingService::class)->historial($match, $yo))->firstWhere('mio', true);
+
+    expect($mio['fid'])->toBe((string) $yo->id);
+});
+
+it('el id opaco es distinto en cada enfrentamiento', function () {
+    // Si fuera el mismo, valdria para seguirle la pista de una partida a otra:
+    // "el que me toco ayer" seria identificable hoy.
+    $yo = jugadorAviso('kk', 'ignis');
+    $rival = jugadorAviso('ll', 'alsius');
+
+    $uno = cruceCon($yo, $rival, modo: ArenaMode::THREE_V_THREE);
+    $otro = cruceCon($yo, $rival, modo: ArenaMode::THREE_V_THREE);
+
+    $a = \App\Services\MatchLineupService::fighterId($uno, $rival->id, false);
+    $b = \App\Services\MatchLineupService::fighterId($otro, $rival->id, false);
+
+    expect($a)->not->toBe($b)
+        // Y estable dentro del mismo: el bocadillo tiene que saber sobre que
+        // figura ponerse.
+        ->and($a)->toBe(\App\Services\MatchLineupService::fighterId($uno, $rival->id, false));
+});
+
+it('la alineacion no publica el id del rival anonimo', function () {
+    $yo = jugadorAviso('mm', 'ignis');
+    $rival = jugadorAviso('nn', 'alsius');
+    $match = cruceCon($yo, $rival, modo: ArenaMode::TWO_V_TWO);
+
+    $lineup = app(\App\Services\MatchLineupService::class)->forViewer($match, [$yo->id]);
+
+    expect($lineup['rival'][0]['fighter_id'])->not->toBe((string) $rival->id)
+        ->and($lineup['own'][0]['fighter_id'])->toBe((string) $yo->id);
+});

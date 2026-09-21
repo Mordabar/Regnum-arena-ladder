@@ -4,6 +4,7 @@ use App\Models\ArenaMatch;
 use App\Models\ArenaZone;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Trae a la tabla lo que hubiera en `public/js/arena-zones.js`.
@@ -29,7 +30,7 @@ return new class extends Migration
             return;
         }
 
-        $delFichero = $this->leerElFicheroViejo();
+        $delFichero = $this->loQueHubiera();
 
         foreach (ArenaMatch::ZONES as $key => $meta) {
             $fila = $delFichero[$key] ?? [];
@@ -49,6 +50,57 @@ return new class extends Migration
     {
         if (Schema::hasTable('arena_zones')) {
             ArenaZone::query()->delete();
+        }
+    }
+
+    /**
+     * Lo ultimo que el admin llego a publicar, de donde se pueda leer.
+     *
+     * Primero los respaldos de storage/, y solo despues el fichero de public/.
+     * El orden importa y no es un detalle:
+     *
+     * `public/js/arena-zones.js` esta versionado en git. El despliegue que
+     * trae esta migracion es el mismo que hace `git pull`, asi que para cuando
+     * la migracion lo lee ya no tiene los contornos del admin: tiene los del
+     * repositorio. La migracion es de una sola oportunidad, asi que ese error
+     * no se puede deshacer despues.
+     *
+     * Los respaldos, en cambio, los escribia el propio panel en storage/ cada
+     * vez que se publicaba, y storage/ NO esta en git: sobrevive al pull.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function loQueHubiera(): array
+    {
+        $delRespaldo = $this->leerElRespaldoMasNuevo();
+
+        return $delRespaldo !== [] ? $delRespaldo : $this->leerElFicheroViejo();
+    }
+
+    /**
+     * El respaldo mas reciente que dejo el panel al publicar.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function leerElRespaldoMasNuevo(): array
+    {
+        try {
+            $respaldos = collect(Storage::disk('local')->files())
+                ->filter(fn (string $fichero) => str_starts_with(basename($fichero), 'arena-zones-backup-'))
+                // El nombre lleva la fecha en formato Ymd-His, asi que ordenar
+                // por nombre es ordenar por fecha.
+                ->sort()
+                ->values();
+
+            if ($respaldos->isEmpty()) {
+                return [];
+            }
+
+            return $this->porClave(json_decode((string) Storage::disk('local')->get($respaldos->last()), true));
+        } catch (\Throwable $e) {
+            // Un respaldo ilegible no puede impedir el despliegue: se cae al
+            // fichero de siempre.
+            return [];
         }
     }
 
@@ -78,8 +130,16 @@ return new class extends Migration
             return [];
         }
 
-        $datos = json_decode(substr($contenido, $inicio, $fin - $inicio + 1), true);
+        return $this->porClave(json_decode(substr($contenido, $inicio, $fin - $inicio + 1), true));
+    }
 
+    /**
+     * Indexa por clave de zona y descarta lo que no se entienda.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function porClave(mixed $datos): array
+    {
         if (!is_array($datos)) {
             return [];
         }

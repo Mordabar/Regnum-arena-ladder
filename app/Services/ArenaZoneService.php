@@ -5,6 +5,9 @@ namespace App\Services;
 use App\Models\ArenaMatch;
 use App\Models\ArenaZone;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -16,6 +19,9 @@ use Illuminate\Support\Facades\Schema;
  */
 class ArenaZoneService
 {
+    /** Donde se guarda el sello para no releer las zonas en cada pagina. */
+    private const CACHE_SELLO = 'arena:zonas:sello';
+
     /** Vueltas de afinado de la busqueda del punto automatico. */
     private const VUELTAS = 5;
 
@@ -44,10 +50,11 @@ class ArenaZoneService
         return $this->enMemoria = ArenaZone::query()->orderBy('number')->get();
     }
 
-    /** Olvida lo guardado en memoria. Lo usa el editor tras publicar. */
+    /** Olvida lo guardado, en memoria y en cache. Lo usa el editor al publicar. */
     public function olvidar(): void
     {
         $this->enMemoria = null;
+        Cache::forget(self::CACHE_SELLO);
     }
 
     public function buscar(?string $zoneKey): ?ArenaZone
@@ -69,18 +76,42 @@ class ArenaZoneService
      * otra y todo el mundo recibe lo nuevo a la vez. Ese "a la vez" es el
      * arreglo: antes el admin veia su cambio y los jugadores seguian con el
      * punto de encuentro de la semana pasada.
+     *
+     * Es un hash del CONTENIDO, no del reloj. Con la marca de tiempo -que fue
+     * el primer intento- dos ediciones dentro del mismo segundo compartian
+     * sello, y como la respuesta va con `immutable` y el ETag es el propio
+     * sello, el navegador se quedaba la version equivocada un año entero. Y
+     * arrastrar el punto, ver que quedo mal y volver a arrastrarlo son dos
+     * guardados en el mismo segundo con toda facilidad.
+     *
+     * Se guarda en cache porque esto se llama en CADA pagina del sitio -el
+     * mapa vive en el layout-, y leer las catorce zonas para construir una URL
+     * que casi ninguna pagina usa es un viaje a la base por visita.
      */
     public function sello(): string
     {
-        $zonas = $this->todas();
+        $guardado = Cache::get(self::CACHE_SELLO);
 
-        if ($zonas->isEmpty()) {
+        if (is_string($guardado) && $guardado !== '') {
+            return $guardado;
+        }
+
+        $sello = $this->calcularSello();
+
+        Cache::forever(self::CACHE_SELLO, $sello);
+
+        return $sello;
+    }
+
+    private function calcularSello(): string
+    {
+        $zonas = $this->configuracionParaElMapa();
+
+        if ($zonas === []) {
             return 'vacio';
         }
 
-        $ultima = $zonas->max('updated_at');
-
-        return substr(sha1($zonas->count() . '|' . ($ultima?->timestamp ?? 0)), 0, 12);
+        return substr(sha1((string) json_encode($zonas)), 0, 12);
     }
 
     /**
@@ -271,8 +302,12 @@ class ArenaZoneService
                 'number' => (int) ($fila['number'] ?? ArenaMatch::ZONES[$key]['number'] ?? 0),
                 'name' => (string) ($fila['name'] ?? ArenaMatch::zoneLabel($key) ?? $key),
                 'coords' => $this->limpiarCoords($fila['coords'] ?? null),
-                'meeting' => ArenaZone::esUnPunto($fila['meeting'] ?? null) ? $fila['meeting'] : null,
-                'meeting_b' => ArenaZone::esUnPunto($fila['meeting_b'] ?? null) ? $fila['meeting_b'] : null,
+                // En numeros, no como llegan. Del formulario vienen como texto,
+                // y el navegador descarta un punto en texto mientras el
+                // emparejador lo acepta: el mapa y el cruce dirian cosas
+                // distintas sobre donde quedar.
+                'meeting' => ArenaZone::punto($fila['meeting'] ?? null),
+                'meeting_b' => ArenaZone::punto($fila['meeting_b'] ?? null),
             ];
 
             ArenaZone::query()->updateOrCreate(['key' => $key], $datos);
@@ -280,8 +315,64 @@ class ArenaZoneService
         }
 
         $this->olvidar();
+        $this->dejarRespaldo();
 
         return $guardadas;
+    }
+
+    /**
+     * Guarda una copia de lo publicado en storage/.
+     *
+     * Es la red de seguridad de todo esto. storage/ no esta en git, asi que un
+     * despliegue no la pisa, y de ahi puede salir el mapa si algun dia hay que
+     * volver a sembrar la tabla. Es exactamente lo que faltaba la primera vez:
+     * el trabajo del admin vivia solo en un fichero versionado.
+     *
+     * Si falla, no pasa nada: lo publicado ya esta en la base de datos, que es
+     * lo que manda. Un respaldo que no se puede escribir no puede impedir que
+     * se publique.
+     */
+    private function dejarRespaldo(): void
+    {
+        try {
+            Storage::disk('local')->put(
+                'arena-zones-backup-' . now()->format('Ymd-His') . '.json',
+                (string) json_encode($this->configuracionParaElMapa(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+            );
+
+            $this->podarRespaldos();
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo guardar el respaldo de zonas.', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /** Cuantos respaldos de zonas se conservan. */
+    private const RESPALDOS_QUE_SE_GUARDAN = 20;
+
+    /**
+     * Tira los respaldos viejos.
+     *
+     * Uno por publicacion y sin podar, una tarde de retoques deja doscientos
+     * ficheros en un hosting compartido con el disco contado. Los veinte
+     * ultimos sobran para volver atras: lo que se quiere recuperar es lo de
+     * antes del despliegue, no lo de hace tres meses.
+     */
+    private function podarRespaldos(): void
+    {
+        // El nombre lleva la fecha en Ymd-His, asi que ordenar por nombre es
+        // ordenar por fecha.
+        $respaldos = collect(Storage::disk('local')->files())
+            ->filter(fn (string $fichero) => str_starts_with(basename($fichero), 'arena-zones-backup-'))
+            ->sort()
+            ->values();
+
+        if ($respaldos->count() <= self::RESPALDOS_QUE_SE_GUARDAN) {
+            return;
+        }
+
+        Storage::disk('local')->delete(
+            $respaldos->slice(0, $respaldos->count() - self::RESPALDOS_QUE_SE_GUARDAN)->all()
+        );
     }
 
     /**

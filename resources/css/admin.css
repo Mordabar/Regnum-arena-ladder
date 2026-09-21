@@ -986,6 +986,16 @@
         line-height: 1.5;
         color: var(--ap-text-subtle);
     }
+    /* El aviso que no se puede leer por encima: marca un orden de pasos que,
+       hecho al reves, pierde una temporada entera sin manera de deshacerlo. */
+    .ap-maint-warn {
+        margin-top: 8px;
+        padding: 9px 11px;
+        border-radius: var(--ap-radius-sm);
+        border: 1px solid var(--ap-warn-dim, var(--ap-line));
+        background: color-mix(in srgb, var(--ap-warn, #d8b15c) 9%, transparent);
+        color: var(--ap-text);
+    }
     .ap-maint-block button { margin-top: auto; }
 
     /* Lo que cambiaria el recalculo, antes de tocar nada. */
