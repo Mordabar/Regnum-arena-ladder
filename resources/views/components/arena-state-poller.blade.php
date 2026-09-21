@@ -403,6 +403,14 @@
 
                     paintQueuePulse(data.queue_pulse);
 
+                    // Los avisos llegan fuera del hash, igual que el pulso: se
+                    // pintan en vivo y NO recargan el panel. Un "voy de camino"
+                    // que recargase la pantalla entera a los dos bandos seria
+                    // peor que no tenerlo.
+                    if (window.ArenaPings && data.pings) {
+                        window.ArenaPings.pintar(data.pings, { conBocadillos: true });
+                    }
+
                     if (data.hash && data.hash !== 'unknown') {
                         if (lastHash === null) {
                             if (lastState) {

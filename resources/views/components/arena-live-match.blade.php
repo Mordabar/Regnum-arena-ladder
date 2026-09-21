@@ -96,33 +96,69 @@
     </header>
 
     @if($lineup)
-        <div class="arena-duel-lineups">
+        {{-- El escenario.
+
+             Antes esto eran dos listas con un retrato de 56px al lado del
+             nombre: informacion correcta y cero presencia. Ahora las figuras
+             mandan, porque son lo que de verdad ayuda a reconocer al rival
+             cuando llegas al punto de encuentro -raza, sexo y arquetipo se ven
+             de lejos- y porque es donde aparecen los avisos. --}}
+        <div class="arena-battle" data-battle data-team-size="{{ $teamSize }}">
             @foreach([['own', $lineup['own_realm'], true], ['rival', $lineup['rival_realm'], false]] as [$side, $realm, $isOwn])
                 @if(!$isOwn)
-                    <div class="arena-duel-versus" aria-hidden="true">VS</div>
+                    <div class="arena-battle-vs" aria-hidden="true"><span>VS</span></div>
                 @endif
-                <div class="arena-duel-team" style="--team-color: {{ $realmVar($realm) }}">
+
+                <div class="arena-battle-side" style="--team-color: {{ $realmVar($realm) }}">
                     <h3>{{ PlayerModel::REALMS[$realm] ?? $realm }}{{ $isOwn ? ($esDuelo ? ' · tú' : ' · tu equipo') : '' }}</h3>
-                    @foreach($lineup[$side] as $fighter)
-                        <div class="arena-duel-fighter is-ready">
-                            <x-arena-champion
-                                :id="'live-' . $side . '-' . $loop->index"
-                                :realm="$realm"
-                                :subclass="$fighter['subclass']"
-                                :race="$fighter['race']"
-                                :gender="$fighter['gender']"
-                                :parallax="false"
-                                height="76px"
-                                class="arena-duel-portrait" />
-                            <span class="min-w-0">
-                                <b @class(['italic' => !$isOwn && !$lineup['names_revealed']])>{{ $fighter['name'] }}{{ $fighter['is_viewer'] ? ' (tú)' : '' }}</b>
-                                <span>{{ $fighter['subclass_name'] }}</span>
-                            </span>
-                        </div>
-                    @endforeach
+
+                    <div class="arena-battle-fighters" data-count="{{ count($lineup[$side]) }}">
+                        @foreach($lineup[$side] as $fighter)
+                            <figure class="arena-battle-fighter"
+                                    @if(!empty($fighter['player_id'])) data-fighter="{{ $fighter['player_id'] }}" @endif>
+
+                                <div class="arena-battle-stage">
+                                    {{-- El bocadillo del aviso, DENTRO del
+                                         escenario: encima de la figura de quien
+                                         lo manda -para no tener que buscar en
+                                         una lista quien dijo que- pero sin
+                                         salirse del recuadro. Fuera se quedaba
+                                         por encima del borde superior y, con la
+                                         pagina desplazada hacia la botonera, el
+                                         aviso aparecia donde nadie lo veia. --}}
+                                    <div class="arena-battle-bubble" data-fighter-bubble hidden aria-live="polite">
+                                        <span data-fighter-bubble-icon aria-hidden="true"></span>
+                                        <span data-fighter-bubble-text></span>
+                                    </div>
+
+                                    <x-arena-champion
+                                        :id="'live-' . $side . '-' . $loop->index"
+                                        :realm="$realm"
+                                        :subclass="$fighter['subclass']"
+                                        :race="$fighter['race']"
+                                        :gender="$fighter['gender']"
+                                        :parallax="false"
+                                        height="100%"
+                                        class="arena-battle-portrait" />
+                                </div>
+
+                                <figcaption>
+                                    <b @class(['italic' => !$isOwn && !$lineup['names_revealed']])>{{ $fighter['name'] }}{{ $fighter['is_viewer'] ? ' (tú)' : '' }}</b>
+                                    <span>{{ $fighter['subclass_name'] }}</span>
+                                </figcaption>
+                            </figure>
+                        @endforeach
+                    </div>
                 </div>
             @endforeach
         </div>
+
+        {{-- Los avisos, solo con el combate en marcha. Antes de aceptar no hay
+             nada de lo que avisar, y mientras se espera la confirmacion del
+             reporte ya se acabo. --}}
+        @if($running)
+            <x-arena-match-pings :match="$match" :lineup="$lineup" />
+        @endif
     @endif
 
     @if($lineup && $viewerCanReport)

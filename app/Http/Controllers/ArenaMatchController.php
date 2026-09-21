@@ -8,6 +8,7 @@ use App\Models\MatchReport;
 use App\Models\Queue;
 use App\Services\ArenaAbandonmentService;
 use App\Services\ArenaMatchResultService;
+use App\Services\MatchPingService;
 use App\Services\ArenaMatchmakingService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -99,6 +100,47 @@ class ArenaMatchController extends Controller
             ->keyBy('player_id');
 
         return view('matches.show_v3', compact('match', 'teamQueues'));
+    }
+
+    /**
+     * Manda un aviso rapido al rival.
+     *
+     * Responde JSON porque se pulsa sin salir de la pantalla: recargar el
+     * enfrentamiento entero para decir "voy de camino" seria mas lento que
+     * escribirlo por Discord, que es justo lo que se venia a evitar.
+     */
+    public function ping(Request $request, MatchPingService $avisos)
+    {
+        if (!Auth::check()) {
+            return response()->json(['ok' => false, 'motivo' => 'Inicia sesion.'], 401);
+        }
+
+        $validated = $request->validate([
+            'match_id' => 'required|exists:matches,id',
+            'player_id' => 'required|integer',
+            'code' => 'required|string|max:40',
+        ]);
+
+        $match = ArenaMatch::findOrFail($validated['match_id']);
+
+        // El personaje tiene que ser de quien lo manda. Sin esto, cualquiera
+        // podria mandar avisos en nombre de otro con solo cambiar un numero.
+        $player = Auth::user()->players()->find((int) $validated['player_id']);
+
+        if (!$player) {
+            return response()->json(['ok' => false, 'motivo' => 'Ese personaje no es tuyo.'], 403);
+        }
+
+        $resultado = $avisos->enviar($match, $player, $validated['code']);
+
+        if (!$resultado['ok']) {
+            return response()->json($resultado, 422);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'pings' => $avisos->historial($match->refresh(), $player),
+        ]);
     }
 
     public function accept(Request $request, ArenaMatchResultService $resultService)

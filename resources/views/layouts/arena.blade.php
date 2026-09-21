@@ -1699,6 +1699,438 @@
             color: var(--arena-muted);
         }
 
+        /* ── Escenario del combate ─────────────────────────────────────────
+           Las figuras dejan de ser un icono al lado del nombre y pasan a ser
+           lo principal. Dos motivos, los dos practicos: reconocer al rival
+           cuando llegas al punto de encuentro se hace de lejos -raza, sexo y
+           arquetipo- y los avisos aparecen encima de quien los manda, que es
+           mucho mas rapido de leer que una lista con nombres. */
+        .arena-battle {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: clamp(10px, 2vw, 22px);
+            align-items: stretch;
+            padding: clamp(14px, 2.4vw, 26px) clamp(14px, 2.4vw, 26px) clamp(10px, 1.6vw, 18px);
+        }
+        .arena-battle-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+        .arena-battle-side h3 {
+            margin: 0;
+            font-size: 10.5px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--team-color, var(--arena-gold));
+        }
+        .arena-battle-fighters {
+            display: grid;
+            grid-auto-flow: column;
+            grid-auto-columns: 1fr;
+            gap: 8px;
+            min-width: 0;
+        }
+
+        .arena-battle-fighter {
+            position: relative;
+            margin: 0;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* El suelo del escenario. Un degradado y una sombra elíptica bastan
+           para que la figura no parezca recortada y pegada sobre el panel. */
+        .arena-battle-stage {
+            position: relative;
+            border-radius: 16px;
+            border: 1px solid var(--arena-line);
+            background:
+                radial-gradient(120% 70% at 50% 8%, color-mix(in srgb, var(--team-color, #d8b15c) 16%, transparent), transparent 70%),
+                linear-gradient(180deg, rgba(8, 6, 4, 0.55), rgba(4, 3, 2, 0.9));
+            overflow: hidden;
+            height: clamp(190px, 26vw, 280px);
+            transition: border-color .3s ease, box-shadow .3s ease;
+        }
+        .arena-battle-fighters[data-count="2"] .arena-battle-stage { height: clamp(150px, 19vw, 215px); }
+        .arena-battle-fighters[data-count="3"] .arena-battle-stage { height: clamp(124px, 15vw, 180px); }
+        /* El escenario recorta para que el canvas respete el redondeo, asi que
+           el bocadillo va por dentro y con su propio margen. */
+        .arena-battle-stage { isolation: isolate; }
+
+        .arena-battle-stage::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            bottom: 8%;
+            width: 58%;
+            height: 10px;
+            transform: translateX(-50%);
+            border-radius: 50%;
+            background: radial-gradient(closest-side, rgba(0, 0, 0, 0.72), transparent);
+            pointer-events: none;
+        }
+        .arena-battle-portrait { border: 0; border-radius: 0; background: transparent; width: 100%; }
+        .arena-battle-portrait::after { display: none; }
+
+        .arena-battle-fighter figcaption { padding: 8px 4px 0; min-width: 0; text-align: center; }
+        .arena-battle-fighter figcaption b {
+            display: block;
+            font-size: 13.5px;
+            font-weight: 600;
+            color: var(--arena-text);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .arena-battle-fighter figcaption span {
+            display: block;
+            font-size: 11px;
+            color: var(--arena-muted);
+        }
+
+        .arena-battle-vs {
+            display: grid;
+            place-items: center;
+            align-self: center;
+        }
+        .arena-battle-vs span {
+            font-family: 'Cinzel', serif;
+            font-size: clamp(15px, 2.2vw, 22px);
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: var(--arena-muted);
+            padding: 8px 10px;
+            border-radius: 99px;
+            border: 1px solid var(--arena-line);
+            background: rgba(10, 7, 5, 0.65);
+        }
+
+        /* ── El bocadillo del aviso ────────────────────────────────────────
+           Sale encima de la figura de quien avisa, aguanta unos segundos y se
+           va. No se apila: el ultimo aviso sustituye al anterior, porque lo que
+           importa es lo ultimo que dijo, no el historial -que esta debajo-. */
+        /* Abajo, sobre el suelo, y no encima de la cabeza.
+
+           Encima quedaba mas natural -es donde lo pone cualquier juego- pero el
+           escenario mide casi 300px y la barra superior es fija: con la pagina
+           desplazada hacia la botonera, que es donde se esta mirando al pulsar,
+           el aviso aparecia detras de la barra. Aqui se lee siempre, y ademas
+           cae justo encima del nombre. */
+        .arena-battle-bubble {
+            position: absolute;
+            left: 50%;
+            bottom: 12px;
+            z-index: 4;
+            transform: translate(-50%, 6px);
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            max-width: min(220px, calc(100% - 20px));
+            padding: 7px 12px;
+            border-radius: 13px;
+            border: 1px solid rgba(222, 185, 99, 0.42);
+            background: linear-gradient(180deg, rgba(34, 24, 16, 0.98), rgba(18, 12, 8, 0.98));
+            box-shadow: 0 10px 26px rgba(0, 0, 0, 0.62);
+            color: var(--arena-text);
+            font-size: 12.5px;
+            line-height: 1.25;
+            opacity: 0;
+            pointer-events: none;
+            animation: arenaBubbleIn .34s cubic-bezier(.2,.9,.3,1.3) forwards;
+        }
+        .arena-battle-bubble[hidden] { display: none; }
+        .arena-battle-bubble::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: -6px;
+            width: 11px;
+            height: 11px;
+            transform: translateX(-50%) rotate(45deg);
+            background: rgba(34, 24, 16, 0.98);
+            border-left: 1px solid rgba(222, 185, 99, 0.42);
+            border-top: 1px solid rgba(222, 185, 99, 0.42);
+        }
+        .arena-battle-bubble.is-leaving { animation: arenaBubbleOut .3s ease forwards; }
+        .arena-battle-bubble [data-fighter-bubble-icon] { font-size: 14px; line-height: 1; }
+        .arena-battle-bubble [data-fighter-bubble-text] { min-width: 0; }
+
+        /* El tono tiñe el borde: de un vistazo se distingue un "ya llegue" de
+           un "me han matado" sin leer. */
+        .arena-battle-bubble.is-sitio { border-color: rgba(124, 201, 138, 0.55); }
+        .arena-battle-bubble.is-aviso { border-color: rgba(255, 107, 94, 0.55); }
+        .arena-battle-bubble.is-prisa { border-color: rgba(255, 190, 92, 0.6); }
+
+        /* Y la figura de quien acaba de avisar se marca un momento, para que el
+           ojo vaya solo hacia ella en un 3v3. */
+        .arena-battle-fighter.is-talking .arena-battle-stage {
+            border-color: rgba(222, 185, 99, 0.6);
+            box-shadow: 0 0 0 1px rgba(222, 185, 99, 0.25), 0 12px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        @keyframes arenaBubbleIn {
+            from { opacity: 0; transform: translate(-50%, 16px) scale(.9); }
+            to { opacity: 1; transform: translate(-50%, 6px) scale(1); }
+        }
+        @keyframes arenaBubbleOut {
+            from { opacity: 1; transform: translate(-50%, 6px) scale(1); }
+            to { opacity: 0; transform: translate(-50%, -4px) scale(.96); }
+        }
+
+        /* ── Chat rapido del combate ───────────────────────────────────────
+           Plegado es una sola linea con lo ultimo que se dijo. Abierto, un chat
+           de toda la vida: burbujas a un lado y a otro, lo mas nuevo abajo, y
+           una barra de frases que se desliza. Un combate se juega mirando el
+           mapa y el reloj: la caja de mensajes no puede comerse la pantalla. */
+        .arena-chat {
+            margin: 0 clamp(14px, 2.4vw, 26px) clamp(12px, 1.8vw, 18px);
+            border: 1px solid var(--arena-line);
+            border-radius: 14px;
+            background: rgba(10, 7, 5, 0.66);
+            overflow: hidden;
+        }
+
+        .arena-chat-head {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            width: 100%;
+            padding: 10px 13px;
+            background: none;
+            border: 0;
+            color: inherit;
+            cursor: pointer;
+            text-align: left;
+            transition: background .2s ease;
+        }
+        .arena-chat-head:hover { background: rgba(255, 255, 255, 0.03); }
+
+        .arena-chat-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex: none;
+            background: #7cc98a;
+            box-shadow: 0 0 0 3px rgba(124, 201, 138, 0.16);
+        }
+        .arena-chat-title {
+            font-size: 10.5px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--arena-gold-soft);
+            white-space: nowrap;
+            flex: none;
+        }
+        .arena-chat-preview {
+            flex: 1 1 auto;
+            min-width: 0;
+            font-size: 12.5px;
+            color: var(--arena-muted);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .arena-chat-preview b { color: var(--arena-sand); font-weight: 600; }
+
+        /* Lo que no se ha leido. Solo aparece plegado: abierto ya lo estas
+           viendo, y un contador que no baja nunca deja de significar nada. */
+        .arena-chat-badge {
+            flex: none;
+            min-width: 19px;
+            height: 19px;
+            padding: 0 6px;
+            border-radius: 99px;
+            display: grid;
+            place-items: center;
+            font-size: 11px;
+            font-weight: 700;
+            color: #1a1005;
+            background: var(--arena-gold);
+            animation: arenaChatPop .3s cubic-bezier(.2,.9,.3,1.4);
+        }
+        .arena-chat-badge[hidden] { display: none; }
+
+        .arena-chat-caret {
+            flex: none;
+            width: 16px;
+            height: 16px;
+            color: var(--arena-muted);
+            transition: transform .25s ease;
+        }
+        .arena-chat[data-open="1"] .arena-chat-caret { transform: rotate(180deg); }
+        /* Abierto, el adelanto sobra: lo que resume ya se esta leyendo entero
+           dos centimetros mas abajo. */
+        .arena-chat[data-open="1"] .arena-chat-preview { opacity: 0; }
+
+        .arena-chat-body { border-top: 1px solid var(--arena-line); }
+        .arena-chat-body[hidden] { display: none; }
+
+        .arena-chat-log {
+            list-style: none;
+            margin: 0;
+            padding: 11px 13px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            /* Cabe poco a proposito: son cinco frases, no una conversacion. */
+            min-height: 96px;
+            max-height: 168px;
+            overflow-y: auto;
+            /* Pocos mensajes se pegan abajo, como en cualquier chat, en vez de
+               quedarse flotando en medio de una caja medio vacia. */
+            justify-content: flex-end;
+            scrollbar-width: thin;
+            overscroll-behavior: contain;
+        }
+        .arena-chat-msg { display: flex; }
+        .arena-chat-msg.is-mine { justify-content: flex-end; }
+        .arena-chat-msg.is-theirs { justify-content: flex-start; }
+
+        .arena-chat-bubble {
+            display: inline-flex;
+            flex-direction: column;
+            gap: 1px;
+            max-width: min(78%, 330px);
+            padding: 6px 11px 5px;
+            border-radius: 13px;
+            border: 1px solid var(--arena-line);
+            background: rgba(22, 15, 10, 0.9);
+            position: relative;
+        }
+        /* Las mias a la derecha y en dorado; las suyas a la izquierda y en
+           frio. Es lo que hace que se lea como un chat de un vistazo, sin
+           tener que leer los nombres. */
+        .arena-chat-msg.is-mine .arena-chat-bubble {
+            border-color: rgba(222, 185, 99, 0.42);
+            background: linear-gradient(180deg, rgba(58, 42, 22, 0.92), rgba(30, 21, 12, 0.94));
+            border-bottom-right-radius: 4px;
+        }
+        .arena-chat-msg.is-theirs .arena-chat-bubble {
+            border-color: rgba(120, 170, 255, 0.34);
+            background: linear-gradient(180deg, rgba(20, 28, 44, 0.92), rgba(12, 16, 26, 0.94));
+            border-bottom-left-radius: 4px;
+        }
+
+        .arena-chat-who {
+            font-size: 10px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--arena-muted);
+        }
+        .arena-chat-msg.is-mine .arena-chat-who { color: rgba(222, 185, 99, 0.75); }
+        .arena-chat-said { font-size: 13px; color: var(--arena-text); line-height: 1.3; }
+        .arena-chat-bubble time {
+            align-self: flex-end;
+            font-size: 9.5px;
+            color: var(--arena-muted);
+            margin-top: 1px;
+        }
+        .arena-chat-empty {
+            font-size: 12px;
+            color: var(--arena-muted);
+            text-align: center;
+            padding: 10px 0;
+        }
+
+        /* La barra de frases. Se desliza de lado, como los emotes de cualquier
+           juego: doce botones apilados comerian media pantalla en un movil. */
+        /* La barra se desliza, y eso tiene que VERSE. Sin el degradado del
+           final, la ultima frase aparece cortada y parece un fallo de maqueta
+           en vez de una invitacion a arrastrar. */
+        .arena-chat-quick-wrap {
+            position: relative;
+            border-top: 1px solid var(--arena-line);
+        }
+        .arena-chat-quick-wrap::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 34px;
+            pointer-events: none;
+            background: linear-gradient(90deg, transparent, rgba(10, 7, 5, 0.92));
+        }
+        .arena-chat-quick {
+            display: flex;
+            gap: 6px;
+            padding: 9px 13px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
+            scroll-snap-type: x proximity;
+        }
+        .arena-chat-quick-btn { scroll-snap-align: start; }
+        .arena-chat-quick::-webkit-scrollbar { display: none; }
+        .arena-chat-quick-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            flex: none;
+            padding: 6px 12px;
+            border-radius: 99px;
+            border: 1px solid var(--arena-line);
+            background: rgba(24, 17, 11, 0.9);
+            color: var(--arena-text);
+            font-size: 12px;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: transform .15s ease, border-color .2s ease, background .2s ease;
+        }
+        .arena-chat-quick-btn:hover:not(:disabled) {
+            transform: translateY(-1px);
+            border-color: rgba(222, 185, 99, 0.5);
+            background: rgba(40, 28, 17, 0.95);
+        }
+        .arena-chat-quick-btn:active:not(:disabled) { transform: translateY(0) scale(.96); }
+        .arena-chat-quick-btn:disabled { opacity: .45; cursor: default; }
+        .arena-chat-quick-btn.is-sitio:hover:not(:disabled) { border-color: rgba(124, 201, 138, 0.6); }
+        .arena-chat-quick-btn.is-aviso:hover:not(:disabled) { border-color: rgba(255, 107, 94, 0.6); }
+        .arena-chat-quick-btn.is-prisa:hover:not(:disabled) { border-color: rgba(255, 190, 92, 0.6); }
+
+        .arena-chat-status {
+            margin: 0;
+            padding: 0 13px 9px;
+            font-size: 11px;
+            color: var(--arena-muted);
+            min-height: 13px;
+        }
+        .arena-chat-status.is-error { color: #ff9b8f; }
+
+        @keyframes arenaChatPop {
+            from { transform: scale(.5); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        @media (max-width: 720px) {
+            /* El duelo se queda cara a cara: dos columnas y el VS en medio.
+               Apilado ocupaba dos pantallas enteras y habia que desplazarse
+               para ver contra quien juegas, que es justo lo que se viene a
+               mirar. */
+            .arena-battle { padding: 12px 12px 8px; gap: 8px; }
+            .arena-battle[data-team-size="1"] { grid-template-columns: 1fr auto 1fr; }
+            .arena-battle[data-team-size="1"] .arena-battle-stage { height: clamp(150px, 42vw, 200px); }
+
+            /* Con equipos si se apila: tres figuras repartidas en media
+               pantalla no serian ni siluetas. */
+            .arena-battle:not([data-team-size="1"]) { grid-template-columns: 1fr; }
+            .arena-battle:not([data-team-size="1"]) .arena-battle-vs { justify-self: center; margin: 2px 0; }
+            .arena-battle-fighters[data-count="2"] .arena-battle-stage { height: clamp(128px, 30vw, 165px); }
+            .arena-battle-fighters[data-count="3"] .arena-battle-stage { height: clamp(104px, 24vw, 140px); }
+
+            .arena-battle-vs span { padding: 4px 9px; font-size: 12px; }
+            .arena-battle-fighter figcaption b { font-size: 12px; }
+            .arena-battle-fighter figcaption span { font-size: 10px; }
+            .arena-battle-bubble { font-size: 11px; padding: 5px 9px; gap: 5px; }
+
+            /* La cabecera del chat: el titulo se va SOLO cuando hay un adelanto
+               que leer. Quitarlo siempre dejaba, con la caja abierta, una
+               barra con un punto verde y una flecha y nada mas. */
+            .arena-chat:not([data-open="1"]) .arena-chat-title { display: none; }
+            .arena-chat[data-open="1"] .arena-chat-preview { display: none; }
+            .arena-chat-log { min-height: 84px; max-height: 148px; padding: 10px; }
+            .arena-chat-bubble { max-width: 86%; }
+            .arena-chat-quick { padding: 8px 10px; }
+        }
+
         .arena-duel-panel .arena-duel-lineups { padding: 18px 22px; }
         .arena-duel-portrait {
             width: 56px;
@@ -2337,6 +2769,19 @@
                     ],
                     vibrate: [80, 40, 120],
                 },
+                /* El aviso del rival dentro del combate.
+
+                   Corto y discreto a proposito: durante una partida pueden
+                   llegar varios seguidos, y un toque tan largo como el de
+                   "combate encontrado" acabaria siendo un estorbo. Dos notas
+                   breves, como el mensaje de cualquier chat. */
+                match_ping: {
+                    tones: [
+                        { freq: 1046, duration: 0.18, delay: 0.00, gain: 0.038 },
+                        { freq: 1396, duration: 0.30, delay: 0.07, gain: 0.032 },
+                    ],
+                    vibrate: [35],
+                },
                 party_invite: {
                     tones: [
                         { freq: 784, duration: 0.45, delay: 0.00, gain: 0.045 },
@@ -2736,6 +3181,7 @@
 
     @stack('arena-map-scripts')
     @include('partials.arena-map-runtime')
+    @include('partials.arena-pings-runtime')
     <script>
         /* Relojes de la arena.
            Un solo motor para los tres: el plazo para aceptar el cruce, el plazo

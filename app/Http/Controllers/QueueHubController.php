@@ -8,6 +8,7 @@ use App\Models\Queue;
 use App\Services\ArenaMatchResultService;
 use App\Services\ArenaMatchmakingService;
 use App\Services\MatchLineupService;
+use App\Services\MatchPingService;
 use App\Services\QueuePulseService;
 use App\Services\TestingLabService;
 use Illuminate\Http\Request;
@@ -992,7 +993,11 @@ class QueueHubController extends Controller
             ->unique();
 
         $relevantMatches = ArenaMatch::query()
-            ->select('id', 'status', 'team_a', 'team_b', 'updated_at')
+            // arena_mode NO es opcional aqui aunque el sondeo no lo pinte: los
+            // avisos deciden con el si el nombre del rival se puede enseñar, y
+            // sin la columna un duelo 1v1 -donde SI se ve- se leia como una
+            // partida por equipos y salia firmado como "Rival".
+            ->select('id', 'status', 'arena_mode', 'team_a', 'team_b', 'updated_at')
             ->with(['report:match_id,status,reporting_team,updated_at'])
             ->where(function ($query) use ($matchIdsFromQueues, $pollRelevantStatuses, $recentCutoff) {
                 $query->where(function ($recentQuery) use ($pollRelevantStatuses, $recentCutoff) {
@@ -1080,6 +1085,11 @@ class QueueHubController extends Controller
             ->whereIn('id', $playerIds)
             ->value('realm');
 
+        // Los avisos van FUERA del hash, por el mismo motivo que el pulso: si
+        // entraran, cada "voy de camino" recargaria la pantalla entera a los
+        // dos bandos. Aqui fuera llegan en vivo y no mueven nada mas.
+        $avisos = app(MatchPingService::class);
+
         return response()->json([
             'hash' => md5(json_encode($pollState)),
             'state' => $pollState,
@@ -1087,7 +1097,36 @@ class QueueHubController extends Controller
                 $activeQueues->first()?->arena_mode,
                 $pulseRealm
             ),
+            'pings' => $avisos->abierto($currentMatch)
+                ? $avisos->historial($currentMatch, $this->jugadorEnElCruce($currentMatch, $playerIds))
+                : [],
         ]);
+    }
+
+    /**
+     * Con cual de mis personajes juego este cruce.
+     *
+     * Hace falta para los avisos: sin saber de que bando mira, no se puede
+     * decidir si el nombre del que avisa se puede enseñar o el rival sigue
+     * siendo anonimo.
+     */
+    private function jugadorEnElCruce(?ArenaMatch $match, Collection $playerIds): ?Player
+    {
+        if (!$match instanceof ArenaMatch) {
+            return null;
+        }
+
+        $mios = $playerIds->map(fn ($id) => (int) $id)->all();
+
+        foreach ($match->getAllPlayers() as $fila) {
+            $id = (int) ($fila['player_id'] ?? 0);
+
+            if ($id !== 0 && in_array($id, $mios, true)) {
+                return Player::find($id);
+            }
+        }
+
+        return null;
     }
 
     private function matchIncludesAnyPlayer(ArenaMatch $match, array $playerIdLookup): bool

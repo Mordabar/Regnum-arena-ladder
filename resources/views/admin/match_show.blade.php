@@ -428,7 +428,7 @@
                 <x-admin.icon name="close" class="h-4 w-4" />
             </button>
         </div>
-        <x-arena-zone-map :zone-key="$match->zone_key" height="420px" />
+        <x-arena-zone-map :zone-key="$match->zone_key" :meeting-point="$match->meeting_point" height="420px" />
     </div>
 </div>
 

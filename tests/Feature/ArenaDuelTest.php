@@ -17,9 +17,9 @@ uses(RefreshDatabase::class);
  * El duelo 1v1.
  *
  * Tres cosas lo separan del 2v2 y el 3v3, y son las tres que se prueban aqui:
- * no hay party, el nombre del rival es publico desde el cruce, y el
- * emparejamiento prefiere el espejo -arquero contra arquero- sin quitarle la
- * ultima palabra al MMR.
+ * no hay party, el nombre del rival se hace publico en cuanto se acepta -no
+ * antes, o rechazar seria un filtro-, y el emparejamiento prefiere el espejo
+ * -arquero contra arquero- sin quitarle la ultima palabra al MMR.
  *
  * Todo lo demas -PL, MMR, reportes, disputas, sanciones- es el mismo sistema de
  * siempre, y por eso NO se duplica aqui: si el duelo se saliera de la tabla
@@ -400,7 +400,10 @@ it('un duelo se juega de punta a punta y mueve el mismo ladder', function () {
 
 // ------------------------------------------------------------------- nombres
 
-it('el nombre del rival es publico desde el cruce', function () {
+it('el nombre del rival aparece al aceptar, no antes', function () {
+    // La razon de que no aparezca antes: con el nombre delante, el boton de
+    // rechazar se convierte en un filtro -se acepta al que conviene y se
+    // rechaza al que no-, y el rechazado se come la espera sin saber por que.
     $a = duelistaEn('vis-a', 'alsius', 'knight');
     $b = duelistaEn('vis-b', 'ignis', 'knight');
     encolarDuelista($a);
@@ -409,12 +412,25 @@ it('el nombre del rival es publico desde el cruce', function () {
     app(ArenaMatchmakingService::class)->processQueue();
     $match = ArenaMatch::query()->where('arena_mode', ArenaMode::ONE_V_ONE)->firstOrFail();
 
-    expect(MatchLineupService::namesRevealed($match))->toBeTrue();
+    // Mientras se decide, anonimo.
+    expect($match->status)->toBe('pending_acceptance')
+        ->and(MatchLineupService::namesRevealed($match))->toBeFalse();
 
-    $lineup = app(MatchLineupService::class)->forViewer($match, [$a->id]);
+    $antes = app(MatchLineupService::class)->forViewer($match, [$a->id]);
 
-    expect($lineup['names_revealed'])->toBeTrue()
-        ->and($lineup['rival'][0]['name'])->toBe($b->character_name);
+    expect($antes['names_revealed'])->toBeFalse()
+        ->and($antes['rival'][0]['name'])->not->toBe($b->character_name);
+
+    // Aceptado: ya no se puede elegir, asi que el nombre deja de esconder nada
+    // y pasa a hacer falta para encontrarse en la zona.
+    $match->update(['status' => 'in_progress']);
+
+    expect(MatchLineupService::namesRevealed($match->refresh()))->toBeTrue();
+
+    $despues = app(MatchLineupService::class)->forViewer($match, [$a->id]);
+
+    expect($despues['names_revealed'])->toBeTrue()
+        ->and($despues['rival'][0]['name'])->toBe($b->character_name);
 });
 
 it('en 2v2 el nombre del rival sigue oculto hasta el final', function () {

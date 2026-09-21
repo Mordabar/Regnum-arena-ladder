@@ -194,7 +194,8 @@ class ArenaMatchmakingService
     private bool $barriendo = false;
 
     public function __construct(
-        private readonly DiscordBotService $discordBotService
+        private readonly DiscordBotService $discordBotService,
+        private readonly ArenaZoneService $zoneService,
     ) {
     }
 
@@ -1924,7 +1925,7 @@ class ArenaMatchmakingService
             'team_b_realm' => $teamB['realm'],
             'team_a' => $teamAPayload,
             'team_b' => $teamBPayload,
-            'zone' => $this->pickZone($teamA['realm'], $teamB['realm'], $activeMatches),
+            'zone' => $zone = $this->pickZone($teamA['realm'], $teamB['realm'], $activeMatches),
             'status' => 'pending_acceptance',
             'estimated_mmr_avg' => (int) round(($teamA['avg_mmr'] + $teamB['avg_mmr']) / 2),
             'expires_at' => $expiresAt,
@@ -1932,6 +1933,7 @@ class ArenaMatchmakingService
 
         $match = ArenaMatch::create(array_merge(
             $attributes,
+            $this->columnasDelPuntoDeEncuentro($zone),
             $this->buildMatchModeAttributes($teamA, $teamB),
             $this->buildLegacyRealmColumns($teamA['realm'], $teamAPayload, $teamB['realm'], $teamBPayload)
         ));
@@ -2106,6 +2108,43 @@ class ArenaMatchmakingService
         }
 
         return $this->matchesColumnsCache = collect(Schema::getColumns('matches'))->keyBy('name');
+    }
+
+    /**
+     * Deja escrito en el cruce a que punto exacto van los dos bandos.
+     *
+     * Antes no se guardaba: cada navegador calculaba el punto al abrir el mapa,
+     * leyendo un fichero de zonas que podia tener cacheado de dias atras. Dos
+     * jugadores del mismo cruce acababan en sitios distintos, y el que llegaba
+     * al sitio correcto se quedaba esperando a alguien que estaba a medio mapa.
+     *
+     * Congelandolo aqui, el cruce manda: mover una zona desde el panel solo
+     * afecta a los cruces que se creen a partir de ese momento.
+     *
+     * Si la tabla es de un esquema viejo y no tiene las columnas, no se escribe
+     * nada y el mapa vuelve a calcularlo como siempre. Peor que lo nuevo, igual
+     * que lo de antes.
+     *
+     * @return array<string, mixed>
+     */
+    private function columnasDelPuntoDeEncuentro(?string $zone): array
+    {
+        $columnas = $this->getMatchesColumns();
+
+        if (!$columnas->has('meeting_point') || !$columnas->has('meeting_slot')) {
+            return [];
+        }
+
+        $elegido = $this->zoneService->elegirPuntoDeEncuentro($zone);
+
+        if ($elegido === null) {
+            return [];
+        }
+
+        return [
+            'meeting_slot' => $elegido['slot'],
+            'meeting_point' => $elegido['punto'],
+        ];
     }
 
     private function buildLegacyRealmColumns(

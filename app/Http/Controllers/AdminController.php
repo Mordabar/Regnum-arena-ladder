@@ -15,6 +15,7 @@ use App\Services\ArenaMatchResultService;
 use App\Services\ArenaMatchmakingService;
 use App\Services\PlayerCleanupService;
 use App\Services\LadderCacheService;
+use App\Services\ArenaZoneService;
 use App\Services\LadderMaintenanceService;
 use App\Support\ArenaMode;
 use Illuminate\Http\Request;
@@ -844,44 +845,47 @@ class AdminController extends Controller
             });
     }
 
-    public function zones()
+    public function zones(ArenaZoneService $zonas)
     {
-        return view('admin.zones_editor');
+        return view('admin.zones_editor', [
+            'zonas' => $zonas->configuracionParaElMapa(),
+        ]);
     }
 
-    public function saveZones(Request $request)
+    /**
+     * Publica las zonas que trae el editor.
+     *
+     * Van a la base de datos, no a un fichero de public/. El fichero tenia dos
+     * formas de perder el trabajo del admin: el navegador de los jugadores se
+     * lo quedaba cacheado durante dias -de ahi que dos rivales vieran puntos de
+     * encuentro distintos- y cada despliegue lo devolvia al estado del
+     * repositorio.
+     */
+    public function saveZones(Request $request, ArenaZoneService $zonas)
     {
         $validated = $request->validate([
             'zones_json' => 'required|json',
         ]);
 
-        $filepath = public_path('js/arena-zones.js');
-        
-        // Decode to ensure valid structure
-        $zonesData = json_decode($validated['zones_json'], true);
-        if (!$zonesData || !is_array($zonesData)) {
+        $entrantes = json_decode($validated['zones_json'], true);
+
+        if (!is_array($entrantes) || $entrantes === []) {
             return back()->withErrors(['error' => 'Formato de zonas invalido.']);
         }
 
-        // Validate basic expected format
-        foreach ($zonesData as $zone) {
-            if (!isset($zone['id']) || !isset($zone['key']) || !isset($zone['name'])) {
-                return back()->withErrors(['error' => 'El JSON debe contener id, key, name, coords.']);
+        foreach ($entrantes as $zona) {
+            if (!is_array($zona) || !isset($zona['key'], $zona['name'])) {
+                return back()->withErrors(['error' => 'Cada zona necesita al menos key y name.']);
+            }
+
+            if (ArenaMatch::normalizeZoneKey($zona['key']) === null) {
+                return back()->withErrors(['error' => 'La zona "' . $zona['key'] . '" no existe.']);
             }
         }
 
-        // Keep a backup in storage
-        if (file_exists($filepath)) {
-            \Illuminate\Support\Facades\Storage::disk('local')->put('arena-zones-backup-' . date('Ymd-His') . '.json', file_get_contents($filepath));
-        }
+        $guardadas = $zonas->publicar($entrantes);
 
-        // Create the valid JS file content
-        $jsContent = "window.ARENA_ZONES_CONFIG = " . json_encode($zonesData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . ";\n";
-
-        // Save directly to the public asset file
-        file_put_contents($filepath, $jsContent);
-
-        return back()->with('success', 'Zonas del mapa guardadas correctamente.');
+        return back()->with('success', $guardadas . ' zona(s) publicadas. Los jugadores ven el mapa nuevo al abrirlo.');
     }
 
     /**

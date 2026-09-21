@@ -1,0 +1,233 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\ArenaMatch;
+use App\Models\MatchPing;
+use App\Models\Player;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
+
+/**
+ * Los avisos rapidos de un enfrentamiento: quien puede mandarlos y cuantos.
+ *
+ * Lo que faltaba era poder decir "voy de camino" sin salir de la pagina. Lo que
+ * NO puede pasar es que eso se convierta en una forma de molestar al rival, asi
+ * que hay tope: ni ráfagas, ni el mismo aviso repetido, ni avisos en un cruce
+ * que ya termino.
+ */
+class MatchPingService
+{
+    /** Estados en los que todavia tiene sentido avisar de algo. */
+    public const ESTADOS_ABIERTOS = ['pending_acceptance', 'accepted', 'in_progress'];
+
+    /** Cuantos avisos se enseñan. Los de mas arriba ya no le importan a nadie. */
+    public const HISTORIAL = 30;
+
+    /** Tope por jugador y minuto. Da de sobra para avisar y corta la rafaga. */
+    private const POR_MINUTO = 6;
+
+    /** Tope por jugador y enfrentamiento, de punta a punta. */
+    private const POR_ENFRENTAMIENTO = 60;
+
+    /** Segundos que hay que esperar para repetir EL MISMO aviso. */
+    private const REPETIR_MISMO = 15;
+
+    public function disponible(): bool
+    {
+        return Schema::hasTable('match_pings');
+    }
+
+    /** Si en este enfrentamiento todavia se puede avisar de algo. */
+    public function abierto(?ArenaMatch $match): bool
+    {
+        return $match instanceof ArenaMatch
+            && in_array((string) $match->status, self::ESTADOS_ABIERTOS, true);
+    }
+
+    /**
+     * Manda un aviso.
+     *
+     * @return array{ok: bool, motivo?: string, ping?: MatchPing}
+     */
+    public function enviar(ArenaMatch $match, Player $player, string $code): array
+    {
+        if (!$this->disponible()) {
+            return ['ok' => false, 'motivo' => 'Los avisos no estan disponibles todavia.'];
+        }
+
+        if (!MatchPing::esUnCodigo($code)) {
+            return ['ok' => false, 'motivo' => 'Ese aviso no existe.'];
+        }
+
+        if (!$this->abierto($match)) {
+            return ['ok' => false, 'motivo' => 'Este enfrentamiento ya esta cerrado.'];
+        }
+
+        if (!$this->juegaEnElCruce($match, $player)) {
+            return ['ok' => false, 'motivo' => 'No juegas en este enfrentamiento.'];
+        }
+
+        $mios = MatchPing::query()
+            ->where('match_id', (string) $match->id)
+            ->where('player_id', $player->id);
+
+        if ((clone $mios)->count() >= self::POR_ENFRENTAMIENTO) {
+            return ['ok' => false, 'motivo' => 'Has mandado demasiados avisos en este combate.'];
+        }
+
+        if ((clone $mios)->where('created_at', '>=', now()->subMinute())->count() >= self::POR_MINUTO) {
+            return ['ok' => false, 'motivo' => 'Vas muy rapido. Espera unos segundos.'];
+        }
+
+        $ultimoIgual = (clone $mios)
+            ->where('code', $code)
+            ->where('created_at', '>=', now()->subSeconds(self::REPETIR_MISMO))
+            ->exists();
+
+        if ($ultimoIgual) {
+            return ['ok' => false, 'motivo' => 'Ese aviso ya lo acabas de mandar.'];
+        }
+
+        $ping = MatchPing::create([
+            'match_id' => (string) $match->id,
+            'player_id' => $player->id,
+            'code' => $code,
+        ]);
+
+        return ['ok' => true, 'ping' => $ping];
+    }
+
+    /**
+     * Los avisos del enfrentamiento, del mas viejo al mas nuevo.
+     *
+     * Se devuelven ya resueltos -nombre, icono, texto- porque el sondeo los
+     * pinta tal cual y no tiene a mano la tabla de jugadores.
+     *
+     * El `$viewer` no es un adorno: en 2v2 y 3v3 el rival es ANONIMO hasta que
+     * el enfrentamiento se cierra, y un aviso firmado con su nombre seria la
+     * forma mas tonta de saltarse esa regla. A quien mira desde el otro bando
+     * le llega el aviso sin nombre.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function historial(?ArenaMatch $match, ?Player $viewer = null): array
+    {
+        if (!$this->disponible() || !$match instanceof ArenaMatch) {
+            return [];
+        }
+
+        $pings = MatchPing::query()
+            ->where('match_id', (string) $match->id)
+            ->orderByDesc('id')
+            ->limit(self::HISTORIAL)
+            ->get();
+
+        if ($pings->isEmpty()) {
+            return [];
+        }
+
+        $nombres = $this->nombresDelCruce($match);
+        $seVenLosNombres = MatchLineupService::namesRevealed($match);
+        $miBando = $viewer !== null ? $this->bandoDe($match, (int) $viewer->id) : null;
+
+        return $pings
+            ->sortBy('id')
+            ->map(function (MatchPing $ping) use ($match, $nombres, $seVenLosNombres, $miBando) {
+                $bando = $this->bandoDe($match, (int) $ping->player_id);
+                $esMio = $miBando !== null && $bando === $miBando;
+
+                return [
+                    'id' => (int) $ping->id,
+                    'player_id' => (int) $ping->player_id,
+                    'nombre' => ($seVenLosNombres || $esMio)
+                        ? ($nombres[(int) $ping->player_id] ?? 'Alguien')
+                        : 'Rival',
+                    'mio' => $esMio,
+                    'bando' => $bando,
+                    'code' => (string) $ping->code,
+                    'texto' => $ping->texto(),
+                    'icono' => $ping->icono(),
+                    'tono' => $ping->tono(),
+                    'en' => $ping->created_at?->toIso8601String(),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /** Borra los avisos de enfrentamientos ya cerrados. */
+    public function limpiarCerrados(): int
+    {
+        if (!$this->disponible()) {
+            return 0;
+        }
+
+        // Los avisos de un cruce que ya no existe -se borran al cancelarse sin
+        // jugarse- tambien se van: si no, se quedarian ahi para siempre.
+        $vivos = ArenaMatch::query()
+            ->whereIn('status', self::ESTADOS_ABIERTOS)
+            ->pluck('id')
+            ->map(fn ($id) => (string) $id);
+
+        $query = MatchPing::query();
+
+        if ($vivos->isNotEmpty()) {
+            $query->whereNotIn('match_id', $vivos->all());
+        }
+
+        return $query->delete();
+    }
+
+    /** Borra los avisos de un enfrentamiento concreto. */
+    public function limpiarDe(ArenaMatch|string|int $match): int
+    {
+        if (!$this->disponible()) {
+            return 0;
+        }
+
+        $id = $match instanceof ArenaMatch ? (string) $match->id : (string) $match;
+
+        return MatchPing::query()->where('match_id', $id)->delete();
+    }
+
+    private function juegaEnElCruce(ArenaMatch $match, Player $player): bool
+    {
+        foreach ($match->getAllPlayers() as $fila) {
+            if ((int) ($fila['player_id'] ?? 0) === (int) $player->id) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * El nombre de cada jugador del cruce, tal y como se guardo al crearlo.
+     *
+     * Se lee del propio enfrentamiento y no de la tabla de jugadores: si
+     * alguien se cambia el nombre a mitad de combate, el aviso sigue diciendo
+     * a quien vio el rival cuando empezo.
+     *
+     * @return array<int, string>
+     */
+    private function nombresDelCruce(ArenaMatch $match): array
+    {
+        $nombres = [];
+
+        foreach ($match->getAllPlayers() as $fila) {
+            $id = (int) ($fila['player_id'] ?? 0);
+
+            if ($id !== 0) {
+                $nombres[$id] = (string) ($fila['character_name'] ?? 'Alguien');
+            }
+        }
+
+        return $nombres;
+    }
+
+    private function bandoDe(ArenaMatch $match, int $playerId): string
+    {
+        return in_array($playerId, $match->getTeamPlayerIds('team_a'), true) ? 'a' : 'b';
+    }
+}

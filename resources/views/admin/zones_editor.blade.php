@@ -48,6 +48,23 @@
     #admin-map-container[data-zoom="3"] .zone-label-permanent { font-size: 36px; padding: 10px 20px; }
 
     .leaflet-interactive { transition: fill-opacity 0.2s, stroke-width 0.2s; }
+
+    /* El numero del puesto, pegado al punto que se esta editando. */
+    .zone-meet-tag {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        border: 2px solid #0c0806;
+        color: #0c0806;
+        font-family: 'Inter', sans-serif;
+        font-size: 11px;
+        font-weight: 800;
+        line-height: 1;
+        box-shadow: 0 2px 8px rgba(0,0,0,.7);
+    }
 </style>
 @endpush
 
@@ -99,14 +116,25 @@
 
             <div class="ap-label" style="display:flex; align-items:center; gap:6px">
                 <span style="width:9px; height:9px; border-radius:50%; background:#ff4d4f; display:inline-block"></span>
-                Punto de encuentro
+                Punto 1
             </div>
             <p class="ap-hint" id="meeting-state">—</p>
-            <button id="btn-meeting" class="ap-btn ap-btn-block">Mover el punto</button>
+            <button id="btn-meeting" class="ap-btn ap-btn-block">Mover el punto 1</button>
             <button id="btn-meeting-auto" class="ap-btn ap-btn-block ap-btn-quiet">Volver al automatico</button>
+
+            <div class="ap-label mt-2" style="display:flex; align-items:center; gap:6px">
+                <span style="width:9px; height:9px; border-radius:50%; background:#5eb0ff; display:inline-block"></span>
+                Punto 2 <span style="opacity:.6; font-weight:400">(opcional)</span>
+            </div>
+            <p class="ap-hint" id="meeting-b-state">—</p>
+            <button id="btn-meeting-b" class="ap-btn ap-btn-block">Colocar el punto 2</button>
+            <button id="btn-meeting-b-clear" class="ap-btn ap-btn-block ap-btn-quiet">Quitar el punto 2</button>
+
             <p class="ap-hint">
-                Es el sitio que el cruce le indica a los dos equipos para quedar. Sin tocarlo sale
-                solo, en la parte mas interior de la zona.
+                Es el sitio que el cruce le indica a los dos equipos para quedar. El primero sale
+                solo si no lo tocas, en la parte mas interior de la zona. Si pones el segundo, cada
+                enfrentamiento sale en uno de los dos al azar: la misma zona deja de jugarse siempre
+                en el mismo claro.
             </p>
         </div>
 
@@ -120,7 +148,9 @@
 
 @push('scripts')
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="{{ asset('js/arena-zones.js') }}?v={{ time() }}"></script>
+{{-- Las zonas llegan del servidor, no de un fichero cacheable: el editor tiene
+     que estar viendo exactamente lo mismo que esta publicado. --}}
+<script>window.ARENA_ZONES_CONFIG = @json($zonas);</script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const w = 1086, h = 1086;
@@ -139,14 +169,23 @@
         let tempPolyLine = null;
 
         let meetingLayers = [];
-        let isPlacingMeeting = false;
+        // 0 = no se esta colocando nada; 1 o 2 = el puesto que se esta moviendo.
+        let colocandoPuesto = 0;
 
         const selector = document.getElementById('zone-selector');
         const btnDraw = document.getElementById('btn-draw');
         const btnMeeting = document.getElementById('btn-meeting');
         const btnMeetingAuto = document.getElementById('btn-meeting-auto');
+        const btnMeetingB = document.getElementById('btn-meeting-b');
+        const btnMeetingBClear = document.getElementById('btn-meeting-b-clear');
         const meetingState = document.getElementById('meeting-state');
+        const meetingBState = document.getElementById('meeting-b-state');
         const meetingIndicator = document.getElementById('meeting-indicator');
+
+        // Rojo el primero, azul el segundo, y los mismos colores en el mapa y
+        // en las etiquetas del panel: con dos puntos identicos no habria forma
+        // de saber cual se esta moviendo.
+        const COLOR_PUESTO = { 1: '#ff4d4f', 2: '#5eb0ff' };
         const actionGroup = document.getElementById('action-buttons');
         const traceGroup = document.getElementById('trace-buttons');
         const indicator = document.getElementById('tracing-indicator');
@@ -172,58 +211,84 @@
 
             if (!window.ArenaMapPoints) {
                 meetingState.textContent = 'No se pudo cargar el calculo del punto.';
+                meetingBState.textContent = '—';
                 return;
             }
 
             const actual = zonaSeleccionada();
-            const suyo = actual ? window.ArenaMapPoints.deZona(actual) : null;
+            const suyos = actual ? window.ArenaMapPoints.todosDeZona(actual) : [];
+            const primero = suyos.find(p => p.slot === 1) || null;
+            const segundo = suyos.find(p => p.slot === 2) || null;
 
             // El estado se decide aqui y no dentro del bucle: una zona sin
             // contorno no entra en el bucle, y el panel se quedaba enseñando
             // el estado de la zona anterior.
             if (!actual) {
                 meetingState.textContent = 'Elige una zona.';
-            } else if (!suyo) {
+            } else if (!primero) {
                 meetingState.textContent = 'Sin contorno todavia: dibujalo y vuelve.';
-            } else if (suyo.fijado) {
-                meetingState.textContent = 'Fijado a mano en ' + suyo.punto[0] + ', ' + suyo.punto[1] + '.';
+            } else if (primero.fijado) {
+                meetingState.textContent = 'Fijado a mano en ' + primero.punto[0] + ', ' + primero.punto[1] + '.';
             } else {
                 meetingState.textContent = 'Automatico, en la parte mas interior de la zona.';
             }
 
+            if (!actual) {
+                meetingBState.textContent = '—';
+            } else if (segundo) {
+                meetingBState.textContent = 'Puesto en ' + segundo.punto[0] + ', ' + segundo.punto[1] +
+                    '. Los cruces salen en uno de los dos.';
+            } else {
+                meetingBState.textContent = 'Sin poner. Todos los cruces de esta zona van al punto 1.';
+            }
+
+            btnMeetingBClear.disabled = !segundo;
+
             zonesData.forEach(zone => {
-                const encuentro = window.ArenaMapPoints.deZona(zone);
-                if (!encuentro) return;
-
                 const esActual = actual && zone.id === actual.id;
-                // Rojo, y no dorado: el mapa entero ya es dorado -contornos,
-                // etiquetas y relleno- y el punto se perdia dentro.
-                const color = encuentro.fijado ? '#ff8b5e' : '#ff4d4f';
 
-                meetingLayers.push(L.circle(encuentro.punto, {
-                    radius: Math.max(18, Math.min(encuentro.holgura * 0.55, 55)),
-                    color: color, weight: esActual ? 2 : 1, dashArray: '4 5',
-                    fillColor: color, fillOpacity: esActual ? 0.22 : 0.06,
-                    interactive: false,
-                }).addTo(map));
+                window.ArenaMapPoints.todosDeZona(zone).forEach(sitio => {
+                    if (!sitio) { return; }
 
-                // Aro oscuro detras: el punto tiene que leerse igual sobre
-                // nieve que sobre bosque.
-                meetingLayers.push(L.circleMarker(encuentro.punto, {
-                    radius: esActual ? 10 : 6,
-                    color: '#0c0806', weight: 3, opacity: 0.85,
-                    fillColor: color, fillOpacity: 1,
-                    interactive: false,
-                }).addTo(map));
+                    const color = COLOR_PUESTO[sitio.slot] || COLOR_PUESTO[1];
 
-                if (esActual) {
-                    meetingLayers.push(L.circleMarker(encuentro.punto, {
-                        radius: 3, weight: 0,
-                        fillColor: '#fff', fillOpacity: 0.92,
+                    meetingLayers.push(L.circle(sitio.punto, {
+                        radius: Math.max(18, Math.min(sitio.holgura * 0.55, 55)),
+                        color: color, weight: esActual ? 2 : 1, dashArray: '4 5',
+                        fillColor: color, fillOpacity: esActual ? 0.22 : 0.06,
                         interactive: false,
                     }).addTo(map));
-                }
 
+                    // Aro oscuro detras: el punto tiene que leerse igual sobre
+                    // nieve que sobre bosque.
+                    meetingLayers.push(L.circleMarker(sitio.punto, {
+                        radius: esActual ? 10 : 6,
+                        color: '#0c0806', weight: 3, opacity: 0.85,
+                        fillColor: color, fillOpacity: 1,
+                        interactive: false,
+                    }).addTo(map));
+
+                    if (esActual) {
+                        meetingLayers.push(L.circleMarker(sitio.punto, {
+                            radius: 3, weight: 0,
+                            fillColor: '#fff', fillOpacity: 0.92,
+                            interactive: false,
+                        }).addTo(map));
+
+                        // El numero solo en la zona que se edita: con catorce
+                        // zonas y dos puntos cada una, el mapa entero lleno de
+                        // numeros no se lee.
+                        meetingLayers.push(L.marker(sitio.punto, {
+                            interactive: false,
+                            icon: L.divIcon({
+                                className: '',
+                                html: '<span class="zone-meet-tag" style="background:' + color + '">' + sitio.slot + '</span>',
+                                iconSize: [18, 18],
+                                iconAnchor: [-6, 20],
+                            }),
+                        }).addTo(map));
+                    }
+                });
             });
         }
 
@@ -269,7 +334,7 @@
                    de su zona -que es lo unico que tiene sentido- no hacia
                    nada. Por eso se escucha tambien aqui. */
                 polygon.on('click', function (e) {
-                    if (!isPlacingMeeting && !isTracing) { return; }
+                    if (!colocandoPuesto && !isTracing) { return; }
 
                     this.closePopup();
                     atenderClicDelMapa(e.latlng);
@@ -316,20 +381,26 @@
             btnSaveDb.disabled = true;
         });
 
-        btnMeeting.addEventListener('click', () => {
+        function empezarAColocar(puesto) {
             const zona = zonaSeleccionada();
             if (!zona || !zona.coords || zona.coords.length < 3) {
                 alert('Esa zona todavia no tiene contorno. Dibujalo primero.');
                 return;
             }
 
-            isPlacingMeeting = true;
+            colocandoPuesto = puesto;
             actionGroup.classList.add('hidden');
+            meetingIndicator.textContent = 'Haz clic donde quieres que queden los dos equipos (punto ' + puesto + ')';
+            meetingIndicator.style.background = COLOR_PUESTO[puesto];
+            meetingIndicator.style.color = puesto === 2 ? '#04121f' : '#1a1209';
             meetingIndicator.classList.remove('hidden');
             map.getContainer().style.cursor = 'crosshair';
             selector.disabled = true;
             btnSaveDb.disabled = true;
-        });
+        }
+
+        btnMeeting.addEventListener('click', () => empezarAColocar(1));
+        btnMeetingB.addEventListener('click', () => empezarAColocar(2));
 
         btnMeetingAuto.addEventListener('click', () => {
             const zona = zonaSeleccionada();
@@ -339,17 +410,27 @@
             renderMeetingPoints();
         });
 
+        btnMeetingBClear.addEventListener('click', () => {
+            const zona = zonaSeleccionada();
+            if (!zona) return;
+
+            delete zona.meeting_b;
+            renderMeetingPoints();
+        });
+
         // Cambiar de zona mueve el foco y actualiza el estado del panel.
         selector.addEventListener('change', renderAllZones);
 
         document.addEventListener('keydown', function (event) {
-            if (event.key === 'Escape' && isPlacingMeeting) { cerrarPuntoDeEncuentro(); }
+            if (event.key === 'Escape' && colocandoPuesto) { cerrarPuntoDeEncuentro(); }
         });
 
         function cerrarPuntoDeEncuentro() {
-            isPlacingMeeting = false;
+            colocandoPuesto = 0;
             actionGroup.classList.remove('hidden');
             meetingIndicator.classList.add('hidden');
+            meetingIndicator.style.background = '';
+            meetingIndicator.style.color = '';
             map.getContainer().style.cursor = 'grab';
             selector.disabled = false;
             btnSaveDb.disabled = false;
@@ -358,7 +439,7 @@
         map.on('click', function (e) { atenderClicDelMapa(e.latlng); });
 
         function atenderClicDelMapa(latlng) {
-            if (isPlacingMeeting) {
+            if (colocandoPuesto) {
                 const zona = zonaSeleccionada();
                 const punto = [Math.round(latlng.lat), Math.round(latlng.lng)];
 
@@ -378,7 +459,12 @@
                     return;
                 }
 
-                zona.meeting = punto;
+                if (colocandoPuesto === 2) {
+                    zona.meeting_b = punto;
+                } else {
+                    zona.meeting = punto;
+                }
+
                 cerrarPuntoDeEncuentro();
                 renderMeetingPoints();
                 return;
@@ -403,11 +489,22 @@
             // Redibujar el contorno puede dejar el punto de encuentro fuera de
             // su propia zona. Callarselo mandaria a los equipos a un sitio que
             // ya no es la zona, asi que vuelve al automatico y se avisa.
-            if (Array.isArray(zona.meeting) && window.ArenaMapPoints &&
-                window.ArenaMapPoints.distanciaAlBorde(zona.meeting, zona.coords) <= 0) {
-                delete zona.meeting;
-                alert('El nuevo contorno deja fuera el punto de encuentro que tenia ' + zona.name +
-                      '. Vuelve al automatico; si quieres otro, vuelve a moverlo.');
+            if (window.ArenaMapPoints) {
+                const expulsados = [];
+
+                [['meeting', 1], ['meeting_b', 2]].forEach(([campo, puesto]) => {
+                    if (window.ArenaMapPoints.esUnPunto(zona[campo]) &&
+                        window.ArenaMapPoints.distanciaAlBorde(zona[campo], zona.coords) <= 0) {
+                        delete zona[campo];
+                        expulsados.push(puesto);
+                    }
+                });
+
+                if (expulsados.length) {
+                    alert('El nuevo contorno deja fuera ' +
+                          (expulsados.length === 2 ? 'los dos puntos de encuentro' : 'el punto ' + expulsados[0]) +
+                          ' de ' + zona.name + '. Se han quitado; vuelve a colocarlos donde quieras.');
+                }
             }
 
             closeTracing();

@@ -31,19 +31,29 @@ class MatchLineupService
     /**
      * Si a este enfrentamiento se le ven los nombres del rival.
      *
-     * Dos motivos distintos: o la partida ya acabo, o es un duelo. El duelo los
-     * publica desde el cruce porque con un rival suelto el anonimato deja de
+     * Dos motivos distintos: o la partida ya acabo, o es un duelo YA ACEPTADO.
+     *
+     * El duelo los publica porque con un rival suelto el anonimato deja de
      * proteger y empieza a estorbar: los dos llegan a la zona sin saber a quien
      * buscar, y entre varios cazadores del mismo reino se pelea con quien no
      * era. En 2v2 y 3v3 el anonimato sigue exactamente igual.
+     *
+     * Pero NO antes de aceptar. Enseñar el nombre en la pantalla de "combate
+     * encontrado" convierte el boton de rechazar en un filtro: se acepta al que
+     * conviene y se rechaza al que no, y el rechazado se come la espera sin
+     * enterarse de por que. El nombre aparece cuando ya no se puede elegir.
      *
      * Vive aqui, junto al resto de la regla, y no repartido por las vistas: la
      * promesa de anonimato se rompe con que UNA pantalla se despiste.
      */
     public static function namesRevealed(ArenaMatch $match): bool
     {
+        if (in_array($match->status, self::REVEAL_STATUSES, true)) {
+            return true;
+        }
+
         return ArenaMode::revealsRivalNames($match->arena_mode)
-            || in_array($match->status, self::REVEAL_STATUSES, true);
+            && $match->status !== 'pending_acceptance';
     }
 
     /**

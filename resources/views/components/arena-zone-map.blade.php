@@ -2,6 +2,7 @@
     'zoneKey' => null,
     'height' => '400px',
     'interactive' => true,
+    'meetingPoint' => null,
     'id' => 'arenaZoneMap-' . uniqid(),
 ])
 
@@ -11,12 +12,20 @@
      mapa que aparezca, tambien sobre los que llegan con el panel repintado.
      Antes el mapa del cruce se pintaba solo si ya habia enfrentamiento al
      cargar la pagina, y como el cruce llega por el sondeo, el boton de la zona
-     no abria nada. --}}
+     no abria nada.
+
+     `meetingPoint` es el punto que dejo escrito el enfrentamiento al crearse.
+     Cuando viene, el mapa lo pinta tal cual en vez de calcularlo: es lo que
+     garantiza que los dos bandos vean el mismo sitio aunque uno tenga el mapa
+     cacheado o el admin haya movido la zona mientras tanto. --}}
 <div class="arena-map-container" style="height: {{ $height }}">
     <div id="{{ $id }}"
          data-arena-map
          data-arena-map-zone="{{ $zoneKey }}"
          data-arena-map-interactive="{{ $interactive ? '1' : '0' }}"
+         @if(is_array($meetingPoint) && count($meetingPoint) === 2)
+             data-arena-map-meeting="{{ json_encode([(float) $meetingPoint[0], (float) $meetingPoint[1]]) }}"
+         @endif
          style="height: 100%; width: 100%; background-color: #050608;">
         {{-- Lo que se ve mientras el mapa llega, y lo que queda si no llega:
              el nombre de la zona sigue siendo la informacion que hacia falta,

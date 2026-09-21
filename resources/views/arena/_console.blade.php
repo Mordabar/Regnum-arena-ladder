@@ -350,7 +350,7 @@
                 @if($currentMatch)
                     <x-arena-modal id="modal-queue-zone-map" :title="$currentMatch->zone_name" size="lg">
                         <p class="arena-kicker mb-3">Zona asignada · quedad en el punto de encuentro</p>
-                        <x-arena-zone-map :zone-key="$currentMatch->zone_key" height="min(420px, 55vh)" />
+                        <x-arena-zone-map :zone-key="$currentMatch->zone_key" :meeting-point="$currentMatch->meeting_point" height="min(420px, 55vh)" />
                     </x-arena-modal>
                 @endif
             </div>

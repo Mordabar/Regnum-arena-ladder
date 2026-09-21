@@ -3,6 +3,7 @@
 use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ArenaMatchController;
+use App\Http\Controllers\ArenaZoneAssetController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\LadderController;
 use App\Http\Controllers\PlayerController;
@@ -29,6 +30,13 @@ Route::get('/login', function () {
 Route::get('/auth/discord', [AuthController::class, 'redirectToDiscord'])->name('auth.discord');
 Route::get('/auth/discord/callback', [AuthController::class, 'handleDiscordCallback'])->name('auth.discord.callback');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+
+// Las zonas del mapa. Ya no es un fichero de public/ a proposito: ahi el
+// navegador se las quedaba cacheadas sin caducidad y dos jugadores del mismo
+// cruce podian ver puntos de encuentro distintos. Y la URL no puede ser la
+// vieja, porque el servidor sirve lo que haya en public/ antes de preguntarle
+// a Laravel y nos devolveria el fichero heredado.
+Route::get('/arena/zonas.js', ArenaZoneAssetController::class)->name('arena.zones.asset');
 
 Route::get('/ladder', [LadderController::class, 'index'])->name('ladder.index');
 Route::get('/ladder/player/{player}', [LadderController::class, 'show'])->name('ladder.show');
@@ -77,6 +85,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/party/{party}/enqueue', [QueueHubController::class, 'enqueueParty'])->name('party.enqueue');
     Route::post('/matches/accept', [ArenaMatchController::class, 'accept'])->name('matches.accept');
     Route::post('/matches/reject', [ArenaMatchController::class, 'reject'])->name('matches.reject');
+    // Los avisos rapidos del cruce. Con su propio limite de peticiones: aqui
+    // no se recarga nada, se pulsa un boton, y un boton se pulsa muy rapido.
+    Route::post('/matches/ping', [ArenaMatchController::class, 'ping'])
+        ->middleware('throttle:20,1')
+        ->name('matches.ping');
+
     Route::post('/matches/report', [ArenaMatchController::class, 'report'])->name('matches.report');
     Route::post('/matches/report/confirm', [ArenaMatchController::class, 'confirmReport'])->name('matches.report.confirm');
     Route::post('/matches/report/reject', [ArenaMatchController::class, 'rejectReport'])->name('matches.report.reject');

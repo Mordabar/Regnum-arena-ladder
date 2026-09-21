@@ -168,6 +168,8 @@ class ArenaMatch extends Model
         'team_syrtis',
         'team_alsius',
         'zone',
+        'meeting_slot',
+        'meeting_point',
         'status',
         'winner_team',
         'winner_realm',
@@ -182,6 +184,7 @@ class ArenaMatch extends Model
 
     protected $casts = [
         'team_a' => 'array',
+        'meeting_point' => 'array',
         'team_b' => 'array',
         'team_ignis' => 'array',
         'team_syrtis' => 'array',

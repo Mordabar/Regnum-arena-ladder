@@ -135,20 +135,59 @@
             deZona: function (zone) {
                 if (!zone || !zone.coords || zone.coords.length < 3) { return null; }
 
-                if (Array.isArray(zone.meeting) && zone.meeting.length === 2) {
+                if (esUnPunto(zone.meeting)) {
                     return {
                         punto: zone.meeting,
                         holgura: distanciaAlBorde(zone.meeting, zone.coords),
                         fijado: true,
+                        slot: 1,
                     };
                 }
 
                 var calculado = puntoDeEncuentro(zone.coords);
                 calculado.fijado = false;
+                calculado.slot = 1;
 
                 return calculado;
             },
+
+            /* Los dos puntos de una zona.
+
+               Una zona puede tener dos sitios donde quedar, y cada cruce sale
+               en uno de los dos. Asi la misma zona no se juega siempre en el
+               mismo claro y hay que leer el mapa en vez de ir de memoria.
+
+               El primero siempre existe -si no esta fijado, se calcula-. El
+               segundo solo si alguien lo ha puesto. */
+            todosDeZona: function (zone) {
+                if (!zone || !zone.coords || zone.coords.length < 3) { return []; }
+
+                var puntos = [window.ArenaMapPoints.deZona(zone)];
+
+                if (esUnPunto(zone.meeting_b)) {
+                    puntos.push({
+                        punto: zone.meeting_b,
+                        holgura: distanciaAlBorde(zone.meeting_b, zone.coords),
+                        fijado: true,
+                        slot: 2,
+                    });
+                }
+
+                return puntos;
+            },
+
+            esUnPunto: esUnPunto,
         };
+
+        /* Dos numeros, ni uno mas ni uno menos.
+
+           Lo que llega de la configuracion puede venir a medias de una edicion
+           antigua, y un punto con un null dentro no falla al leerlo: falla al
+           dibujarlo, o peor, manda a los dos equipos a una esquina del mapa. */
+        function esUnPunto(valor) {
+            return Array.isArray(valor) && valor.length === 2 &&
+                Number.isFinite(valor[0]) && Number.isFinite(valor[1]);
+        }
 
 
         function traer(tag, attrs) {
@@ -180,7 +219,13 @@
                     crossorigin: '',
                 });
             }).then(function () {
-                return traer('script', { src: @json(asset('js/arena-zones.js')) });
+                // Con el sello de la configuracion en la URL: mientras nadie
+                // publique zonas el navegador se queda con su copia, y en
+                // cuanto se publica la URL es otra y todos reciben lo nuevo a
+                // la vez. Antes esto era un fichero suelto sin version, y de
+                // ahi venia que dos jugadores del mismo cruce vieran puntos de
+                // encuentro distintos.
+                return traer('script', { src: @json(route('arena.zones.asset', ['v' => app(\App\Services\ArenaZoneService::class)->sello()])) });
             }).then(function () {
                 window.ArenaMapFactory = window.ArenaMapFactory || crearFabrica();
             }).catch(function (error) {
@@ -368,10 +413,42 @@
                         // del panel y queda como "meeting": [y, x].
                         var encuentro = window.ArenaMapPoints.deZona(zone);
 
-                        if (isHighlighted || !highlightKey) {
+                        /* El cruce manda sobre el calculo.
+
+                           Cuando se crea un enfrentamiento, el servidor deja
+                           escrito a que punto exacto van los dos bandos. Si el
+                           admin mueve ese punto despues, los que ya tenian
+                           cruce siguen yendo a donde quedaron -que es lo que
+                           cualquiera espera- y, sobre todo, los dos ven el
+                           mismo sitio pase lo que pase con la cache. */
+                        var aPintar;
+
+                        if (isHighlighted) {
+                            // En la zona del cruce se pinta UN punto: el que le
+                            // toco a esta partida. Enseñar los dos seria volver
+                            // a dejar a la gente sin saber a cual ir.
+                            aPintar = [options.meetingPoint
+                                ? {
+                                    punto: options.meetingPoint,
+                                    holgura: distanciaAlBorde(options.meetingPoint, zone.coords),
+                                    fijado: true,
+                                    slot: 0,
+                                }
+                                : encuentro];
+                        } else if (!highlightKey) {
+                            // En el mapa general se ven todos los sitios donde
+                            // se puede quedar en cada zona.
+                            aPintar = window.ArenaMapPoints.todosDeZona(zone);
+                        } else {
+                            aPintar = [];
+                        }
+
+                        aPintar.forEach(function (sitio) {
+                            if (!sitio) { return; }
+
                             if (isHighlighted) {
-                                L.circle(encuentro.punto, {
-                                    radius: Math.max(22, Math.min(encuentro.holgura * 0.6, 60)),
+                                L.circle(sitio.punto, {
+                                    radius: Math.max(22, Math.min(sitio.holgura * 0.6, 60)),
                                     color: '#ff6b5e',
                                     weight: 2,
                                     dashArray: '4 5',
@@ -383,7 +460,7 @@
 
                             // Aro oscuro, punto rojo y corazon blanco: tres
                             // capas para que se vea sobre cualquier terreno.
-                            var marca = L.circleMarker(encuentro.punto, {
+                            var marca = L.circleMarker(sitio.punto, {
                                 radius: isHighlighted ? 11 : 4,
                                 color: '#120604',
                                 weight: isHighlighted ? 3 : 1,
@@ -394,7 +471,7 @@
                             }).addTo(map);
 
                             if (isHighlighted) {
-                                L.circleMarker(encuentro.punto, {
+                                L.circleMarker(sitio.punto, {
                                     radius: 3.5,
                                     weight: 0,
                                     fillColor: '#fff',
@@ -409,7 +486,7 @@
                                     className: 'arena-map-meet',
                                 });
                             }
-                        }
+                        });
 
                         if (isHighlighted) {
                             highlightPolygon = polygon;
@@ -448,6 +525,27 @@
            monta cuando de verdad se ve: al cargar, al abrirlo, y cada vez que
            el panel se repinta y trae uno nuevo. */
         (function () {
+            /* El punto que trae el cruce, si trae alguno.
+
+               Llega como texto en un data-, asi que puede venir vacio, a
+               medias o directamente mal. Cualquier cosa que no sean dos
+               numeros se descarta y el mapa vuelve a calcularlo, que es peor
+               pero nunca manda a nadie a las coordenadas [0, NaN]. */
+            function leerPunto(crudo) {
+                if (!crudo) { return null; }
+
+                try {
+                    var punto = JSON.parse(crudo);
+
+                    if (Array.isArray(punto) && punto.length === 2 &&
+                        Number.isFinite(punto[0]) && Number.isFinite(punto[1])) {
+                        return punto;
+                    }
+                } catch (e) { /* nada: se calcula como siempre */ }
+
+                return null;
+            }
+
             function montar(host) {
                 if (!host || host.dataset.arenaMapReady === '1') { return false; }
                 if (host.offsetParent === null) { return false; }
@@ -458,6 +556,7 @@
                     var instancia = window.ArenaMapFactory.create(host.id, {
                         highlightZone: host.dataset.arenaMapZone || null,
                         interactive: host.dataset.arenaMapInteractive !== '0',
+                        meetingPoint: leerPunto(host.dataset.arenaMapMeeting),
                     });
 
                     // Dentro de una ventana recien abierta el tamano aun no es

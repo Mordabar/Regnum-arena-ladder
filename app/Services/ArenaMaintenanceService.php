@@ -54,6 +54,11 @@ class ArenaMaintenanceService
         // sacarlos de ahi en el mismo tick.
         $disabledModeQueues = $this->releaseQueuesInDisabledModes();
         $sweep = $this->resultService->sweepPostMatchState();
+
+        // Los avisos rapidos viven lo que vive el cruce. En cuanto se cierra no
+        // le importan a nadie, y guardarlos solo haria crecer una tabla que no
+        // se consulta jamas.
+        $avisosBorrados = app(MatchPingService::class)->limpiarCerrados();
         $createdMatches = $this->matchmakingService->processRandomQueue(false);
 
         return [
@@ -66,6 +71,7 @@ class ArenaMaintenanceService
             'created_matches' => $createdMatches,
             'expired_hunts' => (int) ($sweep['expired_hunts'] ?? 0),
             'expired_report_confirmations' => (int) ($sweep['expired_report_confirmations'] ?? 0),
+            'pings_deleted' => $avisosBorrados,
         ];
     }
 
