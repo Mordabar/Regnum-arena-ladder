@@ -58,12 +58,15 @@
                                 :race="$player->race"
                                 :gender="$player->gender"
                                 :parallax="false"
-                                {{-- El ganador se monta ya; los otros dos
-                                     esperan a estar a la vista. Tres visores de
-                                     golpe son tres contextos WebGL y un mega de
-                                     modelos en la primera pantalla, y en movil
-                                     los cajones van uno debajo de otro: el
-                                     segundo y el tercero ni se ven al abrir. --}}
+                                {{-- El ganador se monta ya; los otros dos van
+                                     por la cola, de uno en uno.
+                                     Los tres cajones estan en la misma fila
+                                     tambien en movil -el CSS lo mantiene a
+                                     proposito-, asi que entran en pantalla a la
+                                     vez: esperar a verlos no reparte nada. Lo
+                                     que reparte es encolarlos, porque tres
+                                     contextos WebGL y un mega de modelos de
+                                     golpe es lo que se atraganta en un movil. --}}
                                 :defer="!$esPrimero"
                                 height="100%"
                                 class="arena-podium-viewer" />

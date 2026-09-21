@@ -10,6 +10,7 @@ use App\Services\ArenaMatchmakingService;
 use App\Services\ArenaZoneService;
 use App\Support\ArenaMode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
@@ -303,6 +304,58 @@ it('un punto que llega como texto se guarda en numeros', function () {
 
     expect($paraElMapa['meeting'][0])->toBeFloat()
         ->and($paraElMapa['meeting_b'][1])->toBeFloat();
+});
+
+it('una lectura que llega tarde no deja clavado el sello viejo', function () {
+    // La carrera con final permanente: una peticion entra a calcular el sello,
+    // ve el mapa viejo, y justo entonces el admin publica. Si la peticion
+    // escribe su sello despues, la base tiene el mapa nuevo y la cache el sello
+    // anterior, sin caducidad, con la respuesta marcada `immutable` un año.
+    $servicio = app(ArenaZoneService::class);
+
+    $zona = ['key' => 'central_ruins', 'name' => 'Zona de prueba',
+        'coords' => [[400, 400], [400, 500], [500, 500], [500, 400]]];
+
+    $servicio->publicar([$zona + ['meeting' => [420, 420]]]);
+    $viejo = $servicio->sello();
+
+    // Lo que la peticion rezagada haria al terminar: escribir SU sello, que es
+    // el de antes de publicar, bajo la clave que ella leyo.
+    $escribirTarde = function (string $sello) {
+        $clave = 'arena:zonas:sello:' . (string) Cache::get('arena:zonas:version', 'v1');
+        Cache::put($clave, $sello, now()->addHours(24));
+    };
+    $clavePrevia = 'arena:zonas:sello:' . (string) Cache::get('arena:zonas:version', 'v1');
+
+    $servicio->publicar([$zona + ['meeting' => [495, 495]]]);
+
+    // La rezagada escribe ahora, sobre la clave que leyo ANTES de publicar.
+    Cache::put($clavePrevia, $viejo, now()->addHours(24));
+
+    expect($servicio->sello())->not->toBe($viejo);
+});
+
+it('un mapa vacio no se queda guardado', function () {
+    // Pasa en un despliegue, entre subir el codigo y correr las migraciones.
+    // Guardarlo dejaria clavado el sello de "sin zonas" y, con el, un script de
+    // zonas vacio servido como inmutable durante un año.
+    ArenaZone::query()->delete();
+    app(ArenaZoneService::class)->olvidar();
+
+    $servicio = app(ArenaZoneService::class);
+
+    expect($servicio->sello())->toBe(ArenaZoneService::SIN_ZONAS);
+
+    // Y la respuesta de ese mapa vacio no promete nada: se revalida.
+    $this->get(route('arena.zones.asset', ['v' => ArenaZoneService::SIN_ZONAS]))
+        ->assertOk()
+        ->assertHeader('Cache-Control', 'no-cache, private');
+
+    // En cuanto hay zonas, el sello cambia sin que nadie tenga que borrar nada.
+    zonaCuadrada('central_ruins', meeting: [420, 420]);
+    app(ArenaZoneService::class)->olvidar();
+
+    expect(app(ArenaZoneService::class)->sello())->not->toBe(ArenaZoneService::SIN_ZONAS);
 });
 
 it('los respaldos de zonas no se acumulan sin fin', function () {

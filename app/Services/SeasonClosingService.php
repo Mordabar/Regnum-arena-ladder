@@ -34,38 +34,41 @@ class SeasonClosingService
      *
      * @return array{ok: bool, motivo?: string, season?: ArenaSeason, congelados?: int}
      */
-    public function cerrar(?string $nombreSiguiente = null): array
+    public function cerrar(?string $nombreSiguiente = null, bool $forzar = false): array
     {
         if (!$this->disponible()) {
             return ['ok' => false, 'motivo' => 'Las temporadas no estan disponibles en este esquema.'];
         }
 
-        if (!ArenaSeason::current() instanceof ArenaSeason) {
-            return ['ok' => false, 'motivo' => 'No hay ninguna temporada abierta que cerrar.'];
-        }
-
         $premios = app(SeasonPrizeService::class);
 
-        return DB::transaction(function () use ($premios, $nombreSiguiente) {
+        return DB::transaction(function () use ($premios, $nombreSiguiente, $forzar) {
             // La temporada se elige DENTRO de la transaccion y con candado.
             // Cerrar deja otra abierta al instante, asi que dos peticiones a la
             // vez -o el doble clic de siempre- archivarian dos temporadas y la
             // segunda seria la que acaba de nacer: vacia, de un minuto y con el
             // podio en blanco, metida en el Salon de la Fama para siempre.
+            //
+            // El orden es el mismo que usa current() -la mas reciente por
+            // starts_at- y eso importa: con otro criterio se cerraria una
+            // temporada distinta de la que el resto del sitio da por viva, y la
+            // viva se iria por el barrido de mas abajo, sin premios y sin
+            // congelar. Eso no se puede deshacer.
             $actual = ArenaSeason::query()
                 ->where('status', ArenaSeason::STATUS_ACTIVE)
                 ->lockForUpdate()
-                ->latest('id')
+                ->latest('starts_at')
                 ->first();
 
             if (!$actual instanceof ArenaSeason) {
                 return ['ok' => false, 'motivo' => 'No hay ninguna temporada abierta que cerrar.'];
             }
 
-            if ($this->vieneDeUnCierreRecien($actual)) {
+            if (!$forzar && $this->reciennacidaYSinJugar($actual)) {
                 return [
                     'ok' => false,
-                    'motivo' => 'Acabas de cerrar una temporada. La que esta abierta nacio hace un momento: si de verdad quieres cerrarla tambien, espera unos minutos.',
+                    'motivo' => 'Esa temporada acaba de abrirse y no se ha jugado nada en ella: cerrarla la dejaria en el Salon de la Fama con el podio en blanco. Marca la casilla de cerrarla igualmente si es lo que quieres.',
+                    'necesita_forzar' => true,
                 ];
             }
 
@@ -100,31 +103,43 @@ class SeasonClosingService
         });
     }
 
-    /** Minutos que un cierre "protege" a la temporada que acaba de abrir. */
+    /** Minutos que se considera "recien abierta" a una temporada. */
     private const GRACIA_MINUTOS = 5;
 
     /**
-     * Si esta temporada es la que abrio un cierre de hace un momento.
+     * Una temporada que acaba de abrirse y en la que no se ha jugado nada.
      *
-     * Es el doble clic de siempre: cerrar archiva y abre otra en el acto, asi
-     * que el segundo clic cae sobre una temporada de un segundo de vida y la
-     * mete en el Salon de la Fama con el podio en blanco, para siempre.
+     * Es lo que deja el doble clic del boton: cerrar archiva y abre otra en el
+     * acto, asi que el segundo clic cae sobre una temporada de un segundo de
+     * vida y la mete en el Salon de la Fama con el podio en blanco. Eso no se
+     * deshace.
      *
-     * Lo que se mira NO es si la temporada es reciente -una temporada corta y
-     * legitima tiene que poder cerrarse igual- sino si viene detras de un
-     * cierre recien hecho, que es lo unico que el doble clic produce.
+     * Se miran las DOS cosas, y no solo el reloj. Que sea reciente, por si
+     * acaso; y que no tenga ni un cruce ni una cifra congelada, que es lo que
+     * de verdad hace que cerrarla sea un error: una temporada corta pero
+     * jugada se cierra sin protestar. Y por si aun asi el admin quiere cerrar
+     * una vacia a proposito, `cerrar()` acepta forzarlo.
      */
-    private function vieneDeUnCierreRecien(ArenaSeason $season): bool
+    private function reciennacidaYSinJugar(ArenaSeason $season): bool
     {
         if ($season->starts_at === null || $season->starts_at->lt(now()->subMinutes(self::GRACIA_MINUTOS))) {
             return false;
         }
 
-        return ArenaSeason::query()
-            ->where('status', ArenaSeason::STATUS_ARCHIVED)
-            ->whereKeyNot($season->getKey())
-            ->where('ends_at', '>=', now()->subMinutes(self::GRACIA_MINUTOS))
-            ->exists();
+        // Con candado, igual que la lectura de la temporada. No por el bloqueo
+        // en si, sino para no depender de que InnoDB fije el read view en la
+        // primera lectura consistente: eso es cierto, pero es un detalle de
+        // implementacion que un reordenamiento inocente rompe en silencio. Y
+        // ojo: en SQLite el candado no se emite -el compilador lo ignora-, asi
+        // que nada de esto lo cubren los tests.
+        $tieneCruces = Schema::hasTable('matches')
+            && DB::table('matches')->where('season_id', $season->id)->lockForUpdate()->exists();
+
+        if ($tieneCruces) {
+            return false;
+        }
+
+        return !SeasonPlayerStat::query()->where('season_id', $season->id)->exists();
     }
 
     /**

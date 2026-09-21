@@ -956,12 +956,16 @@ class AdminController extends Controller
         $validated = $request->validate([
             'confirmacion' => 'required|in:CERRAR',
             'siguiente' => 'nullable|string|max:120',
+            'forzar' => 'nullable|boolean',
         ], [
             'confirmacion.required' => 'Escribe CERRAR para confirmar.',
             'confirmacion.in' => 'Escribe CERRAR para confirmar.',
         ]);
 
-        $resultado = $cierre->cerrar($validated['siguiente'] ?? null);
+        $resultado = $cierre->cerrar(
+            $validated['siguiente'] ?? null,
+            (bool) $request->boolean('forzar')
+        );
 
         if (!$resultado['ok']) {
             return back()->withErrors(['error' => $resultado['motivo']]);

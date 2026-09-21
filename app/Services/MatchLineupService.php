@@ -125,12 +125,17 @@ class MatchLineupService
      * el bocadillo sabe sobre que figura ponerse- e imposible de invertir sin
      * la clave.
      */
-    public static function fighterId(ArenaMatch $match, int $playerId, bool $revelado): string
+    public static function fighterId(ArenaMatch $match, int $playerId, bool $revelado = false): string
     {
-        if ($revelado) {
-            return (string) $playerId;
-        }
-
+        // Siempre el opaco, tambien con los nombres ya revelados.
+        //
+        // El `$revelado` se ignora a proposito. Esto solo sirve para casar un
+        // aviso con su figura en la pantalla, y para eso el id de verdad no
+        // hace falta. Cuando dependia del anonimato, el identificador cambiaba
+        // justo en el instante en que se revelan los nombres: el HTML ya
+        // pintado seguia con el opaco, el sondeo empezaba a mandar el crudo, y
+        // los bocadillos dejaban de aparecer sobre nadie hasta el siguiente
+        // repintado. Con uno solo, no hay instante en que discrepen.
         return substr(hash_hmac('sha256', $match->id . '|' . $playerId, (string) config('app.key')), 0, 12);
     }
 

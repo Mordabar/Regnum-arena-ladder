@@ -22,6 +22,30 @@ class ArenaZoneService
     /** Donde se guarda el sello para no releer las zonas en cada pagina. */
     private const CACHE_SELLO = 'arena:zonas:sello';
 
+    /**
+     * La version del mapa. Cambia cada vez que se publica.
+     *
+     * Existe para que invalidar no sea borrar. Con una sola clave habia una
+     * carrera con final permanente: una peticion cualquiera entra a calcular el
+     * sello, ve el mapa viejo, y JUSTO entonces el admin publica y borra la
+     * clave; la peticion termina y escribe el sello viejo sobre la clave recien
+     * vaciada. A partir de ahi la base tiene el mapa nuevo y la cache el sello
+     * anterior, sin caducidad y sin nada que lo corrija -publicar otra vez solo
+     * vuelve a borrar-, mientras la respuesta del script va marcada `immutable`
+     * durante un año. Es el fallo que todo esto existe para evitar: dos
+     * jugadores del mismo cruce viendo puntos de encuentro distintos.
+     *
+     * Con la version dentro de la clave, esa escritura tardia cae en la clave
+     * de la version vieja, que ya no lee nadie.
+     */
+    private const CACHE_VERSION = 'arena:zonas:version';
+
+    /** Lo que dura un sello guardado. Ni eterno ni corto. */
+    private const CACHE_HORAS = 24;
+
+    /** El sello de un mapa sin zonas. No se guarda nunca: ver sello(). */
+    public const SIN_ZONAS = 'vacio';
+
     /** Vueltas de afinado de la busqueda del punto automatico. */
     private const VUELTAS = 5;
 
@@ -54,7 +78,9 @@ class ArenaZoneService
     public function olvidar(): void
     {
         $this->enMemoria = null;
-        Cache::forget(self::CACHE_SELLO);
+
+        // Se pasa de version en vez de borrar el sello. Ver CACHE_VERSION.
+        Cache::forever(self::CACHE_VERSION, uniqid('', true));
     }
 
     public function buscar(?string $zoneKey): ?ArenaZone
@@ -90,7 +116,8 @@ class ArenaZoneService
      */
     public function sello(): string
     {
-        $guardado = Cache::get(self::CACHE_SELLO);
+        $clave = self::CACHE_SELLO . ':' . (string) Cache::get(self::CACHE_VERSION, 'v1');
+        $guardado = Cache::get($clave);
 
         if (is_string($guardado) && $guardado !== '') {
             return $guardado;
@@ -98,7 +125,14 @@ class ArenaZoneService
 
         $sello = $this->calcularSello();
 
-        Cache::forever(self::CACHE_SELLO, $sello);
+        // Un mapa vacio NO se guarda. Pasa durante un despliegue, entre subir
+        // el codigo y correr las migraciones: cualquier visita de esos segundos
+        // dejaria clavado el sello 'vacio' para siempre, y con el un script de
+        // zonas vacio servido con `immutable` durante un año. Ese navegador se
+        // queda sin mapa -hoy, con el aviso de respaldo- y nada lo arregla.
+        if ($sello !== self::SIN_ZONAS) {
+            Cache::put($clave, $sello, now()->addHours(self::CACHE_HORAS));
+        }
 
         return $sello;
     }
@@ -108,7 +142,7 @@ class ArenaZoneService
         $zonas = $this->configuracionParaElMapa();
 
         if ($zonas === []) {
-            return 'vacio';
+            return self::SIN_ZONAS;
         }
 
         return substr(sha1((string) json_encode($zonas)), 0, 12);

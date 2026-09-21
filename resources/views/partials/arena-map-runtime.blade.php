@@ -565,8 +565,16 @@
 
                 host.dataset.arenaMapReady = '1';
 
+                // Declarada AQUI, fuera del then, para que el catch la alcance.
+                // Si no, un fallo posterior a L.map() deja el mapa a medias sin
+                // manera de cerrarlo: Leaflet marca el elemento como suyo y el
+                // reintento se estrella con "Map container is being reused",
+                // que cae en este mismo catch. El boton que el comentario de
+                // abajo promete que no se queda roto, se quedaba roto siempre.
+                var instancia = null;
+
                 window.arenaLoadMap().then(function () {
-                    var instancia = window.ArenaMapFactory.create(host.id, {
+                    instancia = window.ArenaMapFactory.create(host.id, {
                         highlightZone: host.dataset.arenaMapZone || null,
                         interactive: host.dataset.arenaMapInteractive !== '0',
                         meetingPoint: leerPunto(host.dataset.arenaMapMeeting),
@@ -579,6 +587,13 @@
                     // Se deja listo para reintentar: sin red el mapa no llega,
                     // pero el boton no puede quedarse roto para siempre.
                     host.dataset.arenaMapReady = '';
+
+                    // Y se suelta lo que hubiera montado. Sin esto el elemento
+                    // sigue siendo "de" Leaflet y el reintento nunca arranca.
+                    if (instancia && typeof instancia.remove === 'function') {
+                        try { instancia.remove(); } catch (e) {}
+                        instancia = null;
+                    }
 
                     var respaldo = host.querySelector('.arena-map-fallback');
                     var aviso = respaldo ? respaldo.querySelector('[data-arena-map-fallback-text]') : null;

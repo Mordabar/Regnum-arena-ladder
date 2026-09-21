@@ -52,6 +52,25 @@ function jugadorConPuntos(string $sufijo, string $realm, float $pl, int $mmr = 1
     ]);
 }
 
+/** Un cruce cualquiera dentro de la temporada: basta con que exista. */
+function cruceDeLaTemporada(ArenaSeason $season): void
+{
+    \Illuminate\Support\Facades\DB::table('matches')->insert([
+        'match_code' => 'PR' . $season->id . substr((string) microtime(true), -5),
+        'report_token' => bin2hex(random_bytes(16)),
+        'arena_mode' => '2v2',
+        'season_id' => $season->id,
+        'status' => 'completed',
+        'zone' => 'central_ruins',
+        'team_a' => json_encode([]),
+        'team_b' => json_encode([]),
+        'team_a_realm' => 'ignis',
+        'team_b_realm' => 'alsius',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+}
+
 // -------------------------------------------------------------------- premios
 
 it('el reparto por defecto son 17 lingotes', function () {
@@ -325,17 +344,71 @@ it('el segundo clic de cerrar no archiva la temporada recien abierta', function 
         ->and(SeasonPlayerStat::query()->where('season_id', ArenaSeason::current()->id)->exists())->toBeFalse();
 });
 
-it('una temporada con podio si se puede cerrar el mismo dia que se abrio', function () {
-    // La guarda mira que este vacia, no solo que sea reciente: una temporada
-    // corta y legitima tiene que poder cerrarse igual.
-    ArenaSeason::create([
+it('una temporada corta pero jugada si se puede cerrar el mismo dia', function () {
+    // La guarda mira DOS cosas, no solo el reloj: que sea reciente y que no se
+    // haya jugado nada en ella. Una temporada de un rato con cruces dentro es
+    // legitima y tiene que poder cerrarse igual.
+    $temporada = ArenaSeason::create([
         'name' => 'Relampago', 'slug' => 'relampago', 'status' => ArenaSeason::STATUS_ACTIVE,
         'enabled_modes' => ['2v2'], 'starts_at' => now()->subMinute(),
     ]);
 
     jugadorConPuntos('rel', 'ignis', 400);
+    cruceDeLaTemporada($temporada);
+
+    // Y hay un cierre recien hecho justo antes, para que la unica razon de
+    // dejarla pasar sea que se ha jugado en ella.
+    ArenaSeason::create([
+        'name' => 'Anterior', 'slug' => 'anterior', 'status' => ArenaSeason::STATUS_ARCHIVED,
+        'enabled_modes' => ['2v2'], 'starts_at' => now()->subMonth(), 'ends_at' => now(),
+    ]);
 
     expect(app(SeasonClosingService::class)->cerrar('Siguiente 1')['ok'])->toBeTrue();
+});
+
+it('se puede forzar el cierre de una temporada vacia', function () {
+    // La salida para el caso raro: una temporada de prueba, o abierta por
+    // error. Sin esto el admin se queda sin manera de cerrarla.
+    ArenaSeason::create([
+        'name' => 'Alpha Season', 'slug' => 'alpha', 'status' => ArenaSeason::STATUS_ACTIVE,
+        'enabled_modes' => ['2v2'], 'starts_at' => now()->subMonth(),
+    ]);
+
+    jugadorConPuntos('fz', 'ignis', 500);
+
+    $cerrar = app(SeasonClosingService::class);
+    $cerrar->cerrar('Season 1');
+
+    expect($cerrar->cerrar()['ok'])->toBeFalse()
+        ->and($cerrar->cerrar(forzar: true)['ok'])->toBeTrue();
+});
+
+it('cerrar archiva la temporada que el resto del sitio da por viva', function () {
+    // current() ordena por starts_at. Si el cierre eligiera por id, con dos
+    // activas cuyo orden no coincide cerraria una temporada distinta de la que
+    // el ladder y el Salon consideran la viva, y la viva se iria por el barrido
+    // de las huerfanas: sin premios y sin congelar. Eso no se deshace.
+    $vieja = ArenaSeason::create([
+        'name' => 'Con id menor', 'slug' => 'id-menor', 'status' => ArenaSeason::STATUS_ACTIVE,
+        'enabled_modes' => ['2v2'], 'starts_at' => now()->subDay(),
+    ]);
+    $laViva = ArenaSeason::create([
+        'name' => 'Con id mayor', 'slug' => 'id-mayor', 'status' => ArenaSeason::STATUS_ACTIVE,
+        'enabled_modes' => ['2v2'], 'starts_at' => now()->subMonth(),
+    ]);
+
+    // El id mayor es la de starts_at MAS ANTIGUO: los dos ordenes discrepan.
+    expect($laViva->id)->toBeGreaterThan($vieja->id)
+        ->and(ArenaSeason::current()->id)->toBe($vieja->id);
+
+    jugadorConPuntos('cv', 'ignis', 500);
+
+    $cerrada = app(SeasonClosingService::class)->cerrar('Siguiente')['season'];
+
+    // Se cierra la que current() daba por viva, con sus premios y su podio.
+    expect($cerrada->id)->toBe($vieja->id)
+        ->and($cerrada->prize_currency)->not->toBeNull()
+        ->and(SeasonPlayerStat::query()->where('season_id', $vieja->id)->exists())->toBeTrue();
 });
 
 it('los cajones del podio usan la moneda configurada', function () {

@@ -365,6 +365,26 @@
             border-color: rgba(216, 177, 92, 0.55);
             background: linear-gradient(180deg, rgba(74, 54, 28, 0.95), rgba(40, 28, 16, 0.96));
         }
+        /* Lo mismo para Safari de iOS anterior a 14.1 y Chrome anterior al 89,
+           que solo entienden el nombre viejo. No se pueden juntar con una coma:
+           un selector que el navegador no reconoce tumba la regla entera, asi
+           que van duplicados a proposito. */
+        .arena-field[type="file"]::-webkit-file-upload-button {
+            margin-right: 0.7rem;
+            padding: 0.5rem 0.95rem;
+            border-radius: 0.8rem;
+            border: 1px solid rgba(217, 177, 92, 0.3);
+            background: linear-gradient(180deg, rgba(58, 42, 22, 0.92), rgba(30, 21, 12, 0.94));
+            color: var(--arena-text);
+            font-family: "Inter", sans-serif;
+            font-size: 0.82rem;
+            cursor: pointer;
+            transition: border-color 0.2s ease, background 0.2s ease;
+        }
+        .arena-field[type="file"]::-webkit-file-upload-button:hover {
+            border-color: rgba(216, 177, 92, 0.55);
+            background: linear-gradient(180deg, rgba(74, 54, 28, 0.95), rgba(40, 28, 16, 0.96));
+        }
 
         /* ── Tables ── */
         .arena-table thead {
@@ -2307,6 +2327,13 @@
 
         .arena-chat-status {
             margin: 0;
+            /* Con la misma anchura que los mensajes y los botones. Suelto a
+               todo lo ancho, en un panel de novecientos pixeles el aviso de
+               error salia pegado al borde izquierdo, a un palmo de la columna
+               con la que debia alinearse, justo cuando algo falla. */
+            width: 100%;
+            max-width: 620px;
+            margin-inline: auto;
             padding: 0 13px 9px;
             font-size: 11px;
             color: var(--arena-muted);

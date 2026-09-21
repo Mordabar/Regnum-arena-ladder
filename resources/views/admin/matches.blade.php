@@ -226,6 +226,17 @@
                 <span class="ap-label" for="close-confirm">Escribe CERRAR para confirmar</span>
                 <input type="text" id="close-confirm" name="confirmacion" class="ap-input" placeholder="CERRAR" autocomplete="off">
             </label>
+            {{-- La salida para el caso raro. Sin esto, quien quiera cerrar a
+                 proposito una temporada vacia -una de prueba, o una abierta por
+                 error- se queda sin manera de hacerlo. --}}
+            <label class="ap-switch-row">
+                <span class="min-w-0">
+                    <span class="ap-switch-title">Cerrarla aunque este vacia</span>
+                    <span class="ap-section-note">Solo hace falta si la temporada acaba de abrirse y no se ha jugado nada en ella.</span>
+                </span>
+                <input type="hidden" name="forzar" value="0">
+                <input type="checkbox" class="ap-checkbox" name="forzar" value="1">
+            </label>
             <button class="ap-btn ap-btn-sm"
                     onclick="return confirm('La temporada actual pasa al Salon de la Fama y se abre una nueva. ¿Seguir?')">
                 <x-admin.icon name="star" class="h-3.5 w-3.5" />

@@ -51,7 +51,12 @@ class ArenaZoneAssetController extends Controller
                 'Cache-Control',
                 // Sin sello en la URL no se puede prometer que el contenido no
                 // cambie, asi que se revalida siempre. Con sello, un año.
-                $request->query('v') === $sello
+                //
+                // Salvo que no haya zonas. Eso no es una configuracion: es un
+                // despliegue a medias, entre subir el codigo y correr las
+                // migraciones. Prometer un año sobre un mapa vacio deja al
+                // navegador que pase por ahi sin mapa hasta el año que viene.
+                $request->query('v') === $sello && $sello !== ArenaZoneService::SIN_ZONAS
                     ? 'public, max-age=' . self::CACHE_SEGUNDOS . ', immutable'
                     : 'no-cache'
             );

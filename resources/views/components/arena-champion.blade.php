@@ -68,6 +68,11 @@
                tiene que preguntarle al servidor por cada guerrero. */
             window.arenaChampionModels = @json(\App\Support\ChampionModels::available());
             window.arenaChampionViewers = {};
+            /* El hueco de cada visor, por id. Hace falta para saber si el que
+               esta montado es ESTE nodo o uno anterior con el mismo id. */
+            window.arenaChampionHosts = {};
+            /* Los que esperan a estar a la vista, con su observador. */
+            window.arenaChampionEsperas = [];
 
             /* Suelta los visores cuyo hueco ya no esta en la pagina.
                Un navegador aguanta un punado de contextos WebGL y luego empieza
@@ -77,13 +82,30 @@
             window.arenaDisposeOrphanChampions = function () {
                 Object.keys(window.arenaChampionViewers).forEach(function (id) {
                     var viewer = window.arenaChampionViewers[id];
-                    var host = document.querySelector('[data-champion-id="' + id + '"]');
+                    /* Se mira EL NODO que monto este visor, no cualquiera que
+                       lleve su id. Varios huecos se llaman igual a proposito
+                       -hub-stage, premade-leader- y al repintar el panel llega
+                       otro nodo con el mismo nombre: buscandolo por id se
+                       encontraba el nuevo, se daba el viejo por vivo y su
+                       contexto WebGL quedaba suelto sin que nadie lo cerrara. */
+                    var host = window.arenaChampionHosts[id];
                     if (host && host.isConnected) { return; }
 
                     if (viewer && typeof viewer.dispose === 'function') {
                         try { viewer.dispose(); } catch (error) { console.error(error); }
                     }
                     delete window.arenaChampionViewers[id];
+                    delete window.arenaChampionHosts[id];
+                });
+
+                /* Y los que se quedaron esperando a entrar en pantalla y nunca
+                   llegaron a montarse: no estan en el mapa de visores, asi que
+                   el barrido de arriba no los ve. Su observador mantendria vivo
+                   un nodo ya desconectado, uno por repintado y sin techo. */
+                window.arenaChampionEsperas = window.arenaChampionEsperas.filter(function (espera) {
+                    if (espera.host.isConnected) { return true; }
+                    try { espera.observer.disconnect(); } catch (error) {}
+                    return false;
                 });
             };
 
@@ -95,6 +117,7 @@
                 if (!canvas) { return; }
 
                 host.dataset.championMounted = '1';
+                window.arenaChampionHosts[host.dataset.championId] = host;
                 window.arenaChampionViewers[host.dataset.championId] = window.ArenaChampion.mount(canvas, {
                     realm: host.dataset.championRealm,
                     subclass: host.dataset.championSubclass,
@@ -102,6 +125,38 @@
                     gender: host.dataset.championGender,
                     parallax: host.dataset.championParallax !== '0'
                 });
+            };
+
+            /* Los diferidos se montan de uno en uno.
+               No basta con esperar a que se vean: el podio es una fila de tres
+               cajones, tambien en movil -asi esta puesto el CSS a proposito-,
+               asi que los tres entran en pantalla a la vez y las tres descargas
+               salian juntas igualmente. Encolarlos reparte el gasto: cada uno
+               arranca cuando el navegador tiene un hueco libre. */
+            window.arenaChampionCola = [];
+            window.arenaChampionColaCorriendo = false;
+
+            window.arenaEncolarVisor = function (host) {
+                window.arenaChampionCola.push(host);
+                if (window.arenaChampionColaCorriendo) { return; }
+
+                window.arenaChampionColaCorriendo = true;
+
+                var siguiente = function () {
+                    var host = window.arenaChampionCola.shift();
+
+                    if (!host) {
+                        window.arenaChampionColaCorriendo = false;
+                        return;
+                    }
+
+                    if (host.isConnected) { window.arenaMontarVisor(host); }
+
+                    var espera = window.requestIdleCallback || function (fn) { return setTimeout(fn, 120); };
+                    espera(siguiente, { timeout: 600 });
+                };
+
+                siguiente();
             };
 
             /* Monta los visores que todavia no lo estan. Se puede llamar tantas
@@ -114,23 +169,24 @@
                 (root || document).querySelectorAll('[data-champion-viewer]').forEach(function (host) {
                     if (host.dataset.championMounted === '1') { return; }
 
-                    /* Los marcados como diferidos esperan a estar a la vista.
-                       Montar cuesta un contexto WebGL y un modelo de varios
-                       cientos de kilobytes: tres visores a la vez en la portada
-                       se notan en el movil, y dos de ellos ni siquiera estan en
-                       pantalla cuando la pagina abre. */
+                    /* Los marcados como diferidos esperan a estar a la vista y
+                       luego pasan por la cola. Montar cuesta un contexto WebGL
+                       y un modelo de varios cientos de kilobytes, y un movil
+                       aguanta pocos a la vez: lo que se busca es que no se
+                       paguen todos de golpe en la primera pantalla. */
                     if (host.dataset.championDefer === '1' && 'IntersectionObserver' in window) {
                         if (host.dataset.championWatched === '1') { return; }
                         host.dataset.championWatched = '1';
 
-                        var espera = new IntersectionObserver(function (entries) {
+                        var observador = new IntersectionObserver(function (entries) {
                             if (!entries[0].isIntersecting) { return; }
-                            espera.disconnect();
+                            observador.disconnect();
                             delete host.dataset.championDefer;
-                            window.arenaMontarVisor(host);
+                            window.arenaEncolarVisor(host);
                         }, { rootMargin: '200px' });
 
-                        espera.observe(host);
+                        observador.observe(host);
+                        window.arenaChampionEsperas.push({ host: host, observer: observador });
                         return;
                     }
 

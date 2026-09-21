@@ -2,6 +2,7 @@
 
 use App\Models\ArenaMatch;
 use App\Models\ArenaZone;
+use App\Services\ArenaZoneService;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -44,6 +45,11 @@ return new class extends Migration
                 'meeting_b' => $fila['meeting_b'] ?? null,
             ]);
         }
+
+        // Cualquier visita anterior a esta linea vio el mapa vacio. Sin este
+        // olvido, el sello de "sin zonas" se quedaria guardado y la URL del
+        // script no cambiaria al sembrar la tabla.
+        app(ArenaZoneService::class)->olvidar();
     }
 
     public function down(): void

@@ -306,12 +306,15 @@ it('el aviso del rival anonimo no lleva su id de jugador', function () {
         // Un hash, no un numero disfrazado: doce caracteres de hexadecimal.
         ->and($suyo['fid'])->toMatch('/^[0-9a-f]{12}$/');
 
-    // Y el mio si va con el real: sobre mi propia figura tiene que poder
-    // ponerse el bocadillo.
+    // El mio tambien es opaco -el id de verdad no hace falta para casar un
+    // aviso con una figura- pero distinto del suyo, que es lo unico que el
+    // bocadillo necesita.
     app(MatchPingService::class)->enviar($match, $yo, 'voy');
     $mio = collect(app(MatchPingService::class)->historial($match, $yo))->firstWhere('mio', true);
 
-    expect($mio['fid'])->toBe((string) $yo->id);
+    expect($mio['fid'])->toMatch('/^[0-9a-f]{12}$/')
+        ->and($mio['fid'])->not->toBe($suyo['fid'])
+        ->and($mio['fid'])->not->toBe((string) $yo->id);
 });
 
 it('el id opaco es distinto en cada enfrentamiento', function () {
@@ -339,8 +342,12 @@ it('la alineacion no publica el id del rival anonimo', function () {
 
     $lineup = app(\App\Services\MatchLineupService::class)->forViewer($match, [$yo->id]);
 
+    // Ni el del rival ni el propio: el HTML no necesita el id de nadie, y uno
+    // que cambiara al revelarse los nombres dejaria los bocadillos sin figura
+    // durante el repintado.
     expect($lineup['rival'][0]['fighter_id'])->not->toBe((string) $rival->id)
-        ->and($lineup['own'][0]['fighter_id'])->toBe((string) $yo->id);
+        ->and($lineup['own'][0]['fighter_id'])->not->toBe((string) $yo->id)
+        ->and($lineup['own'][0]['fighter_id'])->toMatch('/^[0-9a-f]{12}$/');
 });
 
 it('un aviso de un codigo retirado no enseña el codigo interno', function () {
@@ -352,4 +359,22 @@ it('un aviso de un codigo retirado no enseña el codigo interno', function () {
     expect($ping->texto())->toBe('Aviso')
         ->and($ping->texto())->not->toContain('_')
         ->and($ping->icono())->toBe('•');
+});
+
+it('el id de la figura no cambia cuando se revelan los nombres', function () {
+    // El bocadillo se pone buscando [data-fighter="..."] en el HTML ya pintado.
+    // Si el identificador dependiera del anonimato, en el instante en que los
+    // nombres se revelan el sondeo empezaria a mandar uno distinto del que hay
+    // en la pagina: los avisos dejarian de salir sobre nadie hasta el siguiente
+    // repintado, justo en el momento del cierre.
+    $yo = jugadorAviso('oo', 'ignis');
+    $rival = jugadorAviso('pp', 'alsius');
+    $match = cruceCon($yo, $rival, modo: ArenaMode::TWO_V_TWO);
+
+    $antes = \App\Services\MatchLineupService::fighterId($match, $rival->id);
+
+    $match->update(['status' => 'completed']);
+
+    expect(\App\Services\MatchLineupService::namesRevealed($match->refresh()))->toBeTrue()
+        ->and(\App\Services\MatchLineupService::fighterId($match, $rival->id))->toBe($antes);
 });
