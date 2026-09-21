@@ -342,3 +342,14 @@ it('la alineacion no publica el id del rival anonimo', function () {
     expect($lineup['rival'][0]['fighter_id'])->not->toBe((string) $rival->id)
         ->and($lineup['own'][0]['fighter_id'])->toBe((string) $yo->id);
 });
+
+it('un aviso de un codigo retirado no enseña el codigo interno', function () {
+    // Pasa en cuanto el catalogo cambie: los avisos viejos siguen en la tabla
+    // con un codigo que ya no existe. Pintarlo crudo dejaba burbujas que decian
+    // "camino", que no es una frase ni le dice nada a nadie.
+    $ping = new \App\Models\MatchPing(['code' => 'un_codigo_que_ya_no_existe']);
+
+    expect($ping->texto())->toBe('Aviso')
+        ->and($ping->texto())->not->toContain('_')
+        ->and($ping->icono())->toBe('•');
+});

@@ -82,7 +82,10 @@ class MatchPing extends Model
 
     public function texto(): string
     {
-        return self::CATALOGO[$this->code]['texto'] ?? $this->code;
+        // Un codigo que ya no esta en el catalogo -retirado en una version
+        // posterior, con avisos suyos todavia en la tabla- no puede pintarse
+        // crudo: "camino" no le dice nada a nadie y parece un fallo.
+        return self::CATALOGO[$this->code]['texto'] ?? 'Aviso';
     }
 
     public function icono(): string

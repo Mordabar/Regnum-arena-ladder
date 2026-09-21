@@ -343,6 +343,29 @@
             color: #8f816d;
         }
 
+        /* El boton que abre el explorador de archivos.
+           Sin esto lo pinta el sistema operativo: un rectangulo gris claro con
+           "Choose Files" en ingles, en medio de un panel oscuro. Es de las
+           pocas cosas de la pantalla que delatan que esto es una pagina web y
+           no un juego, y ademas sale justo en el paso que cierra la partida. */
+        .arena-field[type="file"] { padding: 0.55rem 0.6rem; cursor: pointer; }
+        .arena-field[type="file"]::file-selector-button {
+            margin-right: 0.7rem;
+            padding: 0.5rem 0.95rem;
+            border-radius: 0.8rem;
+            border: 1px solid rgba(217, 177, 92, 0.3);
+            background: linear-gradient(180deg, rgba(58, 42, 22, 0.92), rgba(30, 21, 12, 0.94));
+            color: var(--arena-text);
+            font-family: "Inter", sans-serif;
+            font-size: 0.82rem;
+            cursor: pointer;
+            transition: border-color 0.2s ease, background 0.2s ease;
+        }
+        .arena-field[type="file"]::file-selector-button:hover {
+            border-color: rgba(216, 177, 92, 0.55);
+            background: linear-gradient(180deg, rgba(74, 54, 28, 0.95), rgba(40, 28, 16, 0.96));
+        }
+
         /* ── Tables ── */
         .arena-table thead {
             color: #c8b38a;
@@ -2155,6 +2178,13 @@
             /* Cabe poco a proposito: son cinco frases, no una conversacion. */
             min-height: 96px;
             max-height: 168px;
+            /* La columna de mensajes no se estira con el panel. En un monitor
+               ancho las burbujas acababan a novecientos pixeles una de otra,
+               cada una pegada a un borde, y aquello no parecia un chat sino dos
+               notas sueltas en una banda vacia. */
+            width: 100%;
+            max-width: 620px;
+            margin-inline: auto;
             overflow-y: auto;
             /* Pocos mensajes se pegan abajo, como en cualquier chat, en vez de
                quedarse flotando en medio de una caja medio vacia. */
@@ -2220,6 +2250,13 @@
         .arena-chat-quick-wrap {
             position: relative;
             border-top: 1px solid var(--arena-line);
+            /* Alineada con la columna de mensajes. El limite va en el envoltorio
+               y no en la barra para que el degradado del final -que marca que
+               hay mas frases a la derecha- caiga donde de verdad se corta la
+               barra, y no a doscientos pixeles de ahi. */
+            width: 100%;
+            max-width: 620px;
+            margin-inline: auto;
         }
         .arena-chat-quick-wrap::after {
             content: '';

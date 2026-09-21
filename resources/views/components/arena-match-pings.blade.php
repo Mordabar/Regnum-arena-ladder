@@ -1,7 +1,6 @@
 @props(['match', 'lineup' => null])
 @php
     use App\Models\MatchPing;
-    use App\Models\Player as PlayerModel;
     use App\Services\MatchPingService;
 
     $avisos = MatchPing::paraLaBotonera();
@@ -10,10 +9,8 @@
     // El historial ya pintado desde el servidor. Sin esto habria que esperar al
     // primer sondeo -hasta tres segundos- para ver lo que ya se habia dicho, y
     // quien entra a mitad de combate veria la caja vacia.
-    $historial = app(MatchPingService::class)->historial(
-        $match,
-        $miId ? PlayerModel::find($miId) : null
-    );
+    // Con el id basta: de quien mira solo se necesita saber de que bando es.
+    $historial = app(MatchPingService::class)->historial($match, $miId ? (int) $miId : null);
 @endphp
 
 {{-- Chat rapido del combate.
