@@ -5,6 +5,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ArenaMatchController;
 use App\Http\Controllers\ArenaZoneAssetController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\HallOfFameController;
 use App\Http\Controllers\LadderController;
 use App\Http\Controllers\PlayerController;
 use App\Http\Controllers\QueueHubController;
@@ -12,15 +13,13 @@ use Illuminate\Support\Facades\Route;
 
 $arenaAdminPath = trim((string) config('arena_admin.path', 'lowly-control-room'), '/');
 
-Route::get('/', function () {
-    // La portada de un juego ensena a un guerrero, no solo su logotipo. Se
-    // elige el primero del ladder: es publico y cambia solo.
-    $champion = \App\Models\Player::query()
-        ->where('is_active', true)
-        ->orderByPublicLadder()
-        ->first(['id', 'character_name', 'realm', 'subclass', 'race', 'gender', 'pl_points', 'is_active', 'deactivated_reason']);
-
-    return view('home_v2', compact('champion'));
+Route::get('/', function (\App\Services\SeasonPrizeService $premios) {
+    // La portada de un juego ensena el juego, no su logotipo: el podio de la
+    // temporada con los tres primeros de verdad y lo que se llevan.
+    return view('home_v2', [
+        'podio' => $premios->podio(),
+        'premios' => $premios,
+    ]);
 })->name('home');
 
 Route::get('/login', function () {
@@ -39,6 +38,11 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 Route::get('/arena/zonas.js', ArenaZoneAssetController::class)->name('arena.zones.asset');
 
 Route::get('/ladder', [LadderController::class, 'index'])->name('ladder.index');
+
+// El Salon de la Fama: las temporadas que ya terminaron, con su podio y lo que
+// repartieron. Existia el controlador y la vista, pero sin ruta: no se podia
+// llegar desde ninguna parte.
+Route::get('/salon-de-la-fama', [HallOfFameController::class, 'index'])->name('hall-of-fame');
 Route::get('/ladder/player/{player}', [LadderController::class, 'show'])->name('ladder.show');
 
 Route::get('/player/crear', [PlayerController::class, 'create'])->middleware('auth')->name('player.create');
@@ -138,6 +142,10 @@ Route::prefix('/' . $arenaAdminPath)->group(function () {
         Route::delete('/matches', [AdminController::class, 'destroyMatches'])->name('matches.destroy');
         Route::post('/ladder/recalcular', [AdminController::class, 'recalculateLadder'])->name('ladder.recalculate');
         Route::post('/ladder/reiniciar', [AdminController::class, 'resetLadder'])->name('ladder.reset');
+
+        // Cerrar la temporada: congela el podio en el Salon de la Fama y abre
+        // la siguiente. NO toca el ranking vivo: poner a cero es otro boton.
+        Route::post('/temporada/cerrar', [AdminController::class, 'closeSeason'])->name('season.close');
 
         Route::get('/players', [AdminController::class, 'players'])->name('players.index');
         Route::post('/players/create', [AdminController::class, 'storePlayer'])->name('players.store');

@@ -11,7 +11,7 @@
         <div class="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-[radial-gradient(circle,rgba(121,181,214,0.12),transparent_70%)] pointer-events-none"></div>
         <div class="absolute -bottom-20 left-1/2 -translate-x-1/2 w-80 h-64 rounded-full bg-[radial-gradient(circle,rgba(142,179,74,0.1),transparent_70%)] pointer-events-none"></div>
 
-        <div class="relative grid items-center gap-10 lg:grid-cols-[1.08fr,0.92fr]">
+        <div class="arena-hero relative grid items-center gap-10 lg:grid-cols-[1.08fr,0.92fr]">
             <div class="arena-animate-in">
                 <div class="flex items-center gap-3">
                     <div class="flex items-center gap-1">
@@ -45,6 +45,10 @@
                             Entrar con Discord
                         </a>
                     @endauth
+                    <a href="{{ route('hall-of-fame') }}" class="arena-btn-ghost">
+                        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 1l2.39 4.84 5.34.78-3.86 3.77.91 5.32L10 13.2l-4.78 2.51.91-5.32L2.27 6.62l5.34-.78L10 1z"/></svg>
+                        Salon de la Fama
+                    </a>
                     <a href="{{ route('ladder.index') }}" class="arena-btn-ghost">
                         <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a1 1 0 000 2c5.523 0 10 4.477 10 10a1 1 0 102 0C17 8.373 11.627 3 5 3z"/><path d="M4 9a1 1 0 011-1 7 7 0 017 7 1 1 0 11-2 0 5 5 0 00-5-5 1 1 0 01-1-1zM3 15a2 2 0 114 0 2 2 0 01-4 0z"/></svg>
                         Ver ladder
@@ -52,32 +56,9 @@
                 </div>
             </div>
 
-            <div class="grid gap-4 arena-animate-in arena-stagger-2">
-                @if($champion ?? null)
-                    {{-- El primero del ladder, en 3D. Una portada de juego
-                         ensena el juego; el logotipo ya esta en la cabecera. --}}
-                    <a href="{{ route('ladder.show', $champion) }}" class="arena-home-champion arena-card arena-card-{{ $champion->realm }} p-4">
-                        <x-arena-champion
-                            id="home-champion"
-                            :realm="$champion->realm"
-                            :subclass="$champion->subclass"
-                            :race="$champion->race"
-                            :gender="$champion->gender"
-                            :parallax="false"
-                            height="clamp(220px, 30vh, 300px)"
-                            class="arena-home-champion-stage" />
-                        <div class="mt-3">
-                            <p class="arena-kicker flex items-center gap-2">
-                                <x-arena-realm-icon :realm="$champion->realm" size="xs" />
-                                Numero 1 del ladder
-                            </p>
-                            <h2 class="mt-1.5 truncate text-xl font-semibold text-white">{{ $champion->cleanName() }}</h2>
-                            <p class="mt-1 flex flex-wrap items-center gap-x-3 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                                <span>{{ \App\Models\Player::SUBCLASSES[$champion->subclass] ?? $champion->subclass }}</span>
-                                <span class="font-semibold text-amber-300">{{ number_format((float) $champion->pl_points, 1) }} PL</span>
-                            </p>
-                        </div>
-                    </a>
+            <div class="arena-hero-side grid gap-4 arena-animate-in arena-stagger-2">
+                @if($premios->activos())
+                    <x-arena-podium :podio="$podio" :premios="$premios" />
                 @else
                     <div class="flex justify-center lg:justify-end">
                         <x-arena-brand class="rounded-[2rem] border border-[color:var(--arena-line)] bg-[linear-gradient(180deg,rgba(47,34,24,0.74),rgba(16,11,8,0.9))] px-6 py-5 shadow-[0_20px_45px_rgba(0,0,0,0.26)]" />
@@ -112,9 +93,10 @@
                 <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
             </div>
             <p class="arena-kicker mt-4">Paso 2</p>
-            <h2 class="mt-2 text-xl font-semibold text-white">Entra a cola y recibe zona</h2>
+            <h2 class="mt-2 text-xl font-semibold text-white">Elige modalidad y entra a cola</h2>
             <p class="mt-2 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                Random o premade. El sistema arma el cruce, asigna zona y mantiene oculto al rival.
+                Duelo 1v1, 2v2 o 3v3, y las tres suman al mismo ladder. El sistema arma el cruce,
+                asigna zona y marca el punto exacto donde quedar.
             </p>
         </article>
 
@@ -142,7 +124,7 @@
                      1v1: ahi el nombre es publico desde el cruce, a proposito, y
                      quien lee esto antes de entrar merece saberlo. --}}
                 En 2v2 y 3v3 solo ves el reino rival hasta que el match se cierre o entre en disputa. Sin ventajas previas.
-                En los duelos 1v1 el nombre del rival si se ve desde el cruce: con un solo contrincante, esconderlo solo servia para no encontrarse.
+                En el duelo 1v1 el nombre aparece al aceptar, nunca antes: asi nadie elige rival, pero los dos saben a quien buscan.
             </p>
         </article>
         <article class="arena-panel arena-animate-in arena-stagger-5 p-6">

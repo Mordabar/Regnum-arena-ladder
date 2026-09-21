@@ -16,6 +16,7 @@ use App\Services\ArenaMatchmakingService;
 use App\Services\PlayerCleanupService;
 use App\Services\LadderCacheService;
 use App\Services\ArenaZoneService;
+use App\Services\SeasonClosingService;
 use App\Services\LadderMaintenanceService;
 use App\Support\ArenaMode;
 use Illuminate\Http\Request;
@@ -675,6 +676,12 @@ class AdminController extends Controller
             'support_contact' => AppSetting::getValue('support_contact', ''),
             'discord_invite_url' => AppSetting::getValue('discord_invite_url', ''),
             'discord_server_label' => AppSetting::getValue('discord_server_label', ''),
+            'season_prizes_enabled' => (bool) AppSetting::getValue('season_prizes_enabled', true),
+            'season_prize_1' => AppSetting::getValue('season_prize_1', 10),
+            'season_prize_2' => AppSetting::getValue('season_prize_2', 5),
+            'season_prize_3' => AppSetting::getValue('season_prize_3', 2),
+            'season_prize_currency' => AppSetting::getValue('season_prize_currency', 'lingotes de Magnanita'),
+            'season_prize_note' => AppSetting::getValue('season_prize_note', 'Los tres primeros de la temporada se los llevan, sin importar el reino.'),
             'matchmaking_hold_seconds' => AppSetting::getValue('matchmaking_hold_seconds', (int) config('arena.matchmaking_hold_seconds', 30)),
             'rematch_rest_minutes' => AppSetting::getValue('rematch_rest_minutes', (int) config('arena.rematch_rest_minutes', 2)),
             'accept_window_minutes' => AppSetting::getValue('accept_window_minutes', 5),
@@ -719,6 +726,12 @@ class AdminController extends Controller
             // Nullable a proposito: son ajustes nuevos, y un formulario cacheado
             // por el navegador -o cualquier otro sitio que empuje ajustes- no
             // puede quedarse sin poder guardar nada por no traerlos.
+            'season_prizes_enabled' => 'nullable|boolean',
+            'season_prize_1' => 'nullable|integer|min:0|max:100000',
+            'season_prize_2' => 'nullable|integer|min:0|max:100000',
+            'season_prize_3' => 'nullable|integer|min:0|max:100000',
+            'season_prize_currency' => 'nullable|string|max:80',
+            'season_prize_note' => 'nullable|string|max:300',
             'matchmaking_hold_seconds' => 'nullable|integer|min:0|max:300',
             'rematch_rest_minutes' => 'nullable|integer|min:0|max:720',
             'accept_window_minutes' => 'required|integer|min:1|max:30',
@@ -750,6 +763,22 @@ class AdminController extends Controller
         AppSetting::setValue('support_contact', $validated['support_contact'] ?? '', 'branding', 'string', true);
         AppSetting::setValue('discord_invite_url', $validated['discord_invite_url'] ?? '', 'branding', 'string', true);
         AppSetting::setValue('discord_server_label', $validated['discord_server_label'] ?? '', 'branding', 'string', true);
+        AppSetting::setValue('season_prizes_enabled', $request->boolean('season_prizes_enabled') ? '1' : '0', 'branding', 'boolean', true);
+
+        foreach ([1, 2, 3] as $puesto) {
+            if (($validated['season_prize_' . $puesto] ?? null) !== null) {
+                AppSetting::setValue('season_prize_' . $puesto, $validated['season_prize_' . $puesto], 'branding', 'integer', true);
+            }
+        }
+
+        if (($validated['season_prize_currency'] ?? null) !== null) {
+            AppSetting::setValue('season_prize_currency', $validated['season_prize_currency'], 'branding', 'string', true);
+        }
+
+        if (($validated['season_prize_note'] ?? null) !== null) {
+            AppSetting::setValue('season_prize_note', $validated['season_prize_note'], 'branding', 'string', true);
+        }
+
         // Un campo vacio llega como null y NO cambia nada: el ajuste se queda
         // como estaba y la pagina se repinta con su valor, asi que no engaña.
         if (($validated['matchmaking_hold_seconds'] ?? null) !== null) {
@@ -913,6 +942,36 @@ class AdminController extends Controller
             '%d enfrentamiento(s) borrados. %d personaje(s) recalculados.',
             $resumen['matches_deleted'],
             $resumen['players_recalculated']
+        ));
+    }
+
+    /**
+     * Cierra la temporada en curso y deja su podio en el Salon de la Fama.
+     *
+     * Pide el nombre escrito a mano, igual que reiniciar el ranking: cerrar una
+     * temporada no se deshace, y un clic de mas no puede archivarla.
+     */
+    public function closeSeason(Request $request, SeasonClosingService $cierre)
+    {
+        $validated = $request->validate([
+            'confirmacion' => 'required|in:CERRAR',
+            'siguiente' => 'nullable|string|max:120',
+        ], [
+            'confirmacion.required' => 'Escribe CERRAR para confirmar.',
+            'confirmacion.in' => 'Escribe CERRAR para confirmar.',
+        ]);
+
+        $resultado = $cierre->cerrar($validated['siguiente'] ?? null);
+
+        if (!$resultado['ok']) {
+            return back()->withErrors(['error' => $resultado['motivo']]);
+        }
+
+        return back()->with('success', sprintf(
+            '%s cerrada con %d personaje(s) en la vitrina. Ya esta abierta %s.',
+            $resultado['season']->name,
+            $resultado['congelados'],
+            $resultado['siguiente']->name
         ));
     }
 

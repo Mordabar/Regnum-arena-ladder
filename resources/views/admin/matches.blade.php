@@ -204,6 +204,27 @@
             </button>
         </form>
 
+        <form method="POST" action="{{ route('admin.season.close') }}" class="ap-maint-block">
+            @csrf
+            <p class="ap-maint-text">
+                Cierra la temporada en curso: congela el podio en el <b>Salon de la Fama</b> con las
+                cifras de hoy y abre la siguiente. <b>No</b> borra nada ni pone el ranking a cero.
+            </p>
+            <label class="ap-field">
+                <span class="ap-label" for="next-season">Nombre de la siguiente (opcional)</span>
+                <input type="text" id="next-season" name="siguiente" class="ap-input" placeholder="Season 1" autocomplete="off">
+            </label>
+            <label class="ap-field">
+                <span class="ap-label" for="close-confirm">Escribe CERRAR para confirmar</span>
+                <input type="text" id="close-confirm" name="confirmacion" class="ap-input" placeholder="CERRAR" autocomplete="off">
+            </label>
+            <button class="ap-btn ap-btn-sm"
+                    onclick="return confirm('La temporada actual pasa al Salon de la Fama y se abre una nueva. ¿Seguir?')">
+                <x-admin.icon name="star" class="h-3.5 w-3.5" />
+                Cerrar la temporada
+            </button>
+        </form>
+
         <form method="POST" action="{{ route('admin.ladder.reset') }}" class="ap-maint-block is-danger">
             @csrf
             <p class="ap-maint-text">

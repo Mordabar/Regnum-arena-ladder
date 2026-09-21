@@ -48,6 +48,49 @@
                 @endif
             </section>
 
+            {{-- Premios de la temporada --}}
+            <section class="ap-card ap-rise p-4">
+                <x-admin.section-head title="Premios de la temporada" icon="star" tone="gold"
+                                        note="Lo que se lleva el podio. Sale en la portada y se queda guardado al cerrar la temporada." />
+
+                <label class="ap-switch-row mb-3">
+                    <span class="min-w-0">
+                        <span class="ap-switch-title">Enseñar los premios en la portada</span>
+                        <span class="ap-section-note">Apagado, la portada vuelve a la marca y el podio no sale.</span>
+                    </span>
+                    <input type="hidden" name="season_prizes_enabled" value="0">
+                    <input type="checkbox" name="season_prizes_enabled" value="1" class="ap-checkbox"
+                           @checked($settings['season_prizes_enabled'])>
+                </label>
+
+                <div class="grid gap-3 md:grid-cols-3">
+                    @foreach([1 => 'Primero', 2 => 'Segundo', 3 => 'Tercero'] as $puesto => $etiqueta)
+                        <div class="ap-field">
+                            <label class="ap-label" for="s-prize-{{ $puesto }}">{{ $etiqueta }}</label>
+                            <input type="number" min="0" max="100000" id="s-prize-{{ $puesto }}"
+                                   name="season_prize_{{ $puesto }}" value="{{ $settings['season_prize_' . $puesto] }}" class="ap-input">
+                        </div>
+                    @endforeach
+                </div>
+
+                <div class="ap-field mt-3">
+                    <label class="ap-label" for="s-prize-currency">Que se reparte</label>
+                    <input type="text" maxlength="80" id="s-prize-currency" name="season_prize_currency"
+                           value="{{ $settings['season_prize_currency'] }}" class="ap-input">
+                    <span class="ap-hint">
+                        En plural y tal cual sale escrito: "lingotes de Magnanita". Con los tres numeros de
+                        arriba, la portada dice "17 lingotes de Magnanita".
+                    </span>
+                </div>
+
+                <div class="ap-field mt-3">
+                    <label class="ap-label" for="s-prize-note">Las bases, en una linea</label>
+                    <input type="text" maxlength="300" id="s-prize-note" name="season_prize_note"
+                           value="{{ $settings['season_prize_note'] }}" class="ap-input">
+                    <span class="ap-hint">Lo que se lee debajo del titulo. Quien puede ganar y con que condiciones.</span>
+                </div>
+            </section>
+
             {{-- Ventanas de tiempo --}}
             <section class="ap-card ap-rise ap-delay-1 p-4">
                 <x-admin.section-head title="Ventanas de tiempo" icon="clock" tone="info"

@@ -1699,6 +1699,188 @@
             color: var(--arena-muted);
         }
 
+        /* ── Podio de la temporada ─────────────────────────────────────────
+           Tres cajones en perspectiva con el campeon de cada puesto encima.
+           El orden es el de siempre -segundo, primero, tercero- porque un podio
+           leido de izquierda a derecha obliga a buscar quien gano, y asi se ve
+           solo: el de en medio es el mas alto. */
+        .arena-podium {
+            border: 1px solid var(--arena-line-strong);
+            border-radius: 22px;
+            background:
+                radial-gradient(90% 60% at 50% 0%, rgba(216, 177, 92, 0.13), transparent 70%),
+                linear-gradient(180deg, rgba(34, 24, 17, 0.95), rgba(13, 9, 7, 0.97));
+            box-shadow: 0 20px 48px rgba(0, 0, 0, 0.38);
+            overflow: hidden;
+        }
+
+        .arena-podium-head { padding: clamp(18px, 3vw, 28px) clamp(18px, 3vw, 28px) 0; text-align: center; }
+        .arena-podium-title {
+            margin: 6px 0 0;
+            font-family: 'Cinzel', serif;
+            font-size: clamp(21px, 3.4vw, 31px);
+            font-weight: 700;
+            color: var(--arena-gold-soft);
+            line-height: 1.15;
+        }
+        .arena-podium-total {
+            /* El numero es el gancho: va mas grande que el resto del titulo. */
+            font-size: 1.32em;
+            color: var(--arena-gold);
+            text-shadow: 0 0 26px rgba(216, 177, 92, 0.38);
+        }
+        .arena-podium-note {
+            margin: 8px auto 0;
+            max-width: 46ch;
+            font-size: 13px;
+            color: var(--arena-muted);
+        }
+
+        .arena-podium-stage {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            align-items: end;
+            gap: clamp(6px, 1.4vw, 16px);
+            /* Sin hueco abajo: los cajones llegan al borde del panel, como un
+               podio llega al suelo. Flotando sobre un margen parecian tres
+               tarjetas puestas en escalera. */
+            padding: clamp(14px, 2.4vw, 24px) clamp(12px, 2.4vw, 26px) 0;
+        }
+
+        .arena-podium-slot { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+
+        .arena-podium-figure {
+            width: 100%;
+            position: relative;
+            height: clamp(112px, 15vw, 172px);
+        }
+        .arena-podium-slot.is-1 .arena-podium-figure { height: clamp(146px, 20vw, 228px); }
+
+        .arena-podium-champion { display: block; height: 100%; }
+        .arena-podium-viewer { width: 100%; }
+        .arena-podium-viewer::after { display: none; }
+
+        .arena-podium-empty {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 2px;
+            padding-bottom: 8px;
+            color: var(--arena-muted);
+        }
+        .arena-podium-empty span {
+            font-family: 'Cinzel', serif;
+            font-size: clamp(28px, 4vw, 44px);
+            opacity: .34;
+            line-height: 1;
+        }
+        .arena-podium-empty small { font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; }
+
+        /* El cajon.
+
+           Los tres apoyan en la MISMA linea de suelo y lo que cambia es su
+           altura, como en un podio de verdad. Elevarlos con hueco debajo -que
+           fue el primer intento- los dejaba flotando y, peor, subia tambien el
+           nombre, asi que los tres nombres quedaban a tres alturas distintas. */
+        .arena-podium-block {
+            position: relative;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 2px;
+            padding: 10px 6px 12px;
+            border: 1px solid rgba(216, 177, 92, 0.3);
+            border-bottom: 0;
+            border-radius: 10px 10px 0 0;
+            background: linear-gradient(180deg, rgba(74, 54, 32, 0.92), rgba(26, 18, 11, 0.96));
+            box-shadow: inset 0 1px 0 rgba(255, 220, 150, 0.16);
+            min-height: 120px;
+        }
+        .arena-podium-block::before {
+            content: '';
+            position: absolute;
+            inset: 0 0 auto;
+            height: 4px;
+            border-radius: 10px 10px 0 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 222, 156, 0.55), transparent);
+        }
+        .arena-podium-slot.is-1 .arena-podium-block {
+            min-height: 168px;
+            padding-top: 14px;
+            border-color: rgba(230, 195, 106, 0.6);
+            background: linear-gradient(180deg, rgba(110, 80, 40, 0.95), rgba(36, 25, 13, 0.97));
+        }
+        .arena-podium-slot.is-2 .arena-podium-block { min-height: 142px; }
+        .arena-podium-slot.is-3 .arena-podium-block { min-height: 118px; }
+
+        .arena-podium-medal { font-size: clamp(19px, 2.4vw, 26px); line-height: 1; }
+        .arena-podium-prize { display: flex; align-items: baseline; gap: 4px; }
+        .arena-podium-prize b {
+            font-size: clamp(18px, 2.3vw, 25px);
+            font-weight: 700;
+            color: #fff;
+            line-height: 1;
+        }
+        .arena-podium-prize small { font-size: 10px; color: rgba(255, 233, 190, 0.7); }
+
+        .arena-podium-who {
+            display: block;
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px solid rgba(216, 177, 92, 0.2);
+            width: 100%;
+            text-align: center;
+            min-width: 0;
+        }
+        .arena-podium-who b {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--arena-text);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .arena-podium-who > span {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            color: rgba(233, 216, 186, 0.62);
+        }
+
+        @media (max-width: 1023px) {
+            /* En vertical, el premio va PRIMERO.
+
+               Debajo del titulo y de tres botones apilados quedaba a pantalla y
+               media de scroll: lo que engancha a quien llega sin cuenta es ver
+               que hay 17 lingotes en juego y quien los lleva, no leer la
+               descripcion del sistema de puntos. */
+            .arena-hero { gap: 22px; }
+            .arena-hero-side { order: -1; }
+        }
+
+        @media (max-width: 640px) {
+            /* Sigue siendo un podio: apilarlo en tres tarjetas perderia lo
+               unico que aporta, que es ver de un golpe quien va ganando. Se
+               encoge, no se deshace. */
+            .arena-podium-stage { gap: 4px; padding: 10px 8px 0; }
+            .arena-podium-figure { height: clamp(92px, 25vw, 126px); }
+            .arena-podium-slot.is-1 .arena-podium-figure { height: clamp(116px, 31vw, 156px); }
+            .arena-podium-block { padding: 8px 3px 10px; border-radius: 8px 8px 0 0; min-height: 104px; }
+            .arena-podium-slot.is-1 .arena-podium-block { min-height: 134px; padding-top: 10px; }
+            .arena-podium-slot.is-2 .arena-podium-block { min-height: 120px; }
+            .arena-podium-slot.is-3 .arena-podium-block { min-height: 102px; }
+            .arena-podium-prize small { display: none; }
+            .arena-podium-who { margin-top: 4px; padding-top: 4px; }
+            .arena-podium-who b { font-size: 11px; }
+            .arena-podium-who > span { font-size: 9.5px; }
+        }
+
         /* ── Escenario del combate ─────────────────────────────────────────
            Las figuras dejan de ser un icono al lado del nombre y pasan a ser
            lo principal. Dos motivos, los dos practicos: reconocer al rival
@@ -2439,6 +2621,10 @@
                             <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a1 1 0 000 2c5.523 0 10 4.477 10 10a1 1 0 102 0C17 8.373 11.627 3 5 3z"/><path d="M4 9a1 1 0 011-1 7 7 0 017 7 1 1 0 11-2 0 5 5 0 00-5-5 1 1 0 01-1-1zM3 15a2 2 0 114 0 2 2 0 01-4 0z"/></svg>
                             Ladder
                         </a>
+                        <a href="{{ route('hall-of-fame') }}" class="arena-nav-link {{ request()->routeIs('hall-of-fame') ? 'arena-nav-link-active' : '' }}">
+                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 1l2.39 4.84 5.34.78-3.86 3.77.91 5.32L10 13.2l-4.78 2.51.91-5.32L2.27 6.62l5.34-.78L10 1z"/></svg>
+                            Fama
+                        </a>
                         @auth
                             <a href="{{ route('lobby') }}" class="arena-nav-link relative {{ request()->routeIs('lobby') ? 'arena-nav-link-active' : '' }}">
                                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
@@ -2519,6 +2705,7 @@
                 @else
                     {{-- Mobile User Context --}}
                     <a href="{{ route('ladder.index') }}" class="arena-nav-link block w-full {{ request()->routeIs('ladder.*') ? 'arena-nav-link-active' : '' }}">Ladder</a>
+                    <a href="{{ route('hall-of-fame') }}" class="arena-nav-link block w-full {{ request()->routeIs('hall-of-fame') ? 'arena-nav-link-active' : '' }}">Salon de la Fama</a>
                     @auth
                         <a href="{{ route('lobby') }}" class="arena-nav-link block w-full {{ request()->routeIs('lobby') ? 'arena-nav-link-active' : '' }}">Lobby</a>
                         <a href="{{ route('matches.index') }}" class="arena-nav-link block w-full {{ request()->routeIs('matches.*') ? 'arena-nav-link-active' : '' }}">Matches</a>
