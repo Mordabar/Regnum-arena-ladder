@@ -55,6 +55,10 @@
     var CONFIRMADA = 'arena:avisos:confirmada';
     var CONFIRMADA_EN = 'arena:avisos:confirmada-en';
     var RECONFIRMAR_MS = 6 * 60 * 60 * 1000;
+    // La ultima cuenta que activo los avisos en este navegador. NO se borra al
+    // salir: es lo que impide que la siguiente persona que entre en el mismo
+    // equipo herede los avisos sin haberlos pedido.
+    var DUENO = 'arena:avisos:dueno';
 
     var estadoActual = 'comprobando';
     var enVuelo = null;
@@ -145,10 +149,18 @@
         return meta ? meta.getAttribute('content') : '';
     }
 
+    var ESPERA_RED_MS = 12000;
+
     function enviar(ruta, cuerpo) {
+        // Con el servidor lento, el boton no puede quedarse en "Activando…"
+        // minutos: a los doce segundos se da por fallido y se dice.
+        var corte = typeof AbortController === 'function' ? new AbortController() : null;
+        if (corte) { window.setTimeout(function () { corte.abort(); }, ESPERA_RED_MS); }
+
         return fetch(ruta, {
             method: 'POST',
             credentials: 'same-origin',
+            signal: corte ? corte.signal : undefined,
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
@@ -201,6 +213,7 @@
     var TEXTOS = {
         comprobando: { barra: 'Avisos', titulo: 'Comprobando los avisos…' },
         cargando: { barra: 'Activando…', titulo: 'Activando los avisos…' },
+        desactivando: { barra: 'Silenciando…', titulo: 'Silenciando los avisos…' },
         activo: { barra: 'Avisos activos', titulo: 'Te avisaremos aunque cierres la pagina. Toca para silenciarlos.' },
         inactivo: { barra: 'Activar avisos', titulo: 'Toca para que te avisemos de los cruces, aunque cierres la pagina.' },
         bloqueado: { barra: 'Avisos bloqueados', titulo: 'El navegador tiene bloqueados los avisos de este sitio. Toca para ver como permitirlos.' },
@@ -216,7 +229,7 @@
         estadoActual = estado;
         var t = TEXTOS[estado] || TEXTOS.inactivo;
         var verde = estado === 'activo';
-        var neutro = estado === 'comprobando' || estado === 'cargando';
+        var neutro = estado === 'comprobando' || estado === 'cargando' || estado === 'desactivando';
 
         document.querySelectorAll('[data-arena-alert-toggle]').forEach(function (btn) {
             var etiqueta = btn.querySelector('[data-arena-alert-label]');
@@ -228,7 +241,7 @@
                 punto.classList.toggle('bg-emerald-400', verde);
                 punto.classList.toggle('bg-rose-400', !verde && !neutro);
                 punto.classList.toggle('bg-amber-300', neutro);
-                punto.classList.toggle('animate-pulse', estado === 'cargando');
+                punto.classList.toggle('animate-pulse', estado === 'cargando' || estado === 'desactivando');
             }
 
             btn.classList.toggle('border-emerald-500/30', verde);
@@ -359,6 +372,7 @@
         }
 
         escribir(CONFIRMADA, marca(suscripcion.endpoint));
+        escribir(DUENO, USUARIO);
         escribir(CONFIRMADA_EN, String(Date.now()));
         try { sessionStorage.setItem(CONFIRMADA_EN, '1'); } catch (e) {}
     }
@@ -542,7 +556,7 @@
         if (enVuelo) { return enVuelo; }
 
         enVuelo = (async function () {
-        pintar('cargando');
+        pintar('desactivando');
 
         try {
             var reg = await obtenerRegistro();
@@ -589,7 +603,12 @@
            el estado y se decide con el; sin permiso pendiente no hace falta
            el gesto. */
         if (estadoActual === 'comprobando' && soportado && Notification.permission !== 'default') {
-            return arranque.then(function () { return estadoActual === 'comprobando' ? null : alternar(); });
+            // Solo para encender: si resulta que ya estaba activo, el toque
+            // no apaga algo que la persona nunca vio en verde.
+            return arranque.then(function () {
+                if (estadoActual === 'comprobando' || estadoActual === 'activo') { return null; }
+                return alternar();
+            });
         }
 
         if (estadoActual === 'activo') { return desactivar(); }
@@ -626,7 +645,11 @@
         if (!soportado) { pintar('no-soportado'); return; }
 
         var s = sonidos();
-        var puede = s && s.isEnabled() && Notification.permission === 'granted';
+        var dueno = leer(DUENO);
+        // Solo en silencio para quien ya los activo aqui (o si nadie los
+        // activo nunca en este navegador). Otra cuenta tiene que tocar.
+        var puede = s && s.isEnabled() && Notification.permission === 'granted'
+            && (!dueno || dueno === USUARIO);
 
         if (puede) {
             var reg = await obtenerRegistro();
@@ -663,31 +686,25 @@
     /* Al cerrar sesion, este navegador deja de ser de esa cuenta. Si no se
      * dice, el servidor seguiria mandandole los avisos de la cuenta anterior
      * a quien entre despues en el mismo equipo. */
-    function alCerrarSesion() {
+    function alCerrarSesion(form) {
         var endpoint = endpointConfirmado();
         borrar(CONFIRMADA);
         borrar(CONFIRMADA_EN);
         if (!endpoint) { return; }
 
-        try {
-            fetch(RUTAS.desuscribir, {
-                method: 'POST',
-                credentials: 'same-origin',
-                keepalive: true,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': token(),
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: JSON.stringify({ endpoint: endpoint }),
-            });
-        } catch (e) {}
+        // Viaja DENTRO del formulario de salida: el servidor la borra antes de
+        // cerrar la sesion. Una peticion aparte competia con el logout y, si
+        // llegaba despues, la sesion ya no valia y la fila se quedaba.
+        var campo = document.createElement('input');
+        campo.type = 'hidden';
+        campo.name = 'push_endpoint';
+        campo.value = endpoint;
+        form.appendChild(campo);
     }
 
     document.addEventListener('submit', function (evento) {
         var form = evento.target;
-        if (form && form.action && /\/logout$/.test(form.action.replace(/[?#].*$/, ''))) { alCerrarSesion(); }
+        if (form && form.action && /\/logout$/.test(form.action.replace(/[?#].*$/, ''))) { alCerrarSesion(form); }
     }, true);
 
     // Otra pestaña activo o silencio: esta se entera sin recargar.

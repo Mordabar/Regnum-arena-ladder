@@ -30,6 +30,12 @@ class PushCheckCommand extends Command
 
     protected $description = 'Revisa por que no llegan los avisos del navegador';
 
+    /**
+     * La version de public/sw.js que va con este codigo. Se sube a la vez que
+     * la constante VERSION del worker: asi se sabe si por FTP quedo el viejo.
+     */
+    public const VERSION_WORKER = 'arena-avisos-3';
+
     public function handle(WebPushService $push): int
     {
         $this->newLine();
@@ -136,7 +142,7 @@ class PushCheckCommand extends Command
 
         // Subido, pero ¿el de ahora? Con FTP es facil dejar el viejo: sin la
         // linea del acuse, la prueba de "Activar" nunca confirma.
-        if (!str_contains((string) file_get_contents($ruta), 'arena:prueba-recibida')) {
+        if (!str_contains((string) file_get_contents($ruta), "const VERSION = '" . self::VERSION_WORKER . "'")) {
             $this->falla('sw.js', 'es una version vieja: vuelve a subir public/sw.js');
 
             return false;

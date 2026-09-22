@@ -60,7 +60,7 @@ class AvisosPendientesService
             $this->resultadoReciente($playerIds),
         );
 
-        $avisos = array_merge($avisos, $this->hechosRecientes((int) $user->id));
+        $avisos = array_merge($avisos, $this->sinHechosTapados($avisos, $this->hechosRecientes((int) $user->id)));
 
         return $this->conPrueba($user, $avisos);
     }
@@ -112,6 +112,36 @@ class AvisosPendientesService
 
             Cache::put($clave, $lista, now()->addMinutes(self::HECHO_MINUTOS));
         }
+    }
+
+    /**
+     * Un hecho viejo no puede tapar un cruce vivo.
+     *
+     * Al rechazar un cruce se apunta "Cruce cancelado" y, en la misma
+     * peticion, el emparejador ya puede haber metido al jugador en otro. Los
+     * dos llevan la hora del mismo segundo -la base la guarda sin fraccion,
+     * el hecho con ella- y el worker, que enseña solo el mas reciente,
+     * elegia la cancelacion: el "Rival encontrado" nuevo no salia y el cruce
+     * caducaba sin que nadie se enterara. Si hay un cruce o combate vivo de
+     * OTRO enfrentamiento, los hechos de los demas ya no son noticia.
+     */
+    private function sinHechosTapados(array $avisos, array $hechos): array
+    {
+        $vivos = collect($avisos)
+            ->pluck('tag')
+            ->filter(fn ($tag) => preg_match('/^(cruce|combate):/', (string) $tag))
+            ->map(fn ($tag) => substr((string) $tag, strpos((string) $tag, ':') + 1))
+            ->unique();
+
+        if ($vivos->isEmpty()) {
+            return $hechos;
+        }
+
+        return array_values(array_filter($hechos, function (array $hecho) use ($vivos) {
+            $id = substr((string) $hecho['tag'], strpos((string) $hecho['tag'], ':') + 1);
+
+            return $vivos->contains($id);
+        }));
     }
 
     private function hechosRecientes(int $userId): array

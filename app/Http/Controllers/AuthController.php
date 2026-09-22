@@ -56,6 +56,17 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
+        // Este navegador deja de ser de esta cuenta: sin esto, quien entrara
+        // despues en el mismo equipo seguiria recibiendo los avisos de la
+        // anterior. El endpoint lo pone el script de avisos en el formulario.
+        $endpoint = $request->input('push_endpoint');
+        if (is_string($endpoint) && $endpoint !== '' && Auth::check()) {
+            \App\Models\PushSubscription::query()
+                ->where('user_id', Auth::id())
+                ->where('endpoint', $endpoint)
+                ->delete();
+        }
+
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es"@auth @if(app(\App\Services\WebPushService::class)->configurado()) data-arena-push @endif @endauth>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -3458,6 +3458,11 @@
                 match_ping: 'Aviso del rival',
             };
 
+            // Los que el servidor tambien manda por push. Solo estos se callan
+            // en la pagina cuando el push esta activo; el resto no tiene otro
+            // camino para llegar con la pestaña de lado.
+            const CON_PUSH = ['match_found', 'hunt_start', 'report_submitted', 'report_confirmed', 'party_invite', 'party_ready', 'match_ping'];
+
             const ETIQUETAS_AVISO = {
                 'match-found': 'cruce',
                 'hunt-start': 'combate',
@@ -3488,7 +3493,7 @@
                 // Con el push activo, estos ya llegan por el worker, y con mas
                 // detalle. Repetirlos desde la pagina con la misma etiqueta
                 // SUSTITUIA el aviso fijo del cruce por uno que se va solo.
-                if (TITULOS_AVISO[type] && window.ArenaAvisos && window.ArenaAvisos.estado() === 'activo') {
+                if (CON_PUSH.includes(type) && window.ArenaAvisos && window.ArenaAvisos.estado() === 'activo') {
                     return false;
                 }
 
@@ -3648,6 +3653,13 @@
                 // con dos ideas del estado era el "verde y luego rojo".
                 if (window.ArenaAvisos) {
                     window.ArenaAvisos.repintar();
+                    return;
+                }
+
+                // Con push, el controlador aun no ha cargado: no se pinta nada.
+                // Pintar aqui con el ajuste de sonido volvia a poner el verde
+                // un instante antes de que el controlador lo corrigiera.
+                if (document.documentElement.hasAttribute('data-arena-push')) {
                     return;
                 }
 

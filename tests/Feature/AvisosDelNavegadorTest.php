@@ -854,3 +854,57 @@ it('los interruptores nacen neutros, ni verdes ni rojos', function () {
     expect($layout)->not->toContain('bg-emerald-400" data-arena-alert-indicator')
         ->and($layout)->toContain('bg-amber-300" data-arena-alert-indicator');
 });
+
+/* ── Ronda 3 del arbitro ────────────────────────────────────────────────── */
+
+it('la cancelacion de un cruce no tapa al cruce nuevo del mismo segundo', function () {
+    // Rechazar y volver a emparejar pasa en la misma peticion. El hecho lleva
+    // microsegundos y el cruce nuevo no, asi que el hecho "ganaba" y el
+    // "Rival encontrado" nunca salia.
+    $yo = jugadorPush('Tapado', 'ignis');
+    $rival = jugadorPush('Nuevo', 'syrtis');
+
+    app(AvisosPendientesService::class)->registrarHecho([$yo->id], 'cruce:999', 'Cruce cancelado', 'x');
+    $nuevo = crucePush($yo, $rival, 'pending_acceptance', ['expires_at' => now()->addMinutes(2)]);
+
+    $tags = collect(app(AvisosPendientesService::class)->para($yo->user))->pluck('tag');
+
+    expect($tags)->toContain('cruce:' . $nuevo->id)
+        ->and($tags)->not->toContain('cruce:999');
+});
+
+it('el lider se entera por push de que su equipo esta listo', function () {
+    $layout = File::get(resource_path('views/layouts/arena.blade.php'));
+    $hub = File::get(app_path('Http/Controllers/QueueHubController.php'));
+
+    // Solo se calla en la pagina lo que tiene push de verdad.
+    expect($layout)->toContain("const CON_PUSH = [")
+        ->and($layout)->toContain("CON_PUSH.includes(type)")
+        ->and($hub)->toContain("'Tu equipo esta listo'");
+});
+
+it('la revision distingue un sw.js viejo por su version', function () {
+    expect(File::get(public_path('sw.js')))
+        ->toContain("const VERSION = '" . \App\Console\Commands\PushCheckCommand::VERSION_WORKER . "'");
+});
+
+it('otra cuenta en el mismo navegador no hereda los avisos en silencio', function () {
+    $js = runtimeDeAvisos();
+
+    expect($js)->toContain("&& (!dueno || dueno === USUARIO);")
+        ->and($js)->toContain('escribir(DUENO, USUARIO);');
+});
+
+it('al salir se borra la suscripcion de este navegador, y solo la suya', function () {
+    $jugador = jugadorPush('Saliente');
+    $otro = jugadorPush('Otro');
+    PushSubscription::create(['user_id' => $jugador->user_id, 'endpoint' => 'https://push.example/saliente']);
+    PushSubscription::create(['user_id' => $jugador->user_id, 'endpoint' => 'https://push.example/movil']);
+    PushSubscription::create(['user_id' => $otro->user_id, 'endpoint' => 'https://push.example/ajena']);
+
+    $this->actingAs($jugador->user)->post(route('logout'), ['push_endpoint' => 'https://push.example/saliente']);
+    $this->actingAs($jugador->user)->post(route('logout'), ['push_endpoint' => 'https://push.example/ajena']);
+
+    expect(PushSubscription::pluck('endpoint')->sort()->values()->all())
+        ->toBe(['https://push.example/ajena', 'https://push.example/movil']);
+});

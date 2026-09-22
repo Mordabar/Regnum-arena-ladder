@@ -207,12 +207,12 @@
 
     function pintar(estado) {
         var activo = estado === 'activo';
-        var neutro = estado === 'cargando' || estado === 'comprobando';
+        var neutro = estado === 'cargando' || estado === 'comprobando' || estado === 'desactivando';
 
         caja.classList.toggle('is-activo', activo);
         caja.classList.toggle('is-apagado', !activo && !neutro);
         caja.classList.toggle('is-cargando', estado === 'cargando');
-        caja.classList.toggle('is-comprobando', estado === 'comprobando');
+        caja.classList.toggle('is-comprobando', estado === 'comprobando' || estado === 'desactivando');
 
         boton.setAttribute('aria-pressed', activo ? 'true' : 'false');
         boton.setAttribute('aria-busy', estado === 'cargando' ? 'true' : 'false');

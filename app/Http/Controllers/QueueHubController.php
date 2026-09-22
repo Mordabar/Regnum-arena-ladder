@@ -772,6 +772,17 @@ class QueueHubController extends Controller
 
         if ($party->fresh()->isFull()) {
             $party->update(['status' => 'ready']); // Can now enqueue
+
+            // El lider suele esperar con la pestaña de lado: se entera por
+            // push de que ya puede entrar en cola.
+            $lider = [(int) $party->leader_player_id];
+            app(\App\Services\AvisosPendientesService::class)->registrarHecho(
+                $lider,
+                'party',
+                'Tu equipo esta listo',
+                'Todos aceptaron. Ya podeis entrar en cola.'
+            );
+            app(\App\Services\WebPushService::class)->avisarAJugadores($lider);
         }
 
         return back()->with('success', 'Has aceptado unirte a la party.');

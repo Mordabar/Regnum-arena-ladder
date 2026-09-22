@@ -44,7 +44,13 @@ async function anunciar() {
     let sinSesion = false;
 
     try {
+        // Con limite: el navegador da poco tiempo para enseñar algo tras un
+        // push, y Safari retira la suscripcion a quien no lo hace.
+        const corte = new AbortController();
+        setTimeout(() => corte.abort(), 8000);
+
         const r = await fetch('/avisos/pendientes', {
+            signal: corte.signal,
             credentials: 'include',
             cache: 'no-store',
             headers: { 'Accept': 'application/json' },
