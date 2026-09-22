@@ -195,6 +195,7 @@
         'no-soportado': 'Toca para ver como recibir avisos en este dispositivo.',
         cargando: 'Activando los avisos…',
         comprobando: 'Comprobando los avisos…',
+        desactivando: 'Silenciando los avisos…',
     };
 
     function vistaEnEstaVisita() {
@@ -215,7 +216,7 @@
         caja.classList.toggle('is-comprobando', estado === 'comprobando' || estado === 'desactivando');
 
         boton.setAttribute('aria-pressed', activo ? 'true' : 'false');
-        boton.setAttribute('aria-busy', estado === 'cargando' ? 'true' : 'false');
+        boton.setAttribute('aria-busy', estado === 'cargando' || estado === 'desactivando' ? 'true' : 'false');
         boton.setAttribute('aria-label', ETIQUETAS[estado] || ETIQUETAS.inactivo);
 
         var apagado = estado === 'inactivo' || estado === 'no-soportado';

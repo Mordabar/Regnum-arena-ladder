@@ -3461,7 +3461,7 @@
             // Los que el servidor tambien manda por push. Solo estos se callan
             // en la pagina cuando el push esta activo; el resto no tiene otro
             // camino para llegar con la pestaña de lado.
-            const CON_PUSH = ['match_found', 'hunt_start', 'report_submitted', 'report_confirmed', 'party_invite', 'party_ready', 'match_ping'];
+            const CON_PUSH = ['match_found', 'hunt_start', 'report_submitted', 'report_confirmed', 'party_invite', 'match_ping'];
 
             const ETIQUETAS_AVISO = {
                 'match-found': 'cruce',

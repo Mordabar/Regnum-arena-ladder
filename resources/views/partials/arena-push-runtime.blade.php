@@ -249,7 +249,7 @@
             btn.classList.toggle('border-rose-500/30', !verde && !neutro);
             btn.classList.toggle('text-rose-200', !verde && !neutro);
             btn.setAttribute('aria-pressed', verde ? 'true' : 'false');
-            btn.setAttribute('aria-busy', estado === 'cargando' ? 'true' : 'false');
+            btn.setAttribute('aria-busy', estado === 'cargando' || estado === 'desactivando' ? 'true' : 'false');
             btn.setAttribute('title', t.titulo);
         });
 

@@ -12,7 +12,7 @@
  * de un despliegue por FTP. Aqui solo se reciben avisos.
  */
 
-const VERSION = 'arena-avisos-3';
+const VERSION = 'arena-avisos-4';
 
 self.addEventListener('install', (event) => {
     // Sin esto, el worker nuevo se queda esperando a que se cierren todas las

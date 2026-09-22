@@ -34,7 +34,7 @@ class PushCheckCommand extends Command
      * La version de public/sw.js que va con este codigo. Se sube a la vez que
      * la constante VERSION del worker: asi se sabe si por FTP quedo el viejo.
      */
-    public const VERSION_WORKER = 'arena-avisos-3';
+    public const VERSION_WORKER = 'arena-avisos-4';
 
     public function handle(WebPushService $push): int
     {
