@@ -64,6 +64,27 @@
                             @endif
                         </div>
 
+                        {{-- La figura de quien va ganando. Sin ella la tarjeta
+                             era un nombre y dos cifras: el sitio enseña
+                             guerreros en 3D por todas partes menos aqui, que
+                             es justo donde se presume. --}}
+                        @if($player)
+                            <a href="{{ route('ladder.show', $player) }}" class="arena-hof-figura">
+                                <x-arena-champion
+                                    :id="'hof-vivo-' . $puesto['puesto']"
+                                    :realm="$player->realm"
+                                    :subclass="$player->subclass"
+                                    :race="$player->race"
+                                    :gender="$player->gender"
+                                    :parallax="false"
+                                    {{-- El primero se monta ya; los otros dos
+                                         esperan y pasan por la cola. --}}
+                                    :defer="$puesto['puesto'] !== 1"
+                                    height="100%"
+                                    class="arena-hof-visor" />
+                            </a>
+                        @endif
+
                         @if($player)
                             <h3 class="mt-4 text-xl font-semibold text-white">
                                 <a href="{{ route('ladder.show', $player) }}" class="hover:text-[color:var(--arena-gold-soft)]">{{ $player->cleanName() }}</a>

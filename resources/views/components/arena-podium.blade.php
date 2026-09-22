@@ -1,4 +1,7 @@
-@props(['podio', 'premios'])
+{{-- `compacto`: la misma informacion sin las figuras 3D ni el escenario.
+     Para el ladder, donde lo que se viene a ver es el ranking y el podio de
+     611px empujaba la tabla fuera de la pantalla. --}}
+@props(['podio', 'premios', 'compacto' => false])
 @php
     use App\Models\Player as PlayerModel;
     use App\Services\SeasonPrizeService;
@@ -33,7 +36,7 @@
      Un ladder sin premios a la vista es una tabla; con ellos es una temporada.
      Esto es lo primero que ve alguien que entra sin cuenta, asi que dice las
      dos cosas que importan de un vistazo: que se reparte y quien lo lleva. --}}
-<section class="arena-podium" aria-labelledby="arenaPodiumTitle">
+<section class="arena-podium @if($compacto) is-compacto @endif" aria-labelledby="arenaPodiumTitle">
     <header class="arena-podium-head">
         {{-- El trofeo abre la seccion. Un premio se anuncia con la copa, no con
              una linea de texto en versalitas: es lo que hace que la primera
@@ -80,6 +83,7 @@
             @endphp
 
             <div class="arena-podium-slot is-{{ $puesto['puesto'] }}">
+                @unless($compacto)
                 <div class="arena-podium-figure">
                     @if($player)
                         {{-- El campeon de verdad, no un icono: la portada de un
@@ -116,6 +120,7 @@
                         </div>
                     @endif
                 </div>
+                @endunless
 
                 {{-- El cajon. El nombre va DENTRO, como grabado: fuera, con
                      tres cajones de alturas distintas, los nombres quedaban a

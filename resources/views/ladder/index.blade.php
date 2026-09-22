@@ -29,12 +29,15 @@
          de verdad importa: que se llevan. --}}
     @if($premios->activos())
         <div class="mb-8 arena-animate-in">
-            <x-arena-podium :podio="$podio" :premios="$premios" />
+            {{-- Compacto: aqui los premios acompañan, no protagonizan. El
+                 podio completo se comia seiscientos pixeles y empujaba la
+                 tabla -que es a lo que se viene- fuera de la pantalla. --}}
+            <x-arena-podium :podio="$podio" :premios="$premios" compacto />
         </div>
     @endif
 
-        {{-- ── TABLA GENERAL ── --}}
-    <section class="arena-panel p-6 arena-animate-in arena-stagger-2">
+    {{-- ── TABLA GENERAL ── --}}
+    <section class="arena-panel mb-8 p-6 arena-animate-in arena-stagger-2">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <h2 class="text-2xl font-semibold text-white">Tabla general</h2>
                 <form method="GET" class="grid gap-3 md:grid-cols-4">
@@ -136,7 +139,10 @@
      Aqui abajo sigue estando, para quien lo busque. --}}
     <section class="arena-panel p-6 arena-animate-in arena-stagger-3">
         <h2 class="text-2xl font-semibold text-white">Top por reino</h2>
-        <div class="mt-5 space-y-5">
+        {{-- Tres columnas, una por reino. Apilados eran tres pantallas de
+             scroll para ver quince nombres, y son justo el tipo de dato que se
+             compara de un vistazo: en columnas se leen a la vez. --}}
+        <div class="mt-5 grid gap-4 md:grid-cols-3">
             @foreach($topByRealm as $realm => $realmPlayers)
                 <div class="arena-card arena-card-{{ $realm }} p-4">
                     <div class="mb-3 flex items-center justify-between">

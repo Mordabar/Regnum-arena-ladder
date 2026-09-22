@@ -96,6 +96,32 @@
         @endif
     </header>
 
+    {{-- La zona, arriba del todo.
+
+         Estaba en el pie, debajo del escenario, del chat y del formulario de
+         reporte: con el combate en marcha habia que recorrer toda la pantalla
+         para mirar DONDE se queda, que es lo primero que se necesita cuando
+         salta el cruce. Aqui se ve sin desplazarse.
+
+         El boton llama la atencion hasta que se abre el mapa una vez: quien
+         acaba de aceptar no sabe todavia que esto se pulsa. Despues se calma
+         solo y no vuelve a molestar en ese combate. --}}
+    {{-- Los tres en la misma fila en escritorio; en movil el boton se lleva
+         el ancho entero y el rotulo y el "2 vs 2" comparten la de arriba. --}}
+    <div class="arena-duel-zone is-destacada">
+        <span class="arena-duel-zone-key">Quedad en</span>
+        <button type="button"
+                class="arena-duel-zone-value arena-duel-zone-btn"
+                data-modal-open="modal-queue-zone-map"
+                data-zone-call="{{ $match->id }}"
+                title="Ver el mapa de {{ $match->zone_name }}">
+            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+            <span class="arena-duel-zone-nombre">{{ $match->zone_name }}</span>
+            <span class="arena-duel-zone-cta">Ver el mapa</span>
+        </button>
+        <span class="arena-duel-zone-value arena-duel-zone-modo">{{ $teamSize }} vs {{ $teamSize }}</span>
+    </div>
+
     @if($lineup)
         {{-- El escenario.
 
@@ -104,6 +130,16 @@
              mandan, porque son lo que de verdad ayuda a reconocer al rival
              cuando llegas al punto de encuentro -raza, sexo y arquetipo se ven
              de lejos- y porque es donde aparecen los avisos. --}}
+        {{-- Escenario y chat, uno al lado del otro.
+
+             Apilados, el panel media mil doscientos pixeles: las figuras
+             arriba, el chat debajo y el reporte fuera de la pantalla. Y son
+             dos cosas que se usan A LA VEZ -se avisa mirando a quien avisa-,
+             asi que tenerlas juntas no es solo ahorrar alto.
+
+             En movil siguen apilados: dos columnas de ciento sesenta pixeles
+             no son ni escenario ni chat. --}}
+        <div class="arena-live-arena @if($running) has-chat @endif">
         <div class="arena-battle" data-battle data-team-size="{{ $teamSize }}">
             @foreach([['own', $lineup['own_realm'], true], ['rival', $lineup['rival_realm'], false]] as [$side, $realm, $isOwn])
                 @if(!$isOwn)
@@ -160,6 +196,7 @@
         @if($running)
             <x-arena-match-pings :match="$match" :lineup="$lineup" />
         @endif
+        </div>
     @endif
 
     @if($lineup && $viewerCanReport)
@@ -274,17 +311,6 @@
     @endif
 
     <footer class="arena-duel-panel-foot">
-        <div class="arena-duel-zone">
-            <span class="arena-duel-zone-key">Zona</span>
-            <button type="button" class="arena-duel-zone-value arena-duel-zone-btn" data-modal-open="modal-queue-zone-map"
-                    title="Ver el mapa de {{ $match->zone_name }}">
-                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
-                {{ $match->zone_name }}
-            </button>
-            <span class="arena-duel-zone-key">·</span>
-            <span class="arena-duel-zone-value">{{ $teamSize }} vs {{ $teamSize }}</span>
-        </div>
-
         {{-- Mientras el enfrentamiento esta vivo no hay boton para irse: lo
              unico que queda por hacer es reportar y responder, y las dos cosas
              estan aqui arriba. El historial completo se consulta despues, desde

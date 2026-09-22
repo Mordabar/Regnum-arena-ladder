@@ -103,10 +103,15 @@
             <span class="arena-duel-zone-key">Zona</span>
             {{-- El mapa se abre desde aqui: antes el nombre de la zona era texto
                  muerto y el jugador pulsaba sin que pasara nada. --}}
+            {{-- Y llama la atencion hasta que se abre una vez: en el momento
+                 del cruce no hay nada mas urgente que saber adonde hay que ir,
+                 y un nombre en dorado no se lee como un boton. --}}
             <button type="button" class="arena-duel-zone-value arena-duel-zone-btn" data-modal-open="modal-queue-zone-map"
+                    data-zone-call="{{ $match->id }}"
                     title="Ver el mapa de {{ $match->zone_name }}">
                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
                 {{ $match->zone_name }}
+                <span class="arena-duel-zone-cta">Ver el mapa</span>
             </button>
             <span class="arena-duel-zone-key">·</span>
             <span class="arena-duel-zone-value">{{ $teamSize }} vs {{ $teamSize }}</span>

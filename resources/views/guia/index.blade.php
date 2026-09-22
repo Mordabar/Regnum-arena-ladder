@@ -111,12 +111,13 @@
             </article>
 
             <article class="arena-panel p-6">
-                <h3 class="text-lg font-semibold text-[color:var(--arena-gold-soft)]">MMR: lo que no se ve</h3>
+                <h3 class="text-lg font-semibold text-[color:var(--arena-gold-soft)]">MMR: con quien te toca</h3>
                 <p class="mt-2 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                    Es la puntuacion oculta con la que el sistema busca rival. No sale en
-                    ninguna tabla a proposito: sirve para emparejarte con gente de tu nivel, no
-                    para presumir. Un premade se empareja con algo mas de exigencia que quien
-                    entra suelto.
+                    Es la puntuacion con la que el sistema busca rival, y la tienes a la vista
+                    junto a tu PL. Son dos cosas distintas: el PL dice como vas en la
+                    temporada, el MMR dice contra quien te va a emparejar. Puedes tener mucho
+                    PL de jugar mucho y un MMR normalito, o al reves. Un premade se empareja
+                    con algo mas de exigencia que quien entra suelto.
                 </p>
             </article>
         </div>

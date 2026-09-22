@@ -253,6 +253,23 @@
             border: 1px solid rgba(217, 177, 92, 0.18);
         }
 
+        /* Los secundarios de la portada, algo mas apretados.
+           Con cuatro botones -entrar, Salon, ladder y la guia- el ultimo
+           saltaba a una segunda linea, y eso son sesenta pixeles de alto
+           en la pantalla que mas cuesta. La columna del texto mide unos
+           600px: con iconos los cuatro sumaban 653 y no habia manera. Los
+           iconos de los tres secundarios eran decoracion -el rotulo ya
+           dice a donde va-, asi que se van y los cuatro entran en 571. El
+           principal conserva el suyo, que es el que hay que mirar. */
+        @media (min-width: 1024px) {
+            .arena-hero-acciones .arena-btn-ghost {
+                padding-left: 0.85rem;
+                padding-right: 0.85rem;
+                font-size: 0.82rem;
+            }
+            .arena-hero-acciones .arena-btn-ghost svg { display: none; }
+        }
+
         .arena-btn-danger-ghost {
             color: #ffb4b4;
             background: rgba(48, 14, 14, 0.76);
@@ -1656,7 +1673,102 @@
         }
         /* "2 vs 2" es una sola cosa: partido en dos lineas se lee como dos. */
         .arena-duel-zone-value { margin: 2px 0 0; font-size: 16px; font-weight: 600; color: var(--arena-gold-soft); white-space: nowrap; }
-        .arena-duel-zone-btn { white-space: normal; text-align: left; }
+        .arena-duel-zone-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            white-space: normal;
+            text-align: left;
+            padding: 7px 13px;
+            border-radius: 11px;
+            border: 1px solid rgba(217, 177, 92, 0.34);
+            background: rgba(38, 26, 15, 0.72);
+            cursor: pointer;
+            transition: border-color .2s ease, background .2s ease, transform .15s ease;
+        }
+        .arena-duel-zone-btn:hover { border-color: rgba(222, 185, 99, 0.7); background: rgba(56, 39, 22, 0.85); }
+        .arena-duel-zone-btn:active { transform: scale(.98); }
+        .arena-duel-zone-cta {
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--arena-muted);
+            white-space: nowrap;
+        }
+
+        /* La zona, arriba y con peso. Con el cruce recien dado es el unico dato
+           que hace falta ya mismo, y estaba en el pie del panel. */
+        .arena-duel-zone.is-destacada {
+            margin: 0 clamp(14px, 2.4vw, 26px);
+            padding: 11px 15px;
+            border-color: rgba(217, 177, 92, 0.24);
+            background: linear-gradient(180deg, rgba(46, 33, 19, 0.72), rgba(16, 11, 7, 0.78));
+        }
+        .arena-duel-zone.is-destacada .arena-duel-zone-btn { margin-right: auto; }
+        .arena-duel-zone-nombre { min-width: 0; }
+
+        /* En movil el boton se lleva la fila entera: en linea, "Zona 7 -
+           Central Ruins" se partia en dos o tres lineas dentro de un boton de
+           medio ancho, con el "ver el mapa" encajado al lado. El rotulo y el
+           "2 vs 2" se reparten la fila de arriba. */
+        @media (max-width: 720px) {
+            .arena-duel-zone.is-destacada {
+                flex-wrap: wrap;
+                gap: 0 8px;
+                margin: 0 12px;
+                padding: 10px 12px;
+            }
+            .arena-duel-zone.is-destacada .arena-duel-zone-key { order: 1; flex: 1 1 auto; }
+            .arena-duel-zone.is-destacada .arena-duel-zone-modo { order: 2; margin: 0; font-size: 13px; }
+            .arena-duel-zone.is-destacada .arena-duel-zone-btn {
+                order: 3;
+                display: flex;
+                flex: 1 1 100%;
+                margin: 7px 0 0;
+                font-size: 15px;
+            }
+            /* "Ver el mapa" pasa a "Mapa": esas dos palabras de mas eran las
+               que partian el nombre de la zona en dos lineas. */
+            .arena-duel-zone.is-destacada .arena-duel-zone-cta {
+                margin-left: auto;
+                padding-left: 8px;
+                font-size: 0;
+            }
+            .arena-duel-zone.is-destacada .arena-duel-zone-cta::after {
+                content: 'Mapa';
+                font-size: 10px;
+            }
+        }
+
+        /* El brillo del boton de zona.
+
+           Se enciende al darse el cruce y al confirmarse, y se apaga en cuanto
+           se abre el mapa una vez: el aviso deja de serlo si sigue puesto
+           despues de hacerle caso. Quien no lo pulsa lo sigue viendo latir. */
+        .arena-duel-zone-btn.is-llamando {
+            border-color: rgba(255, 214, 128, 0.8);
+            animation: arenaZonaLatido 1.9s ease-in-out infinite;
+        }
+        @keyframes arenaZonaLatido {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(255, 201, 106, 0.42), 0 0 14px rgba(255, 201, 106, 0.18);
+                background: rgba(38, 26, 15, 0.72);
+            }
+            50% {
+                box-shadow: 0 0 0 7px rgba(255, 201, 106, 0), 0 0 26px rgba(255, 201, 106, 0.38);
+                background: rgba(70, 49, 24, 0.9);
+            }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            /* Sin latido, pero el boton tiene que seguir destacando: quien pide
+               menos animacion no esta pidiendo menos informacion. */
+            .arena-duel-zone-btn.is-llamando {
+                animation: none;
+                background: rgba(70, 49, 24, 0.9);
+                box-shadow: 0 0 18px rgba(255, 201, 106, 0.32);
+            }
+        }
 
         .arena-duel-foot { display: flex; gap: 10px; flex-wrap: wrap; padding: 16px 24px 22px; }
         .arena-duel-foot > * { min-width: 140px; }
@@ -1763,21 +1875,21 @@
             overflow: hidden;
         }
 
-        .arena-podium-head { padding: clamp(18px, 3vw, 28px) clamp(18px, 3vw, 28px) 0; text-align: center; }
+        .arena-podium-head { padding: clamp(14px, 2.2vw, 20px) clamp(18px, 3vw, 28px) 0; text-align: center; }
 
         /* El trofeo. Va centrado y arriba del todo, como en la pantalla de
            resultados de cualquier juego: es lo que anuncia que aqui hay algo
            que ganar antes de leer una sola palabra. */
         .arena-podium-cup {
             display: block;
-            width: clamp(38px, 6vw, 54px);
+            width: clamp(32px, 4.4vw, 42px);
             height: auto;
-            margin: 0 auto 6px;
+            margin: 0 auto 2px;
             filter: drop-shadow(0 4px 14px rgba(216, 177, 92, 0.45));
         }
 
         .arena-podium-title {
-            margin: 6px 0 0;
+            margin: 4px 0 0;
             font-family: 'Cinzel', serif;
             font-size: clamp(21px, 3.4vw, 31px);
             font-weight: 700;
@@ -1827,9 +1939,9 @@
         .arena-podium-figure {
             width: 100%;
             position: relative;
-            height: clamp(112px, 15vw, 172px);
+            height: clamp(104px, 12vw, 140px);
         }
-        .arena-podium-slot.is-1 .arena-podium-figure { height: clamp(146px, 20vw, 228px); }
+        .arena-podium-slot.is-1 .arena-podium-figure { height: clamp(132px, 15.5vw, 180px); }
 
         .arena-podium-champion { display: block; height: 100%; }
         .arena-podium-viewer { width: 100%; }
@@ -1884,16 +1996,16 @@
             background: linear-gradient(90deg, transparent, rgba(255, 222, 156, 0.55), transparent);
         }
         .arena-podium-slot.is-1 .arena-podium-block {
-            min-height: 168px;
-            padding-top: 14px;
+            min-height: 132px;
+            padding-top: 12px;
             border-color: rgba(230, 195, 106, 0.6);
             background: linear-gradient(180deg, rgba(110, 80, 40, 0.95), rgba(36, 25, 13, 0.97));
         }
-        .arena-podium-slot.is-2 .arena-podium-block { min-height: 142px; }
-        .arena-podium-slot.is-3 .arena-podium-block { min-height: 118px; }
+        .arena-podium-slot.is-2 .arena-podium-block { min-height: 114px; }
+        .arena-podium-slot.is-3 .arena-podium-block { min-height: 98px; }
 
         .arena-podium-medal { font-size: clamp(19px, 2.4vw, 26px); line-height: 1; }
-        .arena-podium-prize { display: flex; align-items: center; justify-content: center; gap: 5px; }
+        .arena-podium-prize { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
         .arena-podium-prize-line { display: inline-flex; align-items: baseline; gap: 4px; }
         .arena-podium-prize b {
             font-size: clamp(18px, 2.3vw, 25px);
@@ -1901,7 +2013,7 @@
             color: #fff;
             line-height: 1;
         }
-        .arena-podium-prize small { font-size: 10px; color: rgba(255, 233, 190, 0.7); }
+        .arena-podium-prize small { font-size: 12.5px; color: rgba(255, 233, 190, 0.92); letter-spacing: .01em; }
         /* La palabra entera en pantalla grande; en movil la cambia la inicial. */
         .arena-podium-unit-short { display: none; font-weight: 700; }
         .arena-podium-gema-mini {
@@ -1934,9 +2046,51 @@
             display: inline-flex;
             align-items: center;
             gap: 4px;
-            font-size: 11px;
-            color: rgba(233, 216, 186, 0.62);
+            /* 11px al 62% de opacidad era practicamente invisible sobre el
+               cajon oscuro: es el dato que dice quien va ganando. */
+            font-size: 13px;
+            font-weight: 600;
+            color: rgba(240, 226, 199, 0.92);
         }
+
+        /* La figura del podio en vivo del Salon de la Fama. */
+        .arena-hof-figura {
+            display: block;
+            height: clamp(150px, 18vw, 200px);
+            margin-top: 12px;
+            border-radius: 12px;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.28);
+        }
+        .arena-hof-visor { width: 100%; }
+        .arena-hof-visor::after { display: none; }
+
+        /* ── Podio compacto ─────────────────────────────────────────────────
+           El mismo podio sin figuras 3D ni escenario, para paginas donde los
+           premios acompañan en vez de protagonizar: en el ladder, el podio
+           completo se comia seiscientos pixeles y empujaba la tabla -que es a
+           lo que se viene- fuera de la pantalla. */
+        .arena-podium.is-compacto .arena-podium-cup { width: 30px; margin-bottom: 2px; }
+        .arena-podium.is-compacto .arena-podium-head { padding: 14px 16px 0; }
+        .arena-podium.is-compacto .arena-podium-title { font-size: clamp(17px, 2.2vw, 22px); gap: 8px; }
+        .arena-podium.is-compacto .arena-podium-gema { width: 34px; }
+        .arena-podium.is-compacto .arena-podium-note { font-size: 12px; margin-top: 4px; }
+        .arena-podium.is-compacto .arena-podium-stage { align-items: stretch; padding: 12px 14px 14px; gap: 8px; }
+
+        /* Sin figuras, los tres cajones se igualan: el escalonado solo tiene
+           sentido cuando hay una figura encima de cada uno. */
+        .arena-podium.is-compacto .arena-podium-block,
+        .arena-podium.is-compacto .arena-podium-slot.is-1 .arena-podium-block,
+        .arena-podium.is-compacto .arena-podium-slot.is-2 .arena-podium-block,
+        .arena-podium.is-compacto .arena-podium-slot.is-3 .arena-podium-block {
+            min-height: 0;
+            padding: 10px 8px;
+            border-bottom: 1px solid rgba(216, 177, 92, 0.3);
+            border-radius: 10px;
+        }
+        .arena-podium.is-compacto .arena-podium-medal { font-size: 17px; }
+        .arena-podium.is-compacto .arena-podium-prize b { font-size: 20px; }
+        .arena-podium.is-compacto .arena-podium-gema-mini { width: 15px; }
 
         @media (max-width: 1023px) {
             /* En vertical, el premio va PRIMERO.
@@ -1968,8 +2122,10 @@
             /* La gema pasa a su propia linea, debajo de la cifra. Al lado
                estrecha el numero, que es lo que hay que leer primero, y en un
                cajon de un tercio de pantalla eso se nota. */
-            .arena-podium-prize { flex-direction: column; gap: 3px; }
-            .arena-podium-gema-mini { width: 19px; }
+            .arena-podium-prize { gap: 3px; }
+            /* Mas pequeña: en un cajon de un tercio de pantalla, la gema
+               competia con la cifra en vez de acompañarla. */
+            .arena-podium-gema-mini { width: 14px; }
             .arena-podium-who { margin-top: 4px; padding-top: 4px; }
             .arena-podium-who b { font-size: 11px; }
             .arena-podium-who > span { font-size: 9.5px; }
@@ -1998,6 +2154,56 @@
            cuando llegas al punto de encuentro se hace de lejos -raza, sexo y
            arquetipo- y los avisos aparecen encima de quien los manda, que es
            mucho mas rapido de leer que una lista con nombres. */
+        /* Escenario y chat en paralelo.
+
+           Apilados, el panel de combate pasaba de los mil doscientos pixeles:
+           figuras, chat, formulario de reporte y el pie, todo en fila india.
+           Y se usan a la vez -se avisa mirando a quien avisa-, asi que
+           ponerlos uno al lado del otro no solo ahorra alto: quita el viaje
+           de ida y vuelta entre las dos mitades.
+
+           Solo cuando hay chat: sin el, el escenario se queda a todo lo ancho
+           como estaba. */
+        @media (min-width: 1100px) {
+            .arena-live-arena.has-chat {
+                display: grid;
+                grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+                gap: clamp(12px, 1.6vw, 20px);
+                /* Las dos columnas a la misma altura y el escenario centrado
+                   dentro de la suya: con `start`, las figuras se quedaban
+                   arriba y debajo colgaba un palmo de fondo vacio del alto
+                   que le sacara el chat. */
+                align-items: stretch;
+                padding-right: clamp(14px, 2.4vw, 26px);
+            }
+            /* El escenario, centrado en su columna.
+
+               Estirarlo para llenar el alto que marca el chat no vale: el
+               visor 3D mide el recuadro una sola vez al montarse, asi que las
+               figuras se quedaban diminutas en medio de un cajon vacio. Se
+               deja a su tamaño y se centra, y el que se acerca es el chat. */
+            .arena-live-arena.has-chat .arena-battle { align-content: center; }
+            /* El escenario ya trae su propio relleno lateral. */
+            .arena-live-arena.has-chat .arena-battle { padding-right: 0; }
+            .arena-live-arena.has-chat .arena-chat {
+                margin-top: clamp(14px, 2.4vw, 26px);
+                /* Las columnas de dentro del chat dejan de estrecharse a 620:
+                   aqui la caja ya es estrecha y ese tope la dejaba flotando
+                   con aire a los dos lados. */
+                align-self: stretch;
+            }
+            .arena-live-arena.has-chat .arena-chat-head,
+            .arena-live-arena.has-chat .arena-chat-log,
+            .arena-live-arena.has-chat .arena-chat-quick,
+            .arena-live-arena.has-chat .arena-chat-status { max-width: none; }
+            /* Algo mas alto que apilado -la columna da sitio- pero sin pasarse:
+               si el chat crece de mas, la columna de al lado se queda con un
+               palmo de fondo vacio, porque el escenario no puede estirarse. */
+            .arena-live-arena.has-chat .arena-chat-log { min-height: 150px; max-height: 250px; }
+            /* Dos columnas de frases: en una caja de 380px, tres no caben. */
+            .arena-live-arena.has-chat .arena-chat-quick { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+
         .arena-battle {
             display: grid;
             grid-template-columns: 1fr auto 1fr;
@@ -2252,12 +2458,20 @@
             max-width: 620px;
             margin-inline: auto;
             overflow-y: auto;
-            /* Pocos mensajes se pegan abajo, como en cualquier chat, en vez de
-               quedarse flotando en medio de una caja medio vacia. */
-            justify-content: flex-end;
             scrollbar-width: thin;
             overscroll-behavior: contain;
         }
+        /* Pocos mensajes se pegan abajo, como en cualquier chat, en vez de
+           quedarse flotando en medio de una caja medio vacia.
+
+           Con `justify-content: flex-end`, que es lo evidente, el chat se
+           quedaba SIN historial: en una caja que desborda, esa propiedad
+           empuja el contenido mas alla del origen del scroll y lo que sale
+           por arriba deja de ser alcanzable -la barra no sube hasta ahi-.
+           Un margen automatico en el primero baja el grupo igual cuando
+           sobra sitio y no hace nada cuando falta, que es justo lo que
+           queremos. */
+        .arena-chat-log > :first-child { margin-top: auto; }
         .arena-chat-msg { display: flex; }
         .arena-chat-msg.is-mine { justify-content: flex-end; }
         .arena-chat-msg.is-theirs { justify-content: flex-start; }
@@ -2402,24 +2616,49 @@
             .arena-battle-bubble { font-size: 11px; padding: 5px 9px; gap: 5px; }
 
             .arena-chat-head { padding: 9px 12px; }
-            .arena-chat-log { min-height: 84px; max-height: 148px; padding: 10px; }
+            /* Mas alto para el historial. Lo que se gana abajo -la botonera
+               en una sola fila en vez de tres- se le da aqui: el chat ocupa
+               menos en total y aun asi se leen mas mensajes de una vez. */
+            .arena-chat-log { min-height: 116px; max-height: 210px; padding: 10px; }
             .arena-chat-bubble { max-width: 86%; }
 
-            /* Dos columnas en vez de tres: con tres, la frase se parte en
-               cuatro lineas y el boton acaba mas alto que ancho. */
+            /* Las seis frases en una sola fila que se arrastra de lado.
+
+               En rejilla ocupaban tres filas -mas de ciento treinta pixeles-
+               justo debajo del historial, y en un movil eso es la mitad de lo
+               que se ve. Aqui hay dedos, asi que arrastrar SI funciona: es lo
+               que no valia en escritorio, donde siguen estando todas a la
+               vista. */
             .arena-chat-quick {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+                display: flex;
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                scroll-snap-type: x proximity;
+                -webkit-overflow-scrolling: touch;
+                overscroll-behavior-x: contain;
+                scrollbar-width: none;
                 padding: 9px 10px;
                 gap: 8px;
+            }
+            .arena-chat-quick::-webkit-scrollbar { display: none; }
+            /* Que la fila se arrastra tiene que VERSE. Sin el desvanecido del
+               borde, la ultima frase aparece cortada y parece un fallo de
+               maqueta en vez de una invitacion a empujar. */
+            .arena-chat-quick {
+                -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent 100%);
+                mask-image: linear-gradient(90deg, #000 88%, transparent 100%);
             }
 
             /* Dedos, no raton. Un boton de treinta pixeles de alto termina en
                toques fallados o en frases mandadas sin querer, y esto se usa
                con prisa a mitad de un combate. */
             .arena-chat-quick-btn {
+                flex: 0 0 auto;
+                scroll-snap-align: start;
                 min-height: 44px;
-                padding: 8px 10px;
+                padding: 8px 12px;
                 font-size: 12.5px;
+                white-space: nowrap;
             }
             .arena-chat-status { padding-bottom: 11px; }
         }
@@ -3062,6 +3301,96 @@
             let audioContext = null;
             let unlocked = false;
 
+            /* ── El aviso cuando la pestaña no esta delante ──
+
+               Un toast es un div: con la pestaña de lado nadie lo ve, y al
+               volver ya se habia ido solo. El sonido tampoco basta -el
+               navegador puede tener el contexto suspendido en segundo plano-,
+               asi que quien dejaba la pagina abierta en otra pestaña se
+               enteraba del cruce al volver a mirar, que es justo cuando ya no
+               sirve de nada.
+
+               Tres capas, de mas a menos fiable: notificacion del sistema si
+               hay permiso, el titulo de la pestaña parpadeando siempre, y el
+               toast de siempre para cuando SI se esta mirando. */
+            // Se relee al empezar a parpadear y no una sola vez: el panel se
+            // repinta solo y cambia el titulo por el camino.
+            let tituloBase = document.title;
+            let tituloTimer = null;
+            let tituloPendiente = null;
+
+            const hayNotificaciones = () => typeof window.Notification === 'function';
+
+            /* El permiso se pide con el mismo gesto que enciende las alertas.
+               Pedirlo al cargar la pagina es la forma mas rapida de que lo
+               denieguen para siempre, y una vez denegado no hay vuelta atras
+               desde la pagina. */
+            const pedirPermiso = async () => {
+                if (!hayNotificaciones() || Notification.permission !== 'default') {
+                    return hayNotificaciones() && Notification.permission === 'granted';
+                }
+
+                try {
+                    return (await Notification.requestPermission()) === 'granted';
+                } catch (_) {
+                    return false;
+                }
+            };
+
+            const pararTitulo = () => {
+                if (tituloTimer) { window.clearInterval(tituloTimer); tituloTimer = null; }
+                tituloPendiente = null;
+                document.title = tituloBase;
+            };
+
+            /* El titulo alterna entre el de la pagina y el aviso. Es el unico
+               canal que funciona sin permisos, sin sonido y con la pestaña
+               minimizada: se ve en la barra de pestañas y en la del sistema. */
+            const parpadearTitulo = (mensaje) => {
+                tituloPendiente = mensaje;
+                if (tituloTimer) { return; }
+
+                tituloBase = document.title;
+
+                let alterno = false;
+                tituloTimer = window.setInterval(() => {
+                    alterno = !alterno;
+                    document.title = alterno ? ('🔔 ' + tituloPendiente) : tituloBase;
+                }, 1200);
+            };
+
+            const notificarSistema = (type, mensaje) => {
+                if (!hayNotificaciones() || Notification.permission !== 'granted') { return false; }
+
+                try {
+                    // La etiqueta agrupa: diez avisos del mismo combate
+                    // sustituyen al anterior en vez de apilar diez globos.
+                    const aviso = new Notification('Regnum Arena Ladder', {
+                        body: mensaje,
+                        tag: 'arena:' + type,
+                        renotify: true,
+                        icon: '{{ asset('images/logo-arena-ladder.png') }}',
+                        silent: false,
+                    });
+
+                    aviso.onclick = () => {
+                        try { window.focus(); } catch (_) {}
+                        aviso.close();
+                    };
+
+                    return true;
+                } catch (_) {
+                    return false;
+                }
+            };
+
+            // Volver a la pestaña es haberse enterado: el titulo deja de
+            // parpadear sin tener que tocar nada.
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) { pararTitulo(); }
+            });
+            window.addEventListener('focus', pararTitulo);
+
             // Dos notas como mucho, separadas, y la ultima con cola larga para
             // que el aviso se apague solo. Los avisos importantes suben de tono
             // (match encontrado, caceria); los informativos se quedan planos.
@@ -3225,6 +3554,28 @@
                     document.addEventListener(eventName, tryUnlock, true);
                 });
 
+                /* El permiso de notificaciones, para quien ya traia las
+                   alertas encendidas de otra visita y por tanto no va a
+                   volver a tocar el interruptor. Se pide en el primer gesto
+                   -el navegador no lo acepta sin uno- y una sola vez en la
+                   vida: si lo ignoran, queda el parpadeo del titulo, que no
+                   pide permiso a nadie. */
+                const pedidoKey = 'arena:notif:pedido';
+
+                const pedirUnaVez = () => {
+                    document.removeEventListener('pointerdown', pedirUnaVez, true);
+                    document.removeEventListener('keydown', pedirUnaVez, true);
+
+                    if (!enabled || safeGet(pedidoKey) === '1') { return; }
+                    if (!hayNotificaciones() || Notification.permission !== 'default') { return; }
+
+                    safeSet(pedidoKey, '1');
+                    pedirPermiso();
+                };
+
+                document.addEventListener('pointerdown', pedirUnaVez, true);
+                document.addEventListener('keydown', pedirUnaVez, true);
+
                 // Volver a primer plano cuenta como oportunidad de reanudar.
                 document.addEventListener('visibilitychange', () => {
                     if (!document.hidden) { tryUnlock(); }
@@ -3264,6 +3615,16 @@
                     unlock();
 
                     return false;
+                }
+
+                /* En segundo plano el navegador puede haber suspendido el
+                   contexto por su cuenta. Programar notas sobre un contexto
+                   suspendido no suena: se queda todo esperando y sale de
+                   golpe al volver, que es peor que el silencio. Se le pide
+                   que vuelva y se sigue -la promesa no se espera porque esto
+                   no es async y el aviso no puede quedarse colgado-. */
+                if (context.state !== 'running') {
+                    try { context.resume(); } catch (_) {}
                 }
 
                 const pattern = patterns[type] || patterns.generic;
@@ -3325,6 +3686,13 @@
                     // la siguiente interaccion sin molestar al usuario.
                     await unlock();
 
+                    // El permiso de notificaciones va aqui y no al cargar la
+                    // pagina: este es el gesto en el que la persona ha dicho
+                    // "avisame", que es el unico momento en que el globo del
+                    // navegador tiene sentido. Preguntado en frio se deniega,
+                    // y denegado no se puede volver a pedir.
+                    if (!options.silent) { await pedirPermiso(); }
+
                     if (!options.silent) {
                         // Un toque de prueba al encender: es la unica forma de
                         // saber si de verdad va a sonar. En un iPhone con el
@@ -3354,7 +3722,18 @@
 
                 playPattern(type);
 
-                if (message) {
+                if (!message) {
+                    return true;
+                }
+
+                /* Con la pestaña delante, el toast de siempre. De lado, el
+                   toast no lo va a ver nadie: el aviso tiene que salir de la
+                   pagina -notificacion del sistema- y quedarse puesto en el
+                   titulo hasta que se vuelva. */
+                if (document.hidden) {
+                    notificarSistema(type, message);
+                    parpadearTitulo(message);
+                } else {
                     arenaToast(message, options.toastType || 'info', options.duration || 5500);
                 }
 
@@ -3388,6 +3767,9 @@
                 toggle: () => setEnabled(!enabled),
                 isEnabled: () => enabled,
                 isUnlocked: () => unlocked,
+                // Para la pestaña en reposo.
+                pedirPermiso,
+                permisoNotificaciones: () => (hayNotificaciones() ? Notification.permission : 'unsupported'),
             };
 
             installUnlockListeners();
@@ -3503,6 +3885,7 @@
     @stack('arena-map-scripts')
     @include('partials.arena-map-runtime')
     @include('partials.arena-pings-runtime')
+    @include('partials.arena-zona-runtime')
     <script>
         /* Relojes de la arena.
            Un solo motor para los tres: el plazo para aceptar el cruce, el plazo

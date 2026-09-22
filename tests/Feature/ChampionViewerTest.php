@@ -179,21 +179,38 @@ it('el emblema del reino se ve sin javascript y sin webgl', function () {
     expect($html)->toContain('data-champion-state="idle"');
 });
 
-it('el ladder publico ensena en 3d el podio de la temporada', function () {
-    // El podio es publico: el arranque del visor no puede depender de tener
-    // sesion, como dependia cuando vivia en el layout.
+it('el ladder ensena el podio de premios sin gastar el visor 3d', function () {
+    // El ladder abre con el podio de la temporada -quien va ganando y que se
+    // lleva-, no con "quien manda en cada reino", que enseñaba tres figuras
+    // sin decir lo unico que importa de ellas.
     //
-    // Y son las figuras del PODIO DE PREMIOS, no una por reino. Antes el
-    // ladder abria con "quien manda en cada reino", que enseñaba tres figuras
-    // sin decir lo unico que importa de ellas: que se llevan.
+    // Pero aqui va en su version compacta, SIN figuras: a esta pagina se
+    // viene a leer el ranking, y el podio entero se comia seiscientos pixeles
+    // y empujaba la tabla fuera de la pantalla. De paso, la pagina no paga los
+    // 146 KB de three.js para adornar una seccion que solo acompaña.
     $user = viewerUser('podio');
     viewerPlayer($user, 'Reina', 'alsius', 'warlock')->update(['pl_points' => 500]);
 
     $this->get(route('ladder.index'))
         ->assertOk()
-        ->assertSee('data-champion-id="podium-1"', false)
-        ->assertSee('js/arena-champion.js', false)
+        ->assertSee('is-compacto', false)
+        ->assertSee('Reina')
+        ->assertDontSee('data-champion-id="podium-1"', false)
+        ->assertDontSee('js/arena-champion.js', false)
         ->assertDontSee('Quien manda en cada reino');
+});
+
+it('la portada si ensena el podio en 3d', function () {
+    // Donde las figuras SI mandan es en la portada: es el escaparate, y el
+    // visor tiene que arrancar sin sesion -como no arrancaba cuando vivia en
+    // el layout-.
+    $user = viewerUser('podio-portada');
+    viewerPlayer($user, 'Reina', 'alsius', 'warlock')->update(['pl_points' => 500]);
+
+    $this->get(route('home'))
+        ->assertOk()
+        ->assertSee('data-champion-id="podium-1"', false)
+        ->assertSee('js/arena-champion.js', false);
 });
 
 it('una pagina sin guerreros no descarga el visor', function () {

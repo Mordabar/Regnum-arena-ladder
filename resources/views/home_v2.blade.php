@@ -31,7 +31,11 @@
                     {{ \App\Models\AppSetting::getValue('rules_excerpt', 'Busca contrincante, quedad en el punto marcado, pelead y reporta el resultado. Cada combate te sube en el ladder: se juega por los premios de la temporada y por quedarse en el Salon de la Fama, donde solo aguantan los mejores.') }}
                 </p>
 
-                <div class="mt-8 flex flex-wrap gap-3">
+                {{-- Los cuatro en una fila: el cuarto saltaba a una
+                     segunda linea y eso son cuarenta pixeles mas de alto en la
+                     primera pantalla. Los secundarios van algo mas apretados
+                     -clase `is-fila`- para que quepan. --}}
+                <div class="mt-8 flex flex-wrap gap-2.5 arena-hero-acciones">
                     @auth
                         {{-- El lobby y la arena son la misma pantalla: dos
                              botones al mismo sitio solo hacian dudar. --}}
@@ -52,6 +56,16 @@
                     <a href="{{ route('ladder.index') }}" class="arena-btn-ghost">
                         <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a1 1 0 000 2c5.523 0 10 4.477 10 10a1 1 0 102 0C17 8.373 11.627 3 5 3z"/><path d="M4 9a1 1 0 011-1 7 7 0 017 7 1 1 0 11-2 0 5 5 0 00-5-5 1 1 0 01-1-1zM3 15a2 2 0 114 0 2 2 0 01-4 0z"/></svg>
                         Ver ladder
+                    </a>
+                    {{-- La guia, aqui arriba con los demas. Estaba solo en el
+                         pie y en un cuadro al final de la portada: quien llega
+                         sin conocer el sitio no baja a buscarla.
+
+                         Va en la misma fila y se envuelve sola, asi que no
+                         añade altura mientras quepa. --}}
+                    <a href="{{ route('guia') }}" class="arena-btn-ghost">
+                        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+                        Como funciona
                     </a>
                 </div>
             </div>
