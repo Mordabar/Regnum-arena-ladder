@@ -57,7 +57,9 @@ function cruceDeLaTemporada(ArenaSeason $season): void
 {
     \Illuminate\Support\Facades\DB::table('matches')->insert([
         'match_code' => 'PR' . $season->id . substr((string) microtime(true), -5),
-        'report_token' => bin2hex(random_bytes(16)),
+        // La columna es varchar(24): con 32 caracteres MySQL rechaza la fila, y
+        // SQLite -que no comprueba longitudes- lo dejaba pasar en los tests.
+        'report_token' => bin2hex(random_bytes(10)),
         'arena_mode' => '2v2',
         'season_id' => $season->id,
         'status' => 'completed',

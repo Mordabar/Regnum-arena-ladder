@@ -21,7 +21,11 @@
     /* Lo que tiene que pasar entre dos pitidos, aunque lleguen mas avisos.
        Ver el bloque del sonido en pintar(). */
     var DESCANSO_PITIDO = 7000;
-    var ultimoPitido = 0;
+
+    /* Y por enfrentamiento, no global: con un solo reloj, terminar un combate
+       y entrar en otro enseguida -que es lo normal cuando hay cola- silenciaba
+       el PRIMER aviso del nuevo, que es justamente el que hay que oir. */
+    var ultimoPitidoPorCruce = {};
 
     /* Los no leidos, por enfrentamiento y fuera del DOM.
 
@@ -32,6 +36,15 @@
 
     function sinLeerDe(caja) {
         return sinLeerPorCruce[caja.dataset.pingsMatch || ''] || 0;
+    }
+
+    /** Tira lo que se guardaba de los combates anteriores. */
+    function olvidarOtrosCruces(idActual) {
+        [ultimoVisto, ultimoPitidoPorCruce, sinLeerPorCruce].forEach(function (mapa) {
+            Object.keys(mapa).forEach(function (id) {
+                if (id !== idActual) { delete mapa[id]; }
+            });
+        });
     }
 
     function nodoDeAvisos(root) {
@@ -188,8 +201,8 @@
             if (window.ArenaSoundAlerts && typeof window.ArenaSoundAlerts.notify === 'function') {
                 var ahora = Date.now();
 
-                if (ahora - (ultimoPitido || 0) >= DESCANSO_PITIDO) {
-                    ultimoPitido = ahora;
+                if (ahora - (ultimoPitidoPorCruce[idMatch] || 0) >= DESCANSO_PITIDO) {
+                    ultimoPitidoPorCruce[idMatch] = ahora;
 
                     window.ArenaSoundAlerts.notify(
                         'match_ping',
@@ -331,6 +344,12 @@
         if (!caja || caja.dataset.pingsReady === '1') { return; }
 
         caja.dataset.pingsReady = '1';
+
+        /* Solo se lleva la cuenta del cruce que hay delante. Sin esto, cada
+           combate de la sesion dejaba su entrada en los tres mapas para
+           siempre: no es mucha memoria, pero tampoco hay ninguna razon para
+           guardar los no leidos de un combate que termino hace media hora. */
+        olvidarOtrosCruces(caja.dataset.pingsMatch || '');
 
         var log = caja.querySelector('[data-pings-log]');
         if (log) { log.scrollTop = log.scrollHeight; }
