@@ -42,6 +42,9 @@ class PushCheckCommand extends Command
         $todoBien = $this->revisarWorker() && $todoBien;
         $todoBien = $this->revisarSuscripciones() && $todoBien;
 
+        $this->revisarDiscord();
+        $this->enseñarFallosDeNavegadores();
+
         $this->newLine();
 
         if ($this->option('user')) {
@@ -162,6 +165,80 @@ class PushCheckCommand extends Command
         return true;
     }
 
+    /**
+     * El bot de Discord: el unico canal que llega con TODO cerrado.
+     *
+     * El push del navegador necesita que el navegador exista, aunque sea en
+     * segundo plano. El mensaje directo de Discord llega al movil aunque no
+     * haya ningun navegador abierto, y es lo que "antes llegaba" para quien
+     * lo tenia. Si el token se cambio y no se actualizo el .env, esos
+     * mensajes dejan de salir en silencio: aqui se ve.
+     */
+    private function revisarDiscord(): void
+    {
+        $token = (string) config('services.discord.bot_token', '');
+
+        if ($token === '') {
+            $this->aviso('Bot de Discord', 'sin token: no se mandan mensajes directos');
+
+            return;
+        }
+
+        try {
+            $r = Http::withHeaders(['Authorization' => 'Bot ' . $token])
+                ->timeout(8)
+                ->get('https://discord.com/api/v10/users/@me');
+
+            if ($r->successful()) {
+                $this->bien('Bot de Discord', 'conectado como ' . ($r->json('username') ?? '?'));
+            } elseif ($r->status() === 401) {
+                $this->falla('Bot de Discord', 'token rechazado (401)');
+                $this->line('   Si cambiaste el token del bot, pon el nuevo en DISCORD_BOT_TOKEN y');
+                $this->line('   haz config:clear. Sin el, los mensajes directos de cruce no salen.');
+            } else {
+                $this->aviso('Bot de Discord', 'respondio HTTP ' . $r->status());
+            }
+        } catch (Throwable $e) {
+            $this->aviso('Bot de Discord', 'no se pudo comprobar: ' . mb_substr($e->getMessage(), 0, 80));
+        }
+    }
+
+    /**
+     * Lo que ha fallado en los navegadores de los jugadores.
+     *
+     * Cada vez que alguien intenta activar los avisos y no puede, su
+     * navegador lo cuenta aqui con el motivo real. Es lo que permite
+     * diagnosticar un "a mi no me llega" sin pedirle a nadie que abra la
+     * consola.
+     */
+    private function enseñarFallosDeNavegadores(): void
+    {
+        $fallos = \Illuminate\Support\Facades\Cache::get(\App\Http\Controllers\AvisosController::CLAVE_FALLOS, []);
+
+        $this->newLine();
+
+        if ($fallos === []) {
+            $this->bien('Fallos en navegadores', 'ninguno reciente');
+
+            return;
+        }
+
+        $this->aviso('Fallos en navegadores', count($fallos) . ' recientes (el mas nuevo arriba):');
+
+        foreach (array_slice($fallos, 0, 8) as $f) {
+            $quien = $f['usuario'] ? 'usuario ' . $f['usuario'] : 'sin sesion';
+            $this->line(sprintf('   %s  %-22s %s', $f['en'] ?? '', $f['causa'] ?? '', $quien));
+
+            if (!empty($f['detalle'])) {
+                $this->line('      ' . $f['detalle']);
+            }
+
+            if (!empty($f['navegador'])) {
+                $this->line('      <fg=gray>' . mb_substr($f['navegador'], 0, 110) . '</>');
+            }
+        }
+    }
+
     private function mandarPrueba(WebPushService $push, int $userId): int
     {
         $user = User::find($userId);
@@ -186,40 +263,37 @@ class PushCheckCommand extends Command
 
         $salieron = 0;
 
+        // Que el aviso que llegue diga "Avisos activados" y no un "hay
+        // novedades" que no se sabe de donde sale.
+        app(\App\Services\AvisosPendientesService::class)->marcarPrueba($userId);
+
         foreach ($suscripciones as $suscripcion) {
-            // Se manda a pelo, sin pasar por el servicio, para poder enseñar la
-            // respuesta cruda: es lo unico que distingue "el servicio lo
-            // rechaza" de "el servicio lo acepta y es el navegador el que no lo
-            // enseña", y son dos problemas completamente distintos.
-            $servicio = parse_url($suscripcion->endpoint, PHP_URL_HOST);
+            // Con la respuesta cruda del servicio de push: es lo unico que
+            // distingue "lo rechaza" de "lo acepta y es el dispositivo el que
+            // no lo enseña", y son dos problemas completamente distintos.
+            $r = $push->enviarConDetalle($suscripcion);
+            $servicio = (string) ($r['servicio'] ?? 'servicio');
 
-            try {
-                $metodo = new \ReflectionMethod($push, 'cabeceraVapid');
-                $metodo->setAccessible(true);
+            if ($r['ok']) {
+                $this->bien($servicio, 'aceptado (HTTP ' . $r['estado'] . ')');
+                $salieron++;
 
-                $respuesta = Http::withHeaders([
-                    'Authorization' => $metodo->invoke($push, $suscripcion->endpoint),
-                    'TTL' => '60',
-                    'Urgency' => 'high',
-                    'Content-Length' => '0',
-                ])->timeout(10)->withBody('', 'application/octet-stream')->post($suscripcion->endpoint);
-
-                if ($respuesta->successful()) {
-                    $this->bien($servicio, 'aceptado (HTTP ' . $respuesta->status() . ')');
-                    $salieron++;
-                } else {
-                    $this->falla($servicio, 'HTTP ' . $respuesta->status());
-                    $cuerpo = trim($respuesta->body());
-
-                    if ($cuerpo !== '') {
-                        $this->line('   ' . mb_substr($cuerpo, 0, 200));
-                    }
-
-                    $this->pistaDelFallo($respuesta->status());
-                }
-            } catch (Throwable $e) {
-                $this->falla($servicio, 'no se pudo conectar: ' . $e->getMessage());
+                continue;
             }
+
+            if ($r['estado'] === null) {
+                $this->falla($servicio, 'no se pudo conectar: ' . $r['cuerpo']);
+
+                continue;
+            }
+
+            $this->falla($servicio, 'HTTP ' . $r['estado']);
+
+            if (!empty($r['cuerpo'])) {
+                $this->line('   ' . $r['cuerpo']);
+            }
+
+            $this->pistaDelFallo((int) $r['estado']);
         }
 
         $this->newLine();
@@ -255,6 +329,11 @@ class PushCheckCommand extends Command
     private function bien(string $que, string $detalle): void
     {
         $this->line('  <fg=green>OK</>    ' . str_pad($que, 26) . $detalle);
+    }
+
+    private function aviso(string $que, string $detalle): void
+    {
+        $this->line('  <fg=yellow>AVISO</> ' . str_pad($que, 26) . $detalle);
     }
 
     private function falla(string $que, string $detalle): void

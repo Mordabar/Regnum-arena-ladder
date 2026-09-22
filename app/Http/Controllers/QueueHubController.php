@@ -725,6 +725,13 @@ class QueueHubController extends Controller
                         'conjurer_role' => $comp['role'],
                     ]);
                 }
+
+                // Los invitados se enteran aunque no esten mirando: una
+                // invitacion que nadie ve caduca sin que el lider sepa por que.
+                // Sale despues de guardar, asi que el aviso ya la encuentra.
+                app(\App\Services\WebPushService::class)->avisarAJugadores(
+                    collect($composition)->slice(1)->map(fn ($c) => $c['player']->id)->all()
+                );
             });
 
             return back()->with('success', 'Invitaciones enviadas a la Party.');

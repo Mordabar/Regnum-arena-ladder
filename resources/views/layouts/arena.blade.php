@@ -6,6 +6,17 @@
     <title>@yield('title', 'Regnum Arena Ladder')</title>
     <meta name="description" content="Regnum Arena Ladder — Conquest PvP por reino y subclase, ranking automático PL/MMR, duelos 1v1 y arenas 2v2 y 3v3.">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    {{-- El sitio como app instalable. No es adorno: en iPhone, los avisos con
+         la pagina cerrada SOLO existen para un sitio añadido a la pantalla de
+         inicio con manifiesto; sin el, "añadir a inicio" crea un marcador y el
+         push no llega nunca. En Android deja ademas instalarlo como app. --}}
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#16100a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Arena Ladder">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="/images/icono-192.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Spectral:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -3433,19 +3444,74 @@
                 }, 1200);
             };
 
-            const notificarSistema = (type, mensaje) => {
+            /* El titulo de cada aviso, el mismo que pone el service worker.
+               Y la misma etiqueta: si llegan los dos -el de la pagina y el
+               push- el sistema enseña uno solo, porque la etiqueta dice que
+               son el mismo hecho. */
+            const TITULOS_AVISO = {
+                match_found: 'Rival encontrado',
+                hunt_start: '¡A pelear!',
+                report_submitted: 'Resultado por confirmar',
+                report_confirmed: 'Resultado confirmado',
+                party_invite: 'Invitacion de equipo',
+                party_ready: 'Tu equipo esta listo',
+                match_ping: 'Aviso del rival',
+            };
+
+            const ETIQUETAS_AVISO = {
+                'match-found': 'cruce',
+                'hunt-start': 'combate',
+                'report-pending': 'reporte',
+                'report-confirmed': 'resultado',
+                'party-invite': 'party',
+            };
+
+            const etiquetaDe = (type, clave) => {
+                const [prefijo, id] = String(clave || '').split(':');
+                const base = ETIQUETAS_AVISO[prefijo];
+
+                if (base === 'party') { return 'party'; }
+                if (base && id) { return base + ':' + id; }
+
+                return 'arena:' + type;
+            };
+
+            /* La notificacion del sistema, desde la pagina.
+               Va por el service worker cuando lo hay: en Android,
+               `new Notification()` directamente LANZA -Chrome solo admite ahi
+               las del worker-, asi que en movil este aviso no habia salido
+               nunca. El constructor queda de respaldo para escritorio sin
+               worker. */
+            const notificarSistema = async (type, mensaje, etiqueta) => {
                 if (!hayNotificaciones() || Notification.permission !== 'granted') { return false; }
 
+                const titulo = TITULOS_AVISO[type] || 'Regnum Arena Ladder';
+                const opciones = {
+                    body: mensaje,
+                    tag: etiqueta || ('arena:' + type),
+                    // Si el push ya lo enseño, este lo sustituye sin volver a
+                    // sonar: es el mismo aviso, no uno nuevo.
+                    renotify: false,
+                    icon: '{{ asset('images/icono-192.png') }}',
+                    badge: '{{ asset('images/icono-192.png') }}',
+                    data: { url: '{{ route('lobby') }}' },
+                };
+
                 try {
-                    // La etiqueta agrupa: diez avisos del mismo combate
-                    // sustituyen al anterior en vez de apilar diez globos.
-                    const aviso = new Notification('Regnum Arena Ladder', {
-                        body: mensaje,
-                        tag: 'arena:' + type,
-                        renotify: true,
-                        icon: '{{ asset('images/logo-arena-ladder.png') }}',
-                        silent: false,
-                    });
+                    if ('serviceWorker' in navigator) {
+                        const reg = await navigator.serviceWorker.getRegistration('/');
+
+                        if (reg) {
+                            await reg.showNotification(titulo, opciones);
+                            return true;
+                        }
+                    }
+                } catch (_) {
+                    // Sigue al constructor.
+                }
+
+                try {
+                    const aviso = new Notification(titulo, opciones);
 
                     aviso.onclick = () => {
                         try { window.focus(); } catch (_) {}
@@ -3570,6 +3636,13 @@
             };
 
             const updateButtons = () => {
+                // Con el controlador de avisos presente, pinta EL. Dos pintores
+                // con dos ideas del estado era el "verde y luego rojo".
+                if (window.ArenaAvisos) {
+                    window.ArenaAvisos.repintar();
+                    return;
+                }
+
                 alertButtons().forEach((button) => {
                     const label = button.querySelector('[data-arena-alert-label]');
                     const indicator = button.querySelector('[data-arena-alert-indicator]');
@@ -3645,6 +3718,13 @@
                 const pedirUnaVez = () => {
                     document.removeEventListener('pointerdown', pedirUnaVez, true);
                     document.removeEventListener('keydown', pedirUnaVez, true);
+
+                    // Con el controlador de avisos, el permiso se pide en SU
+                    // boton y solo ahi. Pedirlo al primer clic en cualquier
+                    // parte daba permiso sin suscripcion -el boton seguia en
+                    // rojo sin motivo aparente- y un globo que sale de la nada
+                    // se deniega, y denegado ya no se puede volver a pedir.
+                    if (window.ArenaAvisos) { return; }
 
                     if (!enabled || safeGet(pedidoKey) === '1') { return; }
                     if (!hayNotificaciones() || Notification.permission !== 'default') { return; }
@@ -3828,7 +3908,7 @@
                    pagina -notificacion del sistema- y quedarse puesto en el
                    titulo hasta que se vuelva. */
                 if (document.hidden) {
-                    notificarSistema(type, message);
+                    notificarSistema(type, message, options.tag || etiquetaDe(type, eventKey));
                     parpadearTitulo(message);
                 } else {
                     arenaToast(message, options.toastType || 'info', options.duration || 5500);
@@ -3845,10 +3925,18 @@
 
                 event.preventDefault();
 
-                // El clic siempre hace lo mismo: encender o silenciar. Antes,
-                // cuando el audio no estaba desbloqueado, el primer clic lo
-                // desbloqueaba en vez de conmutar, y el boton parecia moverse
-                // entre tres estados sin logica aparente.
+                /* Con avisos del navegador, manda su controlador.
+                   Conmutar aqui a ciegas era la trampa: la etiqueta decia
+                   "Activar avisos" y el clic APAGABA las alertas, porque el
+                   ajuste ya estaba encendido de fabrica. El controlador decide
+                   por lo que la persona ve pintado. */
+                if (window.ArenaAvisos) {
+                    window.ArenaAvisos.alternar();
+                    return;
+                }
+
+                // Sin push configurado queda el interruptor de sonido de
+                // siempre: encender o silenciar.
                 setEnabled(!enabled);
             });
 

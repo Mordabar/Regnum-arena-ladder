@@ -12,7 +12,7 @@
  * de un despliegue por FTP. Aqui solo se reciben avisos.
  */
 
-const VERSION = 'arena-avisos-1';
+const VERSION = 'arena-avisos-2';
 
 self.addEventListener('install', (event) => {
     // Sin esto, el worker nuevo se queda esperando a que se cierren todas las
@@ -60,32 +60,53 @@ async function anunciar() {
         // no controlamos.
     }
 
-    if (!avisos.length) {
-        avisos = [{
-            tag: 'arena',
-            titulo: 'Regnum Arena Ladder',
-            cuerpo: 'Hay novedades en tu arena.',
-            url: '/lobby',
-        }];
-    }
+    /*
+     * Solo el MAS RECIENTE.
+     *
+     * Cada toque lo provoca una sola cosa -un cruce, un aviso del rival, un
+     * reporte-, y esa cosa es la ultima que ha pasado. Antes se enseñaba la
+     * lista entera, asi que cada "voy de camino" del rival volvia a sacar
+     * tambien el "¡A pelear!" del combate: dos globos por un mensaje.
+     */
+    avisos.sort((a, b) => String(b.en || '').localeCompare(String(a.en || '')));
 
-    await Promise.all(avisos.map((aviso) => self.registration.showNotification(
-        aviso.titulo || 'Regnum Arena Ladder',
-        {
-            body: aviso.cuerpo || '',
-            // La etiqueta agrupa: dos toques del mismo cruce se sustituyen en
-            // vez de apilar dos globos iguales.
-            tag: aviso.tag || 'arena',
-            renotify: true,
-            icon: '/images/logo-arena-ladder.png',
-            badge: '/images/logo-arena-ladder.png',
-            data: { url: aviso.url || '/lobby' },
-            // Un cruce dura dos minutos: el aviso se queda hasta que se toca,
-            // no se va solo a los cinco segundos.
-            requireInteraction: true,
-            vibrate: [90, 40, 90],
-        }
-    )));
+    const aviso = avisos[0] || {
+        tag: 'arena',
+        titulo: 'Regnum Arena Ladder',
+        cuerpo: 'Hay novedades en tu arena.',
+        url: '/lobby',
+    };
+
+    await self.registration.showNotification(aviso.titulo || 'Regnum Arena Ladder', {
+        body: aviso.cuerpo || '',
+        // La etiqueta agrupa: dos toques del mismo cruce se sustituyen en vez
+        // de apilar dos globos iguales. Y es la misma que pone la pagina, asi
+        // que si llegan los dos, sale uno.
+        tag: aviso.tag || 'arena',
+        renotify: true,
+        icon: '/images/icono-192.png',
+        badge: '/images/icono-192.png',
+        data: { url: aviso.url || '/lobby' },
+        // El cruce se queda hasta que se toca: hay dos minutos para aceptar y
+        // no puede irse solo a los cinco segundos. El resto se va como
+        // cualquier notificacion.
+        requireInteraction: !!aviso.fijo,
+        vibrate: [90, 40, 90],
+    });
+
+    /*
+     * El acuse de la prueba.
+     *
+     * Al activar los avisos, el servidor manda un push de verdad a este
+     * dispositivo. Si llega hasta aqui, el camino entero funciona -servidor,
+     * servicio de push, dispositivo, worker- y se lo decimos a la pagina, que
+     * esta esperando para poner el boton en verde. Si no llega, la pagina lo
+     * sabe por el silencio y dice en que tramo se quedo.
+     */
+    if (aviso.prueba) {
+        const ventanas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        ventanas.forEach((v) => v.postMessage({ tipo: 'arena:prueba-recibida' }));
+    }
 }
 
 /*

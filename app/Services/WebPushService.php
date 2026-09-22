@@ -6,6 +6,7 @@ use App\Models\Player;
 use App\Models\PushSubscription;
 use App\Support\Base64Url;
 use App\Support\VapidKeys;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -85,13 +86,36 @@ class WebPushService
             return;
         }
 
-        app()->terminating(function () use ($userIds) {
+        $mandar = function () use ($userIds) {
             try {
                 $this->avisar($userIds);
             } catch (Throwable $e) {
                 // Un aviso que no sale nunca puede tumbar lo que lo provoco.
                 Log::warning('No se pudieron mandar los avisos de push', ['error' => $e->getMessage()]);
             }
+        };
+
+        /*
+         * Despues de guardar, nunca antes.
+         *
+         * El toque va vacio y el navegador, al recibirlo, pregunta al sitio
+         * que ha pasado. Si se manda dentro de la transaccion que crea el
+         * cruce o cierra el combate, la pregunta puede llegar antes de que se
+         * guarde, y la respuesta es "nada": sale un aviso generico o ninguno.
+         * `afterCommit` espera a que este guardado, y si no hay transaccion
+         * abierta lo ejecuta en el acto.
+         */
+        DB::afterCommit(function () use ($mandar) {
+            // Desde el cron no hay nadie esperando una respuesta: se manda ya.
+            // En una peticion web se deja para despues de responder, para no
+            // hacer esperar a quien la provoco.
+            if (app()->runningInConsole() && !app()->runningUnitTests()) {
+                $mandar();
+
+                return;
+            }
+
+            app()->terminating($mandar);
         });
     }
 
@@ -129,6 +153,22 @@ class WebPushService
      */
     public function enviar(PushSubscription $suscripcion): bool
     {
+        return $this->enviarConDetalle($suscripcion)['ok'];
+    }
+
+    /**
+     * Lo mismo, pero contando que respondio el servicio de push.
+     *
+     * Hace falta para la prueba que se lanza al activar y para el
+     * diagnostico: "no llego" no es lo mismo si Google dijo 201 que si dijo
+     * 401, y son dos arreglos distintos.
+     *
+     * @return array{ok: bool, estado: ?int, cuerpo: ?string, servicio: ?string}
+     */
+    public function enviarConDetalle(PushSubscription $suscripcion): array
+    {
+        $servicio = parse_url($suscripcion->endpoint, PHP_URL_HOST) ?: null;
+
         try {
             $respuesta = Http::withHeaders([
                 'Authorization' => $this->cabeceraVapid($suscripcion->endpoint),
@@ -140,28 +180,31 @@ class WebPushService
                 'Content-Length' => '0',
             ])->timeout(8)->withBody('', 'application/octet-stream')->post($suscripcion->endpoint);
 
+            $estado = $respuesta->status();
+            $cuerpo = mb_substr(trim((string) $respuesta->body()), 0, 200);
+
             // 404 y 410 son la forma en que el servicio dice "este navegador
             // ya no existe": desinstalaron la app, limpiaron los datos del
             // sitio o revocaron el permiso. Insistir no arregla nada.
-            if (in_array($respuesta->status(), [404, 410], true)) {
+            if (in_array($estado, [404, 410], true)) {
                 $suscripcion->delete();
 
-                return false;
+                return ['ok' => false, 'estado' => $estado, 'cuerpo' => $cuerpo, 'servicio' => $servicio];
             }
 
             if ($respuesta->successful()) {
                 $suscripcion->forceFill(['fallos' => 0, 'ultimo_ok_at' => now()])->save();
 
-                return true;
+                return ['ok' => true, 'estado' => $estado, 'cuerpo' => null, 'servicio' => $servicio];
             }
 
-            $this->anotarFallo($suscripcion, 'HTTP ' . $respuesta->status());
+            $this->anotarFallo($suscripcion, 'HTTP ' . $estado);
 
-            return false;
+            return ['ok' => false, 'estado' => $estado, 'cuerpo' => $cuerpo, 'servicio' => $servicio];
         } catch (Throwable $e) {
             $this->anotarFallo($suscripcion, $e->getMessage());
 
-            return false;
+            return ['ok' => false, 'estado' => null, 'cuerpo' => mb_substr($e->getMessage(), 0, 200), 'servicio' => $servicio];
         }
     }
 

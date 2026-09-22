@@ -1,0 +1,15 @@
+{
+  "name": "Regnum Arena Ladder",
+  "short_name": "Arena Ladder",
+  "description": "Duelos y arenas por equipos de Regnum Online, con avisos de cruce.",
+  "start_url": "/lobby",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#16100a",
+  "theme_color": "#16100a",
+  "lang": "es",
+  "icons": [
+    { "src": "/images/icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/images/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

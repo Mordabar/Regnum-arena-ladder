@@ -36,6 +36,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // que deja hacer es mover esa misma fila.
         $middleware->validateCsrfTokens(except: [
             'avisos/resuscribir',
+            // La baliza de fallos: uno de los fallos que cuenta es justo el
+            // token caducado. Solo anota.
+            'avisos/fallo',
         ]);
 
         $middleware->alias([

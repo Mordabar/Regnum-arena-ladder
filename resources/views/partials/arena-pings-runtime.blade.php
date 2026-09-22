@@ -207,7 +207,9 @@
                     window.ArenaSoundAlerts.notify(
                         'match_ping',
                         ultimo.icono + ' ' + ultimo.nombre + ': ' + ultimo.texto,
-                        { key: 'match-ping:' + ultimo.id, duration: 4000 }
+                        // La etiqueta es la misma que pone el push para el chat
+                        // de este combate: si llegan los dos, sale uno.
+                        { key: 'match-ping:' + ultimo.id, tag: 'chat:' + idMatch, duration: 4000 }
                     );
                 }
             }

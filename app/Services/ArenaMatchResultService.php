@@ -966,6 +966,8 @@ class ArenaMatchResultService
             'results' => array_values($updatedRows),
         ];
 
+        app(WebPushService::class)->avisarAJugadores($match->getAllPlayers());
+
         $this->discordBotService->notifyReportResolved($match->fresh(['report', 'results']), $payload);
 
         return $payload;
@@ -1194,6 +1196,14 @@ class ArenaMatchResultService
             'scoring' => $scoring,
             'results' => $resultRows,
         ];
+
+        // El resultado cerrado era el unico momento del flujo sin aviso: el
+        // rival confirmaba con tu pagina cerrada y no te enterabas de si
+        // habias subido o bajado. A quien confirmo no: acaba de pulsar.
+        app(WebPushService::class)->avisarAJugadores(
+            $match->getAllPlayers(),
+            array_filter([(int) ($resolutionContext['confirmed_by_player_id'] ?? 0)])
+        );
 
         $this->discordBotService->notifyReportResolved($match->fresh(['report', 'results']), $payload);
 

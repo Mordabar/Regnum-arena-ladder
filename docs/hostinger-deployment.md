@@ -176,27 +176,56 @@ cerrada, y el codigo lo comprueba antes de intentarlo en vez de reventar.
 
 ### Como comprobar que va
 
-1. Entra al sitio y dale al interruptor de alertas. El navegador pide permiso.
-2. En las herramientas de desarrollo, pestaña *Application → Service Workers*,
-   tiene que salir `sw.js` activado.
-3. En *Application → Push Messaging*, el boton *Push* simula un aviso: debe
-   aparecer una notificacion del sistema.
-4. Con dos cuentas: entra a cola con las dos, deja una pestaña en segundo
-   plano y cruza. El aviso tiene que llegar sin tocar esa pestaña.
+Lo mas rapido es el propio sitio: al tocar el boton de avisos, el servidor le
+manda a ese dispositivo un push DE VERDAD y el dispositivo confirma que le
+llego. Si sale "Recibido. Asi te llegaran los cruces…", el camino entero
+funciona -servidor, Google/Mozilla/Apple, dispositivo- y llegara con la
+pestaña cerrada. Si no, el aviso dice en que tramo se quedo.
 
-Si no llega, mira en ese orden: si hay claves en el `.env` (`php artisan
-about`), si el navegador tiene permiso concedido, y si hay filas en
-`push_subscriptions` para ese usuario. Una suscripcion con `fallos` subiendo
-es que el servicio de push esta rechazando los envios.
+Desde el SSH:
+
+```bash
+php artisan arena:push-check              # claves, tabla, sw.js, suscritos,
+                                          # bot de Discord y fallos recientes
+php artisan arena:push-check --user=<id>  # manda un aviso real y enseña
+                                          # que responde el servicio de push
+```
+
+"Fallos en navegadores" enseña los ultimos intentos fallidos de los jugadores,
+con el motivo real que dio su navegador: no hace falta pedirle a nadie que
+abra la consola.
+
+### Que se puede prometer, por plataforma
+
+- **Android (Chrome, Edge, Samsung)**: llega con el navegador cerrado. Lo
+  entrega el sistema.
+- **Escritorio (Chrome, Edge, Firefox)**: llega con la pestaña cerrada
+  mientras el navegador siga abierto o en segundo plano. En Windows, Chrome y
+  Edge siguen vivos al cerrar la ventana si esta marcado "Seguir ejecutando
+  aplicaciones en segundo plano" (viene marcado). Con el navegador cerrado del
+  todo no llega nada: ahi solo alcanza el mensaje directo de Discord.
+- **iPhone / iPad**: SOLO con el sitio añadido a la pantalla de inicio
+  (Compartir → Añadir a pantalla de inicio) y abierto desde ese icono, iOS
+  16.4 o posterior. En una pestaña de Safari no existe el push; el boton lo
+  explica al tocarlo.
+- **El modo concentracion de Windows** y el "no molestar" del movil ocultan
+  las notificaciones aunque lleguen. La prueba de activacion lo detecta: el
+  dispositivo confirma la entrega, pero la persona no la ve.
 
 ### Que sube al servidor
 
 Ademas de las vistas y `public/build/`:
 
 - `public/sw.js` — en la raiz publica, obligatorio.
+- `public/manifest.webmanifest`, `public/images/icono-192.png`,
+  `public/images/icono-512.png` — sin el manifiesto no hay push en iPhone.
 - `app/Support/VapidKeys.php`, `app/Support/Base64Url.php`
 - `app/Services/WebPushService.php`, `app/Services/AvisosPendientesService.php`
 - `app/Http/Controllers/AvisosController.php`, `app/Models/PushSubscription.php`
-- `app/Console/Commands/PushKeysCommand.php`
+- `app/Console/Commands/PushKeysCommand.php`, `app/Console/Commands/PushCheckCommand.php`
 - `config/services.php`, `bootstrap/app.php`, `routes/web_main.php`
 - la migracion `2026_09_23_000001_create_push_subscriptions_table.php`
+
+Despues de subir: `php artisan view:clear && php artisan route:clear &&
+php artisan config:clear`. Sin `route:clear`, una cache de rutas vieja deja
+fuera las rutas nuevas y el sitio da 500 a quien tiene sesion.

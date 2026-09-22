@@ -8,6 +8,7 @@ use App\Services\WebPushService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Las tres puertas de los avisos del navegador: apuntarse, borrarse y
@@ -34,7 +35,18 @@ class AvisosController extends Controller
             'endpoint' => ['required', 'string', 'max:500', 'url'],
             'keys.p256dh' => ['nullable', 'string', 'max:120'],
             'keys.auth' => ['nullable', 'string', 'max:60'],
+            'anterior' => ['nullable', 'string', 'max:500'],
         ]);
+
+        // La direccion que este mismo navegador tenia antes, si cambio. Solo
+        // se borra si es de este usuario: no se puede tirar la de otro
+        // adivinando su direccion.
+        if (!empty($datos['anterior']) && $datos['anterior'] !== $datos['endpoint']) {
+            PushSubscription::query()
+                ->where('endpoint', $datos['anterior'])
+                ->where('user_id', Auth::id())
+                ->delete();
+        }
 
         PushSubscription::updateOrCreate(
             ['endpoint' => $datos['endpoint']],
@@ -111,6 +123,96 @@ class AvisosController extends Controller
         ])->save();
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Mandarle a este navegador un push DE VERDAD, ahora.
+     *
+     * Es la unica prueba que cubre el camino entero: servidor → servicio de
+     * push (Google, Mozilla, Apple) → dispositivo → service worker → pantalla.
+     * Un aviso de prueba pintado desde la propia pagina solo demostraba que el
+     * sistema enseña notificaciones; este demuestra que llegan con la pagina
+     * cerrada, que es lo que se prometio.
+     *
+     * Se responde con lo que dijo el servicio de push. Si lo acepta y aun asi
+     * no aparece nada en el dispositivo, el fallo esta en el ultimo tramo y
+     * la pagina lo sabe porque el worker no le confirma la entrega.
+     */
+    public function probar(Request $request, WebPushService $push, AvisosPendientesService $avisos): JsonResponse
+    {
+        $datos = $request->validate([
+            'endpoint' => ['required', 'string', 'max:500'],
+        ]);
+
+        $suscripcion = PushSubscription::query()
+            ->where('endpoint', $datos['endpoint'])
+            ->where('user_id', Auth::id())
+            ->first();
+
+        if (!$suscripcion) {
+            return response()->json(['ok' => false, 'motivo' => 'sin-suscripcion'], 404);
+        }
+
+        // Lo que el worker va a encontrar cuando pregunte que ha pasado.
+        $avisos->marcarPrueba((int) Auth::id());
+
+        $resultado = $push->enviarConDetalle($suscripcion);
+
+        if (!$resultado['ok']) {
+            $this->anotarFallo($request, 'prueba-servidor', 'HTTP ' . ($resultado['estado'] ?? '?') . ' ' . ($resultado['cuerpo'] ?? ''));
+        }
+
+        return response()->json($resultado, $resultado['ok'] ? 200 : 502);
+    }
+
+    /**
+     * Lo que fallo en el navegador de alguien.
+     *
+     * Sin esto, "no me llegan los avisos" solo se podia diagnosticar con la
+     * consola del navegador abierta, que es lo ultimo que va a hacer un
+     * jugador. Se guardan los ultimos en la cache y `arena:push-check` los
+     * enseña con su motivo real.
+     *
+     * Sin CSRF a proposito: uno de los fallos posibles es justamente el token
+     * caducado, y la baliza tiene que llegar igual. No hace nada mas que
+     * anotar, esta limitada por minuto y cada campo va recortado.
+     */
+    public function fallo(Request $request): JsonResponse
+    {
+        $datos = json_decode((string) $request->getContent(), true);
+
+        if (!is_array($datos)) {
+            return response()->json(['ok' => false], 422);
+        }
+
+        $this->anotarFallo(
+            $request,
+            (string) ($datos['causa'] ?? 'desconocida'),
+            (string) ($datos['detalle'] ?? ''),
+            [
+                'permiso' => (string) ($datos['permiso'] ?? ''),
+                'standalone' => !empty($datos['standalone']),
+            ]
+        );
+
+        return response()->json(['ok' => true]);
+    }
+
+    public const CLAVE_FALLOS = 'arena:avisos:fallos';
+
+    private function anotarFallo(Request $request, string $causa, string $detalle, array $extra = []): void
+    {
+        $lista = Cache::get(self::CLAVE_FALLOS, []);
+
+        array_unshift($lista, array_merge([
+            'en' => now()->toDateTimeString(),
+            'usuario' => Auth::id(),
+            'causa' => mb_substr($causa, 0, 40),
+            'detalle' => mb_substr($detalle, 0, 300),
+            'navegador' => mb_substr((string) $request->userAgent(), 0, 160),
+        ], array_map(fn ($v) => is_string($v) ? mb_substr($v, 0, 40) : $v, $extra)));
+
+        Cache::put(self::CLAVE_FALLOS, array_slice($lista, 0, 30), now()->addDays(7));
     }
 
     /**

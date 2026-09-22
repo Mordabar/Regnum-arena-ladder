@@ -123,26 +123,23 @@ it('las frases del chat se arrastran de lado en movil y no en escritorio', funct
 });
 
 it('los avisos salen de la pagina cuando la pestaña esta de lado', function () {
-    // El fallo que conto el jugador: con la pestaña en otra ventana, ni suena
-    // ni alerta; habia que volver a mirar para enterarse, que es justo cuando
-    // ya no sirve. Un toast es un div y nadie lo ve desde fuera.
-    //
-    // Tres capas: notificacion del sistema si hay permiso, el titulo
-    // parpadeando -que no pide permiso a nadie- y el toast solo para cuando se
-    // esta mirando.
+    // Con la pestaña en otra ventana, un toast es un div que nadie ve. El
+    // aviso tiene que salir de la pagina: notificacion del sistema y titulo
+    // parpadeando.
     $css = hojaDelLayout();
 
     expect($css)->toContain('if (document.hidden) {')
-        ->and($css)->toContain('notificarSistema(type, message);')
+        ->and($css)->toContain('notificarSistema(type, message, options.tag || etiquetaDe(type, eventKey));')
         ->and($css)->toContain('parpadearTitulo(message);');
 
-    // El permiso se pide con un gesto y nunca al cargar: preguntado en frio se
-    // deniega, y denegado no se puede volver a pedir desde la pagina.
-    expect($css)->toContain('Notification.requestPermission()')
-        ->and($css)->toContain('Notification.permission !== \'default\'');
+    // Por el service worker: en Android `new Notification()` LANZA, asi que
+    // en movil este aviso no habia salido nunca.
+    expect($css)->toContain('await reg.showNotification(titulo, opciones);');
 
-    // Y el contexto de audio se reanima antes de programar las notas: en
-    // segundo plano el navegador lo suspende por su cuenta y todo salia de
-    // golpe al volver.
+    // Y con la misma etiqueta que el push: si llegan los dos, sale uno.
+    expect($css)->toContain("'match-found': 'cruce',")
+        ->and($css)->toContain('renotify: false,');
+
+    // El contexto de audio se reanima antes de programar las notas.
     expect($css)->toContain('if (context.state !== \'running\') {');
 });

@@ -62,6 +62,17 @@ Route::post('/player/register', [PlayerController::class, 'store'])->name('playe
 Route::put('/player/{player}/update', [PlayerController::class, 'update'])->name('player.update');
 Route::delete('/player/{player}', [PlayerController::class, 'destroy'])->name('player.destroy');
 
+/*
+ * Los limites de peticiones llevan NOMBRE, todos.
+ *
+ * Sin nombre, Laravel usa como clave solo el id del usuario, asi que todas las
+ * rutas con `throttle:N,M` de un mismo jugador comparten UN contador. El
+ * sondeo del lobby hace 20 llamadas por minuto durante un combate, y con eso
+ * el chat (20/min) quedaba en el limite y la prueba de avisos (6/min),
+ * bloqueada: los mensajes daban 429 sin que el jugador hubiera mandado casi
+ * nada. Con nombre, cada ruta cuenta lo suyo.
+ */
+
 Route::middleware(['auth', 'arena.maintenance'])->group(function () {
     // El lobby y la arena eran dos paginas que ensenaban lo mismo, y desde el
     // lobby "Pelear" llevaba a la otra en vez de a la cola. Ahora son una: se
@@ -71,7 +82,7 @@ Route::middleware(['auth', 'arena.maintenance'])->group(function () {
     // Solo el panel, para que el sondeo lo cambie en su sitio en vez de
     // recargar la pagina entera y tirar el scroll y los escenarios 3D.
     Route::get('/lobby/console', [QueueHubController::class, 'consoleFragment'])
-        ->middleware('throttle:60,1')
+        ->middleware('throttle:60,1,consola')
         ->name('lobby.console');
 
     // /queue sigue existiendo por los enlaces viejos, pero solo apunta al lobby.
@@ -86,7 +97,7 @@ Route::middleware(['auth', 'arena.maintenance'])->group(function () {
 
 Route::middleware('arena.maintenance')->group(function () {
     Route::get('/queue/state-poll', [QueueHubController::class, 'statePoll'])
-        ->middleware('throttle:30,1')
+        ->middleware('throttle:30,1,sondeo')
         ->name('queue.state-poll');
 });
 
@@ -103,14 +114,26 @@ Route::middleware('auth')->group(function () {
     Route::post('/avisos/suscribir', [AvisosController::class, 'suscribir'])->name('avisos.suscribir');
     Route::post('/avisos/desuscribir', [AvisosController::class, 'desuscribir'])->name('avisos.desuscribir');
     Route::get('/avisos/pendientes', [AvisosController::class, 'pendientes'])->name('avisos.pendientes');
+    // El push de prueba que se lanza al activar: el unico que demuestra el
+    // camino entero hasta el dispositivo. Limitado porque sale a un servicio
+    // externo en cada llamada.
+    Route::post('/avisos/probar', [AvisosController::class, 'probar'])
+        ->middleware('throttle:6,1,avisos-probar')
+        ->name('avisos.probar');
 });
+
+// La baliza de fallos. Sin sesion y sin CSRF a proposito: un token caducado
+// es uno de los fallos que tiene que poder contar. Solo anota, recortado.
+Route::post('/avisos/fallo', [AvisosController::class, 'fallo'])
+    ->middleware('throttle:20,1,avisos-fallo')
+    ->name('avisos.fallo');
 
 // Sin sesion y sin CSRF a proposito: la llama el service worker cuando el
 // servicio de push le rota la direccion, y ahi no hay ni documento del que
 // sacar un token ni garantia de sesion. La credencial es la direccion vieja,
 // que solo conoce ese navegador. Ver el metodo para el razonamiento completo.
 Route::post('/avisos/resuscribir', [AvisosController::class, 'resuscribir'])
-    ->middleware('throttle:10,1')
+    ->middleware('throttle:10,1,avisos-resuscribir')
     ->name('avisos.resuscribir');
 
 Route::middleware('auth')->group(function () {
@@ -127,7 +150,7 @@ Route::middleware('auth')->group(function () {
     // Los avisos rapidos del cruce. Con su propio limite de peticiones: aqui
     // no se recarga nada, se pulsa un boton, y un boton se pulsa muy rapido.
     Route::post('/matches/ping', [ArenaMatchController::class, 'ping'])
-        ->middleware('throttle:20,1')
+        ->middleware('throttle:20,1,chat')
         ->name('matches.ping');
 
     Route::post('/matches/report', [ArenaMatchController::class, 'report'])->name('matches.report');

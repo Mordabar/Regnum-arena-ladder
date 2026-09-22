@@ -12,8 +12,10 @@ use App\Support\VapidKeys;
 use App\Support\ArenaMode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
@@ -440,71 +442,108 @@ it('un rechazo del servicio viene con su explicacion', function () {
         ->toContain('vaciar push_subscriptions');
 });
 
-it('el registro del navegador cuenta por que no pudo, en vez de callarse', function () {
-    // Antes devolvia `false` y se acababa ahi: quien activaba las alertas
-    // creia que ya estaba y luego no le llegaba nada, sin ninguna pista.
-    $js = File::get(resource_path('views/partials/arena-push-runtime.blade.php'));
+/* ── El controlador del navegador ───────────────────────────────────────── */
 
-    // Los tres pasos fallan distinto y se arreglan distinto.
-    expect($js)->toContain("paso = 'suscripcion'")
-        ->and($js)->toContain("paso = 'servidor'")
-        ->and($js)->toContain('falta /sw.js');
+function runtimeDeAvisos(): string
+{
+    return File::get(resource_path('views/partials/arena-push-runtime.blade.php'));
+}
 
-    // Y antes de registrar se comprueba que el fichero esta: `register()` con
-    // un 404 lanza un error generico que no señala al despliegue.
-    expect($js)->toContain("fetch('/sw.js', { method: 'HEAD'");
+it('verde solo cuando el servidor tiene la suscripcion de este navegador', function () {
+    // El boton mentia: se pintaba verde por un ajuste guardado aunque no
+    // hubiera ni permiso ni suscripcion. Ahora "activo" exige, ademas, que el
+    // servidor haya confirmado ESA direccion.
+    $js = runtimeDeAvisos();
 
-    // El error crudo se conserva aunque se enseñe un mensaje claro.
-    expect($js)->toContain('detalle: error');
+    expect($js)->toContain("if (leer(CONFIRMADA) !== suscripcion.endpoint) { return 'inactivo'; }")
+        ->and($js)->toContain("if (Notification.permission !== 'granted') { return 'inactivo'; }")
+        ->and($js)->toContain("if (!s || !s.isEnabled()) { return 'inactivo'; }");
 });
 
-/* ── El interruptor ─────────────────────────────────────────────────────── */
+it('un toque nunca apaga lo que la persona ve apagado', function () {
+    // La trampa: la barra decia "Activar avisos" y el clic hacia
+    // `setEnabled(!enabled)`, que con el ajuste de fabrica APAGABA las
+    // alertas. Ahora el clic decide por el estado PINTADO y la barra delega en
+    // el controlador.
+    $js = runtimeDeAvisos();
 
-it('el boton solo se pone verde si el aviso va a llegar de verdad', function () {
-    // El fallo que conto el jugador: el interruptor decia "Alertas activas"
-    // desde la primera visita -porque el ajuste viene encendido de fabrica-
-    // cuando el navegador no habia dado permiso y no habia ninguna
-    // suscripcion. El boton mentia.
-    $js = File::get(resource_path('views/partials/arena-avisos-boton.blade.php'));
+    expect($js)->toContain("if (estadoActual === 'activo') { return desactivar(); }");
 
-    // Verde exige las tres cosas, no solo el ajuste guardado.
-    expect($js)->toContain('isEnabled()')
-        ->and($js)->toContain("Notification.permission !== 'granted'")
-        ->and($js)->toContain('estado.suscrito');
+    $layout = File::get(resource_path('views/layouts/arena.blade.php'));
+
+    expect($layout)->toContain('window.ArenaAvisos.alternar();')
+        // Y un solo pintor: el de sonido cede cuando el controlador existe.
+        ->and($layout)->toContain("if (window.ArenaAvisos) {\n                    window.ArenaAvisos.repintar();");
 });
 
-it('un solo toque activa los avisos, venga del estado que venga', function () {
-    // Para arreglarlo habia que APAGAR y volver a encender, que es lo que
-    // nadie va a adivinar. Pasaba porque el conmutador de siempre hace
-    // `setEnabled(!enabled)`: con el ajuste ya encendido pero sin suscripcion,
-    // un toque lo apagaba en vez de arreglarlo.
-    $js = File::get(resource_path('views/partials/arena-avisos-boton.blade.php'));
+it('una activacion en marcha no lanza otra', function () {
+    // Un toque lanzaba dos suscripciones en paralelo -evento y llamada
+    // directa- y se pisaban.
+    $js = runtimeDeAvisos();
 
-    // Las dos ramas van explicitas -encender y apagar- en vez de conmutar a
-    // ciegas, y la de encender fuerza ademas la suscripcion por si el ajuste
-    // ya estaba puesto y `setEnabled` no disparo nada nuevo.
-    expect($js)->toContain('setEnabled(true)')
-        ->and($js)->toContain('setEnabled(false)')
-        ->and($js)->toContain('ArenaPush.suscribir(true)');
+    expect($js)->toContain('if (enVuelo) { return enVuelo; }');
+});
 
-    // Y no cuelga del conmutador generico de la barra, que es el que hacia
-    // `setEnabled(!enabled)`.
-    expect($js)->toContain("boton.addEventListener('click'")
-        ->and($js)->not->toContain('data-arena-alert-toggle>');
+it('el permiso se pide dentro del gesto, antes de cualquier espera', function () {
+    // Safari y Firefox rechazan `requestPermission()` si el gesto ya se gasto
+    // en un `await` previo: el globo no salia y el boton se quedaba en rojo.
+    $js = runtimeDeAvisos();
+    $alternar = Str::between($js, 'function alternar() {', "return activar({ permisoPedido");
+
+    expect($alternar)->toContain('Notification.requestPermission()')
+        ->and($alternar)->not->toContain('await ');
+});
+
+it('al activar se prueba el camino entero con un push de verdad', function () {
+    // Pintar la notificacion desde la pagina solo demostraba que el sistema
+    // enseña notificaciones. La prueba ahora sale del servidor, pasa por el
+    // servicio de push y el worker confirma que le llego.
+    $js = runtimeDeAvisos();
+
+    expect($js)->toContain('RUTAS.probar')
+        ->and($js)->toContain("'arena:prueba-recibida'");
+
+    expect(File::get(public_path('sw.js')))->toContain("postMessage({ tipo: 'arena:prueba-recibida' })");
+});
+
+it('cada fallo del navegador le llega al servidor', function () {
+    $js = runtimeDeAvisos();
+
+    expect($js)->toContain('navigator.sendBeacon(RUTAS.fallo')
+        ->and($js)->toContain("informar(causa, error);");
+});
+
+it('una suscripcion sin clave legible no se tira en cada carga', function () {
+    // Antes un navegador que no rellena `options.applicationServerKey` contaba
+    // como "clave distinta": se desuscribia y se volvia a suscribir en cada
+    // pagina, cambiando de direccion y dejando la vieja muerta en el servidor.
+    $js = runtimeDeAvisos();
+
+    expect($js)->toContain('if (!actual) { return null; }')
+        ->and($js)->toContain('claveDeLaSuscripcion(suscripcion) === false');
+});
+
+/* ── El boton flotante ──────────────────────────────────────────────────── */
+
+function botonDeAvisos(): string
+{
+    return File::get(resource_path('views/partials/arena-avisos-boton.blade.php'));
+}
+
+it('el flotante no decide nada: pinta y delega', function () {
+    $js = botonDeAvisos();
+
+    expect($js)->toContain("document.addEventListener('arena:avisos-estado'")
+        ->and($js)->toContain('window.ArenaAvisos.alternar();')
+        ->and($js)->not->toContain('setEnabled(');
 });
 
 it('en movil el interruptor sale del menu y queda flotante', function () {
-    // Detras de la hamburguesa no lo encuentra nadie, y es lo primero que hay
-    // que tocar para que el sitio sirva de algo.
-    $js = File::get(resource_path('views/partials/arena-avisos-boton.blade.php'));
+    $js = botonDeAvisos();
 
     expect($js)->toContain('.arena-mobile-menu [data-arena-alert-toggle] { display: none; }')
-        // Y en escritorio al reves: manda el de la barra, que ya esta a la
-        // vista, y el flotante estorba.
         ->and($js)->toContain('@media (min-width: 1024px)');
 
-    // Va incluido en el layout DESPUES del runtime de push: necesita
-    // `window.ArenaPush` para saber si hay suscripcion.
     $layout = File::get(resource_path('views/layouts/arena.blade.php'));
     $push = strpos($layout, "@include('partials.arena-push-runtime')");
     $boton = strpos($layout, "@include('partials.arena-avisos-boton')");
@@ -512,12 +551,188 @@ it('en movil el interruptor sale del menu y queda flotante', function () {
     expect($boton)->not->toBeFalse()->and($boton)->toBeGreaterThan($push);
 });
 
-it('la pista de la primera visita se va sola y no vuelve', function () {
-    $js = File::get(resource_path('views/partials/arena-avisos-boton.blade.php'));
+it('la pista respira en pequeño y se va a los diez segundos', function () {
+    $js = botonDeAvisos();
 
-    // Diez segundos: lo que se tarda en leerla sin que sea un cartel fijo.
-    expect($js)->toContain('var PISTA_MS = 10000;')
-        // Y una sola vez en la vida de ese navegador: despues, el boton rojo
-        // ya lo dice por si solo.
-        ->and($js)->toContain('arena:avisos:pista-vista');
+    // Crece un 4,5 % y vuelve: se nota sin tapar pantalla.
+    expect($js)->toContain('50% { transform: scale(1.045); }')
+        ->and($js)->toContain('white-space: nowrap;')
+        ->and($js)->toContain('var PISTA_MS = 10000;')
+        // Una vez por visita, no una en la vida: quien no activo la primera
+        // vez sigue necesitando el recordatorio.
+        ->and($js)->toContain('sessionStorage');
+});
+
+/* ── Servidor: prueba, baliza y sustitucion ─────────────────────────────── */
+
+it('la prueba de ida y vuelta manda un push real y lo anuncia como prueba', function () {
+    conClavesDePrueba();
+    Http::fake(['*' => Http::response('', 201)]);
+
+    $jugador = jugadorPush('Probador');
+    PushSubscription::create(['user_id' => $jugador->user_id, 'endpoint' => 'https://fcm.googleapis.com/fcm/send/prueba']);
+
+    $this->actingAs($jugador->user)
+        ->postJson(route('avisos.probar'), ['endpoint' => 'https://fcm.googleapis.com/fcm/send/prueba'])
+        ->assertOk()
+        ->assertJson(['ok' => true, 'estado' => 201, 'servicio' => 'fcm.googleapis.com']);
+
+    Http::assertSent(fn ($r) => $r->url() === 'https://fcm.googleapis.com/fcm/send/prueba'
+        && str_starts_with($r->header('Authorization')[0] ?? '', 'vapid t='));
+
+    // Y lo que el worker encuentra al preguntar es la prueba, la mas nueva.
+    $avisos = collect(app(AvisosPendientesService::class)->para($jugador->user))->sortByDesc('en');
+
+    expect($avisos->first()['tag'])->toBe('arena:prueba')
+        ->and($avisos->first()['prueba'])->toBeTrue();
+});
+
+it('no se puede lanzar la prueba contra el navegador de otro', function () {
+    conClavesDePrueba();
+    Http::fake();
+
+    $dueño = jugadorPush('Dueno');
+    $otro = jugadorPush('Otro');
+    PushSubscription::create(['user_id' => $dueño->user_id, 'endpoint' => 'https://fcm.googleapis.com/fcm/send/ajena']);
+
+    $this->actingAs($otro->user)
+        ->postJson(route('avisos.probar'), ['endpoint' => 'https://fcm.googleapis.com/fcm/send/ajena'])
+        ->assertNotFound();
+
+    Http::assertNothingSent();
+});
+
+it('la baliza anota el fallo sin sesion ni token', function () {
+    // Tiene que llegar aunque el fallo sea justo un token caducado.
+    Cache::forget(\App\Http\Controllers\AvisosController::CLAVE_FALLOS);
+
+    $this->call('POST', route('avisos.fallo'), [], [], [], ['CONTENT_TYPE' => 'application/json'], json_encode([
+        'causa' => 'suscripcion',
+        'detalle' => 'AbortError: Registration failed - ' . str_repeat('x', 900),
+        'permiso' => 'granted',
+    ]))->assertOk();
+
+    $fallos = Cache::get(\App\Http\Controllers\AvisosController::CLAVE_FALLOS);
+
+    expect($fallos)->toHaveCount(1)
+        ->and($fallos[0]['causa'])->toBe('suscripcion')
+        // Recortado: nadie llena la cache mandando un libro.
+        ->and(mb_strlen($fallos[0]['detalle']))->toBeLessThanOrEqual(300);
+
+    // Y la revision lo enseña.
+    expect(revisionDePush())->toContain('Fallos en navegadores')->toContain('suscripcion');
+});
+
+it('al cambiar de direccion, el navegador sustituye la suya y no la de otros', function () {
+    conClavesDePrueba();
+
+    $yo = jugadorPush('Rotador');
+    $otro = jugadorPush('Ajeno');
+
+    PushSubscription::create(['user_id' => $yo->user_id, 'endpoint' => 'https://push.example/vieja-mia']);
+    PushSubscription::create(['user_id' => $otro->user_id, 'endpoint' => 'https://push.example/de-otro']);
+
+    // Con la mia: se sustituye.
+    $this->actingAs($yo->user)->postJson(route('avisos.suscribir'), [
+        'endpoint' => 'https://push.example/nueva-mia',
+        'anterior' => 'https://push.example/vieja-mia',
+    ])->assertOk();
+
+    // Intentando tirar la de otro: no pasa nada.
+    $this->actingAs($yo->user)->postJson(route('avisos.suscribir'), [
+        'endpoint' => 'https://push.example/nueva-mia',
+        'anterior' => 'https://push.example/de-otro',
+    ])->assertOk();
+
+    expect(PushSubscription::pluck('endpoint')->sort()->values()->all())
+        ->toBe(['https://push.example/de-otro', 'https://push.example/nueva-mia']);
+});
+
+it('el worker enseña solo lo ultimo que ha pasado', function () {
+    // Antes enseñaba la lista entera: cada "voy de camino" del rival volvia a
+    // sacar tambien el "¡A pelear!" del combate.
+    $yo = jugadorPush('Ultimo', 'ignis');
+    $rival = jugadorPush('RivalUltimo', 'syrtis');
+
+    $match = crucePush($yo, $rival, 'in_progress', [
+        'started_at' => now()->subMinutes(5),
+        'expires_at' => now()->addMinutes(20),
+    ]);
+
+    MatchPing::create(['match_id' => (string) $match->id, 'player_id' => $rival->id, 'code' => 'voy']);
+
+    $avisos = app(AvisosPendientesService::class)->para($yo->user);
+    $ultimo = collect($avisos)->sortByDesc('en')->first();
+
+    expect($ultimo['tag'])->toBe('chat:' . $match->id)
+        ->and($ultimo['cuerpo'])->toBe('Voy de camino');
+
+    expect(File::get(public_path('sw.js')))
+        ->toContain("avisos.sort((a, b) => String(b.en || '').localeCompare(String(a.en || '')));")
+        ->toContain('const aviso = avisos[0] ||');
+});
+
+it('el resultado recien confirmado tiene su aviso, con victoria o derrota', function () {
+    $yo = jugadorPush('Ganador', 'ignis');
+    $rival = jugadorPush('Perdedor', 'syrtis');
+
+    crucePush($yo, $rival, 'completed', [
+        'completed_at' => now()->subMinute(),
+        'winner_team' => 'team_a',
+    ]);
+
+    $mio = collect(app(AvisosPendientesService::class)->para($yo->user))->firstWhere('titulo', 'Resultado confirmado');
+    $suyo = collect(app(AvisosPendientesService::class)->para($rival->user))->firstWhere('titulo', 'Resultado confirmado');
+
+    expect($mio['cuerpo'])->toStartWith('Victoria')
+        ->and($suyo['cuerpo'])->toStartWith('Derrota');
+});
+
+it('el aviso del rival sale en push a los demas y no a quien lo manda', function () {
+    conClavesDePrueba();
+    Http::fake(['*' => Http::response('', 201)]);
+
+    $yo = jugadorPush('Emisor', 'ignis');
+    $rival = jugadorPush('Receptor', 'syrtis');
+    $match = crucePush($yo, $rival, 'in_progress', ['expires_at' => now()->addMinutes(20)]);
+
+    PushSubscription::create(['user_id' => $yo->user_id, 'endpoint' => 'https://push.example/emisor']);
+    PushSubscription::create(['user_id' => $rival->user_id, 'endpoint' => 'https://push.example/receptor']);
+
+    app(\App\Services\MatchPingService::class)->enviar($match, $yo, 'llegue');
+
+    // En una peticion web sale al terminar, despues de responder.
+    app()->terminate();
+
+    Http::assertSent(fn ($r) => $r->url() === 'https://push.example/receptor');
+    Http::assertNotSent(fn ($r) => $r->url() === 'https://push.example/emisor');
+});
+
+/* ── Los limites de peticiones ──────────────────────────────────────────── */
+
+it('el sondeo del lobby no se come el cupo del chat ni de los avisos', function () {
+    // Sin nombre, todos los `throttle` de un usuario comparten contador: el
+    // sondeo (20/min en combate) dejaba el chat (20/min) en el limite y la
+    // prueba de avisos (6/min) bloqueada. Cada limite lleva su nombre.
+    $jugador = jugadorPush('Sondeador');
+
+    for ($i = 0; $i < 25; $i++) {
+        $this->actingAs($jugador->user)->getJson(route('queue.state-poll'));
+    }
+
+    // El limitador responde ANTES de validar: si deja pasar, sale un 422.
+    $this->actingAs($jugador->user)->postJson(route('matches.ping'), [])->assertStatus(422);
+    $this->actingAs($jugador->user)->postJson(route('avisos.probar'), [])->assertStatus(422);
+});
+
+it('ningun limite de peticiones va sin nombre', function () {
+    $rutas = File::get(base_path('routes/web_main.php'));
+
+    preg_match_all("/throttle:(\d+),(\d+)(,[\w-]+)?'/", $rutas, $m, PREG_SET_ORDER);
+
+    expect($m)->not->toBeEmpty();
+
+    foreach ($m as $limite) {
+        expect($limite[3] ?? '')->not->toBe('', 'throttle:' . $limite[1] . ',' . $limite[2] . ' sin nombre comparte contador con todo lo demas');
+    }
 });
