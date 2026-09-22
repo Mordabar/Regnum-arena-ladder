@@ -1718,6 +1718,67 @@ class QueueHubController extends Controller
      * que el rival contestara, asi que la prueba se quedaba a medias esperando
      * a que venciera el plazo.
      */
+    /**
+     * Un bot manda un aviso del chat de combate.
+     *
+     * Sin esto el chat no se puede probar: hacen falta dos personas, una en
+     * cada bando, y el laboratorio existe justamente para no necesitarlas. El
+     * aviso lo firma un bot del equipo CONTRARIO, que es el unico caso que
+     * interesa ensayar -el sonido, el bocadillo sobre la figura del rival y el
+     * anonimato del nombre en 2v2 y 3v3-.
+     */
+    public function sandboxBotPing(Request $request, ArenaMatch $match, MatchPingService $avisos, TestingLabService $testingLabService)
+    {
+        $this->ensureSandboxAccess();
+
+        $validated = $request->validate([
+            'code' => 'required|string|max:40',
+        ]);
+
+        if (!$avisos->abierto($match)) {
+            return back()->withErrors(['error' => 'Este enfrentamiento ya esta cerrado: no admite avisos.']);
+        }
+
+        $bots = $testingLabService->testPlayerIds();
+        $entradas = collect($match->getAllPlayers());
+
+        $persona = $entradas->first(fn ($fila) => !$bots->contains((int) ($fila['player_id'] ?? 0)));
+        $bandoPersona = $persona
+            ? $match->getTeamSideForPlayer((int) $persona['player_id'], $persona['discord_id'] ?? null)
+            : null;
+
+        $elegido = $entradas
+            ->filter(fn ($fila) => $bots->contains((int) ($fila['player_id'] ?? 0)))
+            ->sortByDesc(function ($fila) use ($match, $bandoPersona) {
+                if (!$bandoPersona) {
+                    return 0;
+                }
+
+                $bando = $match->getTeamSideForPlayer((int) $fila['player_id'], $fila['discord_id'] ?? null);
+
+                return $bando !== null && $bando !== $bandoPersona ? 1 : 0;
+            })
+            ->first();
+
+        if (!$elegido) {
+            return back()->withErrors(['error' => 'Este enfrentamiento no tiene ningun bot que pueda avisar.']);
+        }
+
+        $bot = Player::find((int) $elegido['player_id']);
+
+        if (!$bot) {
+            return back()->withErrors(['error' => 'No se encuentra el bot que tenia que avisar.']);
+        }
+
+        $resultado = $avisos->enviar($match, $bot, $validated['code']);
+
+        if (!$resultado['ok']) {
+            return back()->withErrors(['error' => $resultado['motivo'] ?? 'No se pudo mandar el aviso.']);
+        }
+
+        return back()->with('success', $bot->character_name . ' ha mandado un aviso.');
+    }
+
     public function sandboxBotConfirm(Request $request, ArenaMatch $match, ArenaMatchResultService $resultService, TestingLabService $testingLabService)
     {
         $this->ensureSandboxAccess();

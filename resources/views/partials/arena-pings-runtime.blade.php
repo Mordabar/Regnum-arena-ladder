@@ -99,27 +99,17 @@
         }
     }
 
-    function pintarCabecera(caja, pings) {
-        var preview = caja.querySelector('[data-chat-preview]');
+    /* Los que han llegado mientras no se miraba.
 
-        if (preview && pings.length) {
-            var ultimo = pings[pings.length - 1];
-            preview.innerHTML = '<b>' + escapar(ultimo.nombre || '') + '</b> ' + escapar(ultimo.texto || '');
-        }
-    }
-
-    /* Los que no ha leido.
-
-       Solo cuenta plegado: con la caja abierta los esta viendo, y un contador
-       que no baja nunca deja de significar nada. */
+       El chat ya no se pliega, asi que "sin leer" es lo que ha entrado con la
+       pestaña en segundo plano o con el log subido releyendo algo. Se limpia en
+       cuanto se vuelve a mirar. */
     function pintarContador(caja) {
         var chapa = caja.querySelector('[data-chat-badge]');
         if (!chapa) { return; }
 
-        var abierto = caja.dataset.open === '1';
-        var sinLeer = abierto ? 0 : (caja._arenaSinLeer || 0);
+        var sinLeer = caja._arenaSinLeer || 0;
 
-        caja._arenaSinLeer = sinLeer;
         chapa.textContent = sinLeer > 9 ? '9+' : String(sinLeer);
         chapa.hidden = sinLeer === 0;
     }
@@ -148,7 +138,6 @@
         var nuevos = visto === undefined ? [] : pings.filter(function (p) { return p.id > visto; });
 
         pintarHistorial(caja, pings);
-        pintarCabecera(caja, pings);
 
         if (opciones.conBocadillos !== false) {
             nuevos.forEach(sacarBocadillo);
@@ -161,7 +150,10 @@
         if (suyos.length) {
             var ultimo = suyos[suyos.length - 1];
 
-            if (caja.dataset.open !== '1') {
+            // Solo se cuentan como no leidos los que entran con la pestaña de
+            // lado. A la vista estan, y un contador que no baja nunca deja de
+            // significar nada.
+            if (document.visibilityState === 'hidden') {
                 caja._arenaSinLeer = (caja._arenaSinLeer || 0) + suyos.length;
             }
 
@@ -181,54 +173,15 @@
             : (visto || 0);
     }
 
-    /* Abrir y cerrar.
+    /* Al volver a la pestaña ya no hay nada sin leer: esta a la vista. */
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'hidden') { return; }
 
-       El estado se recuerda por enfrentamiento: quien lo abre una vez espera
-       encontrarlo abierto en el repintado siguiente, y el panel se repinta solo
-       cada pocos segundos. */
-    function plegado(idMatch) {
-        try {
-            return window.sessionStorage.getItem('arena:chat-abierto:' + idMatch) === '1';
-        } catch (e) { return false; }
-    }
-
-    function recordarPlegado(idMatch, abierto) {
-        try {
-            window.sessionStorage.setItem('arena:chat-abierto:' + idMatch, abierto ? '1' : '0');
-        } catch (e) { /* sin sessionStorage se abre cerrado y ya */ }
-    }
-
-    function abrir(caja, abierto) {
-        var cuerpo = caja.querySelector('[data-chat-body]');
-        var boton = caja.querySelector('[data-chat-toggle]');
-        if (!cuerpo) { return; }
-
-        caja.dataset.open = abierto ? '1' : '0';
-        cuerpo.hidden = !abierto;
-
-        if (boton) { boton.setAttribute('aria-expanded', abierto ? 'true' : 'false'); }
-
-        recordarPlegado(caja.dataset.pingsMatch || '', abierto);
-
-        if (abierto) {
-            caja._arenaSinLeer = 0;
-
-            var log = caja.querySelector('[data-pings-log]');
-            if (log) { log.scrollTop = log.scrollHeight; }
-        }
-
-        pintarContador(caja);
-    }
-
-    document.addEventListener('click', function (event) {
-        var boton = event.target.closest('[data-chat-toggle]');
-        if (!boton) { return; }
-
-        var caja = boton.closest('[data-pings]');
+        var caja = nodoDeAvisos();
         if (!caja) { return; }
 
-        event.preventDefault();
-        abrir(caja, caja.dataset.open !== '1');
+        caja._arenaSinLeer = 0;
+        pintarContador(caja);
     });
 
     /* Si el jugador ha subido a releer algo, el repintado no puede arrastrarle
@@ -261,6 +214,15 @@
         return meta ? meta.getAttribute('content') : '';
     }
 
+    /* El toque de "ha salido". Distinto del que suena cuando avisa el rival:
+       durante un combate no se mira la pantalla, y los dos tienen que poder
+       distinguirse de oido. */
+    function sonarEnvio() {
+        if (window.ArenaSoundAlerts && typeof window.ArenaSoundAlerts.play === 'function') {
+            window.ArenaSoundAlerts.play('match_ping_sent');
+        }
+    }
+
     function enviar(caja, boton, code) {
         // Todos los botones a la vez mientras vuela: si se bloqueara solo el
         // pulsado, pulsar tres seguidos se saltaria el limite del servidor y el
@@ -290,11 +252,8 @@
             }
 
             avisar(caja, 'Enviado');
+            sonarEnvio();
             pintar(res.data.pings, { conBocadillos: true });
-
-            // Quien manda un aviso quiere ver que salio: si estaba plegado, se
-            // abre solo.
-            if (caja.dataset.open !== '1') { abrir(caja, true); }
         }).catch(function () {
             avisar(caja, 'Sin conexion. Intentalo otra vez.', true);
         }).finally(function () {
@@ -328,7 +287,6 @@
         if (!caja || caja.dataset.pingsReady === '1') { return; }
 
         caja.dataset.pingsReady = '1';
-        abrir(caja, plegado(caja.dataset.pingsMatch || ''));
 
         var log = caja.querySelector('[data-pings-log]');
         if (log) { log.scrollTop = log.scrollHeight; }

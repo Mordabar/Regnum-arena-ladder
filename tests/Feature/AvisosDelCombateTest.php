@@ -115,30 +115,40 @@ it('no se avisa en un combate ya cerrado', function () {
 
 // -------------------------------------------------------------------- el tope
 
-it('el mismo aviso no se puede repetir al momento', function () {
+it('el mismo aviso se puede mandar tres veces y a la cuarta no', function () {
+    // Repetir "voy de camino" porque el rival no contesta no es spam, es
+    // insistir. Antes se cortaba al segundo y el jugador se topaba con un
+    // error en el uso normal.
     $yo = jugadorAviso('j', 'ignis');
     $match = cruceCon($yo, jugadorAviso('k', 'alsius'));
     $avisos = app(MatchPingService::class);
 
     expect($avisos->enviar($match, $yo, 'voy')['ok'])->toBeTrue()
+        ->and($avisos->enviar($match, $yo, 'voy')['ok'])->toBeTrue()
+        ->and($avisos->enviar($match, $yo, 'voy')['ok'])->toBeTrue()
         ->and($avisos->enviar($match, $yo, 'voy')['ok'])->toBeFalse()
-        // Otro distinto si, claro: lo que se corta es la repeticion.
+        // Otro distinto si, claro: lo que se corta es la insistencia con uno.
         ->and($avisos->enviar($match, $yo, 'cerca')['ok'])->toBeTrue();
 });
 
-it('pasado el descanso el mismo aviso vuelve a valer', function () {
+it('pasado el minuto el mismo aviso vuelve a valer', function () {
     $yo = jugadorAviso('l', 'ignis');
     $match = cruceCon($yo, jugadorAviso('m', 'alsius'));
     $avisos = app(MatchPingService::class);
 
-    $avisos->enviar($match, $yo, 'voy');
-    $this->travel(20)->seconds();
+    foreach (range(1, 3) as $vez) {
+        $avisos->enviar($match, $yo, 'voy');
+    }
+
+    expect($avisos->enviar($match, $yo, 'voy')['ok'])->toBeFalse();
+
+    $this->travel(61)->seconds();
 
     expect($avisos->enviar($match, $yo, 'voy')['ok'])->toBeTrue();
 });
 
-it('una rafaga se corta al sexto aviso del minuto', function () {
-    // Sin tope, los diez botones son diez formas de molestar al rival.
+it('una rafaga se corta al llegar al tope del minuto', function () {
+    // Sin tope, los botones son formas de molestar al rival.
     $yo = jugadorAviso('n', 'ignis');
     $match = cruceCon($yo, jugadorAviso('o', 'alsius'));
     $avisos = app(MatchPingService::class);
@@ -146,18 +156,20 @@ it('una rafaga se corta al sexto aviso del minuto', function () {
     $codigos = array_keys(MatchPing::CATALOGO);
     $aceptados = 0;
 
-    foreach ($codigos as $code) {
+    // Dos vueltas al catalogo: seis frases no llegan al tope por si solas.
+    foreach (array_merge($codigos, $codigos, $codigos) as $code) {
         if ($avisos->enviar($match, $yo, $code)['ok']) {
             $aceptados++;
         }
     }
 
-    expect($aceptados)->toBe(6);
+    expect($aceptados)->toBe(12)
+        ->and($avisos->enviar($match, $yo, 'muerto')['ok'])->toBeFalse();
 
     // Y al minuto siguiente se puede volver a avisar.
     $this->travel(61)->seconds();
 
-    expect($avisos->enviar($match, $yo, 'vamos')['ok'])->toBeTrue();
+    expect($avisos->enviar($match, $yo, 'muerto')['ok'])->toBeTrue();
 });
 
 // ----------------------------------------------------------------- el anonimato

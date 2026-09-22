@@ -716,6 +716,18 @@
         transition: background var(--ap-fast) var(--ap-ease), border-color var(--ap-fast) var(--ap-ease);
     }
 
+    /* Una fila de acciones secundarias, separada de la principal por una regla:
+       las de arriba cierran el enfrentamiento, estas solo mandan un aviso. */
+    .ap-subrow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-top: 9px;
+        padding-top: 9px;
+        border-top: 1px dashed var(--ap-line);
+    }
+
     a.ap-list-row:hover { background: var(--ap-surface-raised); border-color: var(--ap-line); }
     .ap-list-row + .ap-list-row { margin-top: 2px; }
     .ap-list-main { min-width: 0; flex: 1; }

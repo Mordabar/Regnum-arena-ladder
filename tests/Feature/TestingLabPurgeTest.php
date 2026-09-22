@@ -462,3 +462,65 @@ it('la purga vacia el resumen del ladder, que va cacheado', function () {
 
     expect(\Illuminate\Support\Facades\Cache::has('ladder:top-by-realm:v2'))->toBeFalse();
 });
+
+it('un bot puede mandar un aviso del chat de combate', function () {
+    // El chat no se podia probar: hacen falta dos personas, una en cada bando,
+    // y el laboratorio existe justamente para no necesitarlas.
+    $lab = app(\App\Services\TestingLabService::class);
+    $lab->seedRoster(['ignis' => 1, 'syrtis' => 2]);
+    $bots = $lab->testPlayersQuery()->get();
+
+    $human = \App\Models\Player::create([
+        'user_id' => \App\Models\User::create([
+            'discord_id' => 'lab-human-3', 'discord_username' => 'lab_human_3',
+            'name' => 'Lab Human 3', 'email' => 'lab-human-3@example.com',
+        ])->id,
+        'character_name' => 'Persona3', 'subclass' => 'knight', 'realm' => 'ignis',
+        'pl_points' => 0, 'mmr' => 1000, 'trust_score' => 100, 'is_active' => true,
+    ]);
+
+    $mate = $bots->firstWhere('realm', 'ignis');
+    $foes = $bots->where('realm', 'syrtis')->take(2)->values();
+
+    $pack = fn (\App\Models\Player $p) => [
+        'player_id' => $p->id,
+        'character_name' => $p->character_name,
+        'subclass' => $p->subclass,
+        'realm' => $p->realm,
+        'discord_id' => (string) $p->user_id,
+    ];
+
+    $match = \App\Models\ArenaMatch::create([
+        'match_code' => 'LAB-PING', 'report_token' => 'LABPINGTOKEN',
+        'queue_mode' => 'random', 'arena_mode' => '2v2',
+        'team_a_realm' => 'ignis', 'team_b_realm' => 'syrtis',
+        'team_a' => [$pack($human), $pack($mate)],
+        'team_b' => [$pack($foes[0]), $pack($foes[1])],
+        'zone' => 'frozen_bridge', 'status' => 'in_progress',
+        'estimated_mmr_avg' => 1000, 'player_count' => 4,
+        'started_at' => now(), 'expires_at' => now()->addMinutes(30),
+    ]);
+
+    $admin = [
+        'arena_admin.authenticated' => true,
+        'arena_admin.account_id' => 1,
+        'arena_admin.username' => 'admin',
+        'arena_admin.display_name' => 'admin',
+    ];
+
+    $this->withSession($admin)
+        ->post(route('admin.testing.bot-ping', $match), ['code' => 'voy'])
+        ->assertSessionHas('success');
+
+    $ping = \App\Models\MatchPing::query()->where('match_id', (string) $match->id)->firstOrFail();
+
+    // Lo firma un bot del equipo CONTRARIO: es el unico caso que hace falta
+    // ensayar -el sonido, el bocadillo y el nombre escondido del rival-.
+    expect($foes->pluck('id')->contains((int) $ping->player_id))->toBeTrue()
+        ->and($ping->code)->toBe('voy');
+
+    // Y un codigo que no existe no entra.
+    $this->withSession($admin)
+        ->post(route('admin.testing.bot-ping', $match), ['code' => 'lo_que_sea'])
+        ->assertSessionHasErrors('error');
+});

@@ -1958,8 +1958,11 @@
                un numero suelto que no decia de que era. */
             .arena-podium-unit { display: none; }
             .arena-podium-unit-short { display: inline; font-size: 11px; }
-            .arena-podium-prize { gap: 3px; }
-            .arena-podium-gema-mini { width: 13px; }
+            /* La gema pasa a su propia linea, debajo de la cifra. Al lado
+               estrecha el numero, que es lo que hay que leer primero, y en un
+               cajon de un tercio de pantalla eso se nota. */
+            .arena-podium-prize { gap: 3px; flex-wrap: wrap; }
+            .arena-podium-gema-mini { width: 20px; flex-basis: 100%; margin: 3px auto 0; }
             .arena-podium-who { margin-top: 4px; padding-top: 4px; }
             .arena-podium-who b { font-size: 11px; }
             .arena-podium-who > span { font-size: 9.5px; }
@@ -2154,20 +2157,20 @@
             overflow: hidden;
         }
 
+        /* La cabecera ya no es un boton: el chat esta siempre abierto. Plegado
+           no servia -se usa con prisa, a mitad de un combate, y abrir la caja
+           era un paso que nadie daba- asi que aqui solo queda el rotulo y el
+           contador de lo que llego con la pestaña de lado. */
         .arena-chat-head {
             display: flex;
             align-items: center;
             gap: 9px;
             width: 100%;
+            max-width: 620px;
+            margin-inline: auto;
             padding: 10px 13px;
-            background: none;
-            border: 0;
-            color: inherit;
-            cursor: pointer;
             text-align: left;
-            transition: background .2s ease;
         }
-        .arena-chat-head:hover { background: rgba(255, 255, 255, 0.03); }
 
         .arena-chat-dot {
             width: 7px;
@@ -2185,19 +2188,10 @@
             white-space: nowrap;
             flex: none;
         }
-        .arena-chat-preview {
-            flex: 1 1 auto;
-            min-width: 0;
-            font-size: 12.5px;
-            color: var(--arena-muted);
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        .arena-chat-preview b { color: var(--arena-sand); font-weight: 600; }
+        .arena-chat-title { flex: 1 1 auto; }
 
-        /* Lo que no se ha leido. Solo aparece plegado: abierto ya lo estas
-           viendo, y un contador que no baja nunca deja de significar nada. */
+        /* Lo que llego con la pestaña de lado. Se limpia al volver a mirar: un
+           contador que no baja nunca deja de significar nada. */
         .arena-chat-badge {
             flex: none;
             min-width: 19px;
@@ -2214,20 +2208,7 @@
         }
         .arena-chat-badge[hidden] { display: none; }
 
-        .arena-chat-caret {
-            flex: none;
-            width: 16px;
-            height: 16px;
-            color: var(--arena-muted);
-            transition: transform .25s ease;
-        }
-        .arena-chat[data-open="1"] .arena-chat-caret { transform: rotate(180deg); }
-        /* Abierto, el adelanto sobra: lo que resume ya se esta leyendo entero
-           dos centimetros mas abajo. */
-        .arena-chat[data-open="1"] .arena-chat-preview { opacity: 0; }
-
         .arena-chat-body { border-top: 1px solid var(--arena-line); }
-        .arena-chat-body[hidden] { display: none; }
 
         .arena-chat-log {
             list-style: none;
@@ -2308,53 +2289,41 @@
         /* La barra se desliza, y eso tiene que VERSE. Sin el degradado del
            final, la ultima frase aparece cortada y parece un fallo de maqueta
            en vez de una invitacion a arrastrar. */
-        .arena-chat-quick-wrap {
-            position: relative;
-            border-top: 1px solid var(--arena-line);
-            /* Alineada con la columna de mensajes. El limite va en el envoltorio
-               y no en la barra para que el degradado del final -que marca que
-               hay mas frases a la derecha- caiga donde de verdad se corta la
-               barra, y no a doscientos pixeles de ahi. */
+        /* Las seis frases, en rejilla y todas a la vista.
+           Antes iban en una barra que se arrastraba de lado. En un movil eso
+           funciona; con raton no, asi que en escritorio la mitad de las frases
+           sencillamente no existian: no habia forma de llegar a ellas. */
+        .arena-chat-quick {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 7px;
             width: 100%;
             max-width: 620px;
             margin-inline: auto;
+            padding: 10px 13px;
+            border-top: 1px solid var(--arena-line);
         }
-        .arena-chat-quick-wrap::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            right: 0;
-            bottom: 0;
-            width: 34px;
-            pointer-events: none;
-            background: linear-gradient(90deg, transparent, rgba(10, 7, 5, 0.92));
-        }
-        .arena-chat-quick {
-            display: flex;
-            gap: 6px;
-            padding: 9px 13px;
-            overflow-x: auto;
-            scrollbar-width: none;
-            -webkit-overflow-scrolling: touch;
-            scroll-snap-type: x proximity;
-        }
-        .arena-chat-quick-btn { scroll-snap-align: start; }
-        .arena-chat-quick::-webkit-scrollbar { display: none; }
         .arena-chat-quick-btn {
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 6px;
-            flex: none;
-            padding: 6px 12px;
-            border-radius: 99px;
+            min-width: 0;
+            padding: 8px 10px;
+            border-radius: 10px;
             border: 1px solid var(--arena-line);
             background: rgba(24, 17, 11, 0.9);
             color: var(--arena-text);
             font-size: 12px;
-            white-space: nowrap;
+            line-height: 1.2;
+            text-align: center;
             cursor: pointer;
             transition: transform .15s ease, border-color .2s ease, background .2s ease;
         }
+        .arena-chat-quick-icon { flex: none; }
+        /* La frase se parte en dos lineas antes que salirse del boton: en una
+           rejilla de tres columnas, "Esperame, ya voy" no cabe de una pieza. */
+        .arena-chat-quick-text { min-width: 0; }
         .arena-chat-quick-btn:hover:not(:disabled) {
             transform: translateY(-1px);
             border-color: rgba(222, 185, 99, 0.5);
@@ -2408,30 +2377,26 @@
             .arena-battle-fighter figcaption span { font-size: 10px; }
             .arena-battle-bubble { font-size: 11px; padding: 5px 9px; gap: 5px; }
 
-            /* La cabecera del chat: el titulo se va SOLO cuando hay un adelanto
-               que leer. Quitarlo siempre dejaba, con la caja abierta, una
-               barra con un punto verde y una flecha y nada mas. */
-            .arena-chat:not([data-open="1"]) .arena-chat-title { display: none; }
-            .arena-chat[data-open="1"] .arena-chat-preview { display: none; }
+            .arena-chat-head { padding: 9px 12px; }
             .arena-chat-log { min-height: 84px; max-height: 148px; padding: 10px; }
             .arena-chat-bubble { max-width: 86%; }
-            .arena-chat-quick { padding: 8px 10px; gap: 8px; }
 
-            /* Dedos, no raton. Un boton de treinta pixeles de alto dentro de
-               una barra que ademas se arrastra de lado termina en toques
-               fallados o en frases mandadas sin querer, y esto se usa con
-               prisa y a mitad de un combate. */
+            /* Dos columnas en vez de tres: con tres, la frase se parte en
+               cuatro lineas y el boton acaba mas alto que ancho. */
+            .arena-chat-quick {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                padding: 9px 10px;
+                gap: 8px;
+            }
+
+            /* Dedos, no raton. Un boton de treinta pixeles de alto termina en
+               toques fallados o en frases mandadas sin querer, y esto se usa
+               con prisa a mitad de un combate. */
             .arena-chat-quick-btn {
                 min-height: 44px;
-                padding: 8px 14px;
-                font-size: 13px;
+                padding: 8px 10px;
+                font-size: 12.5px;
             }
-            .arena-chat-head { min-height: 44px; }
-            .arena-chat-quick-wrap::after { width: 26px; }
-
-            /* La barra no puede tapar lo ultimo que se dijo: en un movil con la
-               caja abierta, el ultimo mensaje quedaba justo debajo del
-               degradado del final. */
             .arena-chat-status { padding-bottom: 11px; }
         }
 
@@ -3097,6 +3062,18 @@
                     ],
                     vibrate: [35],
                 },
+                /* El aviso que mando YO.
+
+                   Mas grave y de una sola nota, al reves que el del rival: son
+                   dos cosas distintas y tienen que distinguirse a ciegas, sin
+                   mirar la pantalla. Sin esto, dar al boton no sonaba a nada y
+                   no habia forma de saber si el aviso habia salido. */
+                match_ping_sent: {
+                    tones: [
+                        { freq: 620, duration: 0.14, delay: 0.00, gain: 0.03 },
+                    ],
+                    vibrate: [18],
+                },
                 party_invite: {
                     tones: [
                         { freq: 784, duration: 0.45, delay: 0.00, gain: 0.045 },
@@ -3377,6 +3354,11 @@
 
             window.ArenaSoundAlerts = {
                 notify,
+                // Solo el sonido, sin aviso flotante ni antirrepeticion. Para lo
+                // que confirma una accion propia -mandar un aviso-, donde el
+                // toast sobra porque la pantalla ya lo esta enseñando y donde
+                // dos iguales seguidos SI tienen que sonar las dos veces.
+                play: (type) => enabled && playPattern(type),
                 unlock,
                 setEnabled,
                 toggle: () => setEnabled(!enabled),

@@ -13,7 +13,7 @@
     $historial = app(MatchPingService::class)->historial($match, $miId ? (int) $miId : null);
 @endphp
 
-{{-- Chat rapido del combate.
+{{-- Mini chat del combate.
 
      Lo que faltaba no era un chat libre: era poder decir "voy de camino" sin
      salir de la pantalla. Antes el rival solo podia mirar un claro vacio y
@@ -21,41 +21,27 @@
      cenar.
 
      Se comporta como cualquier chat -burbujas a un lado y a otro, lo ultimo
-     abajo, aviso con sonido cuando llega algo- pero se escribe con botones:
-     diez frases cerradas, sin texto libre. Un chat abierto entre rivales de
-     tres reinos seria un problema de moderacion desde el primer dia.
+     abajo, aviso con sonido- pero se escribe con botones: seis frases cerradas,
+     sin texto libre. Un chat abierto entre rivales de tres reinos seria un
+     problema de moderacion desde el primer dia.
 
-     Empieza plegado en una sola linea. Un combate se juega mirando el mapa y el
-     reloj, no una caja de mensajes: la caja se abre cuando hace falta y avisa
-     sola cuando el rival dice algo. --}}
+     Siempre abierto y con las seis frases a la vista. Plegado no servia: se
+     usa con prisa, a mitad de un combate, y cualquier paso de mas -abrir la
+     caja, arrastrar una barra para encontrar el boton- es un paso que no se
+     da. --}}
 <section class="arena-chat" data-pings
          data-pings-match="{{ $match->id }}"
          data-pings-player="{{ $miId }}"
          data-pings-endpoint="{{ route('matches.ping') }}"
          aria-labelledby="arenaChatTitle">
 
-    <button type="button" class="arena-chat-head" data-chat-toggle aria-expanded="false" aria-controls="arenaChatBody">
+    <div class="arena-chat-head">
         <span class="arena-chat-dot" aria-hidden="true"></span>
         <span class="arena-chat-title" id="arenaChatTitle">Avisos del combate</span>
-
-        {{-- Lo ultimo que se dijo, plegado. Asi la linea cerrada ya informa y
-             no obliga a abrir para saber si hay algo nuevo. --}}
-        <span class="arena-chat-preview" data-chat-preview>
-            @if($historial !== [])
-                <b>{{ $historial[count($historial) - 1]['nombre'] }}</b>
-                {{ $historial[count($historial) - 1]['texto'] }}
-            @else
-                Avisa al rival sin salir de aqui
-            @endif
-        </span>
-
         <span class="arena-chat-badge" data-chat-badge hidden>0</span>
-        <svg class="arena-chat-caret" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path fill-rule="evenodd" d="M5.3 7.3a1 1 0 011.4 0L10 10.6l3.3-3.3a1 1 0 111.4 1.4l-4 4a1 1 0 01-1.4 0l-4-4a1 1 0 010-1.4z" clip-rule="evenodd"/>
-        </svg>
-    </button>
+    </div>
 
-    <div class="arena-chat-body" id="arenaChatBody" data-chat-body hidden>
+    <div class="arena-chat-body" data-chat-body>
         <ol class="arena-chat-log" data-pings-log>
             @forelse($historial as $ping)
                 <li class="arena-chat-msg {{ $ping['mio'] ? 'is-mine' : 'is-theirs' }}">
@@ -73,21 +59,20 @@
         </ol>
 
         @if($miId)
-            {{-- La barra de frases. Se desliza de lado como los emotes de
-                 cualquier juego: doce botones apilados comerian media pantalla
-                 en un movil. --}}
-            <div class="arena-chat-quick-wrap">
+            {{-- Las seis frases, todas a la vista y en rejilla.
+                 Antes iban en una barra que se arrastraba de lado: con raton no
+                 se arrastra, asi que en escritorio la mitad de las frases no
+                 existian. --}}
             <div class="arena-chat-quick" role="group" aria-label="Mandar un aviso">
                 @foreach($avisos as $aviso)
                     <button type="button"
                             class="arena-chat-quick-btn is-{{ $aviso['tono'] }}"
                             data-ping-send="{{ $aviso['code'] }}"
                             title="{{ $aviso['texto'] }}">
-                        <span aria-hidden="true">{{ $aviso['icono'] }}</span>
-                        <span>{{ $aviso['texto'] }}</span>
+                        <span class="arena-chat-quick-icon" aria-hidden="true">{{ $aviso['icono'] }}</span>
+                        <span class="arena-chat-quick-text">{{ $aviso['texto'] }}</span>
                     </button>
                 @endforeach
-            </div>
             </div>
         @endif
 

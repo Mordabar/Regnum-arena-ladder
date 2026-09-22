@@ -25,13 +25,20 @@ class MatchPingService
     public const HISTORIAL = 30;
 
     /** Tope por jugador y minuto. Da de sobra para avisar y corta la rafaga. */
-    private const POR_MINUTO = 6;
+    private const POR_MINUTO = 12;
 
     /** Tope por jugador y enfrentamiento, de punta a punta. */
     private const POR_ENFRENTAMIENTO = 60;
 
-    /** Segundos que hay que esperar para repetir EL MISMO aviso. */
-    private const REPETIR_MISMO = 15;
+    /**
+     * Cuantas veces seguidas vale mandar EL MISMO aviso, y en cuanto tiempo.
+     *
+     * Antes era uno y a esperar quince segundos, y eso se cruzaba con el uso
+     * normal: "voy de camino" dos veces porque el rival no contesta no es
+     * spam, es insistir. Tres del mismo por minuto deja insistir y sigue
+     * cortando a quien le de al boton sin parar.
+     */
+    private const MISMO_POR_MINUTO = 3;
 
     public function disponible(): bool
     {
@@ -80,13 +87,13 @@ class MatchPingService
             return ['ok' => false, 'motivo' => 'Vas muy rapido. Espera unos segundos.'];
         }
 
-        $ultimoIgual = (clone $mios)
+        $mismosSeguidos = (clone $mios)
             ->where('code', $code)
-            ->where('created_at', '>=', now()->subSeconds(self::REPETIR_MISMO))
-            ->exists();
+            ->where('created_at', '>=', now()->subMinute())
+            ->count();
 
-        if ($ultimoIgual) {
-            return ['ok' => false, 'motivo' => 'Ese aviso ya lo acabas de mandar.'];
+        if ($mismosSeguidos >= self::MISMO_POR_MINUTO) {
+            return ['ok' => false, 'motivo' => 'Ese aviso ya lo has mandado tres veces. Espera un poco.'];
         }
 
         $ping = MatchPing::create([

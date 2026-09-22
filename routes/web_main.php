@@ -131,6 +131,9 @@ Route::prefix('/' . $arenaAdminPath)->group(function () {
         Route::post('/testing/resolve/{match}', [QueueHubController::class, 'sandboxResolve'])->name('testing.resolve');
         Route::post('/testing/bot-report/{match}', [QueueHubController::class, 'sandboxBotReport'])->name('testing.bot-report');
         Route::post('/testing/bot-confirm/{match}', [QueueHubController::class, 'sandboxBotConfirm'])->name('testing.bot-confirm');
+        // Que un bot mande un aviso del chat: sin esto el chat de combate no se
+        // puede probar sin dos personas, una en cada bando.
+        Route::post('/testing/bot-ping/{match}', [QueueHubController::class, 'sandboxBotPing'])->name('testing.bot-ping');
         Route::post('/testing/reset', [QueueHubController::class, 'sandboxReset'])->name('testing.reset');
         Route::post('/testing/destroy', [QueueHubController::class, 'sandboxDestroy'])->name('testing.destroy');
 

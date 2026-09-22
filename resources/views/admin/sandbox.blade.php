@@ -343,6 +343,30 @@
                     @endif
                     <a href="{{ route('admin.matches.show', $match) }}" class="ap-btn ap-btn-sm ap-btn-quiet">Abrir</a>
                 </div>
+
+                @unless($isBotOnly)
+                    {{-- Los avisos del combate no se podian probar: hacen falta
+                         dos personas, una en cada bando, y el laboratorio
+                         existe para no necesitarlas. Desde aqui un bot del
+                         equipo contrario manda el aviso y se ve lo que ve el
+                         jugador: el sonido, el bocadillo sobre su figura y, en
+                         2v2 y 3v3, el nombre escondido. --}}
+                    <div class="ap-subrow">
+                        <span class="ap-section-note">Que un bot avise:</span>
+                        <div class="flex flex-wrap gap-1.5">
+                            @foreach(\App\Models\MatchPing::paraLaBotonera() as $aviso)
+                                <form method="POST" action="{{ route('admin.testing.bot-ping', $match) }}">
+                                    @csrf
+                                    <input type="hidden" name="code" value="{{ $aviso['code'] }}">
+                                    <button type="submit" class="ap-btn ap-btn-sm ap-btn-quiet" title="{{ $aviso['texto'] }}">
+                                        <span aria-hidden="true">{{ $aviso['icono'] }}</span>
+                                        {{ $aviso['texto'] }}
+                                    </button>
+                                </form>
+                            @endforeach
+                        </div>
+                    </div>
+                @endunless
             </div>
         @empty
             <div class="ap-empty"><p class="m-0">Ninguna partida en juego.</p></div>

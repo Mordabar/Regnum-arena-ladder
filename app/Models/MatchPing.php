@@ -31,15 +31,11 @@ class MatchPing extends Model
      */
     public const CATALOGO = [
         'voy' => ['texto' => 'Voy de camino', 'icono' => '🏃', 'tono' => 'camino'],
-        'cerca' => ['texto' => 'Ya estoy cerca', 'icono' => '📍', 'tono' => 'camino'],
-        'llegue' => ['texto' => 'He llegado al punto', 'icono' => '🚩', 'tono' => 'sitio'],
-        'listo' => ['texto' => 'Listo, cuando quieras', 'icono' => '⚔️', 'tono' => 'sitio'],
+        'cerca' => ['texto' => 'Estoy cerca', 'icono' => '📍', 'tono' => 'camino'],
+        'llegue' => ['texto' => 'Estoy en el punto', 'icono' => '🚩', 'tono' => 'sitio'],
         'esperame' => ['texto' => 'Esperame, ya voy', 'icono' => '🙏', 'tono' => 'camino'],
         'muerto' => ['texto' => 'Me han matado', 'icono' => '💀', 'tono' => 'aviso'],
         'un_momento' => ['texto' => 'Dame un momento', 'icono' => '⏳', 'tono' => 'aviso'],
-        'perdido' => ['texto' => 'No encuentro el punto', 'icono' => '🧭', 'tono' => 'aviso'],
-        'tardas' => ['texto' => '¿Tardas mucho?', 'icono' => '👀', 'tono' => 'prisa'],
-        'vamos' => ['texto' => '¡Vamos!', 'icono' => '🔥', 'tono' => 'prisa'],
     ];
 
     protected $fillable = [
