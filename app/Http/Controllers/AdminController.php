@@ -681,7 +681,7 @@ class AdminController extends Controller
             'season_prize_2' => AppSetting::getValue('season_prize_2', 5),
             'season_prize_3' => AppSetting::getValue('season_prize_3', 2),
             'season_prize_currency' => AppSetting::getValue('season_prize_currency', 'lingotes de Magnanita'),
-            'season_prize_note' => AppSetting::getValue('season_prize_note', 'Los tres primeros de la temporada se los llevan, sin importar el reino.'),
+            'season_prize_note' => AppSetting::getValue('season_prize_note', 'Repartidos entre los tres primeros puestos del ladder.'),
             'matchmaking_hold_seconds' => AppSetting::getValue('matchmaking_hold_seconds', (int) config('arena.matchmaking_hold_seconds', 30)),
             'rematch_rest_minutes' => AppSetting::getValue('rematch_rest_minutes', (int) config('arena.rematch_rest_minutes', 2)),
             'accept_window_minutes' => AppSetting::getValue('accept_window_minutes', 5),

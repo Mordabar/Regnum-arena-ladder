@@ -1758,6 +1758,18 @@
         }
 
         .arena-podium-head { padding: clamp(18px, 3vw, 28px) clamp(18px, 3vw, 28px) 0; text-align: center; }
+
+        /* El trofeo. Va centrado y arriba del todo, como en la pantalla de
+           resultados de cualquier juego: es lo que anuncia que aqui hay algo
+           que ganar antes de leer una sola palabra. */
+        .arena-podium-cup {
+            display: block;
+            width: clamp(38px, 6vw, 54px);
+            height: auto;
+            margin: 0 auto 6px;
+            filter: drop-shadow(0 4px 14px rgba(216, 177, 92, 0.45));
+        }
+
         .arena-podium-title {
             margin: 6px 0 0;
             font-family: 'Cinzel', serif;
@@ -1765,6 +1777,20 @@
             font-weight: 700;
             color: var(--arena-gold-soft);
             line-height: 1.15;
+            /* El cristal y el texto en una linea, centrados juntos. */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: clamp(8px, 1.4vw, 14px);
+            flex-wrap: wrap;
+        }
+        /* La gema de verdad al lado de la cifra. Decora y, sobre todo, dice de
+           que es el premio sin tener que leerlo. */
+        .arena-podium-gema {
+            width: clamp(40px, 6.5vw, 62px);
+            height: auto;
+            flex: none;
+            filter: drop-shadow(0 3px 12px rgba(62, 214, 150, 0.4));
         }
         .arena-podium-total {
             /* El numero es el gancho: va mas grande que el resto del titulo. */
@@ -1861,7 +1887,7 @@
         .arena-podium-slot.is-3 .arena-podium-block { min-height: 118px; }
 
         .arena-podium-medal { font-size: clamp(19px, 2.4vw, 26px); line-height: 1; }
-        .arena-podium-prize { display: flex; align-items: baseline; gap: 4px; }
+        .arena-podium-prize { display: flex; align-items: baseline; justify-content: center; gap: 4px; }
         .arena-podium-prize b {
             font-size: clamp(18px, 2.3vw, 25px);
             font-weight: 700;
@@ -1869,6 +1895,15 @@
             line-height: 1;
         }
         .arena-podium-prize small { font-size: 10px; color: rgba(255, 233, 190, 0.7); }
+        /* La palabra entera en pantalla grande; en movil la cambia la inicial. */
+        .arena-podium-unit-short { display: none; font-weight: 700; }
+        .arena-podium-gema-mini {
+            width: 15px;
+            height: auto;
+            flex: none;
+            align-self: center;
+            filter: drop-shadow(0 1px 4px rgba(62, 214, 150, 0.55));
+        }
 
         .arena-podium-who {
             display: block;
@@ -1918,7 +1953,13 @@
             .arena-podium-slot.is-1 .arena-podium-block { min-height: 134px; padding-top: 10px; }
             .arena-podium-slot.is-2 .arena-podium-block { min-height: 120px; }
             .arena-podium-slot.is-3 .arena-podium-block { min-height: 102px; }
-            .arena-podium-prize small { display: none; }
+            /* "10 L" con la gema al lado. La palabra entera no cabe en un
+               cajon de un tercio de pantalla, pero esconderla del todo dejaba
+               un numero suelto que no decia de que era. */
+            .arena-podium-unit { display: none; }
+            .arena-podium-unit-short { display: inline; font-size: 11px; }
+            .arena-podium-prize { gap: 3px; }
+            .arena-podium-gema-mini { width: 13px; }
             .arena-podium-who { margin-top: 4px; padding-top: 4px; }
             .arena-podium-who b { font-size: 11px; }
             .arena-podium-who > span { font-size: 9.5px; }

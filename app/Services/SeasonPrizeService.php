@@ -61,7 +61,7 @@ class SeasonPrizeService
     {
         return (string) AppSetting::getValue(
             'season_prize_note',
-            'Los tres primeros de la temporada se los llevan, sin importar el reino.'
+            'Repartidos entre los tres primeros puestos del ladder.'
         );
     }
 
