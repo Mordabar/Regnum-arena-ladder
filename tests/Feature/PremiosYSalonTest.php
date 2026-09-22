@@ -502,3 +502,26 @@ it('la guia se abre y la portada ya no es un manual', function () {
         ->assertDontSee('Reporta y cierra el match')
         ->assertDontSee('Anti-abuso integrado');
 });
+
+it('el podio en vivo trae las cifras que la tarjeta pinta', function () {
+    // El select del podio no traia mmr, wins ni matches_played, asi que la
+    // tarjeta del Salon enseñaba los rotulos sueltos -"MMR", "victorias ·
+    // partidas"- sin ningun numero al lado.
+    ArenaSeason::create([
+        'name' => 'Alpha Season', 'slug' => 'alpha', 'status' => ArenaSeason::STATUS_ACTIVE,
+        'enabled_modes' => ['1v1'], 'starts_at' => now()->subMonth(),
+    ]);
+
+    jugadorConPuntos('cif', 'ignis', 555, mmr: 1234);
+
+    $primero = app(SeasonPrizeService::class)->podio()->first()['player'];
+
+    expect($primero->mmr)->toBe(1234)
+        ->and($primero->wins)->toBe(6)
+        ->and($primero->matches_played)->toBe(10);
+
+    $this->get(route('hall-of-fame'))
+        ->assertOk()
+        ->assertSee('1234 MMR')
+        ->assertSee('6 victorias · 10 partidas');
+});

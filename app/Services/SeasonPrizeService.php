@@ -85,7 +85,15 @@ class SeasonPrizeService
             ->where('is_active', true)
             ->orderByPublicLadder()
             ->limit($reparto === [] ? 0 : max(array_keys($reparto)))
-            ->get(['id', 'character_name', 'realm', 'subclass', 'race', 'gender', 'pl_points', 'is_active', 'deactivated_reason']);
+            // Con mmr, wins y matches_played: el Salon de la Fama pinta esas
+            // tres cifras en la tarjeta del podio en vivo, y sin traerlas
+            // salian los rotulos sueltos -"MMR", "victorias · partidas"- sin
+            // ningun numero al lado.
+            ->get([
+                'id', 'character_name', 'realm', 'subclass', 'race', 'gender',
+                'pl_points', 'mmr', 'wins', 'matches_played',
+                'is_active', 'deactivated_reason',
+            ]);
 
         return collect($reparto)
             ->map(fn (int $premio, int $puesto) => [
