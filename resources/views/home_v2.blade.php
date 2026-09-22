@@ -75,76 +75,18 @@
         </div>
     </section>
 
-    {{-- ── HOW IT WORKS ── --}}
-    <section class="mb-10 grid gap-5 md:grid-cols-3">
-        <article class="arena-card arena-card-interactive arena-animate-in arena-stagger-1 p-6">
-            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-[rgba(216,177,92,0.12)] text-[color:var(--arena-gold)]">
-                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/></svg>
-            </div>
-            <p class="arena-kicker mt-4">Paso 1</p>
-            <h2 class="mt-2 text-xl font-semibold text-white">Registra tu guerrero</h2>
-            <p class="mt-2 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                Elige personaje, subclase y reino. Tu progreso en la arena nace desde aquí.
-            </p>
-        </article>
-
-        <article class="arena-card arena-card-interactive arena-animate-in arena-stagger-2 p-6">
-            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-[rgba(121,181,214,0.12)] text-[color:var(--arena-ice)]">
-                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
-            </div>
-            <p class="arena-kicker mt-4">Paso 2</p>
-            <h2 class="mt-2 text-xl font-semibold text-white">Elige modalidad y entra a cola</h2>
-            <p class="mt-2 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                Duelo 1v1, 2v2 o 3v3, y las tres suman al mismo ladder. El sistema arma el cruce,
-                asigna zona y marca el punto exacto donde quedar.
-            </p>
-        </article>
-
-        <article class="arena-card arena-card-interactive arena-animate-in arena-stagger-3 p-6">
-            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-[rgba(142,179,74,0.12)] text-[color:var(--arena-forest)]">
-                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-            </div>
-            <p class="arena-kicker mt-4">Paso 3</p>
-            <h2 class="mt-2 text-xl font-semibold text-white">Reporta y cierra el match</h2>
-            <p class="mt-2 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                Sube 2 capturas, el rival confirma y el ladder actualiza PL y MMR automáticamente.
-            </p>
-        </article>
-    </section>
-
-    {{-- ── FEATURES ── --}}
-    <section class="grid gap-6 md:grid-cols-3">
-        <article class="arena-panel arena-animate-in arena-stagger-4 p-6">
-            <div class="flex items-center gap-3">
-                <svg class="h-6 w-6 text-[color:var(--arena-gold)]" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clip-rule="evenodd"/><path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z"/></svg>
-                <h2 class="text-xl font-semibold text-white">Anonimato rival</h2>
-            </div>
-            <p class="mt-3 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                {{-- Prometer anonimato a secas dejo de ser cierto con el duelo
-                     1v1: ahi el nombre es publico desde el cruce, a proposito, y
-                     quien lee esto antes de entrar merece saberlo. --}}
-                En 2v2 y 3v3 solo ves el reino rival hasta que el match se cierre o entre en disputa. Sin ventajas previas.
-                En el duelo 1v1 el nombre aparece al aceptar, nunca antes: asi nadie elige rival, pero los dos saben a quien buscan.
-            </p>
-        </article>
-        <article class="arena-panel arena-animate-in arena-stagger-5 p-6">
-            <div class="flex items-center gap-3">
-                <svg class="h-6 w-6 text-[color:var(--arena-gold)]" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clip-rule="evenodd"/></svg>
-                <h2 class="text-xl font-semibold text-white">Scoring justo</h2>
-            </div>
-            <p class="mt-3 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                Ladder público por PL y emparejamiento por MMR oculto. Caps, underdog bonus y ajuste entre random y premade.
-            </p>
-        </article>
-        <article class="arena-panel arena-animate-in arena-stagger-6 p-6">
-            <div class="flex items-center gap-3">
-                <svg class="h-6 w-6 text-[color:var(--arena-gold)]" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-                <h2 class="text-xl font-semibold text-white">Anti-abuso integrado</h2>
-            </div>
-            <p class="mt-3 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                Protección contra farm, abandono con bloqueo 12h, verificación de rol conjurador y repetición de rivales.
-            </p>
-        </article>
+    {{-- Los pasos y las reglas se fueron a /como-funciona.
+         Aqui abajo eran seis cuadros de texto entre el podio y el pie: quien
+         llega a la portada viene a ver el juego y lo que hay en juego, no un
+         manual. Quien quiera el manual, tiene la puerta. --}}
+    <section class="arena-panel-strong p-6 md:p-8 text-center arena-animate-in">
+        <p class="arena-kicker">Primera vez aqui</p>
+        <h2 class="mt-3 text-2xl font-semibold text-[color:var(--arena-gold-soft)]">Como funciona el Arena Ladder</h2>
+        <p class="mx-auto mt-2 max-w-2xl text-sm text-[color:var(--arena-muted)] arena-body-text">
+            Como se entra a cola, que se ve del rival, como se puntua y que pasa si alguien no
+            aparece. En dos minutos de lectura.
+        </p>
+        <a href="{{ route('guia') }}" class="arena-btn-ghost mt-6">Leer la guia</a>
     </section>
 </div>
 @endsection

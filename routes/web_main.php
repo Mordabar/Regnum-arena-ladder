@@ -37,6 +37,17 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 // a Laravel y nos devolveria el fichero heredado.
 Route::get('/arena/zonas.js', ArenaZoneAssetController::class)->name('arena.zones.asset');
 
+// Como funciona. Todo esto vivia en la portada debajo del podio -tres pasos,
+// tres cuadros de reglas- y ahi era ruido: quien llega quiere ver el juego y
+// los premios. Pero hace falta en alguna parte, porque quien se plantea entrar
+// tiene preguntas legitimas sobre el anonimato y la puntuacion.
+Route::get('/como-funciona', function (\App\Services\SeasonPrizeService $premios) {
+    return view('guia.index', [
+        'podio' => $premios->podio(),
+        'premios' => $premios,
+    ]);
+})->name('guia');
+
 Route::get('/ladder', [LadderController::class, 'index'])->name('ladder.index');
 
 // El Salon de la Fama: las temporadas que ya terminaron, con su podio y lo que

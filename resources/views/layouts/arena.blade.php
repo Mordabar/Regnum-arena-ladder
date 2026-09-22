@@ -1893,7 +1893,8 @@
         .arena-podium-slot.is-3 .arena-podium-block { min-height: 118px; }
 
         .arena-podium-medal { font-size: clamp(19px, 2.4vw, 26px); line-height: 1; }
-        .arena-podium-prize { display: flex; align-items: baseline; justify-content: center; gap: 4px; }
+        .arena-podium-prize { display: flex; align-items: center; justify-content: center; gap: 5px; }
+        .arena-podium-prize-line { display: inline-flex; align-items: baseline; gap: 4px; }
         .arena-podium-prize b {
             font-size: clamp(18px, 2.3vw, 25px);
             font-weight: 700;
@@ -1967,11 +1968,28 @@
             /* La gema pasa a su propia linea, debajo de la cifra. Al lado
                estrecha el numero, que es lo que hay que leer primero, y en un
                cajon de un tercio de pantalla eso se nota. */
-            .arena-podium-prize { gap: 3px; flex-wrap: wrap; }
-            .arena-podium-gema-mini { width: 20px; flex-basis: 100%; margin: 3px auto 0; }
+            .arena-podium-prize { flex-direction: column; gap: 3px; }
+            .arena-podium-gema-mini { width: 19px; }
             .arena-podium-who { margin-top: 4px; padding-top: 4px; }
             .arena-podium-who b { font-size: 11px; }
             .arena-podium-who > span { font-size: 9.5px; }
+        }
+
+        /* El numero de cada paso en la guia. Un circulo con la cifra dentro
+           hace que los tres cuadros se lean como una secuencia y no como tres
+           cosas sueltas puestas en fila. */
+        .arena-guia-num {
+            display: grid;
+            place-items: center;
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            border: 1px solid rgba(216, 177, 92, 0.42);
+            background: rgba(216, 177, 92, 0.12);
+            color: var(--arena-gold);
+            font-family: 'Cinzel', serif;
+            font-size: 18px;
+            font-weight: 700;
         }
 
         /* ── Escenario del combate ─────────────────────────────────────────

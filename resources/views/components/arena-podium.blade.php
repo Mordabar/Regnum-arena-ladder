@@ -125,9 +125,14 @@
                          que va, y el cristal al lado lo remata. Un numero
                          suelto, que es lo que habia, no decia nada. --}}
                     <span class="arena-podium-prize">
-                        <b>{{ $puesto['premio'] }}</b>
-                        <small class="arena-podium-unit">{{ $puesto['premio'] === 1 ? $unidadSingular : $unidadPlural }}</small>
-                        <small class="arena-podium-unit-short" aria-hidden="true">{{ $unidadCorta }}</small>
+                        {{-- La cifra y la unidad van juntas en su propia linea:
+                             asi en movil la gema puede bajar debajo sin que el
+                             numero se estreche. --}}
+                        <span class="arena-podium-prize-line">
+                            <b>{{ $puesto['premio'] }}</b>
+                            <small class="arena-podium-unit">{{ $puesto['premio'] === 1 ? $unidadSingular : $unidadPlural }}</small>
+                            <small class="arena-podium-unit-short" aria-hidden="true">{{ $unidadCorta }}</small>
+                        </span>
                         <img src="{{ asset('images/magnanita-icono.webp') }}" alt="" class="arena-podium-gema-mini" width="82" height="96" loading="lazy" decoding="async">
                     </span>
 

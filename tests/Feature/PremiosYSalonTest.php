@@ -484,3 +484,21 @@ it('lo que ve el salon en vivo es lo que acaba congelado al cerrar', function ()
         ->assertSee('Temporada cerrada')
         ->assertSee('720.0 PL');
 });
+
+it('la guia se abre y la portada ya no es un manual', function () {
+    // Los pasos y las reglas se fueron de la portada a su propia pagina: en la
+    // portada eran seis cuadros de texto entre el podio y el pie.
+    $this->get(route('guia'))
+        ->assertOk()
+        ->assertSee('Como funciona el Arena Ladder')
+        ->assertSee('Registra tu guerrero')
+        ->assertSee('Que se ve del rival')
+        ->assertSee('Como se puntua');
+
+    $this->get(route('home'))
+        ->assertOk()
+        // El enlace a la guia si esta; el manual entero, no.
+        ->assertSee('Leer la guia')
+        ->assertDontSee('Reporta y cierra el match')
+        ->assertDontSee('Anti-abuso integrado');
+});
