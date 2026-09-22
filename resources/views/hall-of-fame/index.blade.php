@@ -38,6 +38,67 @@
                 <b class="text-[color:var(--arena-gold-soft)]">{{ $premios->total() }} {{ $premios->moneda() }}</b>
                 en juego. {{ $premios->bases() }}
             </p>
+
+            {{-- Quien va ganandola HOY, con las mismas tarjetas que las
+                 temporadas cerradas.
+                 Es la vitrina contada hacia delante: lo que aqui se mueve cada
+                 partida es exactamente lo que se congela el dia del cierre. Sin
+                 esto, el Salon solo hablaba de lo que ya paso y no daba ninguna
+                 razon para volver durante la temporada. --}}
+            <div class="mt-6 grid gap-4 md:grid-cols-3">
+                @foreach($podioActual as $puesto)
+                    {{-- El bloque va explicito: la forma corta de una linea
+                         con un indice entre corchetes deja de compilar las
+                         directivas que vienen detras. --}}
+                    @php
+                        $player = $puesto['player'];
+                    @endphp
+                    <article class="arena-card {{ $player ? 'arena-card-' . $player->realm : '' }} p-5">
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="flex items-center gap-2 text-2xl font-bold text-[color:var(--arena-gold-soft)]">
+                                <span aria-hidden="true">{{ $medallas[$puesto['puesto']] ?? '🏅' }}</span>
+                                {{ $puesto['puesto'] }}.º
+                            </span>
+                            @if($player)
+                                <x-arena-realm-icon :realm="$player->realm" size="sm" />
+                            @endif
+                        </div>
+
+                        @if($player)
+                            <h3 class="mt-4 text-xl font-semibold text-white">
+                                <a href="{{ route('ladder.show', $player) }}" class="hover:text-[color:var(--arena-gold-soft)]">{{ $player->cleanName() }}</a>
+                            </h3>
+                            <p class="mt-1 text-sm text-[color:var(--arena-muted)]">
+                                {{ PlayerModel::SUBCLASSES[$player->subclass] ?? ucfirst($player->subclass) }}
+                            </p>
+                        @else
+                            <h3 class="mt-4 text-xl font-semibold text-[color:var(--arena-muted)]">Sin dueño</h3>
+                            <p class="mt-1 text-sm text-[color:var(--arena-muted)]">Puede ser tuyo</p>
+                        @endif
+
+                        <p class="mt-3 inline-flex items-center gap-2 rounded-full border border-[rgba(216,177,92,0.35)] bg-[rgba(216,177,92,0.1)] px-3 py-1 text-sm">
+                            <img src="{{ asset('images/magnanita-icono.webp') }}" alt="" width="82" height="96" class="h-4 w-auto" loading="lazy" decoding="async">
+                            <b class="text-[color:var(--arena-gold-soft)]">{{ $puesto['premio'] }}</b>
+                            <span class="text-[color:var(--arena-muted)]">{{ $premios->moneda() }}</span>
+                        </p>
+
+                        @if($player)
+                            <div class="mt-4 flex items-center justify-between text-sm">
+                                <span class="font-semibold text-amber-300">{{ number_format((float) $player->pl_points, 1) }} PL</span>
+                                <span class="text-sky-300">{{ $player->mmr }} MMR</span>
+                            </div>
+                            <p class="mt-2 text-xs text-[color:var(--arena-muted)]">
+                                {{ $player->wins }} victorias · {{ $player->matches_played }} partidas
+                            </p>
+                        @endif
+                    </article>
+                @endforeach
+            </div>
+
+            <p class="mt-4 text-xs text-[color:var(--arena-muted)] arena-body-text">
+                Provisional: cambia con cada combate. El dia que la temporada se cierre, este
+                podio se queda como esta y pasa a la vitrina de abajo para siempre.
+            </p>
         </section>
     @endif
 

@@ -22,6 +22,7 @@ class HallOfFameController extends Controller
             return view('hall-of-fame.index', [
                 'seasons' => collect(),
                 'actual' => null,
+                'podioActual' => collect(),
                 'premios' => $premios,
             ]);
         }
@@ -42,6 +43,10 @@ class HallOfFameController extends Controller
             // La temporada en marcha tambien sale, arriba y marcada como tal:
             // quien entra a ver la vitrina quiere saber que hay en juego ahora.
             'actual' => ArenaSeason::current(),
+            // Y quien va ganandola HOY, con las cifras vivas. Es la misma
+            // vitrina contada hacia delante: lo que hoy es provisional se
+            // congela tal cual el dia que la temporada se cierra.
+            'podioActual' => $premios->podio(),
             'premios' => $premios,
         ]);
     }

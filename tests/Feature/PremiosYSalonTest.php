@@ -437,3 +437,50 @@ it('el podio llega hasta el puesto premiado mas alto aunque haya huecos', functi
 
     expect($podio->firstWhere('puesto', 3)['player']?->id)->toBe($tercero->id);
 });
+
+it('el salon enseña quien va ganando la temporada en curso', function () {
+    // La vitrina contada hacia delante. Sin esto, el Salon solo hablaba de lo
+    // que ya paso y no daba ninguna razon para volver durante la temporada.
+    ArenaSeason::create([
+        'name' => 'Alpha Season', 'slug' => 'alpha', 'status' => ArenaSeason::STATUS_ACTIVE,
+        'enabled_modes' => ['1v1'], 'starts_at' => now()->subMonth(),
+    ]);
+
+    $lider = jugadorConPuntos('viv', 'ignis', 640);
+
+    $this->get(route('hall-of-fame'))
+        ->assertOk()
+        ->assertSee('En juego ahora')
+        ->assertSee($lider->character_name)
+        ->assertSee('640.0 PL')
+        // Y se dice que es provisional: lo que se ve hoy no es todavia lo que
+        // quedara grabado.
+        ->assertSee('Provisional');
+});
+
+it('lo que ve el salon en vivo es lo que acaba congelado al cerrar', function () {
+    ArenaSeason::create([
+        'name' => 'Alpha Season', 'slug' => 'alpha', 'status' => ArenaSeason::STATUS_ACTIVE,
+        'enabled_modes' => ['1v1'], 'starts_at' => now()->subMonth(),
+    ]);
+
+    $lider = jugadorConPuntos('cong', 'alsius', 720);
+
+    $cerrada = app(SeasonClosingService::class)->cerrar('Season 1')['season'];
+
+    // El mismo jugador, los mismos puntos, ahora en la vitrina de abajo.
+    $congelado = SeasonPlayerStat::query()
+        ->where('season_id', $cerrada->id)
+        ->where('player_id', $lider->id)
+        ->firstOrFail();
+
+    expect((float) $congelado->pl_points)->toBe(720.0);
+
+    // Y sigue ahi aunque el jugador siga sumando en la temporada nueva.
+    $lider->update(['pl_points' => 1200]);
+
+    $this->get(route('hall-of-fame'))
+        ->assertOk()
+        ->assertSee('Temporada cerrada')
+        ->assertSee('720.0 PL');
+});
