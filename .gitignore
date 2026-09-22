@@ -42,3 +42,7 @@
 # escribe el panel en cada publicacion y su razon de ser es sobrevivir a un
 # despliegue, que es justo lo que no hacen si van en git.
 /storage/app/arena-zones-backup-*.json
+
+# Respaldos que deja bin/desplegar.sh antes de migrar. Son datos del sitio y
+# pueden pesar; storage/ no va en git a proposito.
+/storage/app/respaldos/
