@@ -32,7 +32,7 @@ class AvisosController extends Controller
         }
 
         $datos = $request->validate([
-            'endpoint' => ['required', 'string', 'max:500', 'url'],
+            'endpoint' => ['required', 'string', 'max:500', 'url', $this->servicioDePush($push)],
             'keys.p256dh' => ['nullable', 'string', 'max:120'],
             'keys.auth' => ['nullable', 'string', 'max:60'],
             'anterior' => ['nullable', 'string', 'max:500'],
@@ -90,11 +90,11 @@ class AvisosController extends Controller
      * ni cambiarle el dueño. Si la vieja no esta en la tabla, no se hace
      * nada.
      */
-    public function resuscribir(Request $request): JsonResponse
+    public function resuscribir(Request $request, WebPushService $push): JsonResponse
     {
         $datos = $request->validate([
             'viejo' => ['required', 'string', 'max:500'],
-            'nuevo' => ['required', 'string', 'max:500', 'url'],
+            'nuevo' => ['required', 'string', 'max:500', 'url', $this->servicioDePush($push)],
             'keys.p256dh' => ['nullable', 'string', 'max:120'],
             'keys.auth' => ['nullable', 'string', 'max:60'],
         ]);
@@ -162,7 +162,15 @@ class AvisosController extends Controller
             $this->anotarFallo($request, 'prueba-servidor', 'HTTP ' . ($resultado['estado'] ?? '?') . ' ' . ($resultado['cuerpo'] ?? ''));
         }
 
-        return response()->json($resultado, $resultado['ok'] ? 200 : 502);
+        // Al navegador, solo el codigo. El cuerpo de lo que respondio el
+        // servicio de push se queda en el registro del servidor: devolverlo
+        // era regalar la respuesta de cualquier sitio al que se consiguiera
+        // apuntar la peticion.
+        return response()->json([
+            'ok' => $resultado['ok'],
+            'estado' => $resultado['estado'],
+            'servicio' => $resultado['servicio'],
+        ], $resultado['ok'] ? 200 : 502);
     }
 
     /**
@@ -202,6 +210,14 @@ class AvisosController extends Controller
 
     private function anotarFallo(Request $request, string $causa, string $detalle, array $extra = []): void
     {
+        // Lo manda un navegador, o cualquiera. Sin caracteres de control: esto
+        // se imprime luego en una terminal, y una secuencia de escape
+        // colada aqui se ejecutaria en la de quien lance `arena:push-check`.
+        $limpio = fn (string $v): string => (string) preg_replace('/[\x00-\x1F\x7F]/u', ' ', $v);
+        $causa = $limpio($causa);
+        $detalle = $limpio($detalle);
+        $extra = array_map(fn ($v) => is_string($v) ? $limpio($v) : $v, $extra);
+
         $lista = Cache::get(self::CLAVE_FALLOS, []);
 
         array_unshift($lista, array_merge([
@@ -209,7 +225,7 @@ class AvisosController extends Controller
             'usuario' => Auth::id(),
             'causa' => mb_substr($causa, 0, 40),
             'detalle' => mb_substr($detalle, 0, 300),
-            'navegador' => mb_substr((string) $request->userAgent(), 0, 160),
+            'navegador' => mb_substr($limpio((string) $request->userAgent()), 0, 160),
         ], array_map(fn ($v) => is_string($v) ? mb_substr($v, 0, 40) : $v, $extra)));
 
         Cache::put(self::CLAVE_FALLOS, array_slice($lista, 0, 30), now()->addDays(7));
@@ -229,5 +245,15 @@ class AvisosController extends Controller
         return response()->json([
             'avisos' => $user ? $avisos->para($user) : [],
         ])->header('Cache-Control', 'no-store');
+    }
+
+    /** Regla: la direccion tiene que ser de un servicio de push de verdad. */
+    private function servicioDePush(WebPushService $push): \Closure
+    {
+        return function (string $atributo, $valor, \Closure $falla) use ($push) {
+            if (!is_string($valor) || !$push->servicioPermitido($valor)) {
+                $falla('Esa direccion no es de un servicio de avisos conocido.');
+            }
+        };
     }
 }

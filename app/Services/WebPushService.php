@@ -38,9 +38,6 @@ class WebPushService
     /** Cuanto guarda el servicio el aviso si el movil esta apagado. */
     private const TTL = 900;
 
-    /** Fallos seguidos antes de dar la suscripcion por muerta. */
-    private const FALLOS_PARA_TIRARLA = 5;
-
     public function configurado(): bool
     {
         return $this->clavePublica() !== '' && (string) config('services.webpush.private_key', '') !== '';
@@ -49,6 +46,53 @@ class WebPushService
     public function clavePublica(): string
     {
         return (string) config('services.webpush.public_key', '');
+    }
+
+    /**
+     * Los servicios de push que existen de verdad.
+     *
+     * La direccion de una suscripcion la manda el navegador... o quien se
+     * haga pasar por el. Sin esta lista, cualquiera con sesion podia
+     * "suscribirse" con `http://127.0.0.1:3306/` y hacer que el servidor
+     * llamara a donde quisiera, dentro de su propia red. Son los cuatro que
+     * usan los navegadores: Google (Chrome, Android, Opera, Samsung), Mozilla
+     * (Firefox), Apple (Safari, iPhone) y Microsoft (Edge en Windows).
+     */
+    private const SERVICIOS = [
+        'fcm.googleapis.com',
+        '.push.services.mozilla.com',
+        '.push.apple.com',
+        '.notify.windows.com',
+    ];
+
+    public function servicioPermitido(string $endpoint): bool
+    {
+        $partes = parse_url($endpoint);
+        $host = strtolower((string) ($partes['host'] ?? ''));
+
+        if ($host === '') {
+            return false;
+        }
+
+        // Para probar en local contra un servicio falso. En produccion no
+        // existe la variable y la lista es la de arriba, sin excepciones.
+        $extra = array_filter(array_map('trim', explode(',', (string) config('services.webpush.hosts_extra', ''))));
+
+        if (in_array($host, $extra, true)) {
+            return true;
+        }
+
+        if (($partes['scheme'] ?? '') !== 'https') {
+            return false;
+        }
+
+        foreach (self::SERVICIOS as $servicio) {
+            if ($servicio[0] === '.' ? str_ends_with($host, $servicio) : $host === $servicio) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -169,8 +213,17 @@ class WebPushService
     {
         $servicio = parse_url($suscripcion->endpoint, PHP_URL_HOST) ?: null;
 
+        // Segunda barrera, por si la fila entro por otro camino que la
+        // validacion de la ruta.
+        if (!$this->servicioPermitido($suscripcion->endpoint)) {
+            return ['ok' => false, 'estado' => null, 'cuerpo' => 'servicio de push no reconocido', 'servicio' => $servicio];
+        }
+
         try {
-            $respuesta = Http::withHeaders([
+            // Sin seguir redirecciones: un servicio de push de verdad no
+            // redirige, y seguirlas era la forma de colar un destino interno
+            // detras de una direccion externa inocente.
+            $respuesta = Http::withoutRedirecting()->withHeaders([
                 'Authorization' => $this->cabeceraVapid($suscripcion->endpoint),
                 'TTL' => (string) self::TTL,
                 // "high" es lo que hace que el sistema lo entregue ya en vez
@@ -258,17 +311,24 @@ class WebPushService
         return rtrim((string) config('app.url', 'https://regnumarenaladder.top'), '/');
     }
 
+    /**
+     * Anota un fallo SIN tirar la suscripcion.
+     *
+     * Antes, cinco fallos seguidos borraban la fila. Pero un 401 por una
+     * clave mal puesta tras un despliegue, un 429 de Google o un 5xx son
+     * fallos DEL SERVIDOR, no del navegador: cinco eventos asi borraban las
+     * suscripciones de todo el mundo, y el boton de cada uno seguia en verde
+     * mientras dejaba de llegarle nada. Lo unico que dice que un navegador ya
+     * no existe es el 404/410, y eso se trata aparte. El contador queda para
+     * `arena:push-check`.
+     */
     private function anotarFallo(PushSubscription $suscripcion, string $motivo): void
     {
-        $fallos = (int) $suscripcion->fallos + 1;
+        $suscripcion->forceFill(['fallos' => min(255, (int) $suscripcion->fallos + 1)])->save();
 
-        if ($fallos >= self::FALLOS_PARA_TIRARLA) {
-            $suscripcion->delete();
-            Log::info('Suscripcion de push retirada tras fallar seguido', ['motivo' => $motivo]);
-
-            return;
-        }
-
-        $suscripcion->forceFill(['fallos' => $fallos])->save();
+        Log::warning('Push rechazado o sin respuesta', [
+            'servicio' => parse_url($suscripcion->endpoint, PHP_URL_HOST),
+            'motivo' => mb_substr($motivo, 0, 200),
+        ]);
     }
 }

@@ -714,6 +714,10 @@ class ArenaMatchmakingService
             return;
         }
 
+        // Se apuntan antes: el cruce que nunca empezo se borra dentro de la
+        // transaccion y despues ya no hay de donde sacar quien estaba.
+        $jugadoresDelCruce = $match->getAllPlayers();
+
         DB::transaction(function () use ($match, $reason, $offendingPlayerId) {
             $matchId = (string) $match->id;
             $queues = Queue::query()
@@ -810,6 +814,15 @@ class ArenaMatchmakingService
         });
 
         $this->discordBotService->notifyMatchCancelled($match, $reason);
+
+        // Sin esto, quien acepto y se fue al juego se enteraba de que el cruce
+        // se cayo solo al volver a la web. A quien lo rechazo no: ya lo sabe.
+        $excepto = $offendingPlayerId !== null ? [(int) $offendingPlayerId] : [];
+        [$titulo, $cuerpo] = $reason === 'player_rejected'
+            ? ['Cruce cancelado', 'Un jugador rechazo el combate. Si seguias en cola, vuelves a ella.']
+            : ['Cruce caducado', 'No aceptaron todos a tiempo. Revisa tu cola en la arena.'];
+        app(AvisosPendientesService::class)->registrarHecho($jugadoresDelCruce, 'cruce:' . $match->id, $titulo, $cuerpo, $excepto);
+        app(\App\Services\WebPushService::class)->avisarAJugadores($jugadoresDelCruce, $excepto);
 
         if ($rerunMatchmaking) {
             $this->processRandomQueue(false);

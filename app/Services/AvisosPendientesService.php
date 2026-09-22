@@ -5,8 +5,11 @@ namespace App\Services;
 use App\Models\ArenaMatch;
 use App\Models\MatchPing;
 use App\Models\PartyMember;
+use App\Models\Player;
 use App\Models\User;
 use App\Support\ArenaMode;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -18,9 +21,17 @@ use Illuminate\Support\Facades\Cache;
  * treinta segundos. Si el cruce ya caduco mientras el aviso viajaba, no sale
  * una notificacion diciendo "acepta ahora" sobre algo que ya no existe.
  *
- * Cada aviso lleva `tag`. El navegador agrupa por esa etiqueta: dos toques
- * del mismo cruce se sustituyen en vez de apilarse, que es la diferencia
- * entre un aviso y un bombardeo.
+ * Cada aviso lleva:
+ *   - `tag`: el navegador agrupa por ella. Es UNA por hecho y la misma que usa
+ *     la pagina, asi que si llegan los dos avisos sale uno, y un hecho nuevo
+ *     del mismo combate sustituye al anterior (la cancelacion pisa el "rival
+ *     encontrado" en vez de dejarlo colgado).
+ *   - `en`: cuando paso. El worker enseña SOLO el mas reciente, que es el que
+ *     provoco el toque.
+ *
+ * Las URL van relativas: con absolutas, un APP_URL que no coincidiera con el
+ * dominio real (con o sin www, http o https) mandaba al jugador a otro origen,
+ * sin sesion.
  */
 class AvisosPendientesService
 {
@@ -30,96 +41,143 @@ class AvisosPendientesService
     /** Un combate cerrado hace mas de esto ya no es noticia. */
     private const RESULTADO_FRESCO_MINUTOS = 10;
 
+    /** Cuanto se recuerda un hecho que ya no esta en la base (un cruce borrado). */
+    private const HECHO_MINUTOS = 10;
+
+    private const CLAVE_PRUEBA = 'arena:avisos:prueba:';
+    private const CLAVE_HECHOS = 'arena:avisos:hechos:';
+
     /**
-     * @return list<array{tag: string, titulo: string, cuerpo: string, url: string}>
+     * @return list<array{tag: string, titulo: string, cuerpo: string, url: string, en: string}>
      */
     public function para(User $user): array
     {
-        $playerIds = $user->players()->where('is_active', true)->pluck('id')->all();
+        $playerIds = $user->players()->where('is_active', true)->pluck('id')->map(fn ($id) => (int) $id)->all();
 
-        if ($playerIds === []) {
-            return [];
-        }
+        $avisos = $playerIds === [] ? [] : array_merge(
+            $this->invitaciones($playerIds),
+            $this->delEnfrentamientoEnCurso($playerIds),
+            $this->resultadoReciente($playerIds),
+        );
 
-        $avisos = [];
-
-        foreach ($this->invitaciones($playerIds) as $aviso) {
-            $avisos[] = $aviso;
-        }
-
-        $match = $this->matchEnCurso($playerIds);
-
-        if ($match) {
-            foreach ($this->delEnfrentamiento($match, $playerIds) as $aviso) {
-                $avisos[] = $aviso;
-            }
-        }
-
-        foreach ($this->resultadoReciente($playerIds) as $aviso) {
-            $avisos[] = $aviso;
-        }
+        $avisos = array_merge($avisos, $this->hechosRecientes((int) $user->id));
 
         return $this->conPrueba($user, $avisos);
     }
 
+    /* ── Hechos que ya no estan en la base ─────────────────────────────── */
+
     /**
-     * La prueba que se lanza al activar los avisos.
+     * Apunta un hecho para que el worker lo encuentre.
      *
-     * El toque va vacio, asi que lo que se enseña es lo que diga este
-     * servicio. Durante un minuto, la prueba es "lo ultimo que ha pasado" y
-     * por tanto lo que el worker saca: sin esto, el push de prueba llegaba
-     * como un "hay novedades" que no dice nada.
+     * Hay cosas que, cuando el toque llega, ya no estan en la base: un cruce
+     * que nadie acepto SE BORRA. Sin esto, el push de "cruce cancelado"
+     * preguntaba que habia pasado y la respuesta era nada, y en pantalla se
+     * quedaba para siempre el "rival encontrado, tienes que aceptar".
+     *
+     * @param  iterable<int|array{player_id?: int|string}>  $jugadores
+     * @param  list<int>  $exceptoPlayerIds
+     */
+    public function registrarHecho(iterable $jugadores, string $tag, string $titulo, string $cuerpo, array $exceptoPlayerIds = [], ?string $url = null): void
+    {
+        $playerIds = collect($jugadores)
+            ->map(fn ($j) => (int) (is_array($j) ? ($j['player_id'] ?? 0) : $j))
+            ->filter()
+            ->reject(fn (int $id) => in_array($id, $exceptoPlayerIds, true))
+            ->unique();
+
+        if ($playerIds->isEmpty()) {
+            return;
+        }
+
+        $hecho = [
+            'tag' => $tag,
+            'titulo' => $titulo,
+            'cuerpo' => $cuerpo,
+            'url' => $url ?? route('lobby', [], false),
+            'en' => now()->utc()->toISOString(),
+        ];
+
+        foreach (Player::query()->whereIn('id', $playerIds)->pluck('user_id')->filter()->unique() as $userId) {
+            $clave = self::CLAVE_HECHOS . $userId;
+
+            // El mismo tag sustituye al anterior: un combate tiene un solo
+            // estado en cada momento.
+            $lista = collect(Cache::get($clave, []))
+                ->reject(fn (array $h) => $h['tag'] === $tag)
+                ->push($hecho)
+                ->take(-5)
+                ->values()
+                ->all();
+
+            Cache::put($clave, $lista, now()->addMinutes(self::HECHO_MINUTOS));
+        }
+    }
+
+    private function hechosRecientes(int $userId): array
+    {
+        $limite = now()->subMinutes(self::HECHO_MINUTOS)->utc()->toISOString();
+
+        return collect(Cache::get(self::CLAVE_HECHOS . $userId, []))
+            ->filter(fn (array $h) => ($h['en'] ?? '') >= $limite)
+            ->values()
+            ->all();
+    }
+
+    /* ── La prueba de ida y vuelta ─────────────────────────────────────── */
+
+    /**
+     * La prueba que se lanza al activar los avisos: durante un minuto es "lo
+     * ultimo que ha pasado", y por tanto lo que el worker enseña.
      */
     public function marcarPrueba(int $userId): void
     {
         Cache::put(self::CLAVE_PRUEBA . $userId, now()->utc()->toISOString(), now()->addMinute());
     }
 
-    private const CLAVE_PRUEBA = 'arena:avisos:prueba:';
-
     private function conPrueba(User $user, array $avisos): array
     {
         $en = Cache::get(self::CLAVE_PRUEBA . $user->id);
 
-        if (!$en) {
-            return $avisos;
+        if ($en) {
+            $avisos[] = [
+                'tag' => 'arena:prueba',
+                'titulo' => 'Avisos activados',
+                'cuerpo' => 'Asi te llegaran los cruces, aunque cierres la pagina.',
+                'url' => route('lobby', [], false),
+                'en' => $en,
+                'prueba' => true,
+            ];
         }
-
-        $avisos[] = [
-            'tag' => 'arena:prueba',
-            'titulo' => 'Avisos activados',
-            'cuerpo' => 'Asi te llegaran los cruces, aunque cierres la pagina.',
-            'url' => route('lobby'),
-            'en' => $en,
-            'prueba' => true,
-        ];
 
         return $avisos;
     }
 
-    /** La hora de un hecho, en el formato que ordena bien como texto. */
-    private function cuando($fecha): string
-    {
-        return $fecha ? \Illuminate\Support\Carbon::parse($fecha)->utc()->toISOString() : now()->utc()->toISOString();
-    }
+    /* ── El enfrentamiento en curso ────────────────────────────────────── */
 
-    /** @param  list<int>  $playerIds */
-    private function matchEnCurso(array $playerIds): ?ArenaMatch
+    /**
+     * Los enfrentamientos vivos de estos jugadores.
+     *
+     * SIN `LIKE` sobre las columnas de alineacion. Son JSON, y en MySQL una
+     * columna JSON se guarda normalizada -`"player_id": 12`, con espacio-, asi
+     * que un `LIKE '%"player_id":12%'` no casaba NUNCA y todos los avisos
+     * salian genericos. Los enfrentamientos vivos son pocos a la vez: se
+     * traen por estado y se filtra en PHP, que no depende de como guarde el
+     * JSON cada base de datos.
+     *
+     * @param  list<int>  $playerIds
+     * @return Collection<int, ArenaMatch>
+     */
+    private function enfrentamientosDe(array $playerIds, array $estados, ?Carbon $desde = null, string $campoFecha = 'updated_at'): Collection
     {
         return ArenaMatch::query()
-            ->whereIn('status', ['pending_acceptance', 'in_progress'])
-            ->where(function ($q) use ($playerIds) {
-                foreach ($playerIds as $id) {
-                    // Las alineaciones viven en dos columnas JSON, asi que se
-                    // busca por el id dentro del texto y se confirma despues
-                    // en PHP: un LIKE puede colar un 12 dentro de un 120.
-                    $q->orWhere('team_a', 'like', '%"player_id":' . $id . '%')
-                        ->orWhere('team_b', 'like', '%"player_id":' . $id . '%');
-                }
-            })
+            ->whereIn('status', $estados)
+            ->when($desde, fn ($q) => $q->where($campoFecha, '>=', $desde))
             ->latest('id')
+            ->limit(200)
             ->get()
-            ->first(fn (ArenaMatch $m) => $this->participa($m, $playerIds));
+            ->filter(fn (ArenaMatch $m) => $this->participa($m, $playerIds))
+            ->values();
     }
 
     /** @param  list<int>  $playerIds */
@@ -134,79 +192,88 @@ class AvisosPendientesService
         return false;
     }
 
-    /**
-     * @param  list<int>  $playerIds
-     * @return list<array{tag: string, titulo: string, cuerpo: string, url: string}>
-     */
-    private function delEnfrentamiento(ArenaMatch $match, array $playerIds): array
+    /** @param  list<int>  $playerIds */
+    private function miLado(ArenaMatch $match, array $playerIds): ?string
     {
-        $modo = ArenaMode::displayName($match->arena_mode);
-        $lobby = route('lobby');
+        foreach ($playerIds as $id) {
+            if ($lado = $match->getTeamSideForPlayer($id)) {
+                return $lado;
+            }
+        }
+
+        return null;
+    }
+
+    /** @param  list<int>  $playerIds */
+    private function delEnfrentamientoEnCurso(array $playerIds): array
+    {
+        $match = $this->enfrentamientosDe($playerIds, ['pending_acceptance', 'in_progress'])->first();
+
+        if (!$match) {
+            return [];
+        }
+
+        $lobby = route('lobby', [], false);
+        $avisos = [];
 
         if ($match->status === 'pending_acceptance') {
             // Si ya caduco no se anuncia: el jugador abriria el sitio para
             // encontrarse con que no hay nada, que es peor que no avisar.
-            if ($match->isExpired()) {
-                return [];
+            if (!$match->isExpired()) {
+                $avisos[] = [
+                    'tag' => 'cruce:' . $match->id,
+                    'titulo' => 'Rival encontrado',
+                    'cuerpo' => ArenaMode::displayName($match->arena_mode) . '. Tienes que aceptar para que empiece.',
+                    'url' => $lobby,
+                    'en' => $this->cuando($match->created_at),
+                    // Hay dos minutos para aceptar: este aviso no se va solo.
+                    'fijo' => true,
+                ];
             }
-
-            return [[
-                'tag' => 'cruce:' . $match->id,
-                'titulo' => 'Rival encontrado',
-                'cuerpo' => $modo . '. Tienes que aceptar para que empiece.',
-                'url' => $lobby,
-                'en' => $this->cuando($match->created_at),
-                // Hay dos minutos para aceptar: este aviso no se va solo.
-                'fijo' => true,
-            ]];
-        }
-
-        $avisos = [[
-            'tag' => 'combate:' . $match->id,
-            'titulo' => '¡A pelear!',
-            'cuerpo' => 'Quedad en ' . $match->zone_name . '.',
-            'url' => $lobby,
-            'en' => $this->cuando($match->started_at ?? $match->accepted_at ?? $match->updated_at),
-        ]];
-
-        // El reporte del rival esperando respuesta: es lo unico del flujo que
-        // se queda parado hasta que alguien lo mira.
-        $report = $match->report;
-        $miLado = null;
-
-        foreach ($playerIds as $id) {
-            $miLado = $match->getTeamSideForPlayer($id) ?: $miLado;
-        }
-
-        if ($report && $report->status === 'pending_confirmation' && $miLado && $report->reporting_team !== $miLado) {
+        } else {
             $avisos[] = [
-                'tag' => 'reporte:' . $match->id,
-                // El mismo titulo que pone la pagina: si llegan los dos avisos,
-                // el sistema enseña uno, y tienen que decir lo mismo.
-                'titulo' => 'Resultado por confirmar',
-                'cuerpo' => 'El rival ya subio el suyo. Confirmalo o rechazalo.',
+                'tag' => 'combate:' . $match->id,
+                'titulo' => '¡A pelear!',
+                'cuerpo' => 'Quedad en ' . $match->zone_name . '.',
                 'url' => $lobby,
-                'en' => $this->cuando($report->created_at),
+                'en' => $this->cuando($match->started_at ?? $match->accepted_at ?? $match->updated_at),
             ];
+
+            // El reporte del rival esperando respuesta: es lo unico del flujo
+            // que se queda parado hasta que alguien lo mira.
+            $report = $match->report;
+            $miLado = $this->miLado($match, $playerIds);
+
+            if ($report && $report->status === 'pending_confirmation' && $miLado && $report->reporting_team !== $miLado) {
+                $avisos[] = [
+                    'tag' => 'reporte:' . $match->id,
+                    // El mismo titulo que pone la pagina: si llegan los dos
+                    // avisos, el sistema enseña uno, y tienen que decir lo mismo.
+                    'titulo' => 'Resultado por confirmar',
+                    'cuerpo' => 'El rival ya subio el suyo. Confirmalo o rechazalo.',
+                    'url' => $lobby,
+                    'en' => $this->cuando($report->created_at),
+                ];
+            }
         }
 
-        foreach ($this->ultimoAvisoDelRival($match, $playerIds) as $aviso) {
-            $avisos[] = $aviso;
-        }
-
-        return $avisos;
+        // El chat funciona tambien mientras se acepta: un "voy de camino" en
+        // ese momento tiene que llegar como lo que es, no volver a sonar como
+        // "rival encontrado".
+        return array_merge($avisos, $this->ultimoAvisoDelChat($match, $playerIds));
     }
 
     /**
-     * Lo ultimo que dijo el rival por el chat, si es reciente.
+     * Lo ultimo que se dijo por el chat, si es reciente y no lo dije yo.
      *
-     * Solo el ultimo: durante un combate pueden llegar varios seguidos y no
-     * se trata de sacar una notificacion por cada uno.
+     * Con el titulo de quien lo dijo: en 2v2 y 3v3 el compañero tambien
+     * escribe, y un "estoy en el punto" de tu compañero anunciado como "aviso
+     * del rival" es informacion tactica falsa. Sin nombres: el rival es
+     * anonimo hasta que el combate se cierra.
      *
      * @param  list<int>  $playerIds
-     * @return list<array{tag: string, titulo: string, cuerpo: string, url: string}>
      */
-    private function ultimoAvisoDelRival(ArenaMatch $match, array $playerIds): array
+    private function ultimoAvisoDelChat(ArenaMatch $match, array $playerIds): array
     {
         $ping = MatchPing::query()
             ->where('match_id', $match->id)
@@ -219,19 +286,59 @@ class AvisosPendientesService
             return [];
         }
 
+        $miLado = $this->miLado($match, $playerIds);
+        $suLado = $match->getTeamSideForPlayer((int) $ping->player_id);
+        $esMiEquipo = $miLado !== null && $miLado === $suLado;
+
         return [[
             'tag' => 'chat:' . $match->id,
-            'titulo' => 'Aviso del rival',
+            'titulo' => $esMiEquipo ? 'Aviso de tu equipo' : 'Aviso del rival',
             'cuerpo' => $ping->texto(),
-            'url' => route('lobby'),
+            'url' => route('lobby', [], false),
             'en' => $this->cuando($ping->created_at),
         ]];
     }
 
     /**
+     * El combate que se acaba de cerrar, con victoria, derrota o empate.
+     *
+     * Era el unico momento del flujo que no tenia aviso: el rival confirma tu
+     * reporte con la pagina cerrada y no te enterabas de si habias subido o
+     * bajado hasta volver a entrar.
+     *
      * @param  list<int>  $playerIds
-     * @return list<array{tag: string, titulo: string, cuerpo: string, url: string}>
      */
+    private function resultadoReciente(array $playerIds): array
+    {
+        $match = $this->enfrentamientosDe(
+            $playerIds,
+            ['completed'],
+            now()->subMinutes(self::RESULTADO_FRESCO_MINUTOS),
+            'completed_at'
+        )->sortByDesc('completed_at')->first();
+
+        if (!$match) {
+            return [];
+        }
+
+        $miLado = $this->miLado($match, $playerIds);
+
+        $cuerpo = match (true) {
+            in_array($match->winner_team, [null, '', 'draw'], true) => 'Empate. El ladder ya lo ha contado.',
+            $match->winner_team === $miLado => 'Victoria. El ladder ya la ha contado.',
+            default => 'Derrota. El ladder ya la ha contado.',
+        };
+
+        return [[
+            'tag' => 'resultado:' . $match->id,
+            'titulo' => 'Resultado confirmado',
+            'cuerpo' => $cuerpo,
+            'url' => route('matches.index', [], false),
+            'en' => $this->cuando($match->completed_at),
+        ]];
+    }
+
+    /** @param  list<int>  $playerIds */
     private function invitaciones(array $playerIds): array
     {
         $pendientes = PartyMember::query()
@@ -250,57 +357,14 @@ class AvisosPendientesService
             'tag' => 'party',
             'titulo' => $cuantas === 1 ? 'Invitacion de equipo' : 'Tienes ' . $cuantas . ' invitaciones de equipo',
             'cuerpo' => 'Entra a la arena para aceptar.',
-            'url' => route('lobby'),
+            'url' => route('lobby', [], false),
             'en' => $this->cuando($pendientes->max('created_at')),
         ]];
     }
 
-    /**
-     * El combate que se acaba de cerrar.
-     *
-     * Era el unico momento del flujo que no tenia aviso: el rival confirma
-     * tu reporte con la pagina cerrada y no te enterabas de si habias subido
-     * o bajado hasta volver a entrar.
-     *
-     * @param  list<int>  $playerIds
-     * @return list<array{tag: string, titulo: string, cuerpo: string, url: string, en: string}>
-     */
-    private function resultadoReciente(array $playerIds): array
+    /** La hora de un hecho, en el formato que ordena bien como texto. */
+    private function cuando($fecha): string
     {
-        $match = ArenaMatch::query()
-            ->where('status', 'completed')
-            ->where('completed_at', '>=', now()->subMinutes(self::RESULTADO_FRESCO_MINUTOS))
-            ->where(function ($q) use ($playerIds) {
-                foreach ($playerIds as $id) {
-                    $q->orWhere('team_a', 'like', '%"player_id":' . $id . '%')
-                        ->orWhere('team_b', 'like', '%"player_id":' . $id . '%');
-                }
-            })
-            ->latest('completed_at')
-            ->get()
-            ->first(fn (ArenaMatch $m) => $this->participa($m, $playerIds));
-
-        if (!$match) {
-            return [];
-        }
-
-        $miLado = null;
-        foreach ($playerIds as $id) {
-            $miLado = $match->getTeamSideForPlayer($id) ?: $miLado;
-        }
-
-        $cuerpo = match (true) {
-            in_array($match->winner_team, [null, '', 'draw'], true) => 'Empate. El ladder ya lo ha contado.',
-            $match->winner_team === $miLado => 'Victoria. El ladder ya la ha contado.',
-            default => 'Derrota. El ladder ya la ha contado.',
-        };
-
-        return [[
-            'tag' => 'resultado:' . $match->id,
-            'titulo' => 'Resultado confirmado',
-            'cuerpo' => $cuerpo,
-            'url' => route('matches.index'),
-            'en' => $this->cuando($match->completed_at),
-        ]];
+        return $fecha ? Carbon::parse($fecha)->utc()->toISOString() : now()->utc()->toISOString();
     }
 }

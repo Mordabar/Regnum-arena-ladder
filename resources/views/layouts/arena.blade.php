@@ -3048,8 +3048,8 @@
                         <div class="mx-1 h-6 w-px bg-[color:var(--arena-line-strong)]"></div>
                         <a href="{{ route('home') }}" class="arena-nav-link text-xs text-[color:var(--arena-muted)] hover:text-white">Cambiar al Juego</a>
                         <button type="button" class="arena-btn-ghost px-3 py-1.5 text-xs" data-arena-alert-toggle>
-                            <span class="inline-block h-2 w-2 rounded-full bg-emerald-400" data-arena-alert-indicator></span>
-                            <span data-arena-alert-label>Alertas activas</span>
+                            <span class="inline-block h-2 w-2 rounded-full bg-amber-300" data-arena-alert-indicator></span>
+                            <span data-arena-alert-label>Avisos</span>
                         </button>
                         <span class="arena-chip hidden border-amber-500/30 bg-amber-950/30 text-amber-100 lg:inline-flex">🛡️ {{ $arenaAdminDisplayName }}</span>
                         <form method="POST" action="{{ route('admin.logout') }}">
@@ -3076,8 +3076,8 @@
                                 Matches
                             </a>
                             <button type="button" class="arena-btn-ghost px-3 py-1.5 text-xs" data-arena-alert-toggle>
-                                <span class="inline-block h-2 w-2 rounded-full bg-emerald-400" data-arena-alert-indicator></span>
-                                <span data-arena-alert-label>Alertas activas</span>
+                                <span class="inline-block h-2 w-2 rounded-full bg-amber-300" data-arena-alert-indicator></span>
+                                <span data-arena-alert-label>Avisos</span>
                             </button>
                             <span class="arena-chip hidden lg:inline-flex">{{ auth()->user()->discord_username }}</span>
                             <form method="POST" action="{{ route('logout') }}">
@@ -3133,8 +3133,8 @@
                     <a href="{{ route('admin.settings') }}" class="arena-nav-link block w-full {{ request()->routeIs('admin.settings') ? 'arena-nav-link-active' : '' }}">Configuración</a>
                     <a href="{{ route('admin.testing') }}" class="arena-nav-link block w-full {{ request()->routeIs('admin.testing') ? 'arena-nav-link-active' : '' }}">Testing</a>
                     <button type="button" class="arena-btn-ghost mt-3 w-full justify-center" data-arena-alert-toggle>
-                        <span class="inline-block h-2 w-2 rounded-full bg-emerald-400" data-arena-alert-indicator></span>
-                        <span data-arena-alert-label>Alertas activas</span>
+                        <span class="inline-block h-2 w-2 rounded-full bg-amber-300" data-arena-alert-indicator></span>
+                        <span data-arena-alert-label>Avisos</span>
                     </button>
                     
                     <div class="my-4 border-t border-[color:var(--arena-line)]"></div>
@@ -3151,8 +3151,8 @@
                         <a href="{{ route('lobby') }}" class="arena-nav-link block w-full {{ request()->routeIs('lobby') ? 'arena-nav-link-active' : '' }}">Lobby</a>
                         <a href="{{ route('matches.index') }}" class="arena-nav-link block w-full {{ request()->routeIs('matches.*') ? 'arena-nav-link-active' : '' }}">Matches</a>
                         <button type="button" class="arena-btn-ghost mt-3 w-full justify-center" data-arena-alert-toggle>
-                            <span class="inline-block h-2 w-2 rounded-full bg-emerald-400" data-arena-alert-indicator></span>
-                            <span data-arena-alert-label>Alertas activas</span>
+                            <span class="inline-block h-2 w-2 rounded-full bg-amber-300" data-arena-alert-indicator></span>
+                            <span data-arena-alert-label>Avisos</span>
                         </button>
                         
                         <div class="my-4 border-t border-[color:var(--arena-line)]"></div>
@@ -3485,6 +3485,13 @@
             const notificarSistema = async (type, mensaje, etiqueta) => {
                 if (!hayNotificaciones() || Notification.permission !== 'granted') { return false; }
 
+                // Con el push activo, estos ya llegan por el worker, y con mas
+                // detalle. Repetirlos desde la pagina con la misma etiqueta
+                // SUSTITUIA el aviso fijo del cruce por uno que se va solo.
+                if (TITULOS_AVISO[type] && window.ArenaAvisos && window.ArenaAvisos.estado() === 'activo') {
+                    return false;
+                }
+
                 const titulo = TITULOS_AVISO[type] || 'Regnum Arena Ladder';
                 const opciones = {
                     body: mensaje,
@@ -3492,8 +3499,9 @@
                     // Si el push ya lo enseño, este lo sustituye sin volver a
                     // sonar: es el mismo aviso, no uno nuevo.
                     renotify: false,
+                    // Un cruce caduca en minutos: se queda puesto hasta que se vea.
+                    requireInteraction: type === 'match_found',
                     icon: '{{ asset('images/icono-192.png') }}',
-                    badge: '{{ asset('images/icono-192.png') }}',
                     data: { url: '{{ route('lobby') }}' },
                 };
 
@@ -3666,6 +3674,10 @@
                     if (indicator) {
                         indicator.classList.toggle('bg-emerald-400', enabled);
                         indicator.classList.toggle('bg-rose-400', !enabled);
+                        // El marcado nace neutro (ambar): ni verde ni rojo hasta
+                        // saber el estado real. Nacer en verde era el primer
+                        // tramo del "se pone verde y luego rojo".
+                        indicator.classList.remove('bg-amber-300');
                     }
                 });
             };
@@ -3956,6 +3968,14 @@
                 pedirPermiso,
                 permisoNotificaciones: () => (hayNotificaciones() ? Notification.permission : 'unsupported'),
             };
+
+            // Silenciar en una pestaña silencia todas: sin esto, la otra seguia
+            // sonando con la idea vieja hasta recargar.
+            window.addEventListener('storage', (event) => {
+                if (event.key !== enabledKey) return;
+                enabled = event.newValue !== '0';
+                updateButtons();
+            });
 
             installUnlockListeners();
             updateButtons();

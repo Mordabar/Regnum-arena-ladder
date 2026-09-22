@@ -21,6 +21,11 @@
     'use strict';
 
     var CLAVE_SERVIDOR = @json(app(\App\Services\WebPushService::class)->clavePublica());
+    // Quien esta mirando. La confirmacion se guarda por cuenta: si otra
+    // persona entra en este mismo navegador, lo confirmado para la anterior
+    // no le vale -el servidor tiene esa direccion a nombre de la otra- y su
+    // boton no puede salir en verde.
+    var USUARIO = @json((string) auth()->id());
     var RUTAS = {
         suscribir: @json(route('avisos.suscribir')),
         desuscribir: @json(route('avisos.desuscribir')),
@@ -56,9 +61,41 @@
     var ultimoFallo = null;
     var registro = null;
 
-    function leer(clave) { try { return localStorage.getItem(clave); } catch (e) { return null; } }
-    function escribir(clave, valor) { try { localStorage.setItem(clave, valor); } catch (e) {} }
-    function borrar(clave) { try { localStorage.removeItem(clave); } catch (e) {} }
+    // Con el almacenamiento bloqueado (algunas ventanas privadas, ajustes
+    // estrictos) se sigue en memoria: el verde dura lo que dure la pagina en
+    // vez de no llegar nunca.
+    var memoria = {};
+    function leer(clave) { try { return localStorage.getItem(clave); } catch (e) { return memoria[clave] || null; } }
+    function escribir(clave, valor) { memoria[clave] = valor; try { localStorage.setItem(clave, valor); } catch (e) {} }
+    function borrar(clave) { delete memoria[clave]; try { localStorage.removeItem(clave); } catch (e) {} }
+
+    function marca(endpoint) { return endpoint + '|' + USUARIO; }
+    function confirmadaPara(suscripcion) { return !!suscripcion && leer(CONFIRMADA) === marca(suscripcion.endpoint); }
+    function endpointConfirmado() {
+        var v = leer(CONFIRMADA) || '';
+        var corte = v.lastIndexOf('|');
+        return corte > 0 ? v.slice(0, corte) : v;
+    }
+
+    /* Un paso del navegador que no contesta no puede dejar el boton en
+     * "activando" para siempre. Pasa: el globo del permiso escondido detras
+     * de otra ventana, o un worker que no termina de arrancar. */
+    var ESPERA_PASO_MS = 25000;
+    function conLimite(promesa, paso) {
+        return Promise.race([
+            promesa,
+            new Promise(function (_, rechazar) {
+                window.setTimeout(function () {
+                    var e = new Error('sin respuesta tras ' + (ESPERA_PASO_MS / 1000) + 's');
+                    e.tiempo = true;
+                    e.paso = paso;
+                    rechazar(e);
+                }, ESPERA_PASO_MS);
+            }),
+        ]);
+    }
+
+    var esBrave = !!(navigator.brave && typeof navigator.brave.isBrave === 'function');
 
     function sonidos() { return window.ArenaSoundAlerts || null; }
 
@@ -154,7 +191,7 @@
         if (!suscripcion) { return 'inactivo'; }
 
         if (claveDeLaSuscripcion(suscripcion) === false) { return 'inactivo'; }
-        if (leer(CONFIRMADA) !== suscripcion.endpoint) { return 'inactivo'; }
+        if (!confirmadaPara(suscripcion)) { return 'inactivo'; }
 
         return 'activo';
     }
@@ -279,7 +316,7 @@
         }
 
         registro = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-        await navigator.serviceWorker.ready;
+        await conLimite(navigator.serviceWorker.ready, 'worker');
 
         return registro;
     }
@@ -310,7 +347,7 @@
         // Si este navegador tenia otra direccion antes, se dice cual: el
         // servidor la sustituye en vez de guardar las dos y mandar cada aviso
         // por duplicado hasta que la vieja caduque.
-        var anterior = leer(CONFIRMADA);
+        var anterior = endpointConfirmado();
         if (anterior && anterior !== suscripcion.endpoint) { datos.anterior = anterior; }
 
         var r = await enviar(RUTAS.suscribir, datos);
@@ -321,8 +358,9 @@
             throw err;
         }
 
-        escribir(CONFIRMADA, suscripcion.endpoint);
+        escribir(CONFIRMADA, marca(suscripcion.endpoint));
         escribir(CONFIRMADA_EN, String(Date.now()));
+        try { sessionStorage.setItem(CONFIRMADA_EN, '1'); } catch (e) {}
     }
 
     /**
@@ -349,7 +387,7 @@
                 var permiso = Notification.permission;
 
                 if (permiso === 'default') {
-                    permiso = permisoPedido ? await permisoPedido : await Notification.requestPermission();
+                    permiso = await conLimite(permisoPedido || Notification.requestPermission(), 'permiso');
                 }
 
                 if (permiso === 'denied') {
@@ -367,7 +405,7 @@
                 var reg = await registrarWorker();
 
                 paso = 'suscripcion';
-                var suscripcion = await suscripcionValida(reg);
+                var suscripcion = await conLimite(suscripcionValida(reg), 'suscripcion');
 
                 paso = 'servidor';
                 await guardarEnServidor(suscripcion);
@@ -391,12 +429,18 @@
 
                 return { ok: true };
             } catch (e) {
+                if (e && e.tiempo && paso === 'permiso') {
+                    return fallo('permiso-sin-respuesta', 'El navegador no llego a enseñar la pregunta del permiso. Mira si hay un globo junto a la direccion y vuelve a tocar.', e, avisar);
+                }
+
                 var mensajes = {
                     worker: 'No se pudo preparar el aviso en segundo plano. Recarga la pagina y vuelve a probar.',
                     suscripcion: esIOS && !enStandalone
                         ? instruccionesIOS()
+                        : esBrave
+                        ? 'Brave trae los avisos apagados. Abre brave://settings/privacy, activa "Usar los servicios de Google para mensajes push", reinicia Brave y vuelve a tocar.'
                         : 'Tu navegador no deja recibir avisos aqui. Si estas en una ventana privada, abre el sitio en una normal.',
-                    servidor: e && e.estado === 419
+                    servidor: e && (e.estado === 419 || e.estado === 401)
                         ? 'Tu sesion caduco. Recarga la pagina y vuelve a tocar.'
                         : 'No se pudo guardar en el servidor. Vuelve a tocar en un momento.',
                     permiso: 'No se pudo pedir el permiso de avisos.',
@@ -469,7 +513,10 @@
         }
 
         if (await acuse) {
-            toast('Recibido. Asi te llegaran los cruces, aunque cierres la pagina.', 'success', 5000);
+            toast(
+                'Recibido. Asi te llegaran los cruces aunque cierres la pagina: basta con que el navegador siga abierto'
+                + (/Windows/.test(navigator.userAgent) ? ' y Windows no este en "No molestar" / asistente de concentracion.' : '.'),
+                'success', 8000);
             return { ok: true };
         }
 
@@ -491,7 +538,10 @@
 
     /* ── Desactivar ────────────────────────────────────────────────────── */
 
-    async function desactivar() {
+    function desactivar() {
+        if (enVuelo) { return enVuelo; }
+
+        enVuelo = (async function () {
         pintar('cargando');
 
         try {
@@ -511,7 +561,16 @@
         if (s) { await s.setEnabled(false, { silent: true }); }
 
         toast('Avisos silenciados. Ya no te avisaremos con la pagina cerrada.', 'info', 3500);
-        await repintar();
+
+        return { ok: true };
+        })();
+
+        enVuelo.finally(function () {
+            enVuelo = null;
+            repintar();
+        });
+
+        return enVuelo;
     }
 
     /* ── El toque ──────────────────────────────────────────────────────── */
@@ -523,6 +582,15 @@
      * del gesto. Nunca conmuta a ciegas. */
     function alternar() {
         if (enVuelo) { return enVuelo; }
+
+        /* Tocado mientras aun se comprueba el estado (el primer medio segundo
+           de la pagina). Si hay que pedir permiso, se pide YA, dentro del
+           gesto: es lo unico que no puede esperar. Si no, se espera a saber
+           el estado y se decide con el; sin permiso pendiente no hace falta
+           el gesto. */
+        if (estadoActual === 'comprobando' && soportado && Notification.permission !== 'default') {
+            return arranque.then(function () { return estadoActual === 'comprobando' ? null : alternar(); });
+        }
 
         if (estadoActual === 'activo') { return desactivar(); }
 
@@ -555,8 +623,6 @@
      * Si faltaba solo la confirmacion (la suscripcion existe pero el
      * servidor no la tiene), se arregla aqui mismo, en silencio. */
     async function alArrancar() {
-        pintar('comprobando');
-
         if (!soportado) { pintar('no-soportado'); return; }
 
         var s = sonidos();
@@ -567,19 +633,67 @@
             var suscripcion = null;
             try { suscripcion = reg ? await reg.pushManager.getSubscription() : null; } catch (e) {}
 
-            var confirmadaEn = parseInt(leer(CONFIRMADA_EN) || '0', 10);
-            var hayQueConfirmar = suscripcion && (
-                leer(CONFIRMADA) !== suscripcion.endpoint
-                || Date.now() - confirmadaEn > RECONFIRMAR_MS
-            );
+            if (!reg || !suscripcion || claveDeLaSuscripcion(suscripcion) === false) {
+                /* Permiso dado y alertas encendidas, pero sin suscripcion:
+                   el navegador la tiro (limpieza de datos, cambio de clave,
+                   el servidor la borro tras un 410). Quien ya dijo que si no
+                   tiene por que volver a tocar nada: se rehace en silencio. */
+                await activar({ avisar: false });
+                return;
+            }
 
-            if (reg && suscripcion && hayQueConfirmar && claveDeLaSuscripcion(suscripcion) !== false) {
+            // Una vez por sesion del navegador, o cada seis horas: por si el
+            // servidor la borro, o esta cuenta aun no la tiene a su nombre.
+            var confirmadaEn = parseInt(leer(CONFIRMADA_EN) || '0', 10);
+            var enEstaSesion = false;
+            try { enEstaSesion = sessionStorage.getItem(CONFIRMADA_EN) === '1'; } catch (e) {}
+
+            var hayQueConfirmar = !confirmadaPara(suscripcion)
+                || !enEstaSesion
+                || Date.now() - confirmadaEn > RECONFIRMAR_MS;
+
+            if (hayQueConfirmar) {
                 try { await guardarEnServidor(suscripcion); } catch (e) { informar('reconfirmar', e); }
             }
         }
 
         await repintar();
     }
+
+    /* Al cerrar sesion, este navegador deja de ser de esa cuenta. Si no se
+     * dice, el servidor seguiria mandandole los avisos de la cuenta anterior
+     * a quien entre despues en el mismo equipo. */
+    function alCerrarSesion() {
+        var endpoint = endpointConfirmado();
+        borrar(CONFIRMADA);
+        borrar(CONFIRMADA_EN);
+        if (!endpoint) { return; }
+
+        try {
+            fetch(RUTAS.desuscribir, {
+                method: 'POST',
+                credentials: 'same-origin',
+                keepalive: true,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': token(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ endpoint: endpoint }),
+            });
+        } catch (e) {}
+    }
+
+    document.addEventListener('submit', function (evento) {
+        var form = evento.target;
+        if (form && form.action && /\/logout$/.test(form.action.replace(/[?#].*$/, ''))) { alCerrarSesion(); }
+    }, true);
+
+    // Otra pestaña activo o silencio: esta se entera sin recargar.
+    window.addEventListener('storage', function (evento) {
+        if (evento.key === CONFIRMADA) { repintar(); }
+    });
 
     window.ArenaAvisos = {
         alternar: alternar,
@@ -603,7 +717,7 @@
                 workerActivo: !!(reg && reg.active),
                 suscrito: !!suscripcion,
                 claveCorrecta: suscripcion ? claveDeLaSuscripcion(suscripcion) : null,
-                confirmadaEnServidor: !!(suscripcion && leer(CONFIRMADA) === suscripcion.endpoint),
+                confirmadaEnServidor: confirmadaPara(suscripcion),
                 ultimoFallo: ultimoFallo,
             };
         },
@@ -621,11 +735,11 @@
         if (!document.hidden) { repintar(); }
     });
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', alArrancar);
-    } else {
-        alArrancar();
-    }
+    /* En el acto, sin esperar a DOMContentLoaded: el script va al final del
+       body, los botones ya existen, y cada milisegundo en "comprobando" es un
+       toque que puede caer en tierra de nadie. */
+    pintar('comprobando');
+    var arranque = alArrancar().catch(function (e) { informar('arranque', e); return repintar(); });
 })();
 </script>
 @endif

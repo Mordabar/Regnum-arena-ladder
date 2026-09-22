@@ -28,5 +28,9 @@ return [
         // A quien escribir si los avisos dan problemas. Los servicios de push
         // exigen un contacto; un `mailto:` es lo habitual.
         'subject' => env('VAPID_SUBJECT'),
+        // SOLO para probar en local contra un servicio de push falso. En
+        // produccion no se define: la lista de servicios validos es fija
+        // (Google, Mozilla, Apple, Microsoft) y no admite nada mas.
+        'hosts_extra' => env('VAPID_HOSTS_EXTRA'),
     ],
 ];

@@ -8,6 +8,7 @@ use App\Services\WebPushService;
 use App\Support\VapidKeys;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Throwable;
 
@@ -40,6 +41,8 @@ class PushCheckCommand extends Command
         $todoBien = $this->revisarClaves() && $todoBien;
         $todoBien = $this->revisarTabla() && $todoBien;
         $todoBien = $this->revisarWorker() && $todoBien;
+        $todoBien = $this->revisarRutas() && $todoBien;
+        $todoBien = $this->revisarManifiesto() && $todoBien;
         $todoBien = $this->revisarSuscripciones() && $todoBien;
 
         $this->revisarDiscord();
@@ -131,8 +134,66 @@ class PushCheckCommand extends Command
             return false;
         }
 
+        // Subido, pero ¿el de ahora? Con FTP es facil dejar el viejo: sin la
+        // linea del acuse, la prueba de "Activar" nunca confirma.
+        if (!str_contains((string) file_get_contents($ruta), 'arena:prueba-recibida')) {
+            $this->falla('sw.js', 'es una version vieja: vuelve a subir public/sw.js');
+
+            return false;
+        }
+
         $this->bien('sw.js', 'en ' . $ruta);
         $this->line('   Compruebalo en el navegador: ' . rtrim((string) config('app.url'), '/') . '/sw.js');
+
+        return true;
+    }
+
+    /**
+     * Las rutas de los avisos, tal y como las ve la aplicacion AHORA.
+     *
+     * Si en el servidor quedo un `route:cache` de antes de subir esto, las
+     * rutas nuevas no existen aunque el fichero si: el boton da 404 al
+     * activar y no hay forma de verlo desde fuera.
+     */
+    private function revisarRutas(): bool
+    {
+        $faltan = array_values(array_filter(
+            ['avisos.suscribir', 'avisos.desuscribir', 'avisos.pendientes', 'avisos.probar', 'avisos.fallo', 'avisos.resuscribir'],
+            fn (string $nombre) => !Route::has($nombre)
+        ));
+
+        if ($faltan !== []) {
+            $this->falla('Rutas de avisos', 'faltan ' . implode(', ', $faltan));
+            $this->line('   Casi siempre es una cache de rutas vieja:');
+            $this->line('   php artisan route:clear && php artisan config:clear && php artisan view:clear');
+
+            return false;
+        }
+
+        $this->bien('Rutas de avisos', 'las seis estan');
+
+        if (app()->routesAreCached()) {
+            $this->aviso('Cache de rutas', 'activa: tras cada subida, php artisan route:clear');
+        }
+
+        return true;
+    }
+
+    /** El manifiesto y los iconos: sin ellos, en iPhone no hay "añadir a inicio" con avisos. */
+    private function revisarManifiesto(): bool
+    {
+        $faltan = array_values(array_filter(
+            ['manifest.webmanifest', 'images/icono-192.png', 'images/icono-512.png'],
+            fn (string $fichero) => !is_file(public_path($fichero))
+        ));
+
+        if ($faltan !== []) {
+            $this->aviso('Manifiesto e iconos', 'faltan ' . implode(', ', $faltan) . ' (solo afecta a iPhone)');
+
+            return true;
+        }
+
+        $this->bien('Manifiesto e iconos', 'en su sitio');
 
         return true;
     }

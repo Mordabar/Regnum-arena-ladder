@@ -337,6 +337,16 @@ class ArenaMatchResultService
         $this->ladderCacheService->forgetRecentMatches();
         $this->discordBotService->notifyMatchDisputed($match->fresh('report'), $report);
 
+        // Al equipo que reporto: su resultado queda en manos de un admin.
+        $reportaron = $match->getTeamPlayerIds($report->reporting_team);
+        app(AvisosPendientesService::class)->registrarHecho(
+            $reportaron,
+            'reporte:' . $match->id,
+            'Resultado en disputa',
+            'El rival rechazo tu reporte. Un admin lo revisara.'
+        );
+        app(WebPushService::class)->avisarAJugadores($reportaron);
+
         return $report->fresh();
     }
 
@@ -419,8 +429,9 @@ class ArenaMatchResultService
     public function markVoid(ArenaMatch $match, ?User $admin = null, ?string $note = null): void
     {
         $devueltos = [];
+        $anulado = false;
 
-        DB::transaction(function () use ($match, $admin, $note, &$devueltos) {
+        DB::transaction(function () use ($match, $admin, $note, &$devueltos, &$anulado) {
             // Bajo llave y releido: dos clics seguidos en "anular" veian los
             // mismos resultados y devolvian los puntos dos veces.
             $bloqueado = ArenaMatch::query()->whereKey($match->getKey())->lockForUpdate()->first();
@@ -472,6 +483,7 @@ class ArenaMatchResultService
             ]);
 
             $this->closeMatchQueues($bloqueado);
+            $anulado = true;
         });
 
         // Despues del commit, no antes.
@@ -483,8 +495,19 @@ class ArenaMatchResultService
         // resultado y se devolvieron los puntos. Cuatro jugadores leyendo algo
         // que no paso. DB::afterCommit() lo ejecuta cuando ya no hay vuelta
         // atras, y fuera de transaccion corre igual, en el acto.
-        DB::afterCommit(function () use ($match, $devueltos, $note) {
+        DB::afterCommit(function () use ($match, $devueltos, $note, $anulado) {
             $this->ladderCacheService->forgetRecentMatches();
+
+            if ($anulado) {
+                $jugadores = $match->getAllPlayers();
+                app(AvisosPendientesService::class)->registrarHecho(
+                    $jugadores,
+                    'combate:' . $match->id,
+                    'Combate anulado',
+                    $devueltos === [] ? 'Un admin anulo el combate.' : 'Un admin anulo el combate y devolvio los puntos.'
+                );
+                app(WebPushService::class)->avisarAJugadores($jugadores);
+            }
 
             if ($devueltos !== []) {
                 // Quien pierde PL y MMR por una decision de moderacion tiene

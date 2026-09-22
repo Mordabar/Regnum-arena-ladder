@@ -46,6 +46,20 @@
         ExpiresDefault "access plus 1 week"
         Header set Cache-Control "public, max-age=604800"
     </FilesMatch>
+
+    # EXCEPTO el service worker y el manifiesto, que van despues para ganar.
+    # sw.js no lleva version en la URL -no puede: el navegador lo busca siempre
+    # en /sw.js- y la regla de los .js de arriba lo cacheaba UN AÑO como
+    # inmutable. Cualquier cache intermedia (LiteSpeed, una CDN) lo habria
+    # congelado y un arreglo en los avisos no llegaria nunca a nadie.
+    <FilesMatch "^(sw\.js|manifest\.webmanifest)$">
+        ExpiresActive Off
+        Header set Cache-Control "no-cache, must-revalidate"
+    </FilesMatch>
+</IfModule>
+
+<IfModule mod_mime.c>
+    AddType application/manifest+json .webmanifest
 </IfModule>
 
 <IfModule mod_mime.c>

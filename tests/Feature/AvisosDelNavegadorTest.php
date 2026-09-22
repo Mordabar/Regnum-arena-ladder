@@ -19,6 +19,12 @@ use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
+// Las pruebas hablan con un servicio de push inventado. En produccion la lista
+// de servicios es fija (Google, Mozilla, Apple, Microsoft); aqui se añade este.
+beforeEach(function () {
+    config(['services.webpush.hosts_extra' => 'push.example']);
+});
+
 /**
  * Los avisos que llegan con la pestaña cerrada.
  *
@@ -455,7 +461,10 @@ it('verde solo cuando el servidor tiene la suscripcion de este navegador', funct
     // servidor haya confirmado ESA direccion.
     $js = runtimeDeAvisos();
 
-    expect($js)->toContain("if (leer(CONFIRMADA) !== suscripcion.endpoint) { return 'inactivo'; }")
+    expect($js)->toContain("if (!confirmadaPara(suscripcion)) { return 'inactivo'; }")
+        // Y confirmada para ESTA cuenta: otra persona en el mismo navegador
+        // no hereda el verde de la anterior.
+        ->and($js)->toContain("function marca(endpoint) { return endpoint + '|' + USUARIO; }")
         ->and($js)->toContain("if (Notification.permission !== 'granted') { return 'inactivo'; }")
         ->and($js)->toContain("if (!s || !s.isEnabled()) { return 'inactivo'; }");
 });
@@ -735,4 +744,113 @@ it('ningun limite de peticiones va sin nombre', function () {
     foreach ($m as $limite) {
         expect($limite[3] ?? '')->not->toBe('', 'throttle:' . $limite[1] . ',' . $limite[2] . ' sin nombre comparte contador con todo lo demas');
     }
+});
+
+/* ── Ronda 2 del arbitro ────────────────────────────────────────────────── */
+
+it('solo se aceptan direcciones de los servicios de push conocidos', function () {
+    // La direccion la manda el navegador, o sea, cualquiera. Sin lista, el
+    // servidor haria peticiones firmadas a donde le dijeran: a la red interna
+    // de Hostinger, por ejemplo.
+    conClavesDePrueba();
+    config(['services.webpush.hosts_extra' => null]);
+
+    $jugador = jugadorPush('Curioso');
+
+    foreach (['http://127.0.0.1/x', 'https://169.254.169.254/latest', 'https://evil.example/x', 'http://fcm.googleapis.com/fcm/send/x'] as $mala) {
+        $this->actingAs($jugador->user)
+            ->postJson(route('avisos.suscribir'), ['endpoint' => $mala, 'keys' => ['p256dh' => 'a', 'auth' => 'b']])
+            ->assertStatus(422);
+    }
+
+    $this->actingAs($jugador->user)
+        ->postJson(route('avisos.suscribir'), ['endpoint' => 'https://fcm.googleapis.com/fcm/send/abc', 'keys' => ['p256dh' => 'a', 'auth' => 'b']])
+        ->assertOk();
+
+    expect(PushSubscription::count())->toBe(1);
+});
+
+it('una fila antigua que apunta fuera de la lista no recibe peticiones', function () {
+    conClavesDePrueba();
+    config(['services.webpush.hosts_extra' => null]);
+    Http::fake(['*' => Http::response('', 201)]);
+
+    $jugador = jugadorPush('Antiguo');
+    PushSubscription::create(['user_id' => $jugador->user_id, 'endpoint' => 'https://interno.local/x']);
+
+    app(WebPushService::class)->avisar([$jugador->user_id]);
+
+    Http::assertNothingSent();
+});
+
+it('un error del servidor o de firma no borra la suscripcion', function () {
+    // Un 401 es culpa NUESTRA (clave mal puesta); un 5xx, del servicio. Tirar
+    // la suscripcion por eso dejaba a todo el mundo sin avisos para siempre.
+    conClavesDePrueba();
+
+    foreach ([401, 403, 429, 500, 503] as $estado) {
+        Http::fake(['*' => Http::response('', $estado)]);
+        $jugador = jugadorPush('Estado' . $estado);
+        PushSubscription::create(['user_id' => $jugador->user_id, 'endpoint' => 'https://push.example/e' . $estado]);
+
+        app(WebPushService::class)->avisar([$jugador->user_id]);
+    }
+
+    expect(PushSubscription::count())->toBe(5);
+});
+
+it('un cruce cancelado avisa a quien no lo rechazo, aunque la fila ya no exista', function () {
+    conClavesDePrueba();
+    Http::fake(['*' => Http::response('', 201)]);
+
+    $yo = jugadorPush('Rechaza', 'ignis');
+    $rival = jugadorPush('Esperaba', 'syrtis');
+    $match = crucePush($yo, $rival, 'pending_acceptance', ['expires_at' => now()->addMinutes(2)]);
+
+    PushSubscription::create(['user_id' => $yo->user_id, 'endpoint' => 'https://push.example/rechaza']);
+    PushSubscription::create(['user_id' => $rival->user_id, 'endpoint' => 'https://push.example/esperaba']);
+
+    app(\App\Services\ArenaMatchmakingService::class)->cancelMatch($match, 'player_rejected', $yo->id, false);
+    app()->terminate();
+
+    Http::assertSent(fn ($r) => $r->url() === 'https://push.example/esperaba');
+    Http::assertNotSent(fn ($r) => $r->url() === 'https://push.example/rechaza');
+
+    $aviso = collect(app(AvisosPendientesService::class)->para($rival->user))->firstWhere('tag', 'cruce:' . $match->id);
+
+    expect($aviso)->not->toBeNull()
+        ->and($aviso['titulo'])->toBe('Cruce cancelado')
+        ->and(collect(app(AvisosPendientesService::class)->para($yo->user))->pluck('tag'))->not->toContain('cruce:' . $match->id);
+});
+
+it('las direcciones de los avisos son relativas al sitio', function () {
+    // Con APP_URL mal puesto en el servidor, una URL absoluta mandaba al
+    // jugador a otro dominio al tocar el aviso.
+    $yo = jugadorPush('Rel', 'ignis');
+    $rival = jugadorPush('Rel2', 'syrtis');
+    crucePush($yo, $rival, 'pending_acceptance', ['expires_at' => now()->addMinutes(2)]);
+
+    foreach (app(AvisosPendientesService::class)->para($yo->user) as $aviso) {
+        expect($aviso['url'])->toStartWith('/');
+    }
+});
+
+it('entrar con Discord deja la sesion recordada', function () {
+    // El worker pregunta al sitio que ha pasado; con la sesion caducada la
+    // respuesta era un 401 y el aviso salia vacio.
+    expect(File::get(app_path('Http/Controllers/AuthController.php')))->toContain('Auth::login($user, true)');
+});
+
+it('el service worker no se cachea en el servidor', function () {
+    $htaccess = File::get(public_path('.htaccess'));
+
+    expect($htaccess)->toContain('<FilesMatch "^(sw\.js|manifest\.webmanifest)$">')
+        ->and($htaccess)->toContain('no-cache, must-revalidate');
+});
+
+it('los interruptores nacen neutros, ni verdes ni rojos', function () {
+    $layout = File::get(resource_path('views/layouts/arena.blade.php'));
+
+    expect($layout)->not->toContain('bg-emerald-400" data-arena-alert-indicator')
+        ->and($layout)->toContain('bg-amber-300" data-arena-alert-indicator');
 });

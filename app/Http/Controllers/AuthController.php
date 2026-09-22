@@ -40,7 +40,12 @@ class AuthController extends Controller
             // de que este callback lo autentique.
             $user->forceFill(['last_seen_at' => now()])->saveQuietly();
 
-            Auth::login($user);
+            // Con "recordarme". La sesion dura dos horas, y los avisos del
+            // navegador llegan justo a quien lleva horas en el juego sin tocar
+            // la web: al recibir el toque, el service worker pregunta al sitio
+            // que ha pasado, y con la sesion caducada la respuesta era un 401
+            // y el aviso salia vacio. La cookie de recordar lo resuelve.
+            Auth::login($user, true);
 
             return redirect()->route('lobby');
             

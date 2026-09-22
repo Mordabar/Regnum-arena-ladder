@@ -12,7 +12,7 @@
  * de un despliegue por FTP. Aqui solo se reciben avisos.
  */
 
-const VERSION = 'arena-avisos-2';
+const VERSION = 'arena-avisos-3';
 
 self.addEventListener('install', (event) => {
     // Sin esto, el worker nuevo se queda esperando a que se cierren todas las
@@ -41,6 +41,7 @@ self.addEventListener('push', (event) => {
 
 async function anunciar() {
     let avisos = [];
+    let sinSesion = false;
 
     try {
         const r = await fetch('/avisos/pendientes', {
@@ -52,6 +53,8 @@ async function anunciar() {
         if (r.ok) {
             const datos = await r.json();
             avisos = Array.isArray(datos.avisos) ? datos.avisos : [];
+        } else if (r.status === 401 || r.status === 419) {
+            sinSesion = true;
         }
     } catch (e) {
         // Sin red o sesion caducada. Se sigue: mejor un aviso generico que
@@ -70,12 +73,32 @@ async function anunciar() {
      */
     avisos.sort((a, b) => String(b.en || '').localeCompare(String(a.en || '')));
 
-    const aviso = avisos[0] || {
-        tag: 'arena',
-        titulo: 'Regnum Arena Ladder',
-        cuerpo: 'Hay novedades en tu arena.',
-        url: '/lobby',
-    };
+    const aviso = avisos[0] || (sinSesion
+        ? {
+            tag: 'arena',
+            titulo: 'Regnum Arena Ladder',
+            cuerpo: 'Tienes novedades en la arena. Tu sesion caduco: entra para verlas.',
+            url: '/',
+        }
+        : {
+            tag: 'arena',
+            titulo: 'Regnum Arena Ladder',
+            cuerpo: 'Hay novedades en tu arena.',
+            url: '/lobby',
+        });
+
+    /*
+     * Un cruce que ya no esta vigente no puede seguir en pantalla diciendo
+     * "acepta ahora": su aviso era fijo, asi que no se iba solo. Se cierran
+     * los de cruces que el servidor ya no devuelve.
+     */
+    try {
+        const vigentes = new Set(avisos.map((a) => a.tag));
+        const puestas = await self.registration.getNotifications();
+        puestas
+            .filter((n) => /^cruce:/.test(n.tag || '') && !vigentes.has(n.tag) && n.tag !== aviso.tag)
+            .forEach((n) => n.close());
+    } catch (e) { /* no es critico */ }
 
     await self.registration.showNotification(aviso.titulo || 'Regnum Arena Ladder', {
         body: aviso.cuerpo || '',
@@ -85,7 +108,8 @@ async function anunciar() {
         tag: aviso.tag || 'arena',
         renotify: true,
         icon: '/images/icono-192.png',
-        badge: '/images/icono-192.png',
+        // Sin `badge`: Android lo pinta como silueta y un icono opaco sale
+        // como un cuadrado blanco. Sin el, pone la campana del navegador.
         data: { url: aviso.url || '/lobby' },
         // El cruce se queda hasta que se toca: hay dos minutos para aceptar y
         // no puede irse solo a los cinco segundos. El resto se va como
