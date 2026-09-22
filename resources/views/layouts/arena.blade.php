@@ -1,6 +1,20 @@
 <!DOCTYPE html>
-<html lang="es"@auth @if(app(\App\Services\WebPushService::class)->configurado()) data-arena-push @endif @endauth>
+<html lang="es">
 <head>
+    @auth
+    @if(app(\App\Services\WebPushService::class)->configurado())
+    <script>
+    /* El push (y las notificaciones del sistema) solo en el movil: ahi el
+       navegador se duerme en cuanto se cambia de app y es la unica forma de
+       avisar. En el escritorio basta el sonido con la pestaña en reposo. */
+    (function () {
+        var tactil = window.matchMedia && window.matchMedia('(pointer: coarse)').matches
+            && !window.matchMedia('(hover: hover)').matches;
+        if (tactil) { document.documentElement.setAttribute('data-arena-push', ''); }
+    })();
+    </script>
+    @endif
+    @endauth
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'Regnum Arena Ladder')</title>
@@ -3404,7 +3418,12 @@
             let tituloTimer = null;
             let tituloPendiente = null;
 
-            const hayNotificaciones = () => typeof window.Notification === 'function';
+            /* Sin notificaciones del sistema: ni globo de permiso ni tarjeta
+               flotante del navegador. El aviso es el sonido, el titulo de la
+               pestaña y el aviso interno de la app. Solo con el push
+               encendido a proposito (VAPID_ENABLED) vuelven a existir. */
+            const hayNotificaciones = () => document.documentElement.hasAttribute('data-arena-push')
+                && typeof window.Notification === 'function';
 
             /* El permiso se pide con el mismo gesto que enciende las alertas.
                Pedirlo al cargar la pagina es la forma mas rapida de que lo
@@ -3458,11 +3477,6 @@
                 match_ping: 'Aviso del rival',
             };
 
-            // Los que el servidor tambien manda por push. Solo estos se callan
-            // en la pagina cuando el push esta activo; el resto no tiene otro
-            // camino para llegar con la pestaña de lado.
-            const CON_PUSH = ['match_found', 'hunt_start', 'report_submitted', 'report_confirmed', 'party_invite', 'match_ping'];
-
             const ETIQUETAS_AVISO = {
                 'match-found': 'cruce',
                 'hunt-start': 'combate',
@@ -3490,13 +3504,12 @@
             const notificarSistema = async (type, mensaje, etiqueta) => {
                 if (!hayNotificaciones() || Notification.permission !== 'granted') { return false; }
 
-                // Con el push activo, estos ya llegan por el worker, y con mas
-                // detalle. Repetirlos desde la pagina con la misma etiqueta
-                // SUSTITUIA el aviso fijo del cruce por uno que se va solo.
-                if (CON_PUSH.includes(type) && window.ArenaAvisos && window.ArenaAvisos.estado() === 'activo') {
-                    return false;
-                }
-
+                /* Siempre, aunque el push este activo. Callarlo "porque ya
+                   llega por push" dejaba sin NADA a quien tenia el push roto
+                   sin saberlo (Google caduca direcciones por su cuenta): ni
+                   push ni el aviso de la pagina, que es el que siempre habia
+                   funcionado con la pestaña de lado. Si llegan los dos, la
+                   etiqueta es la misma y el sistema enseña uno. */
                 const titulo = TITULOS_AVISO[type] || 'Regnum Arena Ladder';
                 const opciones = {
                     body: mensaje,
@@ -3663,6 +3676,8 @@
                     return;
                 }
 
+                document.dispatchEvent(new CustomEvent('arena:sonido-estado', { detail: { enabled, unlocked } }));
+
                 alertButtons().forEach((button) => {
                     const label = button.querySelector('[data-arena-alert-label]');
                     const indicator = button.querySelector('[data-arena-alert-indicator]');
@@ -3796,7 +3811,9 @@
                     // cosa del navegador y se resuelve solo en cuanto la persona
                     // toca cualquier parte de la pagina. Pedirselo explicitamente
                     // convertia un detalle tecnico en una tarea para el usuario.
-                    unlock();
+                    // Y si el navegador lo deja (ya se toco el sitio en esta
+                    // sesion), suena en cuanto se desbloquea en vez de perderse.
+                    unlock().then((ok) => { if (ok) { playPattern(type); } });
 
                     return false;
                 }
@@ -3908,7 +3925,7 @@
                     }));
 
                     if (!options.silent) {
-                        arenaToast('Alertas silenciadas. Tampoco te avisaremos con la pagina cerrada.', 'info', 3500);
+                        arenaToast('Alertas silenciadas.', 'info', 3500);
                     }
                 }
 
@@ -3934,6 +3951,8 @@
                 if (document.hidden) {
                     notificarSistema(type, message, options.tag || etiquetaDe(type, eventKey));
                     parpadearTitulo(message);
+                    // Y el aviso interno, largo: sigue ahi cuando se vuelve.
+                    arenaToast(message, options.toastType || 'info', 20000);
                 } else {
                     arenaToast(message, options.toastType || 'info', options.duration || 5500);
                 }
@@ -4104,6 +4123,33 @@
     @include('partials.arena-pings-runtime')
     @include('partials.arena-zona-runtime')
     @include('partials.arena-push-runtime')
+    @auth
+    <script>
+    /* En el escritorio no hay push. Quien los activo en la version anterior
+       sigue teniendo el worker y la suscripcion: se retiran (tambien en el
+       servidor), para que no vuelva a salir ninguna tarjeta del sistema. */
+    (function () {
+        // En el movil con push, el worker es el suyo: no se toca.
+        if (document.documentElement.hasAttribute('data-arena-push')) { return; }
+        if (!('serviceWorker' in navigator)) { return; }
+        navigator.serviceWorker.getRegistrations().then(function (regs) {
+            regs.forEach(function (reg) {
+                var baja = reg.pushManager ? reg.pushManager.getSubscription().then(function (s) {
+                    if (!s) { return; }
+                    var meta = document.querySelector('meta[name="csrf-token"]');
+                    fetch(@json(route('avisos.desuscribir')), {
+                        method: 'POST', credentials: 'same-origin', keepalive: true,
+                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': meta ? meta.content : '' },
+                        body: JSON.stringify({ endpoint: s.endpoint }),
+                    }).catch(function () {});
+                    return s.unsubscribe();
+                }) : Promise.resolve();
+                baja.catch(function () {}).then(function () { return reg.unregister(); }).catch(function () {});
+            });
+        }).catch(function () {});
+    })();
+    </script>
+    @endauth
     {{-- Despues del runtime: necesita `window.ArenaPush` para saber si los
          avisos estan activos de verdad, no solo segun el ajuste guardado. --}}
     @include('partials.arena-avisos-boton')

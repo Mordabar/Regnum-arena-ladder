@@ -38,6 +38,13 @@ class AvisosController extends Controller
             'anterior' => ['nullable', 'string', 'max:500'],
         ]);
 
+        // Una direccion que el servicio de push ya dio por muerta. Se dice con
+        // un 410 para que el navegador la tire y pida una nueva; guardarla
+        // otra vez era pintar verde algo que nunca iba a recibir nada.
+        if (WebPushService::estaMuerta($datos['endpoint'])) {
+            return response()->json(['ok' => false, 'motivo' => 'caducada', 'renovar' => true], 410);
+        }
+
         // La direccion que este mismo navegador tenia antes, si cambio. Solo
         // se borra si es de este usuario: no se puede tirar la de otro
         // adivinando su direccion.
@@ -170,6 +177,8 @@ class AvisosController extends Controller
             'ok' => $resultado['ok'],
             'estado' => $resultado['estado'],
             'servicio' => $resultado['servicio'],
+            // 404/410: esta direccion ya no sirve; el navegador pide otra.
+            'renovar' => in_array($resultado['estado'], [404, 410], true),
         ], $resultado['ok'] ? 200 : 502);
     }
 

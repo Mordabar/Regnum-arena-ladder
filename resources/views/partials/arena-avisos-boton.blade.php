@@ -259,7 +259,13 @@
         evento.preventDefault();
         esconderPista();
 
-        if (window.ArenaAvisos) { window.ArenaAvisos.alternar(); }
+        if (window.ArenaAvisos) { window.ArenaAvisos.alternar(); return; }
+
+        // Sin push (pantalla tactil sin el, o ventana estrecha en escritorio):
+        // el boton es el del sonido.
+        var s = window.ArenaSoundAlerts;
+        if (!s) { return; }
+        if (s.isEnabled() && s.isUnlocked()) { s.setEnabled(false); } else { s.unlock(); s.setEnabled(true); }
     }
 
     boton.addEventListener('click', alTocar);
@@ -269,8 +275,19 @@
         pintar(evento.detail && evento.detail.estado);
     });
 
+    // Sin controlador de push, el estado es el del sonido.
+    document.addEventListener('arena:sonido-estado', function (evento) {
+        if (window.ArenaAvisos) { return; }
+        var d = evento.detail || {};
+        pintar(d.enabled && d.unlocked ? 'activo' : 'inactivo');
+    });
+
     // El controlador pudo pintar antes de que este script existiera.
-    if (window.ArenaAvisos) { pintar(window.ArenaAvisos.estado()); }
+    if (window.ArenaAvisos) {
+        pintar(window.ArenaAvisos.estado());
+    } else if (window.ArenaSoundAlerts) {
+        pintar(window.ArenaSoundAlerts.isEnabled() && window.ArenaSoundAlerts.isUnlocked() ? 'activo' : 'inactivo');
+    }
 })();
 </script>
 @endif

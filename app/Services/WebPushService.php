@@ -6,6 +6,7 @@ use App\Models\Player;
 use App\Models\PushSubscription;
 use App\Support\Base64Url;
 use App\Support\VapidKeys;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -38,9 +39,24 @@ class WebPushService
     /** Cuanto guarda el servicio el aviso si el movil esta apagado. */
     private const TTL = 900;
 
+    private const CLAVE_MUERTA = 'arena:avisos:muerta:';
+
+    public static function marcarMuerta(string $endpoint): void
+    {
+        Cache::put(self::CLAVE_MUERTA . sha1($endpoint), true, now()->addDays(30));
+    }
+
+    /** El servicio de push ya dijo que esta direccion no existe (404/410). */
+    public static function estaMuerta(string $endpoint): bool
+    {
+        return (bool) Cache::get(self::CLAVE_MUERTA . sha1($endpoint), false);
+    }
+
     public function configurado(): bool
     {
-        return $this->clavePublica() !== '' && (string) config('services.webpush.private_key', '') !== '';
+        return (bool) config('services.webpush.enabled', false)
+            && $this->clavePublica() !== ''
+            && (string) config('services.webpush.private_key', '') !== '';
     }
 
     public function clavePublica(): string
@@ -241,6 +257,11 @@ class WebPushService
             // sitio o revocaron el permiso. Insistir no arregla nada.
             if (in_array($estado, [404, 410], true)) {
                 $suscripcion->delete();
+                // Y se recuerda que esta muerta. El navegador NO se entera:
+                // sigue creyendo que esta suscrito, la volvia a mandar en la
+                // siguiente carga y el servidor la guardaba otra vez. El boton
+                // en verde, y ningun aviso llegando nunca.
+                self::marcarMuerta($suscripcion->endpoint);
 
                 return ['ok' => false, 'estado' => $estado, 'cuerpo' => $cuerpo, 'servicio' => $servicio];
             }

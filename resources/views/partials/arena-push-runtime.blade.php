@@ -20,6 +20,9 @@
 (function () {
     'use strict';
 
+    // Solo en el movil (lo decide el <head>). En el escritorio no existe.
+    if (!document.documentElement.hasAttribute('data-arena-push')) { return; }
+
     var CLAVE_SERVIDOR = @json(app(\App\Services\WebPushService::class)->clavePublica());
     // Quien esta mirando. La confirmacion se guarda por cuenta: si otra
     // persona entra en este mismo navegador, lo confirmado para la anterior
@@ -354,6 +357,38 @@
         return suscripcion;
     }
 
+    /* Tirar la suscripcion de este navegador y pedir una nueva.
+     *
+     * Chrome puede seguir creyendo que esta suscrito con una direccion que
+     * Google ya caduco (responde 410 "unsubscribed or expired"). El navegador
+     * no se entera nunca por su cuenta: hay que tirarla y pedir otra. */
+    async function renovarSuscripcion(reg) {
+        try {
+            var vieja = await reg.pushManager.getSubscription();
+            if (vieja) { await vieja.unsubscribe(); }
+        } catch (e) {}
+
+        return reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: aBytes(CLAVE_SERVIDOR),
+        });
+    }
+
+    /* Guardar, y si el servidor dice que la direccion esta muerta, renovarla
+       una vez y guardar la nueva. Devuelve la que quedo guardada. */
+    async function guardarRenovando(reg, suscripcion) {
+        try {
+            await guardarEnServidor(suscripcion);
+            return suscripcion;
+        } catch (e) {
+            if (!e || !e.renovar) { throw e; }
+            informar('renovada', 'el servidor rechazo una direccion caducada; se pide otra');
+            var nueva = await conLimite(renovarSuscripcion(reg), 'suscripcion');
+            await guardarEnServidor(nueva);
+            return nueva;
+        }
+    }
+
     async function guardarEnServidor(suscripcion) {
         var datos = suscripcion.toJSON();
 
@@ -368,6 +403,8 @@
         if (!r.ok) {
             var err = new Error('POST /avisos/suscribir respondio HTTP ' + r.status);
             err.estado = r.status;
+            // 410: el servicio de push ya dio esta direccion por muerta.
+            err.renovar = r.status === 410;
             throw err;
         }
 
@@ -422,7 +459,7 @@
                 var suscripcion = await conLimite(suscripcionValida(reg), 'suscripcion');
 
                 paso = 'servidor';
-                await guardarEnServidor(suscripcion);
+                suscripcion = await guardarRenovando(reg, suscripcion);
 
                 // Las alertas de sonido van con el mismo interruptor: "avisame"
                 // es una sola decision. Silencioso para no repetir globos.
@@ -505,7 +542,7 @@
         });
     }
 
-    async function avisoDePrueba(suscripcion) {
+    async function avisoDePrueba(suscripcion, reintento) {
         var acuse = esperarAcuse();
         var respuesta = null;
 
@@ -517,7 +554,23 @@
             respuesta = { ok: false, cuerpo: String(e) };
         }
 
+        /* El servicio dijo que esta direccion ya no existe (410). No es culpa
+           de nadie ni hay que "volver a tocar": se pide una nueva en el acto
+           y se repite la prueba, una vez. */
+        if (!respuesta.ok && respuesta.renovar && !reintento) {
+            try {
+                var reg = await obtenerRegistro();
+                var nueva = await conLimite(renovarSuscripcion(reg), 'suscripcion');
+                await guardarEnServidor(nueva);
+                return avisoDePrueba(nueva, true);
+            } catch (e) {
+                informar('renovar-tras-prueba', e);
+            }
+        }
+
         if (!respuesta.ok) {
+            // El servidor ya no la tiene: el boton no puede seguir en verde.
+            if (respuesta.renovar) { borrar(CONFIRMADA); repintar(); }
             informar('prueba-servidor', 'HTTP ' + (respuesta.estado || respuesta.http) + ' ' + (respuesta.cuerpo || ''));
             toast(respuesta.estado === 401 || respuesta.estado === 403
                 ? 'El servicio de avisos rechaza la firma del servidor. Avisa al admin.'
@@ -676,7 +729,11 @@
                 || Date.now() - confirmadaEn > RECONFIRMAR_MS;
 
             if (hayQueConfirmar) {
-                try { await guardarEnServidor(suscripcion); } catch (e) { informar('reconfirmar', e); }
+                try {
+                    await guardarRenovando(reg, suscripcion);
+                } catch (e) {
+                    informar('reconfirmar', e);
+                }
             }
         }
 

@@ -92,6 +92,7 @@ function conClavesDePrueba(): array
         'services.webpush.public_key' => $par['publica'],
         'services.webpush.private_key' => $par['privada'],
         'services.webpush.subject' => 'mailto:pruebas@example.com',
+        'services.webpush.enabled' => true,
     ]);
 
     return $par;
@@ -539,12 +540,22 @@ function botonDeAvisos(): string
     return File::get(resource_path('views/partials/arena-avisos-boton.blade.php'));
 }
 
-it('el flotante no decide nada: pinta y delega', function () {
+it('el flotante delega en el push, y sin el es el boton del sonido', function () {
     $js = botonDeAvisos();
 
     expect($js)->toContain("document.addEventListener('arena:avisos-estado'")
-        ->and($js)->toContain('window.ArenaAvisos.alternar();')
-        ->and($js)->not->toContain('setEnabled(');
+        ->and($js)->toContain('if (window.ArenaAvisos) { window.ArenaAvisos.alternar(); return; }')
+        ->and($js)->toContain("document.addEventListener('arena:sonido-estado'");
+});
+
+it('en el escritorio no hay push ni notificaciones del navegador', function () {
+    $layout = File::get(resource_path('views/layouts/arena.blade.php'));
+
+    // El push solo se marca en pantallas tactiles, y sin esa marca ni se
+    // pide permiso ni sale tarjeta del sistema: sonido y aviso interno.
+    expect($layout)->toContain("window.matchMedia('(pointer: coarse)').matches")
+        ->and($layout)->toContain("const hayNotificaciones = () => document.documentElement.hasAttribute('data-arena-push')")
+        ->and(runtimeDeAvisos())->toContain("if (!document.documentElement.hasAttribute('data-arena-push')) { return; }");
 });
 
 it('en movil el interruptor sale del menu y queda flotante', function () {
@@ -877,9 +888,9 @@ it('el lider se entera por push de que su equipo esta listo', function () {
     $layout = File::get(resource_path('views/layouts/arena.blade.php'));
     $hub = File::get(app_path('Http/Controllers/QueueHubController.php'));
 
-    // Solo se calla en la pagina lo que tiene push de verdad.
-    expect($layout)->toContain("const CON_PUSH = [")
-        ->and($layout)->toContain("CON_PUSH.includes(type)")
+    // Y la pagina no calla nada: si el push esta roto sin saberlo, el aviso
+    // de la pestaña de lado es lo unico que queda.
+    expect($layout)->not->toContain("CON_PUSH")
         ->and($hub)->toContain("'Tu equipo esta listo'");
 });
 
@@ -907,4 +918,46 @@ it('al salir se borra la suscripcion de este navegador, y solo la suya', functio
 
     expect(PushSubscription::pluck('endpoint')->sort()->values()->all())
         ->toBe(['https://push.example/ajena', 'https://push.example/movil']);
+});
+
+/* ── Direcciones que Google caduca ──────────────────────────────────────── */
+
+it('una direccion que el servicio dio por muerta no se vuelve a guardar', function () {
+    // Chrome sigue creyendose suscrito con una direccion que FCM ya caduco
+    // (410). Antes, cada carga la volvia a guardar: boton verde y cero avisos.
+    conClavesDePrueba();
+    Http::fake(['*' => Http::response('push subscription has unsubscribed or expired.', 410)]);
+
+    $jugador = jugadorPush('Caducada');
+    $datos = ['endpoint' => 'https://push.example/caducada', 'keys' => ['p256dh' => 'a', 'auth' => 'b']];
+
+    $this->actingAs($jugador->user)->postJson(route('avisos.suscribir'), $datos)->assertOk();
+
+    // La prueba choca con el 410: se borra y se le pide al navegador otra.
+    $this->actingAs($jugador->user)
+        ->postJson(route('avisos.probar'), ['endpoint' => $datos['endpoint']])
+        ->assertStatus(502)
+        ->assertJson(['estado' => 410, 'renovar' => true]);
+
+    expect(PushSubscription::count())->toBe(0);
+
+    // Volver a mandarla no cuela: 410 y que pida una nueva.
+    $this->actingAs($jugador->user)->postJson(route('avisos.suscribir'), $datos)
+        ->assertStatus(410)
+        ->assertJson(['renovar' => true]);
+
+    expect(PushSubscription::count())->toBe(0);
+
+    // Una nueva, si.
+    $this->actingAs($jugador->user)
+        ->postJson(route('avisos.suscribir'), ['endpoint' => 'https://push.example/nueva'] + $datos)
+        ->assertOk();
+});
+
+it('el navegador renueva solo la direccion caducada, sin pedir otro toque', function () {
+    $js = runtimeDeAvisos();
+
+    expect($js)->toContain('async function renovarSuscripcion(reg)')
+        ->and($js)->toContain('suscripcion = await guardarRenovando(reg, suscripcion);')
+        ->and($js)->toContain('if (!respuesta.ok && respuesta.renovar && !reintento)');
 });

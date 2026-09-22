@@ -23,6 +23,10 @@ return [
      * guardadas. Se generan una vez y no se tocan.
      */
     'webpush' => [
+        // Solo en MOVILES, como ultimo recurso: con el movil en otra app el
+        // navegador se duerme y el sonido no puede salir. En el escritorio no
+        // hay push: sonido y aviso interno. VAPID_ENABLED=false lo apaga.
+        'enabled' => (bool) env('VAPID_ENABLED', true),
         'public_key' => env('VAPID_PUBLIC_KEY'),
         'private_key' => env('VAPID_PRIVATE_KEY'),
         // A quien escribir si los avisos dan problemas. Los servicios de push

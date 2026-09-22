@@ -23,7 +23,30 @@
     const _baseInterval = {{ (int) $interval }};
     const _slowInterval = 5000;
     const _idleInterval = 8000;
-    const _hiddenInterval = 15000;
+    const _hiddenInterval = 8000;
+
+    /* El reloj del sondeo va en un worker.
+
+       Con la pestaña en reposo, Chrome espacia los temporizadores de la
+       pagina hasta uno por minuto (y a veces mas): el cruce llegaba, pero la
+       pagina se enteraba un minuto despues, cuando ya no servia. Los
+       temporizadores de un worker no se frenan asi, y su mensaje despierta a
+       la pagina en el acto para sonar. Sin worker, el de siempre. */
+    const _reloj = (() => {
+        try {
+            const codigo = 'var t={};onmessage=function(e){var d=e.data;if(d.parar){clearTimeout(t[d.id]);delete t[d.id];return;}t[d.id]=setTimeout(function(){delete t[d.id];postMessage(d.id);},d.ms);};';
+            const w = new Worker(URL.createObjectURL(new Blob([codigo], { type: 'text/javascript' })));
+            const pendientes = new Map();
+            let siguiente = 1;
+            w.onmessage = (e) => { const fn = pendientes.get(e.data); pendientes.delete(e.data); if (fn) fn(); };
+            return {
+                poner: (fn, ms) => { const id = siguiente++; pendientes.set(id, fn); w.postMessage({ id, ms }); return id; },
+                quitar: (id) => { pendientes.delete(id); w.postMessage({ id, parar: true }); },
+            };
+        } catch (_) {
+            return { poner: (fn, ms) => window.setTimeout(fn, ms), quitar: (id) => window.clearTimeout(id) };
+        }
+    })();
     const _slowAfterStablePolls = 5;
     const _idleAfterStablePolls = 10;
     const _stateStorageKey = 'arena:poll-state:' + window.location.pathname;
@@ -79,7 +102,7 @@
 
         const clearScheduledPoll = () => {
             if (timerId !== null) {
-                clearTimeout(timerId);
+                _reloj.quitar(timerId);
                 timerId = null;
             }
         };
@@ -88,7 +111,7 @@
             clearScheduledPoll();
             const nextDelay = document.visibilityState === 'hidden' ? _hiddenInterval : delay;
 
-            timerId = window.setTimeout(() => {
+            timerId = _reloj.poner(() => {
                 pollNow();
             }, nextDelay);
         };
@@ -429,6 +452,20 @@
                             resetCadence();
                         } else if (lastHash !== data.hash) {
                             const events = detectAlertEvents(lastState, nextState);
+
+                            // Todo cambio de estado suena. Los que no tienen
+                            // aviso propio (cruce cancelado, disputa, party
+                            // deshecha...) llevan el generico: el jugador no
+                            // mira la pantalla y tiene que enterarse de que
+                            // algo paso.
+                            if (!events.length) {
+                                events.push({
+                                    type: 'generic',
+                                    key: 'estado:' + data.hash,
+                                    message: 'Hay novedades en tu arena.',
+                                });
+                            }
+
                             emitAlerts(events);
                             lastState = nextState;
                             storeState(nextState);
