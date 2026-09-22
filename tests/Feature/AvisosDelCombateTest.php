@@ -163,7 +163,10 @@ it('una rafaga se corta al llegar al tope del minuto', function () {
         }
     }
 
-    expect($aceptados)->toBe(12)
+    // Ocho por minuto. Doce dejaban tener al rival pitando cada cinco
+    // segundos durante todo el cruce, alternando frases para esquivar el tope
+    // de repeticiones: eso no es avisar.
+    expect($aceptados)->toBe(8)
         ->and($avisos->enviar($match, $yo, 'muerto')['ok'])->toBeFalse();
 
     // Y al minuto siguiente se puede volver a avisar.

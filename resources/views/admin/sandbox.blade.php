@@ -386,8 +386,21 @@
                 </summary>
                 <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-3 pt-2">
                     @foreach($realmPlayers as $botPlayer)
-                        @php($botQueue = $activeQueueByPlayer->get($botPlayer->id))
-                        @php($isQueued = $botQueue && $botQueue->status === 'waiting' && !$botQueue->match_id)
+                        {{-- En bloque y no con la forma corta de una linea:
+                             esa, seguida de un comentario Blade, compila una
+                             apertura sin cerrar y se lleva por delante el resto
+                             del fichero. Aqui no pasaba por un pelo -detras va
+                             HTML- y no merece la pena dejarlo a un comentario
+                             de distancia de romperse.
+
+                             Ojo: ni siquiera se puede NOMBRAR la directiva
+                             dentro de un comentario. Blade la compila igual, y
+                             eso fue justo lo que rompio esta vista al escribir
+                             este aviso. --}}
+                        @php
+                            $botQueue = $activeQueueByPlayer->get($botPlayer->id);
+                            $isQueued = $botQueue && $botQueue->status === 'waiting' && !$botQueue->match_id;
+                        @endphp
                         <div class="ap-list-row flex-wrap" style="border-color: var(--ap-line); background: var(--ap-surface-raised)">
                             <div class="ap-list-main">
                                 <div class="ap-list-title">{{ $botPlayer->character_name }}</div>

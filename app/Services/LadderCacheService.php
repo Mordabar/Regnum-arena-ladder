@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\ArenaMatch;
 use App\Models\Player;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -10,9 +9,7 @@ use Illuminate\Support\Facades\Cache;
 class LadderCacheService
 {
     private const TOP_BY_REALM_CACHE_KEY = 'ladder:top-by-realm:v2';
-    private const RECENT_MATCHES_CACHE_KEY = 'ladder:recent-matches:v1';
     private const TOP_BY_REALM_TTL_MINUTES = 5;
-    private const RECENT_MATCHES_TTL_MINUTES = 2;
 
     public function getTopByRealm(): Collection
     {
@@ -35,33 +32,27 @@ class LadderCacheService
         );
     }
 
-    public function getRecentMatches(): Collection
-    {
-        return Cache::remember(
-            self::RECENT_MATCHES_CACHE_KEY,
-            now()->addMinutes(self::RECENT_MATCHES_TTL_MINUTES),
-            fn () => ArenaMatch::query()
-                ->select('id', 'match_code', 'zone', 'status', 'winner_realm', 'completed_at')
-                ->whereIn('status', ['completed', 'disputed', 'void'])
-                ->latest('completed_at')
-                ->take(8)
-                ->get()
-        );
-    }
-
     public function forgetTopByRealm(): void
     {
         Cache::forget(self::TOP_BY_REALM_CACHE_KEY);
     }
 
+    /**
+     * Antes habia tambien una lista de "cierres recientes".
+     *
+     * Se quito del ladder -un muestrario de codigos de partida no le dice nada
+     * a quien viene a consultar el ranking- y con ella la clave y su borrado.
+     * Se queda `forgetRecentMatches()` como un no-op y no se borra del todo
+     * porque la llaman ocho sitios: cada uno era un `Cache::forget` de fichero
+     * por cada combate cerrado, sobre una clave que ya no rellenaba nadie.
+     */
     public function forgetRecentMatches(): void
     {
-        Cache::forget(self::RECENT_MATCHES_CACHE_KEY);
+        // Nada que olvidar: la lista ya no existe.
     }
 
     public function forgetSummary(): void
     {
         $this->forgetTopByRealm();
-        $this->forgetRecentMatches();
     }
 }

@@ -38,11 +38,14 @@
     <div class="arena-chat-head">
         <span class="arena-chat-dot" aria-hidden="true"></span>
         <span class="arena-chat-title" id="arenaChatTitle">Avisos del combate</span>
-        <span class="arena-chat-badge" data-chat-badge hidden>0</span>
+        <span class="arena-chat-badge" data-chat-badge hidden aria-label="avisos sin leer">0</span>
     </div>
 
     <div class="arena-chat-body" data-chat-body>
-        <ol class="arena-chat-log" data-pings-log>
+        {{-- Lo que dice el rival tiene que anunciarse solo: quien usa lector de
+             pantalla no va a estar releyendo la lista cada pocos segundos a ver
+             si ha llegado algo. --}}
+        <ol class="arena-chat-log" data-pings-log aria-live="polite" aria-relevant="additions">
             @forelse($historial as $ping)
                 <li class="arena-chat-msg {{ $ping['mio'] ? 'is-mine' : 'is-theirs' }}">
                     <span class="arena-chat-bubble">

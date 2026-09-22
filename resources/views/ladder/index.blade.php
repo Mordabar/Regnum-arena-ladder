@@ -130,40 +130,40 @@
             </div>
     </section>
 
-        {{-- ── TOP POR REINO ──
-         Al final y no arriba: el ranking general es lo que se viene a
-         consultar, y quien quiera ver un reino suelto lo filtra en la tabla.
-         Aqui abajo sigue estando, para quien lo busque. --}}
+    {{-- ── TOP POR REINO ──
+     Al final y no arriba: el ranking general es lo que se viene a
+     consultar, y quien quiera ver un reino suelto lo filtra en la tabla.
+     Aqui abajo sigue estando, para quien lo busque. --}}
     <section class="arena-panel p-6 arena-animate-in arena-stagger-3">
-            <h2 class="text-2xl font-semibold text-white">Top por reino</h2>
-            <div class="mt-5 space-y-5">
-                @foreach($topByRealm as $realm => $realmPlayers)
-                    <div class="arena-card arena-card-{{ $realm }} p-4">
-                        <div class="mb-3 flex items-center justify-between">
-                            <div class="flex items-center gap-2">
-                                <x-arena-realm-icon :realm="$realm" size="sm" />
-                                <h3 class="font-semibold text-white">{{ \App\Models\Player::REALMS[$realm] ?? ucfirst($realm) }}</h3>
-                            </div>
-                            <span class="text-xs uppercase tracking-[0.22em] text-[color:var(--arena-muted)] arena-body-text">Top 5</span>
+        <h2 class="text-2xl font-semibold text-white">Top por reino</h2>
+        <div class="mt-5 space-y-5">
+            @foreach($topByRealm as $realm => $realmPlayers)
+                <div class="arena-card arena-card-{{ $realm }} p-4">
+                    <div class="mb-3 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <x-arena-realm-icon :realm="$realm" size="sm" />
+                            <h3 class="font-semibold text-white">{{ \App\Models\Player::REALMS[$realm] ?? ucfirst($realm) }}</h3>
                         </div>
-                        <div class="space-y-2 text-sm">
-                            @forelse($realmPlayers as $index => $player)
-                                <div class="arena-card arena-card-interactive flex items-center justify-between gap-3 px-3 py-2.5">
-                                    <div class="flex items-center gap-3">
-                                        <span class="w-6 text-center text-sm font-bold {{ $index === 0 ? 'arena-medal-1' : ($index === 1 ? 'arena-medal-2' : ($index === 2 ? 'arena-medal-3' : 'text-amber-300')) }}">
-                                            #{{ $index + 1 }}
-                                        </span>
-                                        <a href="{{ route('ladder.show', $player) }}" class="font-medium text-white hover:text-[color:var(--arena-gold-soft)] transition-colors arena-body-text">{{ $player->character_name }}</a>
-                                    </div>
-                                    <span class="font-semibold text-amber-300 arena-body-text">{{ number_format((float) $player->pl_points, 1) }} PL</span>
-                                </div>
-                            @empty
-                                <p class="text-[color:var(--arena-muted)] arena-body-text">Sin jugadores registrados.</p>
-                            @endforelse
-                        </div>
+                        <span class="text-xs uppercase tracking-[0.22em] text-[color:var(--arena-muted)] arena-body-text">Top 5</span>
                     </div>
-                @endforeach
-            </div>
+                    <div class="space-y-2 text-sm">
+                        @forelse($realmPlayers as $index => $player)
+                            <div class="arena-card arena-card-interactive flex items-center justify-between gap-3 px-3 py-2.5">
+                                <div class="flex items-center gap-3">
+                                    <span class="w-6 text-center text-sm font-bold {{ $index === 0 ? 'arena-medal-1' : ($index === 1 ? 'arena-medal-2' : ($index === 2 ? 'arena-medal-3' : 'text-amber-300')) }}">
+                                        #{{ $index + 1 }}
+                                    </span>
+                                    <a href="{{ route('ladder.show', $player) }}" class="font-medium text-white hover:text-[color:var(--arena-gold-soft)] transition-colors arena-body-text">{{ $player->character_name }}</a>
+                                </div>
+                                <span class="font-semibold text-amber-300 arena-body-text">{{ number_format((float) $player->pl_points, 1) }} PL</span>
+                            </div>
+                        @empty
+                            <p class="text-[color:var(--arena-muted)] arena-body-text">Sin jugadores registrados.</p>
+                        @endforelse
+                    </div>
+                </div>
+            @endforeach
+        </div>
     </section>
 </div>
 @endsection

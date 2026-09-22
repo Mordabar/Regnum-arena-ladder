@@ -18,6 +18,22 @@
     var ultimoVisto = {};
     var SEGUNDOS_BOCADILLO = 6000;
 
+    /* Lo que tiene que pasar entre dos pitidos, aunque lleguen mas avisos.
+       Ver el bloque del sonido en pintar(). */
+    var DESCANSO_PITIDO = 7000;
+    var ultimoPitido = 0;
+
+    /* Los no leidos, por enfrentamiento y fuera del DOM.
+
+       Guardarlos en el propio nodo los perdia en cada repintado del panel, y
+       el panel se repinta solo cada pocos segundos: la cuenta no llegaba viva
+       a ninguna parte. */
+    var sinLeerPorCruce = {};
+
+    function sinLeerDe(caja) {
+        return sinLeerPorCruce[caja.dataset.pingsMatch || ''] || 0;
+    }
+
     function nodoDeAvisos(root) {
         return (root || document).querySelector('[data-pings]');
     }
@@ -108,7 +124,7 @@
         var chapa = caja.querySelector('[data-chat-badge]');
         if (!chapa) { return; }
 
-        var sinLeer = caja._arenaSinLeer || 0;
+        var sinLeer = sinLeerDe(caja);
 
         chapa.textContent = sinLeer > 9 ? '9+' : String(sinLeer);
         chapa.hidden = sinLeer === 0;
@@ -150,19 +166,37 @@
         if (suyos.length) {
             var ultimo = suyos[suyos.length - 1];
 
-            // Solo se cuentan como no leidos los que entran con la pestaña de
-            // lado. A la vista estan, y un contador que no baja nunca deja de
-            // significar nada.
-            if (document.visibilityState === 'hidden') {
-                caja._arenaSinLeer = (caja._arenaSinLeer || 0) + suyos.length;
+            /* Cuenta como no leido lo que entra sin que se este mirando: con
+               la pestaña de lado, o con el log subido releyendo algo mas
+               arriba. Contarlo SOLO con la pestaña oculta dejaba la chapa
+               muerta -se pintaba justo cuando nadie podia verla y se borraba
+               al volver-. */
+            var log = caja.querySelector('[data-pings-log]');
+            var mirando = document.visibilityState !== 'hidden' && (!log || log._arenaPegado !== false);
+
+            if (!mirando) {
+                sinLeerPorCruce[caja.dataset.pingsMatch || ''] = sinLeerDe(caja) + suyos.length;
             }
 
+            /* El pitido va espaciado, el aviso en pantalla no.
+
+               Cada aviso llevaba su propia clave -'match-ping:12'- asi que
+               ninguno se repetia con otro y TODOS sonaban: alternando frases se
+               podia tener al rival pitando y vibrando cada pocos segundos
+               durante todo el combate. El bocadillo y la burbuja siguen
+               apareciendo siempre; lo que se espacia es el ruido. */
             if (window.ArenaSoundAlerts && typeof window.ArenaSoundAlerts.notify === 'function') {
-                window.ArenaSoundAlerts.notify(
-                    'match_ping',
-                    ultimo.icono + ' ' + ultimo.nombre + ': ' + ultimo.texto,
-                    { key: 'match-ping:' + ultimo.id, duration: 4000 }
-                );
+                var ahora = Date.now();
+
+                if (ahora - (ultimoPitido || 0) >= DESCANSO_PITIDO) {
+                    ultimoPitido = ahora;
+
+                    window.ArenaSoundAlerts.notify(
+                        'match_ping',
+                        ultimo.icono + ' ' + ultimo.nombre + ': ' + ultimo.texto,
+                        { key: 'match-ping:' + ultimo.id, duration: 4000 }
+                    );
+                }
             }
         }
 
@@ -180,7 +214,7 @@
         var caja = nodoDeAvisos();
         if (!caja) { return; }
 
-        caja._arenaSinLeer = 0;
+        sinLeerPorCruce[caja.dataset.pingsMatch || ''] = 0;
         pintarContador(caja);
     });
 
@@ -191,6 +225,16 @@
         if (!log || !log.matches || !log.matches('[data-pings-log]')) { return; }
 
         log._arenaPegado = (log.scrollHeight - log.scrollTop - log.clientHeight) < 24;
+
+        // Volver al fondo es haber leido lo que habia: la chapa se apaga ahi.
+        if (log._arenaPegado) {
+            var caja = log.closest('[data-pings]');
+
+            if (caja) {
+                sinLeerPorCruce[caja.dataset.pingsMatch || ''] = 0;
+                pintarContador(caja);
+            }
+        }
     }, true);
 
     function avisar(caja, mensaje, esError) {

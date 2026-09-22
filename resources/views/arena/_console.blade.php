@@ -48,6 +48,12 @@
                            @if($lockedToPlayer && !$isFeatured)
                                aria-disabled="true"
                                tabindex="-1"
+                               {{-- El motivo tambien en el titulo: la nubecita
+                                    sale al pulsar, y con tabindex -1 quien
+                                    navega con teclado o con lector de pantalla
+                                    no puede pulsar nada, asi que sin esto se
+                                    quedaba con un "deshabilitado" sin por que. --}}
+                               title="Con cola o combate activo no puedes cambiar de guerrero"
                                data-roster-locked="Con cola o combate activo no puedes cambiar de guerrero"
                            @endif
                            style="--slot-realm: var(--arena-{{ $player->realm === 'ignis' ? 'fire' : ($player->realm === 'alsius' ? 'ice' : 'forest') }})">

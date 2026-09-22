@@ -60,7 +60,10 @@
 
         <p class="arena-kicker">Premios de la temporada</p>
         <h2 id="arenaPodiumTitle" class="arena-podium-title">
-            <img src="{{ asset('images/magnanita.webp') }}" alt="" class="arena-podium-gema" width="256" height="208" loading="lazy" decoding="async">
+            {{-- Sin `lazy`: esta en la primera pantalla de la portada, asi que
+                 diferirla solo retrasa lo que hay que ver primero. --}}
+            <img src="{{ asset('images/magnanita.webp') }}?v={{ @filemtime(public_path('images/magnanita.webp')) ?: '1' }}"
+                 alt="" class="arena-podium-gema" width="256" height="208" fetchpriority="high" decoding="async">
             <span>
                 <span class="arena-podium-total">{{ $premios->total() }}</span>
                 {{ $premios->moneda() }}
@@ -130,10 +133,17 @@
                              numero se estreche. --}}
                         <span class="arena-podium-prize-line">
                             <b>{{ $puesto['premio'] }}</b>
-                            <small class="arena-podium-unit">{{ $puesto['premio'] === 1 ? $unidadSingular : $unidadPlural }}</small>
+                            {{-- La palabra entera se esconde en movil con CSS,
+                                 y el CSS tambien la saca del arbol de
+                                 accesibilidad: por eso la unidad completa va
+                                 ademas en un texto solo para lectores, o en
+                                 movil se anunciaba "10" a secas. --}}
+                            <small class="arena-podium-unit" aria-hidden="true">{{ $puesto['premio'] === 1 ? $unidadSingular : $unidadPlural }}</small>
                             <small class="arena-podium-unit-short" aria-hidden="true">{{ $unidadCorta }}</small>
+                            <span class="sr-only">{{ $puesto['premio'] === 1 ? $unidadSingular : $unidadPlural }}</span>
                         </span>
-                        <img src="{{ asset('images/magnanita-icono.webp') }}" alt="" class="arena-podium-gema-mini" width="82" height="96" loading="lazy" decoding="async">
+                        <img src="{{ asset('images/magnanita-icono.webp') }}?v={{ @filemtime(public_path('images/magnanita-icono.webp')) ?: '1' }}"
+                             alt="" class="arena-podium-gema-mini" width="82" height="96" loading="lazy" decoding="async">
                     </span>
 
                     <span class="arena-podium-who">

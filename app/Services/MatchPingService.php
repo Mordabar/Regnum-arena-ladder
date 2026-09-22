@@ -24,8 +24,16 @@ class MatchPingService
     /** Cuantos avisos se enseñan. Los de mas arriba ya no le importan a nadie. */
     public const HISTORIAL = 30;
 
-    /** Tope por jugador y minuto. Da de sobra para avisar y corta la rafaga. */
-    private const POR_MINUTO = 12;
+    /**
+     * Tope por jugador y minuto.
+     *
+     * Ocho da de sobra para avisar de todo lo que pasa en un combate y sigue
+     * cortando la rafaga. Con doce, alternando las seis frases, se podia tener
+     * al rival pitando y vibrando cada cinco segundos durante todo el cruce:
+     * eso no es avisar, es una forma de molestar con otro nombre. El cliente
+     * ademas espacia los pitidos, para que ni ocho seguidos suenen ocho veces.
+     */
+    private const POR_MINUTO = 8;
 
     /** Tope por jugador y enfrentamiento, de punta a punta. */
     private const POR_ENFRENTAMIENTO = 60;

@@ -96,8 +96,14 @@
             </div>
 
             <p class="mt-4 text-xs text-[color:var(--arena-muted)] arena-body-text">
-                Provisional: cambia con cada combate. El dia que la temporada se cierre, este
-                podio se queda como esta y pasa a la vitrina de abajo para siempre.
+                {{-- Se dice "el ladder" y no "la temporada" a proposito: las
+                     cifras son las del ranking publico, que solo vuelve a cero
+                     cuando el admin lo reinicia despues de cerrar. Prometer
+                     "de esta temporada" seria mentir en cuanto alguien no
+                     reinicie. --}}
+                Provisional: es el ladder tal y como esta ahora y cambia con cada combate. El dia
+                que la temporada se cierre, este podio se queda como esta y pasa a la vitrina de
+                abajo para siempre.
             </p>
         </section>
     @endif

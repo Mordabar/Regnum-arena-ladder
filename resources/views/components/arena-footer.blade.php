@@ -6,7 +6,8 @@
                 <p class="mt-4 max-w-xs text-sm text-[color:var(--arena-muted)]">
                     {{-- "Anonimato rival" a secas dejo de ser cierto al entrar el
                          duelo 1v1, que publica los nombres desde el cruce. --}}
-                    Sistema competitivo por reino y subclase con ranking automático, anonimato rival en las arenas por equipos y scoring justo.
+                    Duelos 1v1 y arenas 2v2 y 3v3 en la Zona de Guerra. Ranking automático por PL,
+                    anonimato rival en las arenas por equipos y premios cada temporada.
                 </p>
             </div>
             <div>

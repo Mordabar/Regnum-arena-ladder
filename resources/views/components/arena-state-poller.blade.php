@@ -132,8 +132,14 @@
             }
 
             const hintNode = document.querySelector('[data-queue-pulse-hint]');
-            if (hintNode && pulse.hint) {
-                hintNode.textContent = pulse.hint;
+            if (hintNode) {
+                // Tambien cuando viene vacia. Sin el `else`, en cuanto dejaba de
+                // faltar gente la pista se quedaba pegada: "faltan 2 de un reino
+                // rival" con los contadores de al lado marcando 3 y 3, que es
+                // justo la contradiccion que se queria quitar. El pulso se pinta
+                // fuera del hash, asi que nada mas iba a refrescar ese nodo.
+                hintNode.textContent = pulse.hint || '';
+                hintNode.hidden = !pulse.hint;
             }
         };
 
