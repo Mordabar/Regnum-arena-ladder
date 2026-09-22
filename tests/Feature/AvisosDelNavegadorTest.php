@@ -11,6 +11,7 @@ use App\Support\Base64Url;
 use App\Support\VapidKeys;
 use App\Support\ArenaMode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 
@@ -345,4 +346,114 @@ it('el service worker no cachea nada', function () {
     // Un push SIEMPRE tiene que acabar en algo visible: es la condicion que
     // pone el navegador, y si no la cumplimos enseña el suyo.
     expect($sw)->toContain('showNotification');
+});
+
+/* ── El diagnostico ─────────────────────────────────────────────────────── */
+
+/** La salida del comando, en crudo. */
+function revisionDePush(array $opciones = []): string
+{
+    Artisan::call('arena:push-check', $opciones);
+
+    return Artisan::output();
+}
+
+it('la revision dice exactamente que falta', function () {
+    // Existe porque esto falla en silencio por todos lados: el navegador no
+    // cuenta por que no se suscribio y el servidor no sabe si al otro lado
+    // habia alguien. Sin un sitio donde mirar, "no me llegan los avisos" se
+    // resuelve probando a ciegas, que es justo lo que paso en el primer
+    // despliegue.
+    config(['services.webpush.public_key' => null, 'services.webpush.private_key' => null]);
+
+    expect(revisionDePush())->toContain('FALLA')
+        ->toContain('Claves VAPID')
+        ->toContain('no estan en el .env');
+
+    // Con las claves puestas, esa linea pasa a OK y la queja se mueve a lo
+    // siguiente que falta.
+    conClavesDePrueba();
+
+    $salida = revisionDePush();
+
+    expect($salida)->toContain('correctas')
+        ->toContain('Navegadores suscritos')
+        ->toContain('ninguno');
+});
+
+it('la revision avisa de un par de claves que no casa', function () {
+    // El caso mas dificil de ver: las dos lineas estan en el .env pero son de
+    // generaciones distintas -se pego una y luego otra-. El sitio arranca
+    // igual, el navegador se suscribe igual, y cada envio muere con un 401
+    // que nadie mira.
+    $unPar = VapidKeys::generar();
+    $otroPar = VapidKeys::generar();
+
+    config([
+        'services.webpush.public_key' => $unPar['publica'],
+        'services.webpush.private_key' => $otroPar['privada'],
+    ]);
+
+    expect(revisionDePush())->toContain('no son un par valido');
+});
+
+it('la prueba de envio no se puede lanzar contra quien no esta suscrito', function () {
+    conClavesDePrueba();
+    $jugador = jugadorPush('SinNavegador');
+
+    expect(revisionDePush(['--user' => $jugador->user_id]))
+        ->toContain('no tiene ningun navegador suscrito');
+});
+
+it('la prueba de envio ensena lo que responde el servicio de push', function () {
+    // Es la respuesta definitiva a "no me llegan": o el servicio lo acepta
+    // -y entonces el problema esta en el sistema operativo del jugador- o lo
+    // rechaza y dice con que codigo.
+    conClavesDePrueba();
+    Http::fake(['*' => Http::response('', 201)]);
+
+    $jugador = jugadorPush('ConNavegador');
+    PushSubscription::create([
+        'user_id' => $jugador->user_id,
+        'endpoint' => 'https://fcm.googleapis.com/fcm/send/abc',
+    ]);
+
+    expect(revisionDePush(['--user' => $jugador->user_id]))
+        ->toContain('fcm.googleapis.com')
+        ->toContain('aceptado');
+});
+
+it('un rechazo del servicio viene con su explicacion', function () {
+    conClavesDePrueba();
+    Http::fake(['*' => Http::response('', 401)]);
+
+    $jugador = jugadorPush('Rechazado');
+    PushSubscription::create([
+        'user_id' => $jugador->user_id,
+        'endpoint' => 'https://fcm.googleapis.com/fcm/send/xyz',
+    ]);
+
+    // Un 401 casi siempre es que la clave publica del .env ya no es la que el
+    // navegador uso al suscribirse. Decirlo ahorra horas.
+    expect(revisionDePush(['--user' => $jugador->user_id]))
+        ->toContain('HTTP 401')
+        ->toContain('vaciar push_subscriptions');
+});
+
+it('el registro del navegador cuenta por que no pudo, en vez de callarse', function () {
+    // Antes devolvia `false` y se acababa ahi: quien activaba las alertas
+    // creia que ya estaba y luego no le llegaba nada, sin ninguna pista.
+    $js = File::get(resource_path('views/partials/arena-push-runtime.blade.php'));
+
+    // Los tres pasos fallan distinto y se arreglan distinto.
+    expect($js)->toContain("paso = 'suscripcion'")
+        ->and($js)->toContain("paso = 'servidor'")
+        ->and($js)->toContain('falta /sw.js');
+
+    // Y antes de registrar se comprueba que el fichero esta: `register()` con
+    // un 404 lanza un error generico que no señala al despliegue.
+    expect($js)->toContain("fetch('/sw.js', { method: 'HEAD'");
+
+    // El error crudo se conserva aunque se enseñe un mensaje claro.
+    expect($js)->toContain('detalle: error');
 });

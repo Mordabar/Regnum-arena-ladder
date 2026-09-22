@@ -94,6 +94,63 @@ class VapidKeys
     }
 
     /**
+     * ¿La privada y la publica son de verdad el mismo par?
+     *
+     * Hace falta preguntarlo porque openssl NO lo comprueba: se le puede dar
+     * un PEM con un escalar privado de una generacion y un punto publico de
+     * otra y lo carga tan contento. Es el error mas facil de cometer -se pega
+     * una linea en el .env, luego se regenera y se pega la otra- y el mas
+     * dificil de ver: el sitio arranca igual, el navegador se suscribe igual,
+     * y cada envio muere con un 401 que nadie mira.
+     *
+     * La unica forma barata de saberlo es firmar algo con la privada e
+     * intentar verificarlo con la publica. Si no son pareja, no verifica.
+     */
+    public static function parCoincide(string $privadaBase64Url, string $publicaBase64Url): bool
+    {
+        try {
+            $privada = openssl_pkey_get_private(self::pem($privadaBase64Url, $publicaBase64Url));
+
+            if ($privada === false) {
+                return false;
+            }
+
+            $prueba = 'regnum-arena-ladder';
+
+            if (!openssl_sign($prueba, $firma, $privada, OPENSSL_ALGO_SHA256)) {
+                return false;
+            }
+
+            $publica = openssl_pkey_get_public(self::pemPublica($publicaBase64Url));
+
+            return $publica !== false && openssl_verify($prueba, $firma, $publica, OPENSSL_ALGO_SHA256) === 1;
+        } catch (RuntimeException $e) {
+            return false;
+        }
+    }
+
+    /**
+     * El PEM de solo la parte publica, para verificar.
+     *
+     * La cabecera es fija igual que la de la privada: es el identificador de
+     * "clave EC sobre prime256v1" seguido del punto.
+     */
+    public static function pemPublica(string $publicaBase64Url): string
+    {
+        $publica = Base64Url::decode($publicaBase64Url);
+
+        if (strlen($publica) !== 65 || $publica[0] !== "\x04") {
+            throw new RuntimeException('La clave publica VAPID no es un punto P-256 sin comprimir.');
+        }
+
+        $der = hex2bin('3059301306072a8648ce3d020106082a8648ce3d030107034200') . $publica;
+
+        return "-----BEGIN PUBLIC KEY-----\n"
+            . chunk_split(base64_encode($der), 64, "\n")
+            . "-----END PUBLIC KEY-----\n";
+    }
+
+    /**
      * La firma ECDSA en el formato que pide JWS: la r y la s en crudo, una
      * detras de otra, 32 bytes cada una.
      *

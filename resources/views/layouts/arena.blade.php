@@ -3778,7 +3778,10 @@
                        interruptor: un ajuste aparte para "avisame tambien con
                        la pestaña cerrada" es un ajuste que nadie encuentra. */
                     document.dispatchEvent(new CustomEvent('arena:alertas', {
-                        detail: { enabled: true },
+                        // `silent` distingue "lo acaba de pulsar una persona"
+                        // de "la pagina lo restaura al cargar". En el primer
+                        // caso, si no se puede, hay que decirlo.
+                        detail: { enabled: true, silent: !!options.silent },
                     }));
 
                     if (!options.silent) {
