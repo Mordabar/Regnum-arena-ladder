@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\MatchResult;
 use App\Models\Player;
 use App\Services\LadderCacheService;
+use App\Services\SeasonPrizeService;
 use Illuminate\Http\Request;
 
 class LadderController extends Controller
@@ -34,9 +35,18 @@ class LadderController extends Controller
             ->withQueryString();
 
         $topByRealm = $ladderCacheService->getTopByRealm();
-        $recentMatches = $ladderCacheService->getRecentMatches();
 
-        return view('ladder.index', compact('players', 'topByRealm', 'recentMatches'));
+        // El podio de la temporada, el mismo de la portada. Los cierres
+        // recientes ya no salen: una lista de codigos de partida y zonas no le
+        // dice nada a quien viene a consultar el ranking.
+        $premios = app(SeasonPrizeService::class);
+
+        return view('ladder.index', [
+            'players' => $players,
+            'topByRealm' => $topByRealm,
+            'podio' => $premios->podio(),
+            'premios' => $premios,
+        ]);
     }
 
     public function show(Player $player)

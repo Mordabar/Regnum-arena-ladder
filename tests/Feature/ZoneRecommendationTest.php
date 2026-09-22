@@ -139,3 +139,56 @@ it('mantiene las tres fronteras dentro del catalogo de zonas', function () {
         expect(array_unique($zonas))->toHaveCount(count($zonas));
     }
 });
+
+it('no manda dos combates seguidos a la misma zona', function () {
+    // Es lo que se noto jugando: "parecia que nunca salia de las mismas". Con
+    // azar puro sobre tres o cuatro zonas de frontera, la misma sale dos veces
+    // seguidas cada pocas tiradas, y el filtro de ocupadas no ayuda porque en
+    // cuanto el combate anterior se cierra la zona vuelve al bombo.
+    $anterior = null;
+
+    foreach (range(1, 12) as $vuelta) {
+        $zona = elegirZona('ignis', 'syrtis');
+
+        expect($zona)->not->toBe($anterior);
+
+        $anterior = $zona;
+    }
+});
+
+it('reparte los combates entre todas las zonas de la frontera', function () {
+    // No basta con no repetir la anterior: si de cuatro zonas solo salieran
+    // dos, el reparto seguiria siendo malo aunque fueran alternas.
+    $frontera = ArenaMatch::preferredZonesFor('ignis', 'syrtis');
+    $salieron = [];
+
+    foreach (range(1, count($frontera) * 4) as $vuelta) {
+        $salieron[] = ArenaMatch::normalizeZoneKey(elegirZona('ignis', 'syrtis'));
+    }
+
+    expect(array_unique($salieron))->toHaveCount(count($frontera));
+});
+
+it('los dos puntos de encuentro se alternan en vez de sortearse', function () {
+    // Con dos puntos, el azar repite el mismo la mitad de las veces: dos o
+    // tres combates en el mismo claro se leen como que el segundo punto no
+    // funciona.
+    \App\Models\ArenaZone::updateOrCreate(['key' => 'central_ruins'], [
+        'number' => 7,
+        'name' => 'Zona de prueba',
+        'coords' => [[400, 400], [400, 500], [500, 500], [500, 400]],
+        'meeting' => [420, 420],
+        'meeting_b' => [480, 480],
+    ]);
+
+    $servicio = app(\App\Services\ArenaZoneService::class);
+    $servicio->olvidar();
+
+    $puestos = [];
+
+    foreach (range(1, 6) as $vuelta) {
+        $puestos[] = $servicio->elegirPuntoDeEncuentro('central_ruins')['slot'];
+    }
+
+    expect($puestos)->toBe([1, 2, 1, 2, 1, 2]);
+});

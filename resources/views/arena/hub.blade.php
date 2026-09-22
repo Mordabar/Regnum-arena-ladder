@@ -258,6 +258,22 @@
                 if (event.target.closest('[data-roster-open]')) { abrir(true); return; }
                 if (event.target.closest('[data-roster-close]')) { abrir(false); return; }
 
+                /* Tocar un guerrero bloqueado lo explica AHI, en el momento.
+                   El aviso estaba fijo encima de la lista, ocupando sitio a
+                   todas horas para contar algo que solo importa justo cuando
+                   alguien lo intenta. */
+                var bloqueado = event.target.closest('[data-roster-locked]');
+
+                if (bloqueado) {
+                    event.preventDefault();
+
+                    if (typeof window.arenaToast === 'function') {
+                        window.arenaToast(bloqueado.dataset.rosterLocked, 'info', 3500);
+                    }
+
+                    return;
+                }
+
                 // Elegir guerrero cierra el cajon: es lo que se venia a hacer.
                 if (event.target.closest('[data-roster-rail] [data-champion-slot]')) { abrir(false); }
             });

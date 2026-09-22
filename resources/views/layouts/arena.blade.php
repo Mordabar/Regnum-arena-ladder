@@ -831,6 +831,12 @@
         .arena-console-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
         .arena-console-main > *:not(.arena-console-stage) { margin: 0 16px; }
         .arena-console-main > *:last-child:not(.arena-console-stage) { margin-bottom: 16px; }
+        /* Y el de arriba tambien. Sin esto, el primer panel -el de la cola, el
+           del combate- quedaba con hueco a los lados y abajo pero pegado al
+           borde superior del cuadro que lo contiene: una caja dentro de otra
+           con solo tres margenes se lee como un fallo de maqueta. El escenario
+           3D se queda fuera de la regla a proposito: ese va a sangre. */
+        .arena-console-main > *:first-child:not(.arena-console-stage) { margin-top: 16px; }
         .arena-console-stage { display: flex; flex-direction: column; }
 
         /* Las acciones del guerrero, sobre su propia figura. */

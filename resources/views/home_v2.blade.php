@@ -25,10 +25,10 @@
                     {{ \App\Models\AppSetting::getValue('season_name', 'Alpha Season') }}
                 </h1>
                 <p class="mt-4 max-w-2xl text-lg text-[color:var(--arena-sand)] arena-body-text">
-                    {{ \App\Models\AppSetting::getValue('home_tagline', 'Conquest PvP por reino y subclase') }}
+                    {{ \App\Models\AppSetting::getValue('home_tagline', 'Conquest PvP 1v1, 2v2 y 3v3 en la Zona de Guerra') }}
                 </p>
                 <p class="mt-3 max-w-2xl text-[color:var(--arena-muted)] arena-body-text">
-                    {{ \App\Models\AppSetting::getValue('rules_excerpt', 'Random y premade, anonimato rival, reporte con capturas y ladder automático por PL/MMR.') }}
+                    {{ \App\Models\AppSetting::getValue('rules_excerpt', 'Busca contrincante, quedad en el punto marcado, pelead y reporta el resultado. Cada combate te sube en el ladder: se juega por los premios de la temporada y por quedarse en el Salon de la Fama, donde solo aguantan los mejores.') }}
                 </p>
 
                 <div class="mt-8 flex flex-wrap gap-3">

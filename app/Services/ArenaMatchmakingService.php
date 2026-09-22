@@ -45,6 +45,9 @@ class ArenaMatchmakingService
 
     /** Tope de parejas anotadas, para que la clave no crezca sin freno. */
     private const RIVALES_ANOTADOS_TOPE = 5000;
+
+    /** Las ultimas zonas que salieron, por par de reinos. Ver sortearConVariedad(). */
+    private const ZONAS_RECIENTES_KEY = 'arena:zonas-recientes';
     private const LIGHT_OVERLAP_PAIRING_PENALTY = 180;
     private const TEAM_SEARCH_WINDOW = 10;
     private const TEAM_DUPLICATE_SUBCLASS_PENALTY = 14;
@@ -2039,13 +2042,13 @@ class ArenaMatchmakingService
         }));
 
         if ($preferredAvailable !== []) {
-            return $preferredAvailable[array_rand($preferredAvailable)];
+            return $this->sortearConVariedad($preferredAvailable, $teamARealm, $teamBRealm);
         }
 
         // Ninguna recomendada libre. Antes que hacer esperar a nadie se juega
         // en cualquier otra: la recomendacion ordena, no bloquea.
         if ($availableZones !== []) {
-            return $availableZones[array_rand($availableZones)];
+            return $this->sortearConVariedad($availableZones, $teamARealm, $teamBRealm);
         }
 
         $incomingRealms = [$teamARealm, $teamBRealm];
@@ -2094,7 +2097,64 @@ class ArenaMatchmakingService
             ->values()
             ->all();
 
-        return $pool[array_rand($pool)];
+        return $this->sortearConVariedad($pool, $teamARealm, $teamBRealm);
+    }
+
+    /**
+     * Sortea una zona sin repetir las ultimas que ya salieron.
+     *
+     * Azar puro no basta. Una frontera tiene tres o cuatro zonas, y sortear
+     * entre cuatro sale dos veces la misma cada pocas tiradas: jugando se
+     * nota, y lo que se nota es "siempre me manda al mismo sitio", aunque el
+     * dado sea limpio. El filtro de zonas ocupadas tampoco ayuda, porque en
+     * cuanto el combate anterior se cierra la zona vuelve al bombo.
+     *
+     * Asi que se recuerdan las ultimas usadas por este par de reinos y se
+     * sortea entre las demas. Cuando no queda ninguna sin usar, la memoria se
+     * vacia y vuelven a entrar todas: eso reparte de verdad en vez de repetir.
+     *
+     * @param  array<int, string>  $candidatas
+     */
+    private function sortearConVariedad(array $candidatas, string $realmA, string $realmB): string
+    {
+        if (count($candidatas) === 1) {
+            return $candidatas[0];
+        }
+
+        $clave = $this->claveDeZonasRecientes($realmA, $realmB);
+        $recientes = Cache::get($clave, []);
+        $recientes = is_array($recientes) ? $recientes : [];
+
+        $frescas = array_values(array_filter(
+            $candidatas,
+            fn (string $zona) => !in_array(ArenaMatch::normalizeZoneKey($zona) ?? $zona, $recientes, true)
+        ));
+
+        // Agotadas todas, se empieza otra vuelta.
+        if ($frescas === []) {
+            $recientes = [];
+            $frescas = $candidatas;
+        }
+
+        $elegida = $frescas[array_rand($frescas)];
+
+        // Se recuerda poco mas de la mitad del grupo: lo justo para que no
+        // salga la misma dos veces seguidas y para que el reparto siga
+        // pareciendo azar y no una rueda.
+        $recientes[] = ArenaMatch::normalizeZoneKey($elegida) ?? $elegida;
+        $tope = max(1, (int) ceil(count($candidatas) / 2));
+
+        Cache::put($clave, array_slice($recientes, -$tope), now()->addHours(6));
+
+        return $elegida;
+    }
+
+    private function claveDeZonasRecientes(string $realmA, string $realmB): string
+    {
+        $reinos = [$realmA, $realmB];
+        sort($reinos);
+
+        return self::ZONAS_RECIENTES_KEY . ':' . implode('-', $reinos);
     }
 
     private function getMatchesColumns(): Collection

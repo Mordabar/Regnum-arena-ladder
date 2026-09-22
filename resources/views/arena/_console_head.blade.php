@@ -34,9 +34,9 @@
                     @elseif($currentMatch)
                         Sigue el estado del enfrentamiento y reporta el resultado al terminar.
                     @elseif($currentQueue)
-                        Espera aquí. En cuanto haya rival te avisamos y el combate aparece en esta misma pantalla.
+                        Buscando contrincante. Prepárate: el combate empieza en cuanto aparezca.
                     @else
-                        Elige un guerrero y entra a la arena. Todo pasa en esta pantalla.
+                        Elige tu guerrero y entra a la arena.
                     @endif
                 </p>
 

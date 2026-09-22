@@ -179,16 +179,21 @@ it('el emblema del reino se ve sin javascript y sin webgl', function () {
     expect($html)->toContain('data-champion-state="idle"');
 });
 
-it('el ladder publico ensena en 3d al primero de cada reino', function () {
+it('el ladder publico ensena en 3d el podio de la temporada', function () {
     // El podio es publico: el arranque del visor no puede depender de tener
     // sesion, como dependia cuando vivia en el layout.
+    //
+    // Y son las figuras del PODIO DE PREMIOS, no una por reino. Antes el
+    // ladder abria con "quien manda en cada reino", que enseñaba tres figuras
+    // sin decir lo unico que importa de ellas: que se llevan.
     $user = viewerUser('podio');
     viewerPlayer($user, 'Reina', 'alsius', 'warlock')->update(['pl_points' => 500]);
 
     $this->get(route('ladder.index'))
         ->assertOk()
-        ->assertSee('data-champion-id="podium-alsius"', false)
-        ->assertSee('js/arena-champion.js', false);
+        ->assertSee('data-champion-id="podium-1"', false)
+        ->assertSee('js/arena-champion.js', false)
+        ->assertDontSee('Quien manda en cada reino');
 });
 
 it('una pagina sin guerreros no descarga el visor', function () {

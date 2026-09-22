@@ -46,6 +46,9 @@ class ArenaZoneService
     /** El sello de un mapa sin zonas. No se guarda nunca: ver sello(). */
     public const SIN_ZONAS = 'vacio';
 
+    /** El ultimo punto que salio en cada zona. Ver elegirPuntoDeEncuentro(). */
+    private const CACHE_ULTIMO_PUNTO = 'arena:zonas:ultimo-punto';
+
     /** Vueltas de afinado de la busqueda del punto automatico. */
     private const VUELTAS = 5;
 
@@ -190,7 +193,25 @@ class ArenaZoneService
             return $automatico === null ? null : ['slot' => 1, 'punto' => $automatico];
         }
 
-        return $fijados[array_rand($fijados)];
+        if (count($fijados) === 1) {
+            return $fijados[0];
+        }
+
+        // Alternando, no al azar.
+        //
+        // Con dos puntos, el azar repite el mismo la mitad de las veces, y dos
+        // o tres combates seguidos en el mismo claro se leen como que el
+        // segundo punto no funciona. Alternar es lo que hace que el segundo
+        // punto se note, que es para lo que se puso.
+        $clave = self::CACHE_ULTIMO_PUNTO . ':' . ($zona->key ?? 'sin-zona');
+        $anterior = (int) Cache::get($clave, 0);
+
+        $siguiente = collect($fijados)->first(fn (array $fila) => (int) $fila['slot'] !== $anterior)
+            ?? $fijados[0];
+
+        Cache::put($clave, (int) $siguiente['slot'], now()->addHours(6));
+
+        return $siguiente;
     }
 
     /**

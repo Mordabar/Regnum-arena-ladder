@@ -16,8 +16,7 @@
                 {{ $currentQueue->queue_type === 'premade' ? 'Tu premade busca rival…' : 'Buscando combate…' }}
             </h2>
             <p class="arena-duel-panel-sub">
-                En cuanto haya rival, el cruce aparece aquí mismo con su reloj. No hace
-                falta que recargues.
+                Afila la espada. En cuanto aparezca tu contrincante, el combate empieza aquí.
             </p>
         </div>
 

@@ -80,7 +80,10 @@ it('dice cuanta gente falta contando desde el reino del jugador', function () {
     expect($pulse['hint'])->toBe('Falta 1 de tu reino y faltan 2 de un reino rival.');
 });
 
-it('avisa cuando ya hay gente de sobra para armar el cruce', function () {
+it('con gente de sobra no dice nada: los numeros ya lo enseñan', function () {
+    // La pista existe para decir que FALTA. Con todos los huecos cubiertos, un
+    // "el cruce se arma en la proxima pasada" no le sirve de nada a quien
+    // espera: los contadores de al lado ya lo estan contando.
     pulseWaiting(pulsePlayer('a', 'ignis'));
     pulseWaiting(pulsePlayer('b', 'ignis'));
     pulseWaiting(pulsePlayer('c', 'syrtis'));
@@ -88,7 +91,7 @@ it('avisa cuando ya hay gente de sobra para armar el cruce', function () {
 
     $pulse = app(QueuePulseService::class)->forMode('2v2', 'ignis');
 
-    expect($pulse['hint'])->toBe('Ya hay gente suficiente: el cruce se arma en la proxima pasada.');
+    expect($pulse['hint'])->toBeNull();
 });
 
 it('omite la pista si no sabemos desde que reino mira el jugador', function () {

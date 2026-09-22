@@ -85,8 +85,11 @@ class QueuePulseService
         $ownMissing = max(0, $teamSize - $own);
         $rivalMissing = max(0, $teamSize - $rivalBest);
 
+        // Con gente de sobra no se dice nada: los numeros de al lado ya lo
+        // estan enseñando, y una linea explicando que el cruce se armara en la
+        // proxima pasada no le sirve de nada a quien espera.
         if ($ownMissing === 0 && $rivalMissing === 0) {
-            return 'Ya hay gente suficiente: el cruce se arma en la proxima pasada.';
+            return null;
         }
 
         $parts = [];

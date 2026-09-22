@@ -67,14 +67,15 @@
                     Combate en curso
                 @endif
             </h2>
-            <p class="arena-duel-panel-sub">
-                @if($reportPending)
+            {{-- Solo cuando hay algo que decir. Con el combate en marcha, el
+                 panel ya enseña el reloj, la zona y el formulario del reporte:
+                 una linea explicando eso mismo es texto que nadie lee. --}}
+            @if($reportPending)
+                <p class="arena-duel-panel-sub">
                     El resultado ya está subido. El rival tiene que confirmarlo para que
                     el ladder lo cuente.
-                @else
-                    Juega la partida y sube las 2 capturas antes de que se agote el reloj.
-                @endif
-            </p>
+                </p>
+            @endif
         </div>
 
         @if(!$reportPending)

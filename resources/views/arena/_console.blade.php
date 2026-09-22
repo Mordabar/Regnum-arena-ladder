@@ -23,11 +23,10 @@
                     </button>
                 </div>
 
-                @if($lockedToPlayer)
-                    <p class="arena-console-note">
-                        Con cola o combate activo no puedes cambiar de guerrero.
-                    </p>
-                @endif
+                {{-- El aviso NO va aqui de fijo. Ocupaba sitio a todas horas
+                     para explicar algo que solo importa en el instante en que
+                     alguien toca otro guerrero; ahora sale como nubecita
+                     justo ahi, y solo entonces. --}}
 
                 <div class="arena-console-slots">
                     @foreach($players as $player)
@@ -46,7 +45,11 @@
                            data-champion-slot
                            data-player-id="{{ $player->id }}"
                            aria-pressed="{{ $isFeatured ? 'true' : 'false' }}"
-                           @if($lockedToPlayer && !$isFeatured) aria-disabled="true" tabindex="-1" @endif
+                           @if($lockedToPlayer && !$isFeatured)
+                               aria-disabled="true"
+                               tabindex="-1"
+                               data-roster-locked="Con cola o combate activo no puedes cambiar de guerrero"
+                           @endif
                            style="--slot-realm: var(--arena-{{ $player->realm === 'ignis' ? 'fire' : ($player->realm === 'alsius' ? 'ice' : 'forest') }})">
                             <span class="arena-roster-crest">
                                 <x-arena-realm-icon :realm="$player->realm" size="sm" />
