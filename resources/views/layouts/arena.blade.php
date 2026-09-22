@@ -1699,37 +1699,66 @@
 
         /* La zona, arriba y con peso. Con el cruce recien dado es el unico dato
            que hace falta ya mismo, y estaba en el pie del panel. */
+        /* El bloque del punto de encuentro.
+
+           Va separado de la cabecera -antes el filo del `border-bottom` le
+           caia justo encima y parecia que se salia del recuadro- y se apila:
+           rotulo, boton e instruccion. En linea solo se leia "ZONA - nombre -
+           1 vs 1", que no dice nada que no se supiera ya. */
         .arena-duel-zone.is-destacada {
-            margin: 0 clamp(14px, 2.4vw, 26px);
-            padding: 11px 15px;
+            display: block;
+            margin: clamp(14px, 2vw, 20px) clamp(14px, 2.4vw, 26px) 0;
+            padding: 13px 16px 14px;
             border-color: rgba(217, 177, 92, 0.24);
             background: linear-gradient(180deg, rgba(46, 33, 19, 0.72), rgba(16, 11, 7, 0.78));
         }
-        .arena-duel-zone.is-destacada .arena-duel-zone-btn { margin-right: auto; }
+        .arena-duel-zone-cabecera {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        /* El modo, como chapa y no como texto suelto en dorado: al lado del
+           nombre de la zona se leia como si fuera parte de ella. */
+        .arena-duel-zone-modo {
+            flex: none;
+            padding: 2px 9px;
+            border-radius: 99px;
+            border: 1px solid rgba(217, 177, 92, 0.28);
+            background: rgba(217, 177, 92, 0.1);
+            font-size: 11.5px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            color: var(--arena-gold-soft);
+            white-space: nowrap;
+        }
+        .arena-duel-zone.is-destacada .arena-duel-zone-btn {
+            margin: 8px 0 0;
+            font-size: 17px;
+        }
+        .arena-duel-zone-pin { width: 17px; height: 17px; flex: none; }
         .arena-duel-zone-nombre { min-width: 0; }
+        .arena-duel-zone-pista {
+            margin: 8px 0 0;
+            font-size: 12px;
+            line-height: 1.45;
+            color: var(--arena-muted);
+        }
 
-        /* En movil el boton se lleva la fila entera: en linea, "Zona 7 -
-           Central Ruins" se partia en dos o tres lineas dentro de un boton de
-           medio ancho, con el "ver el mapa" encajado al lado. El rotulo y el
-           "2 vs 2" se reparten la fila de arriba. */
         @media (max-width: 720px) {
             .arena-duel-zone.is-destacada {
-                flex-wrap: wrap;
-                gap: 0 8px;
-                margin: 0 12px;
-                padding: 10px 12px;
+                margin: 12px 12px 0;
+                padding: 11px 13px 12px;
             }
-            .arena-duel-zone.is-destacada .arena-duel-zone-key { order: 1; flex: 1 1 auto; }
-            .arena-duel-zone.is-destacada .arena-duel-zone-modo { order: 2; margin: 0; font-size: 13px; }
+            /* El boton se lleva el ancho entero: a media fila, "Zona 7 -
+               Central Ruins" se partia en dos o tres lineas. */
             .arena-duel-zone.is-destacada .arena-duel-zone-btn {
-                order: 3;
                 display: flex;
-                flex: 1 1 100%;
-                margin: 7px 0 0;
+                width: 100%;
                 font-size: 15px;
             }
-            /* "Ver el mapa" pasa a "Mapa": esas dos palabras de mas eran las
-               que partian el nombre de la zona en dos lineas. */
+            /* Y "Ver el mapa" pasa a "Mapa": esas dos palabras de mas eran las
+               que acababan de partir el nombre. */
             .arena-duel-zone.is-destacada .arena-duel-zone-cta {
                 margin-left: auto;
                 padding-left: 8px;
@@ -2077,8 +2106,26 @@
         .arena-podium.is-compacto .arena-podium-note { font-size: 12px; margin-top: 4px; }
         .arena-podium.is-compacto .arena-podium-stage { align-items: stretch; padding: 12px 14px 14px; gap: 8px; }
 
-        /* Sin figuras, los tres cajones se igualan: el escalonado solo tiene
-           sentido cuando hay una figura encima de cada uno. */
+        /* Las figuras se quedan, en pequeño.
+
+           Quitarlas dejaba la seccion en tres cajitas de texto y el sitio
+           pierde justo lo que lo distingue del resto. A un tercio de alto
+           siguen viendose -raza, reino y arquetipo se leen de lejos- y el
+           podio entero cabe en cuatrocientos pixeles. */
+        .arena-podium.is-compacto .arena-podium-figure,
+        .arena-podium.is-compacto .arena-podium-slot.is-1 .arena-podium-figure {
+            /* Estrecho y alto, no una franja apaisada: el visor encuadra por
+               el lado corto, asi que un recuadro de 400x104 dejaba al guerrero
+               como una mota en medio de una banda vacia. En vertical se ve la
+               figura entera. */
+            width: clamp(74px, 8vw, 96px);
+            height: clamp(96px, 10.5vw, 126px);
+            margin-inline: auto;
+        }
+        .arena-podium.is-compacto .arena-podium-empty { font-size: 13px; }
+
+        /* Los tres cajones se igualan: el escalonado necesita figuras de
+           alturas distintas encima, y aqui las tres miden lo mismo. */
         .arena-podium.is-compacto .arena-podium-block,
         .arena-podium.is-compacto .arena-podium-slot.is-1 .arena-podium-block,
         .arena-podium.is-compacto .arena-podium-slot.is-2 .arena-podium-block,
@@ -2164,10 +2211,37 @@
 
            Solo cuando hay chat: sin el, el escenario se queda a todo lo ancho
            como estaba. */
-        @media (min-width: 1100px) {
+        /* Desde 1180px, que es donde caben las dos columnas sin estrujar
+           ninguna: por debajo, el reparto dejaba el chat en 288px -bocadillos
+           de tres lineas- y era peor que apilarlo. */
+        @media (min-width: 1180px) {
             .arena-live-arena.has-chat {
                 display: grid;
-                grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+                /* Casi a partes iguales, y el chat con un suelo de 380px.
+
+                   Con 1.25fr contra 0.75fr el chat salia en una tira de 290px
+                   en un portatil: los bocadillos se partian en tres lineas y
+                   las frases de la botonera no cabian. El escenario aguanta de
+                   sobra la mitad -las figuras son altas, no anchas- y el chat
+                   es lo que se lee. */
+                grid-template-columns: minmax(300px, 1fr) minmax(360px, 1fr);
+            }
+
+            /* Con equipos, el escenario necesita mas: cuatro o seis figuras a
+               medias con el chat salen a cien pixeles cada una y los nombres
+               se cortan. El chat cede lo justo y conserva su suelo. */
+            .arena-live-arena.has-chat[data-team-size="2"],
+            .arena-live-arena.has-chat[data-team-size="3"] {
+                grid-template-columns: minmax(400px, 1.25fr) minmax(340px, 1fr);
+            }
+
+            /* Y el nombre se parte en dos lineas antes que cortarse con
+               puntos suspensivos: es como se reconoce al rival en la zona, y
+               "Guerrero Anón..." no reconoce a nadie. */
+            .arena-live-arena.has-chat .arena-battle-fighter figcaption b {
+                white-space: normal;
+                overflow-wrap: anywhere;
+                line-height: 1.25;
                 gap: clamp(12px, 1.6vw, 20px);
                 /* Las dos columnas a la misma altura y el escenario centrado
                    dentro de la suya: con `start`, las figuras se quedaban
@@ -3394,11 +3468,17 @@
             // Dos notas como mucho, separadas, y la ultima con cola larga para
             // que el aviso se apague solo. Los avisos importantes suben de tono
             // (match encontrado, caceria); los informativos se quedan planos.
+            //
+            // Las ganancias estan x2,6 respecto a las primeras que puse. Con
+            // 0.05 el toque se oia en una habitacion en silencio y nada mas:
+            // esto suena por encima del juego, que es donde esta el jugador
+            // cuando le toca enterarse. Aun asi se queda lejos de 1.0, que es
+            // donde WebAudio empieza a saturar.
             const patterns = {
                 match_found: {
                     tones: [
-                        { freq: 880, duration: 0.55, delay: 0.00, gain: 0.055 },
-                        { freq: 1318, duration: 1.60, delay: 0.16, gain: 0.055 },
+                        { freq: 880, duration: 0.55, delay: 0.00, gain: 0.143 },
+                        { freq: 1318, duration: 1.60, delay: 0.16, gain: 0.143 },
                     ],
                     vibrate: [80, 40, 120],
                 },
@@ -3410,8 +3490,8 @@
                    breves, como el mensaje de cualquier chat. */
                 match_ping: {
                     tones: [
-                        { freq: 1046, duration: 0.18, delay: 0.00, gain: 0.038 },
-                        { freq: 1396, duration: 0.30, delay: 0.07, gain: 0.032 },
+                        { freq: 1046, duration: 0.18, delay: 0.00, gain: 0.099 },
+                        { freq: 1396, duration: 0.30, delay: 0.07, gain: 0.083 },
                     ],
                     vibrate: [35],
                 },
@@ -3423,49 +3503,49 @@
                    no habia forma de saber si el aviso habia salido. */
                 match_ping_sent: {
                     tones: [
-                        { freq: 620, duration: 0.14, delay: 0.00, gain: 0.03 },
+                        { freq: 620, duration: 0.14, delay: 0.00, gain: 0.078 },
                     ],
                     vibrate: [18],
                 },
                 party_invite: {
                     tones: [
-                        { freq: 784, duration: 0.45, delay: 0.00, gain: 0.045 },
-                        { freq: 1046, duration: 1.30, delay: 0.14, gain: 0.045 },
+                        { freq: 784, duration: 0.45, delay: 0.00, gain: 0.117 },
+                        { freq: 1046, duration: 1.30, delay: 0.14, gain: 0.117 },
                     ],
                     vibrate: [60, 30, 80],
                 },
                 party_ready: {
                     tones: [
-                        { freq: 659, duration: 0.40, delay: 0.00, gain: 0.045 },
-                        { freq: 988, duration: 1.25, delay: 0.14, gain: 0.045 },
+                        { freq: 659, duration: 0.40, delay: 0.00, gain: 0.117 },
+                        { freq: 988, duration: 1.25, delay: 0.14, gain: 0.117 },
                     ],
                     vibrate: [70],
                 },
                 hunt_start: {
                     tones: [
-                        { freq: 587, duration: 0.40, delay: 0.00, gain: 0.05 },
-                        { freq: 880, duration: 0.40, delay: 0.15, gain: 0.05 },
-                        { freq: 1174, duration: 1.70, delay: 0.30, gain: 0.05 },
+                        { freq: 587, duration: 0.40, delay: 0.00, gain: 0.130 },
+                        { freq: 880, duration: 0.40, delay: 0.15, gain: 0.130 },
+                        { freq: 1174, duration: 1.70, delay: 0.30, gain: 0.130 },
                     ],
                     vibrate: [120, 50, 120],
                 },
                 report_submitted: {
                     tones: [
-                        { freq: 698, duration: 0.35, delay: 0.00, gain: 0.04 },
-                        { freq: 880, duration: 1.10, delay: 0.13, gain: 0.04 },
+                        { freq: 698, duration: 0.35, delay: 0.00, gain: 0.104 },
+                        { freq: 880, duration: 1.10, delay: 0.13, gain: 0.104 },
                     ],
                     vibrate: [50, 25, 50],
                 },
                 report_confirmed: {
                     tones: [
-                        { freq: 659, duration: 0.35, delay: 0.00, gain: 0.045 },
-                        { freq: 988, duration: 1.45, delay: 0.14, gain: 0.045 },
+                        { freq: 659, duration: 0.35, delay: 0.00, gain: 0.117 },
+                        { freq: 988, duration: 1.45, delay: 0.14, gain: 0.117 },
                     ],
                     vibrate: [90, 40, 90],
                 },
                 generic: {
                     tones: [
-                        { freq: 880, duration: 1.10, delay: 0.00, gain: 0.04 },
+                        { freq: 880, duration: 1.10, delay: 0.00, gain: 0.104 },
                     ],
                     vibrate: [60],
                 },
@@ -3693,6 +3773,14 @@
                     // y denegado no se puede volver a pedir.
                     if (!options.silent) { await pedirPermiso(); }
 
+                    /* Y con el permiso dado, este navegador se apunta al push.
+                       Es la misma decision -"avisame"- asi que va con el mismo
+                       interruptor: un ajuste aparte para "avisame tambien con
+                       la pestaña cerrada" es un ajuste que nadie encuentra. */
+                    document.dispatchEvent(new CustomEvent('arena:alertas', {
+                        detail: { enabled: true },
+                    }));
+
                     if (!options.silent) {
                         // Un toque de prueba al encender: es la unica forma de
                         // saber si de verdad va a sonar. En un iPhone con el
@@ -3707,8 +3795,14 @@
                             5000
                         );
                     }
-                } else if (!options.silent) {
-                    arenaToast('Alertas sonoras silenciadas.', 'info', 3000);
+                } else {
+                    document.dispatchEvent(new CustomEvent('arena:alertas', {
+                        detail: { enabled: false },
+                    }));
+
+                    if (!options.silent) {
+                        arenaToast('Alertas silenciadas. Tampoco te avisaremos con la pagina cerrada.', 'info', 3500);
+                    }
                 }
 
                 updateButtons();
@@ -3886,6 +3980,7 @@
     @include('partials.arena-map-runtime')
     @include('partials.arena-pings-runtime')
     @include('partials.arena-zona-runtime')
+    @include('partials.arena-push-runtime')
     <script>
         /* Relojes de la arena.
            Un solo motor para los tres: el plazo para aceptar el cruce, el plazo

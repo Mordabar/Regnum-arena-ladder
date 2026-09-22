@@ -4,6 +4,7 @@ use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ArenaMatchController;
 use App\Http\Controllers\ArenaZoneAssetController;
+use App\Http\Controllers\AvisosController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\HallOfFameController;
 use App\Http\Controllers\LadderController;
@@ -88,6 +89,29 @@ Route::middleware('arena.maintenance')->group(function () {
         ->middleware('throttle:30,1')
         ->name('queue.state-poll');
 });
+
+/*
+ * Los avisos del navegador.
+ *
+ * `pendientes` lo llama el service worker cuando le llega un toque de push, y
+ * lo llama con la pagina cerrada. Va fuera del modo mantenimiento -un aviso
+ * que no se puede leer es peor que ninguno- y sin limite de peticiones,
+ * porque el ritmo no lo marca el jugador sino los toques que mandamos
+ * nosotros.
+ */
+Route::middleware('auth')->group(function () {
+    Route::post('/avisos/suscribir', [AvisosController::class, 'suscribir'])->name('avisos.suscribir');
+    Route::post('/avisos/desuscribir', [AvisosController::class, 'desuscribir'])->name('avisos.desuscribir');
+    Route::get('/avisos/pendientes', [AvisosController::class, 'pendientes'])->name('avisos.pendientes');
+});
+
+// Sin sesion y sin CSRF a proposito: la llama el service worker cuando el
+// servicio de push le rota la direccion, y ahi no hay ni documento del que
+// sacar un token ni garantia de sesion. La credencial es la direccion vieja,
+// que solo conoce ese navegador. Ver el metodo para el razonamiento completo.
+Route::post('/avisos/resuscribir', [AvisosController::class, 'resuscribir'])
+    ->middleware('throttle:10,1')
+    ->name('avisos.resuscribir');
 
 Route::middleware('auth')->group(function () {
     Route::get('/queue/premade/candidates', [QueueHubController::class, 'premadeCandidates'])->name('queue.premade.candidates');

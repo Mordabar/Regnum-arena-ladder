@@ -106,20 +106,33 @@
          El boton llama la atencion hasta que se abre el mapa una vez: quien
          acaba de aceptar no sabe todavia que esto se pulsa. Despues se calma
          solo y no vuelve a molestar en ese combate. --}}
-    {{-- Los tres en la misma fila en escritorio; en movil el boton se lleva
-         el ancho entero y el rotulo y el "2 vs 2" comparten la de arriba. --}}
+    {{-- El punto de encuentro.
+
+         Antes esto era una linea suelta -"ZONA · nombre · 2 vs 2"- pegada al
+         filo de la cabecera, y no decia lo unico que de verdad hace falta
+         saber: que el sitio exacto esta marcado en el mapa y que el nombre se
+         pulsa para verlo. Ahora es un bloque con rotulo, el boton y la
+         instruccion, separado de la cabecera. --}}
     <div class="arena-duel-zone is-destacada">
-        <span class="arena-duel-zone-key">Quedad en</span>
+        <div class="arena-duel-zone-cabecera">
+            <span class="arena-duel-zone-key">Punto de encuentro</span>
+            <span class="arena-duel-zone-modo">{{ $teamSize }} vs {{ $teamSize }}</span>
+        </div>
+
         <button type="button"
                 class="arena-duel-zone-value arena-duel-zone-btn"
                 data-modal-open="modal-queue-zone-map"
                 data-zone-call="{{ $match->id }}"
                 title="Ver el mapa de {{ $match->zone_name }}">
-            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+            <svg class="arena-duel-zone-pin" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
             <span class="arena-duel-zone-nombre">{{ $match->zone_name }}</span>
             <span class="arena-duel-zone-cta">Ver el mapa</span>
         </button>
-        <span class="arena-duel-zone-value arena-duel-zone-modo">{{ $teamSize }} vs {{ $teamSize }}</span>
+
+        <p class="arena-duel-zone-pista">
+            El sitio exacto va marcado en el mapa. Quedad ahi los
+            {{ $teamSize * 2 }} y empezad cuando estéis todos.
+        </p>
     </div>
 
     @if($lineup)
@@ -139,7 +152,7 @@
 
              En movil siguen apilados: dos columnas de ciento sesenta pixeles
              no son ni escenario ni chat. --}}
-        <div class="arena-live-arena @if($running) has-chat @endif">
+        <div class="arena-live-arena @if($running) has-chat @endif" data-team-size="{{ $teamSize }}">
         <div class="arena-battle" data-battle data-team-size="{{ $teamSize }}">
             @foreach([['own', $lineup['own_realm'], true], ['rival', $lineup['rival_realm'], false]] as [$side, $realm, $isOwn])
                 @if(!$isOwn)

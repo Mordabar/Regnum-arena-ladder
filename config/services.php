@@ -10,4 +10,23 @@ return [
         'alerts_channel_id' => env('DISCORD_ALERTS_CHANNEL_ID'),
         'admin_ids' => array_values(array_filter(array_map('trim', explode(',', (string) env('ADMIN_DISCORD_IDS', ''))))),
     ],
+
+    /*
+     * Los avisos del navegador (Web Push).
+     *
+     * Las dos claves se sacan con `php artisan arena:push-keys` y se pegan en
+     * el `.env`. Sin ellas el sitio funciona igual: simplemente no manda
+     * avisos con la pestaña cerrada, y el codigo lo comprueba antes de
+     * intentarlo en vez de reventar.
+     *
+     * Ojo: cambiar la clave publica invalida TODAS las suscripciones que haya
+     * guardadas. Se generan una vez y no se tocan.
+     */
+    'webpush' => [
+        'public_key' => env('VAPID_PUBLIC_KEY'),
+        'private_key' => env('VAPID_PRIVATE_KEY'),
+        // A quien escribir si los avisos dan problemas. Los servicios de push
+        // exigen un contacto; un `mailto:` es lo habitual.
+        'subject' => env('VAPID_SUBJECT'),
+    ],
 ];

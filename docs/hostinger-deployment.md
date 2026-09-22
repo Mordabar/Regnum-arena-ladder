@@ -131,3 +131,72 @@ DB_USERNAME=tu_usuario DB_PASSWORD=tu_clave \
 ```
 
 Comprueba despues el login de Discord, una cola 2v2, una cola 3v3, la subida de evidencias y el panel de modalidades en la configuracion administrativa.
+
+## Avisos del navegador (Web Push)
+
+Es lo que hace que al jugador le llegue el cruce **con la pestaña cerrada**.
+No es un adorno sobre el sondeo: el navegador congela las pestañas que no
+estan delante -primero espacia los temporizadores a uno por minuto, luego los
+para del todo-, asi que la pagina no se entera de nada hasta que se vuelve a
+mirar, que es justo cuando el aviso ya no sirve. El push lo entrega el sistema
+operativo, sin la pagina abierta.
+
+Requisitos: **HTTPS** (ya lo hay) y que `public/sw.js` se sirva desde la raiz
+del dominio. Un service worker solo controla su carpeta y las de debajo: en
+`/js/sw.js` solo controlaria `/js/`.
+
+### Puesta en marcha, una sola vez
+
+```bash
+php artisan arena:push-keys
+```
+
+Enseña tres lineas. Pegalas en el `.env` de produccion:
+
+```
+VAPID_PUBLIC_KEY=...
+VAPID_PRIVATE_KEY=...
+VAPID_SUBJECT=mailto:tu-correo@ejemplo.com
+```
+
+Luego:
+
+```bash
+php artisan migrate --force      # crea push_subscriptions
+php artisan config:clear
+```
+
+**La clave publica no se cambia despues.** Cada navegador se suscribe contra
+ella, y si cambia, el servicio de push rechaza todos los envios con un 401 y
+nadie recibe nada: hay que volver a pedir permiso a todo el mundo. El comando
+avisa y pide confirmacion si ya hay claves puestas.
+
+Sin las claves el sitio funciona igual. Simplemente no avisa con la pestaña
+cerrada, y el codigo lo comprueba antes de intentarlo en vez de reventar.
+
+### Como comprobar que va
+
+1. Entra al sitio y dale al interruptor de alertas. El navegador pide permiso.
+2. En las herramientas de desarrollo, pestaña *Application → Service Workers*,
+   tiene que salir `sw.js` activado.
+3. En *Application → Push Messaging*, el boton *Push* simula un aviso: debe
+   aparecer una notificacion del sistema.
+4. Con dos cuentas: entra a cola con las dos, deja una pestaña en segundo
+   plano y cruza. El aviso tiene que llegar sin tocar esa pestaña.
+
+Si no llega, mira en ese orden: si hay claves en el `.env` (`php artisan
+about`), si el navegador tiene permiso concedido, y si hay filas en
+`push_subscriptions` para ese usuario. Una suscripcion con `fallos` subiendo
+es que el servicio de push esta rechazando los envios.
+
+### Que sube al servidor
+
+Ademas de las vistas y `public/build/`:
+
+- `public/sw.js` — en la raiz publica, obligatorio.
+- `app/Support/VapidKeys.php`, `app/Support/Base64Url.php`
+- `app/Services/WebPushService.php`, `app/Services/AvisosPendientesService.php`
+- `app/Http/Controllers/AvisosController.php`, `app/Models/PushSubscription.php`
+- `app/Console/Commands/PushKeysCommand.php`
+- `config/services.php`, `bootstrap/app.php`, `routes/web_main.php`
+- la migracion `2026_09_23_000001_create_push_subscriptions_table.php`

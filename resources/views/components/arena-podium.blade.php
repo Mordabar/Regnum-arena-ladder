@@ -1,6 +1,11 @@
-{{-- `compacto`: la misma informacion sin las figuras 3D ni el escenario.
-     Para el ladder, donde lo que se viene a ver es el ranking y el podio de
-     611px empujaba la tabla fuera de la pantalla. --}}
+{{-- `compacto`: lo mismo, mas bajo. Para el ladder, donde lo que se viene a
+     ver es el ranking y el podio de 611px empujaba la tabla fuera de la
+     pantalla.
+
+     Las figuras SIGUEN estando: quitarlas dejaba la seccion en tres cajitas de
+     texto y el sitio pierde justo lo que lo distingue. Lo que cambia es el
+     tamaño -el escenario se queda en un tercio- y el escalonado, que ahi no
+     hace falta. --}}
 @props(['podio', 'premios', 'compacto' => false])
 @php
     use App\Models\Player as PlayerModel;
@@ -83,7 +88,6 @@
             @endphp
 
             <div class="arena-podium-slot is-{{ $puesto['puesto'] }}">
-                @unless($compacto)
                 <div class="arena-podium-figure">
                     @if($player)
                         {{-- El campeon de verdad, no un icono: la portada de un
@@ -120,7 +124,6 @@
                         </div>
                     @endif
                 </div>
-                @endunless
 
                 {{-- El cajon. El nombre va DENTRO, como grabado: fuera, con
                      tres cajones de alturas distintas, los nombres quedaban a

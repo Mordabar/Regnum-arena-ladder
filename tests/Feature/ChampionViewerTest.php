@@ -179,15 +179,15 @@ it('el emblema del reino se ve sin javascript y sin webgl', function () {
     expect($html)->toContain('data-champion-state="idle"');
 });
 
-it('el ladder ensena el podio de premios sin gastar el visor 3d', function () {
+it('el ladder ensena el podio de premios, en 3d y compacto', function () {
     // El ladder abre con el podio de la temporada -quien va ganando y que se
     // lleva-, no con "quien manda en cada reino", que enseñaba tres figuras
     // sin decir lo unico que importa de ellas.
     //
-    // Pero aqui va en su version compacta, SIN figuras: a esta pagina se
-    // viene a leer el ranking, y el podio entero se comia seiscientos pixeles
-    // y empujaba la tabla fuera de la pantalla. De paso, la pagina no paga los
-    // 146 KB de three.js para adornar una seccion que solo acompaña.
+    // Va en su version compacta -a esta pagina se viene a leer el ranking, y
+    // el podio entero se comia seiscientos pixeles y empujaba la tabla fuera
+    // de la pantalla- pero CON figuras. Quitarlas dejaba la seccion en tres
+    // cajitas de texto: lo que sobraba era el tamaño, no los guerreros.
     $user = viewerUser('podio');
     viewerPlayer($user, 'Reina', 'alsius', 'warlock')->update(['pl_points' => 500]);
 
@@ -195,8 +195,8 @@ it('el ladder ensena el podio de premios sin gastar el visor 3d', function () {
         ->assertOk()
         ->assertSee('is-compacto', false)
         ->assertSee('Reina')
-        ->assertDontSee('data-champion-id="podium-1"', false)
-        ->assertDontSee('js/arena-champion.js', false)
+        ->assertSee('data-champion-id="podium-1"', false)
+        ->assertSee('js/arena-champion.js', false)
         ->assertDontSee('Quien manda en cada reino');
 });
 

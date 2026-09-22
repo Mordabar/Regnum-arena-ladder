@@ -519,6 +519,11 @@ class ArenaMatchmakingService
             // del mismo barrido, igual que contaria si se releyera la base.
             $activeMatches->push($match);
 
+            // El aviso del navegador, ademas del DM de Discord: quien no
+            // tenga los DM abiertos -o no los mire- se queda sin enterarse, y
+            // un cruce caduca en dos minutos.
+            app(\App\Services\WebPushService::class)->avisarAJugadores($match->getAllPlayers());
+
             try {
                 $this->discordBotService->notifyMatchFound($match);
             } catch (\Throwable $e) {

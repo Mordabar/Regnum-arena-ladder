@@ -136,6 +136,12 @@ class ArenaMatchResultService
             throw $e;
         }
 
+        // Al rival, no a quien acaba de subirlo: ya sabe lo que ha hecho.
+        app(WebPushService::class)->avisarAJugadores(
+            $match->getAllPlayers(),
+            $match->getTeamPlayerIds($report->reporting_team)
+        );
+
         $this->discordBotService->notifyReportSubmitted($match->fresh('report'), $report);
 
         return $report;
@@ -769,6 +775,9 @@ class ArenaMatchResultService
             'started_at'  => now(),
             'expires_at'  => now()->addMinutes((int) AppSetting::getValue('hunt_window_minutes', 30)),
         ]);
+
+        // Ya aceptaron todos: a partir de aqui hay que ir a la zona.
+        app(WebPushService::class)->avisarAJugadores($match->getAllPlayers());
 
         app(DiscordBotService::class)->notifyMatchAccepted($match->fresh());
 

@@ -1,0 +1,161 @@
+/*
+ * El service worker de Regnum Arena Ladder.
+ *
+ * Existe por una sola razon: el navegador congela las pestañas que no estan
+ * delante. Primero espacia los temporizadores a uno por minuto y a los pocos
+ * minutos los para del todo, asi que el sondeo de la pagina no corre y el
+ * jugador no se entera de nada hasta que vuelve a mirar. Esto vive fuera de la
+ * pagina, lo despierta el sistema operativo y funciona con la pestaña cerrada.
+ *
+ * NO cachea nada. Un service worker que sirve ficheros desde su cache es la
+ * forma mas rapida de dejar a la gente con una version vieja del sitio despues
+ * de un despliegue por FTP. Aqui solo se reciben avisos.
+ */
+
+const VERSION = 'arena-avisos-1';
+
+self.addEventListener('install', (event) => {
+    // Sin esto, el worker nuevo se queda esperando a que se cierren todas las
+    // pestañas del sitio. Un arreglo en este fichero tardaria dias en llegar.
+    self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+    event.waitUntil(self.clients.claim());
+});
+
+/*
+ * El toque llega VACIO.
+ *
+ * Meter el texto dentro del push obliga a cifrarlo (aes128gcm y un acuerdo de
+ * claves), que en un hosting compartido significa otra dependencia mas. Asi
+ * que el servidor solo da el toque y aqui se pregunta que ha pasado.
+ *
+ * Y sale mejor: lo que se enseña es el estado de AHORA. Si el cruce caduco
+ * mientras el aviso viajaba, el servidor ya no lo devuelve y no aparece una
+ * notificacion diciendo "acepta ahora" sobre algo que ya no existe.
+ */
+self.addEventListener('push', (event) => {
+    event.waitUntil(anunciar());
+});
+
+async function anunciar() {
+    let avisos = [];
+
+    try {
+        const r = await fetch('/avisos/pendientes', {
+            credentials: 'include',
+            cache: 'no-store',
+            headers: { 'Accept': 'application/json' },
+        });
+
+        if (r.ok) {
+            const datos = await r.json();
+            avisos = Array.isArray(datos.avisos) ? datos.avisos : [];
+        }
+    } catch (e) {
+        // Sin red o sesion caducada. Se sigue: mejor un aviso generico que
+        // ninguno, porque el navegador EXIGE enseñar algo despues de un push
+        // y si no lo hacemos nos lo enseña el por su cuenta, con un texto que
+        // no controlamos.
+    }
+
+    if (!avisos.length) {
+        avisos = [{
+            tag: 'arena',
+            titulo: 'Regnum Arena Ladder',
+            cuerpo: 'Hay novedades en tu arena.',
+            url: '/lobby',
+        }];
+    }
+
+    await Promise.all(avisos.map((aviso) => self.registration.showNotification(
+        aviso.titulo || 'Regnum Arena Ladder',
+        {
+            body: aviso.cuerpo || '',
+            // La etiqueta agrupa: dos toques del mismo cruce se sustituyen en
+            // vez de apilar dos globos iguales.
+            tag: aviso.tag || 'arena',
+            renotify: true,
+            icon: '/images/logo-arena-ladder.png',
+            badge: '/images/logo-arena-ladder.png',
+            data: { url: aviso.url || '/lobby' },
+            // Un cruce dura dos minutos: el aviso se queda hasta que se toca,
+            // no se va solo a los cinco segundos.
+            requireInteraction: true,
+            vibrate: [90, 40, 90],
+        }
+    )));
+}
+
+/*
+ * Tocar el aviso lleva a la arena.
+ *
+ * Si ya hay una pestaña del sitio abierta se le da el foco y se la manda al
+ * sitio, en vez de abrir una segunda: dos pestañas del lobby sondeando a la
+ * vez son dos sesiones peleandose por el mismo estado.
+ */
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+
+    const destino = (event.notification.data && event.notification.data.url) || '/lobby';
+
+    event.waitUntil((async () => {
+        const abiertas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+
+        for (const cliente of abiertas) {
+            if (new URL(cliente.url).origin === self.location.origin) {
+                await cliente.focus();
+
+                if ('navigate' in cliente) {
+                    try { await cliente.navigate(destino); } catch (e) { /* da igual: ya tiene el foco */ }
+                }
+
+                return;
+            }
+        }
+
+        await self.clients.openWindow(destino);
+    })());
+});
+
+/*
+ * El servicio de push puede rotar la direccion de una suscripcion por su
+ * cuenta. Cuando pasa, hay que volver a apuntarse o ese navegador deja de
+ * recibir avisos en silencio, que es la peor forma de romperse.
+ */
+self.addEventListener('pushsubscriptionchange', (event) => {
+    event.waitUntil((async () => {
+        const vieja = event.oldSubscription;
+        let nueva = event.newSubscription;
+
+        if (!nueva) {
+            const opciones = vieja ? vieja.options : null;
+            if (!opciones || !opciones.applicationServerKey) { return; }
+
+            nueva = await self.registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: opciones.applicationServerKey,
+            });
+        }
+
+        /*
+         * Puerta aparte de la de la pagina.
+         *
+         * Aqui no hay documento, asi que no hay token CSRF que mandar. En vez
+         * de abrir la puerta normal sin token, esta pide la direccion VIEJA:
+         * solo la sabe el navegador que ya estaba suscrito, asi que sirve de
+         * credencial y lo unico que permite es mover una suscripcion que ya
+         * existia a su direccion nueva.
+         */
+        await fetch('/avisos/resuscribir', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({
+                viejo: vieja ? vieja.endpoint : null,
+                nuevo: nueva.endpoint,
+                keys: nueva.toJSON().keys || null,
+            }),
+        });
+    })());
+});

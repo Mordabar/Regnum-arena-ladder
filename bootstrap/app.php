@@ -30,6 +30,14 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             \App\Http\Middleware\TrackUserActivity::class,
         ]);
+        // El service worker no tiene documento del que sacar un token, y esta
+        // puerta se defiende sola: pide la direccion vieja de la suscripcion,
+        // que solo conoce el navegador que ya estaba dado de alta, y lo unico
+        // que deja hacer es mover esa misma fila.
+        $middleware->validateCsrfTokens(except: [
+            'avisos/resuscribir',
+        ]);
+
         $middleware->alias([
             'arena.admin' => \App\Http\Middleware\EnsureArenaAdminSession::class,
             'arena.maintenance' => \App\Http\Middleware\EnsureArenaMaintenanceFresh::class,

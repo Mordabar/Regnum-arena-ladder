@@ -110,6 +110,14 @@ class MatchPingService
             'code' => $code,
         ]);
 
+        /* Y se toca a los demas en el navegador.
+         *
+         * Es el caso que mas lo necesita de todos: durante un combate nadie
+         * esta mirando la pagina -estan en el juego-, y un "estoy en el punto"
+         * que se lee cinco minutos despues no es un aviso, es un registro.
+         * A quien lo manda no, evidentemente. */
+        app(WebPushService::class)->avisarAJugadores($match->getAllPlayers(), [(int) $player->id]);
+
         return ['ok' => true, 'ping' => $ping];
     }
 
