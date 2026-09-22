@@ -3984,6 +3984,9 @@
     @include('partials.arena-pings-runtime')
     @include('partials.arena-zona-runtime')
     @include('partials.arena-push-runtime')
+    {{-- Despues del runtime: necesita `window.ArenaPush` para saber si los
+         avisos estan activos de verdad, no solo segun el ajuste guardado. --}}
+    @include('partials.arena-avisos-boton')
     <script>
         /* Relojes de la arena.
            Un solo motor para los tres: el plazo para aceptar el cruce, el plazo

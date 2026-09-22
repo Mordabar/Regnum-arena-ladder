@@ -457,3 +457,67 @@ it('el registro del navegador cuenta por que no pudo, en vez de callarse', funct
     // El error crudo se conserva aunque se enseñe un mensaje claro.
     expect($js)->toContain('detalle: error');
 });
+
+/* ── El interruptor ─────────────────────────────────────────────────────── */
+
+it('el boton solo se pone verde si el aviso va a llegar de verdad', function () {
+    // El fallo que conto el jugador: el interruptor decia "Alertas activas"
+    // desde la primera visita -porque el ajuste viene encendido de fabrica-
+    // cuando el navegador no habia dado permiso y no habia ninguna
+    // suscripcion. El boton mentia.
+    $js = File::get(resource_path('views/partials/arena-avisos-boton.blade.php'));
+
+    // Verde exige las tres cosas, no solo el ajuste guardado.
+    expect($js)->toContain('isEnabled()')
+        ->and($js)->toContain("Notification.permission !== 'granted'")
+        ->and($js)->toContain('estado.suscrito');
+});
+
+it('un solo toque activa los avisos, venga del estado que venga', function () {
+    // Para arreglarlo habia que APAGAR y volver a encender, que es lo que
+    // nadie va a adivinar. Pasaba porque el conmutador de siempre hace
+    // `setEnabled(!enabled)`: con el ajuste ya encendido pero sin suscripcion,
+    // un toque lo apagaba en vez de arreglarlo.
+    $js = File::get(resource_path('views/partials/arena-avisos-boton.blade.php'));
+
+    // Las dos ramas van explicitas -encender y apagar- en vez de conmutar a
+    // ciegas, y la de encender fuerza ademas la suscripcion por si el ajuste
+    // ya estaba puesto y `setEnabled` no disparo nada nuevo.
+    expect($js)->toContain('setEnabled(true)')
+        ->and($js)->toContain('setEnabled(false)')
+        ->and($js)->toContain('ArenaPush.suscribir(true)');
+
+    // Y no cuelga del conmutador generico de la barra, que es el que hacia
+    // `setEnabled(!enabled)`.
+    expect($js)->toContain("boton.addEventListener('click'")
+        ->and($js)->not->toContain('data-arena-alert-toggle>');
+});
+
+it('en movil el interruptor sale del menu y queda flotante', function () {
+    // Detras de la hamburguesa no lo encuentra nadie, y es lo primero que hay
+    // que tocar para que el sitio sirva de algo.
+    $js = File::get(resource_path('views/partials/arena-avisos-boton.blade.php'));
+
+    expect($js)->toContain('.arena-mobile-menu [data-arena-alert-toggle] { display: none; }')
+        // Y en escritorio al reves: manda el de la barra, que ya esta a la
+        // vista, y el flotante estorba.
+        ->and($js)->toContain('@media (min-width: 1024px)');
+
+    // Va incluido en el layout DESPUES del runtime de push: necesita
+    // `window.ArenaPush` para saber si hay suscripcion.
+    $layout = File::get(resource_path('views/layouts/arena.blade.php'));
+    $push = strpos($layout, "@include('partials.arena-push-runtime')");
+    $boton = strpos($layout, "@include('partials.arena-avisos-boton')");
+
+    expect($boton)->not->toBeFalse()->and($boton)->toBeGreaterThan($push);
+});
+
+it('la pista de la primera visita se va sola y no vuelve', function () {
+    $js = File::get(resource_path('views/partials/arena-avisos-boton.blade.php'));
+
+    // Diez segundos: lo que se tarda en leerla sin que sea un cartel fijo.
+    expect($js)->toContain('var PISTA_MS = 10000;')
+        // Y una sola vez en la vida de ese navegador: despues, el boton rojo
+        // ya lo dice por si solo.
+        ->and($js)->toContain('arena:avisos:pista-vista');
+});
