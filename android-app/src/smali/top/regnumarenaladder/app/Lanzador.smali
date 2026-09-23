@@ -39,10 +39,54 @@
     :tiene_url
     iput-object v0, p0, Ltop/regnumarenaladder/app/Lanzador;->url:Landroid/net/Uri;
 
+    # Android 13+: el permiso de notificaciones lo tiene que pedir la app. Sin
+    # el, Chrome ve los avisos del sitio como bloqueados.
+    sget v1, Landroid/os/Build$VERSION;->SDK_INT:I
+    const/16 v2, 0x21
+    if-lt v1, v2, :seguir
+    const-string v1, "android.permission.POST_NOTIFICATIONS"
+    invoke-virtual {p0, v1}, Landroid/app/Activity;->checkSelfPermission(Ljava/lang/String;)I
+    move-result v2
+    if-eqz v2, :seguir
+    const/4 v2, 0x1
+    new-array v2, v2, [Ljava/lang/String;
+    const/4 v3, 0x0
+    aput-object v1, v2, v3
+    const/4 v3, 0x7
+    invoke-virtual {p0, v2, v3}, Landroid/app/Activity;->requestPermissions([Ljava/lang/String;I)V
+    return-void
+
+    :seguir
+    invoke-virtual {p0}, Ltop/regnumarenaladder/app/Lanzador;->continuar()V
+    return-void
+.end method
+
+# Lo que diga la persona al permiso, se sigue: con o sin avisos, la app abre.
+.method public onRequestPermissionsResult(I[Ljava/lang/String;[I)V
+    .registers 4
+    invoke-virtual {p0}, Ltop/regnumarenaladder/app/Lanzador;->continuar()V
+    return-void
+.end method
+
+.method continuar()V
+    .registers 7
+
     invoke-direct {p0}, Ltop/regnumarenaladder/app/Lanzador;->elegirNavegador()Ljava/lang/String;
     move-result-object v1
     iput-object v1, p0, Ltop/regnumarenaladder/app/Lanzador;->paquete:Ljava/lang/String;
     if-eqz v1, :sin_custom_tabs
+
+    # Se apunta que navegador abre la app: el servicio de avisos solo le hace
+    # caso a ese.
+    const-string v2, "twa"
+    const/4 v3, 0x0
+    invoke-virtual {p0, v2, v3}, Landroid/app/Activity;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
+    move-result-object v2
+    invoke-interface {v2}, Landroid/content/SharedPreferences;->edit()Landroid/content/SharedPreferences$Editor;
+    move-result-object v2
+    const-string v3, "navegador"
+    invoke-interface {v2, v3, v1}, Landroid/content/SharedPreferences$Editor;->putString(Ljava/lang/String;Ljava/lang/String;)Landroid/content/SharedPreferences$Editor;
+    invoke-interface {v2}, Landroid/content/SharedPreferences$Editor;->apply()V
 
     :try_start
     new-instance v2, Landroid/content/Intent;

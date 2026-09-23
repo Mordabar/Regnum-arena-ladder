@@ -3,6 +3,9 @@
 
     <!-- Para encontrar el navegador que sabe abrir la app a pantalla completa
          (Chrome u otro compatible). Desde Android 11 hay que declararlo. -->
+    <!-- Android 13+: sin este permiso, la app no puede enseñar los avisos. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <queries>
         <intent>
             <action android:name="android.support.customtabs.action.CustomTabsService" />
@@ -35,5 +38,16 @@
                 <data android:scheme="https" android:host="regnumarenaladder.top" />
             </intent-filter>
         </activity>
+        <!-- Los avisos del sitio: Chrome se los pasa a la app y salen con su
+             nombre y su icono. Sin este servicio, salian como bloqueados. -->
+        <service
+            android:name="top.regnumarenaladder.app.Avisos"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.support.customtabs.trusted.TRUSTED_WEB_ACTIVITY_SERVICE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

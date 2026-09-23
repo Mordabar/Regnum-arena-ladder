@@ -1,5 +1,5 @@
 # La conexion con el servicio de Custom Tabs del navegador. Al conectar, abre
-# una sesion (warmup + newSession, las dos llamadas del protocolo de Chrome) y
+# una sesion (warmup + newSession, del AIDL ICustomTabsService de androidx) y
 # lanza el sitio con ella.
 .class Ltop/regnumarenaladder/app/Lanzador$Conexion;
 .super Ljava/lang/Object;
@@ -32,7 +32,8 @@
     invoke-virtual {v1, v3}, Landroid/os/Parcel;->writeInterfaceToken(Ljava/lang/String;)V
     const-wide/16 v6, 0x0
     invoke-virtual {v1, v6, v7}, Landroid/os/Parcel;->writeLong(J)V
-    const/4 v4, 0x1
+    # Codigo = FIRST_CALL_TRANSACTION (1) + el id fijo del AIDL: warmup = 1.
+    const/4 v4, 0x2
     const/4 v8, 0x0
     invoke-interface {p2, v4, v1, v2, v8}, Landroid/os/IBinder;->transact(ILandroid/os/Parcel;Landroid/os/Parcel;I)Z
     invoke-virtual {v2}, Landroid/os/Parcel;->readException()V
@@ -46,7 +47,8 @@
     move-result-object v2
     invoke-virtual {v1, v3}, Landroid/os/Parcel;->writeInterfaceToken(Ljava/lang/String;)V
     invoke-virtual {v1, v0}, Landroid/os/Parcel;->writeStrongBinder(Landroid/os/IBinder;)V
-    const/4 v4, 0x2
+    # newSession = 2 en el AIDL, asi que el codigo es 3.
+    const/4 v4, 0x3
     invoke-interface {p2, v4, v1, v2, v8}, Landroid/os/IBinder;->transact(ILandroid/os/Parcel;Landroid/os/Parcel;I)Z
     invoke-virtual {v2}, Landroid/os/Parcel;->readException()V
     invoke-virtual {v2}, Landroid/os/Parcel;->readInt()I

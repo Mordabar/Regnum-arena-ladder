@@ -1,6 +1,6 @@
 <footer class="relative mt-auto border-t border-[color:var(--arena-line)] bg-[linear-gradient(180deg,rgba(18,13,10,0.96),rgba(12,8,6,1))]">
     <div class="mx-auto max-w-7xl px-4 py-10">
-        <div class="grid gap-8 md:grid-cols-3">
+        <div class="arena-footer-grid">
             <div>
                 <x-arena-brand compact />
                 <p class="mt-4 max-w-xs text-sm text-[color:var(--arena-muted)]">
@@ -16,7 +16,6 @@
                     <li><a href="{{ route('home') }}" class="text-[color:var(--arena-muted)] transition-colors hover:text-[color:var(--arena-gold-soft)]">Inicio</a></li>
                     <li><a href="{{ route('ladder.index') }}" class="text-[color:var(--arena-muted)] transition-colors hover:text-[color:var(--arena-gold-soft)]">Ladder</a></li>
                     <li><a href="{{ route('como-jugar') }}" class="text-[color:var(--arena-muted)] transition-colors hover:text-[color:var(--arena-gold-soft)]">Cómo jugar</a></li>
-                    <li><a href="{{ route('descargas') }}" class="text-[color:var(--arena-muted)] transition-colors hover:text-[color:var(--arena-gold-soft)]">Descargar la app</a></li>
                     <li><a href="{{ route('guia') }}" class="text-[color:var(--arena-muted)] transition-colors hover:text-[color:var(--arena-gold-soft)]">Como funciona</a></li>
                     @auth
                         <li><a href="{{ route('lobby') }}" class="text-[color:var(--arena-muted)] transition-colors hover:text-[color:var(--arena-gold-soft)]">Lobby y arena</a></li>
@@ -44,11 +43,33 @@
                     </li>
                 </ul>
             </div>
+            {{-- La app. Dos botones al estilo de las tiendas, que es como la
+                 gente reconoce "esto se instala". Llevan a los pasos de cada
+                 uno en la pagina de descargas. --}}
+            <div>
+                <h3 class="font-['Cinzel'] text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--arena-gold)]">Llévatela</h3>
+                <div class="arena-footer-apps">
+                    <a href="{{ route('descargas') }}#android" class="arena-footer-app">
+                        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.66-.38l-1.87 3.23a11.43 11.43 0 0 0-9.82 0L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48A10.78 10.78 0 0 0 1 18h22a10.78 10.78 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 1.25-1.25A1.25 1.25 0 0 1 7 15.25zm10 0A1.25 1.25 0 1 1 18.25 14 1.25 1.25 0 0 1 17 15.25z"/></svg>
+                        <span><small>Descargar para</small><b>Android</b></span>
+                    </a>
+                    <a href="{{ route('descargas') }}#iphone" class="arena-footer-app">
+                        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.37 12.6c-.02-2.2 1.8-3.26 1.88-3.31a4.05 4.05 0 0 0-3.18-1.72c-1.35-.14-2.64.8-3.33.8-.69 0-1.74-.78-2.86-.76a4.24 4.24 0 0 0-3.58 2.18c-1.53 2.65-.39 6.57 1.1 8.72.73 1.05 1.6 2.23 2.73 2.19 1.1-.04 1.51-.71 2.84-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.07 2.65-2.13a9.4 9.4 0 0 0 1.2-2.47 3.83 3.83 0 0 1-2.31-3.48zM14.2 6.13a3.8 3.8 0 0 0 .88-2.73 3.9 3.9 0 0 0-2.52 1.3 3.64 3.64 0 0 0-.9 2.64 3.22 3.22 0 0 0 2.54-1.21z"/></svg>
+                        <span><small>Instalar en</small><b>iPhone</b></span>
+                    </a>
+                </div>
+            </div>
         </div>
         <div class="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-[color:var(--arena-line)] pt-6">
-            <p class="text-xs text-[color:var(--arena-muted)]">
-                © {{ date('Y') }} Regnum Arena Ladder — Conquest PvP. Alpha build.
-            </p>
+            <div class="arena-footer-legal">
+                <p>© {{ date('Y') }} Regnum Arena Ladder — Conquest PvP. Alpha build.</p>
+                {{-- Que nadie lo confunda con algo oficial. --}}
+                <p>
+                    Proyecto independiente, hecho por y para la comunidad. No está afiliado, patrocinado ni
+                    respaldado por NGE ni por los desarrolladores de Regnum Online. Regnum Online y sus marcas
+                    pertenecen a sus respectivos dueños.
+                </p>
+            </div>
             <div class="flex items-center gap-4">
                 <div class="flex items-center gap-2">
                     <x-arena-realm-icon realm="ignis" size="xs" />

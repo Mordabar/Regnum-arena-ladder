@@ -2510,6 +2510,47 @@
         .arena-jugar-fin { padding: clamp(20px, 3vw, 30px); text-align: center; }
         .arena-jugar-fin-botones { margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 
+        /* ── Pie: cuatro columnas y los botones de la app ── */
+        .arena-footer-grid { display: grid; gap: 2rem; }
+        @media (min-width: 768px) { .arena-footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @media (min-width: 1024px) { .arena-footer-grid { grid-template-columns: 1.3fr 1fr 1fr 1fr; } }
+        .arena-footer-apps { margin-top: 1rem; display: grid; gap: 10px; max-width: 220px; }
+        .arena-footer-app {
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 14px;
+            border: 1px solid rgba(217, 177, 92, 0.3);
+            border-radius: 12px;
+            background: rgba(10, 7, 5, 0.85);
+            color: var(--arena-text);
+            text-decoration: none;
+            transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease;
+        }
+        .arena-footer-app::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -75%;
+            width: 45%;
+            height: 100%;
+            background: linear-gradient(100deg, transparent, rgba(255, 226, 160, 0.18), transparent);
+            transform: skewX(-20deg);
+            animation: arenaRayo 6s ease-in-out infinite;
+            pointer-events: none;
+        }
+        .arena-footer-app + .arena-footer-app::before { animation-delay: 1.2s; }
+        .arena-footer-app svg { width: 24px; height: 24px; flex: none; color: var(--arena-gold-soft); }
+        .arena-footer-app small { display: block; font-size: 10.5px; color: var(--arena-muted); line-height: 1.1; }
+        .arena-footer-app b { display: block; font-size: 15px; font-weight: 700; line-height: 1.2; }
+        @media (hover: hover) and (pointer: fine) {
+            .arena-footer-app:hover { border-color: rgba(240, 205, 128, 0.6); transform: translateY(-1px); box-shadow: 0 0 18px rgba(216, 177, 92, 0.25); }
+        }
+        .arena-footer-legal { max-width: 70ch; display: grid; gap: 6px; font-size: 12px; line-height: 1.5; color: var(--arena-muted); }
+        .arena-footer-legal p + p { opacity: .85; }
+
         /* ── Descargas ── */
         .arena-descargas-saltos { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 10px; }
         .arena-descargas-plataformas { display: grid; gap: 0; }
@@ -3481,10 +3522,6 @@
                                 </a>
                             </div>
                         </details>
-                        <a href="{{ route('descargas') }}" class="arena-nav-link {{ request()->routeIs('descargas') ? 'arena-nav-link-active' : '' }}">
-                            <x-arena-icon name="phone" class="h-4 w-4" />
-                            App
-                        </a>
                         @auth
                             <a href="{{ route('lobby') }}" class="arena-nav-link relative {{ request()->routeIs('lobby') ? 'arena-nav-link-active' : '' }}">
                                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
@@ -3568,7 +3605,6 @@
                     <a href="{{ route('hall-of-fame') }}" class="arena-nav-link block w-full {{ request()->routeIs('hall-of-fame') ? 'arena-nav-link-active' : '' }}">Salon de la Fama</a>
                     <a href="{{ route('como-jugar') }}" class="arena-nav-link block w-full {{ request()->routeIs('como-jugar') ? 'arena-nav-link-active' : '' }}">Cómo jugar</a>
                     <a href="{{ route('guia') }}" class="arena-nav-link block w-full {{ request()->routeIs('guia') ? 'arena-nav-link-active' : '' }}">Cómo funciona</a>
-                    <a href="{{ route('descargas') }}" class="arena-nav-link block w-full {{ request()->routeIs('descargas') ? 'arena-nav-link-active' : '' }}">📱 Descargar la app</a>
                     @auth
                         <a href="{{ route('lobby') }}" class="arena-nav-link block w-full {{ request()->routeIs('lobby') ? 'arena-nav-link-active' : '' }}">Lobby</a>
                         <a href="{{ route('matches.index') }}" class="arena-nav-link block w-full {{ request()->routeIs('matches.*') ? 'arena-nav-link-active' : '' }}">Matches</a>
