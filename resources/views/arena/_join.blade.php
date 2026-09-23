@@ -68,7 +68,7 @@
                     <div class="arena-card p-4">
                         <div class="flex items-start justify-between gap-3">
                             <label for="premadeSearch{{ $slot }}" class="block text-sm font-medium text-[color:var(--arena-text)] arena-body-text">Slot {{ $slot }} — Compañero</label>
-                            <button type="button" class="arena-btn-ghost px-3 py-1.5 text-xs" data-premade-clear="{{ $slot }}">Limpiar</button>
+                            <button type="button" class="arena-btn-ghost px-3 py-1.5 text-xs" data-premade-clear="{{ $slot }}"><x-arena-icon name="eraser" class="h-4 w-4 shrink-0" />Limpiar</button>
                         </div>
                         <input type="hidden" name="party_player_ids[]" id="partyMemberInput{{ $slot }}">
                         <input type="text" id="premadeSearch{{ $slot }}" class="arena-field mt-2" placeholder="Primero elige tu líder" autocomplete="off" disabled>
@@ -86,7 +86,7 @@
                     </div>
                 @endforeach
 
-                <button type="submit" id="premadeSubmitButton" class="arena-btn-safe w-full" disabled>
+                <button type="submit" id="premadeSubmitButton" class="arena-btn-safe w-full" disabled><x-arena-icon name="send" class="h-4 w-4 shrink-0" />
                     Enviar la invitacion
                 </button>
             </form>

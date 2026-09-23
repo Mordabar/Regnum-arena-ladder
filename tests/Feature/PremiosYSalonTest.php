@@ -457,7 +457,7 @@ it('el salon enseña quien va ganando la temporada en curso', function () {
         ->assertSee('640.0 PL')
         // Y se dice que es provisional: lo que se ve hoy no es todavia lo que
         // quedara grabado.
-        ->assertSee('Provisional');
+        ->assertSee('La carrera sigue abierta');
 });
 
 it('lo que ve el salon en vivo es lo que acaba congelado al cerrar', function () {
@@ -499,8 +499,10 @@ it('la guia se abre y la portada ya no es un manual', function () {
 
     $this->get(route('home'))
         ->assertOk()
-        // El enlace a la guia si esta; el manual entero, no.
-        ->assertSee('Leer la guia')
+        // El enlace a la guia si esta, en los botones; el manual entero y el
+        // cuadro de "primera vez aqui", no.
+        ->assertSee(route('guia'), false)
+        ->assertDontSee('Primera vez aqui')
         ->assertDontSee('Reporta y cierra el match')
         ->assertDontSee('Anti-abuso integrado');
 });
@@ -526,4 +528,24 @@ it('el podio en vivo trae las cifras que la tarjeta pinta', function () {
         ->assertOk()
         ->assertSee('1234 MMR')
         ->assertSee('6 victorias · 10 partidas');
+});
+
+it('la guia de como jugar enseña los nueve pasos con sus capturas', function () {
+    $respuesta = $this->get(route('como-jugar'))->assertOk();
+
+    foreach (['Entra con tu cuenta de Discord', 'Crea tu guerrero', 'Conoce el lobby', 'Entra a la cola',
+        'Acepta el cruce', 'Pelea el combate', 'Reporta el resultado', 'La confirmación y los puntos', 'Mira el ladder'] as $paso) {
+        $respuesta->assertSee($paso);
+    }
+
+    // Cada captura que la pagina pide existe de verdad en public/.
+    preg_match_all('#images/guia/([\w-]+)\.webp#', $respuesta->getContent(), $m);
+    expect(array_unique($m[1]))->not->toBeEmpty();
+    foreach (array_unique($m[1]) as $foto) {
+        expect(is_file(public_path("images/guia/{$foto}.webp")))->toBeTrue();
+    }
+
+    // Y las dos guias se enlazan entre si y desde el menu.
+    $respuesta->assertSee(route('guia'), false);
+    $this->get(route('guia'))->assertOk()->assertSee(route('como-jugar'), false);
 });

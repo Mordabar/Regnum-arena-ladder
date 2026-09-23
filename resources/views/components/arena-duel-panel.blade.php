@@ -119,7 +119,7 @@
 
         <div class="arena-duel-actions">
             @if($waiting)
-                <a href="{{ route('matches.show', $match) }}" class="arena-btn-secondary px-5 py-2.5">Ver el enfrentamiento</a>
+                <a href="{{ route('matches.show', $match) }}" class="arena-btn-secondary px-5 py-2.5"><x-arena-icon name="eye" class="h-4 w-4 shrink-0" />Ver el enfrentamiento</a>
             @else
                 {{-- Formularios de verdad: funcionan aunque no haya JavaScript. --}}
                 <form method="POST" action="{{ route('matches.accept') }}">
@@ -137,7 +137,7 @@
                     @csrf
                     <input type="hidden" name="match_id" value="{{ $match->id }}">
                     <input type="hidden" name="player_id" value="{{ $lineup['viewer_player_id'] }}">
-                    <button type="submit" class="arena-btn-danger-ghost px-5 py-2.5">Rechazar</button>
+                    <button type="submit" class="arena-btn-danger-ghost px-5 py-2.5"><x-arena-icon name="x" class="h-4 w-4 shrink-0" />Rechazar</button>
                 </form>
             @endif
         </div>

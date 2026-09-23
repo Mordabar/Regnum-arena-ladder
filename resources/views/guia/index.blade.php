@@ -10,6 +10,11 @@
 <div class="mx-auto max-w-5xl px-4 py-8">
     <x-arena-breadcrumbs :items="[['label' => 'Como funciona']]" class="mb-6" />
 
+    <nav class="arena-guia-tabs" aria-label="Guías">
+        <a href="{{ route('como-jugar') }}"><x-arena-icon name="book" class="h-4 w-4" />Cómo jugar</a>
+        <a href="{{ route('guia') }}" class="is-activa" aria-current="page"><x-arena-icon name="scale" class="h-4 w-4" />Cómo funciona</a>
+    </nav>
+
     {{-- La guia.
 
          Todo esto vivia en la portada, debajo del podio: tres pasos, tres
@@ -28,8 +33,8 @@
         </p>
 
         <div class="mt-6 flex flex-wrap gap-3">
-            <a href="{{ route('lobby') }}" class="arena-btn">Entrar a la arena</a>
-            <a href="{{ route('ladder.index') }}" class="arena-btn-ghost">Ver el ladder</a>
+            <a href="{{ route('lobby') }}" class="arena-btn"><x-arena-icon name="bolt" class="h-4 w-4 shrink-0" />Entrar a la arena</a>
+            <a href="{{ route('ladder.index') }}" class="arena-btn-ghost"><x-arena-icon name="ladder" class="h-4 w-4 shrink-0" />Ver el ladder</a>
         </div>
     </section>
 
@@ -174,7 +179,7 @@
         <p class="mt-2 text-sm text-[color:var(--arena-muted)] arena-body-text">
             Lo demas se aprende jugando. Elige guerrero y entra a la cola.
         </p>
-        <a href="{{ route('lobby') }}" class="arena-btn mt-6">Entrar a la arena</a>
+        <a href="{{ route('lobby') }}" class="arena-btn mt-6"><x-arena-icon name="bolt" class="h-4 w-4 shrink-0" />Entrar a la arena</a>
     </section>
 </div>
 @endsection

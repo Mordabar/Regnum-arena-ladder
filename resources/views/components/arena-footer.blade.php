@@ -15,6 +15,7 @@
                 <ul class="arena-footer-nav mt-4 space-y-2 text-sm">
                     <li><a href="{{ route('home') }}" class="text-[color:var(--arena-muted)] transition-colors hover:text-[color:var(--arena-gold-soft)]">Inicio</a></li>
                     <li><a href="{{ route('ladder.index') }}" class="text-[color:var(--arena-muted)] transition-colors hover:text-[color:var(--arena-gold-soft)]">Ladder</a></li>
+                    <li><a href="{{ route('como-jugar') }}" class="text-[color:var(--arena-muted)] transition-colors hover:text-[color:var(--arena-gold-soft)]">Cómo jugar</a></li>
                     <li><a href="{{ route('guia') }}" class="text-[color:var(--arena-muted)] transition-colors hover:text-[color:var(--arena-gold-soft)]">Como funciona</a></li>
                     @auth
                         <li><a href="{{ route('lobby') }}" class="text-[color:var(--arena-muted)] transition-colors hover:text-[color:var(--arena-gold-soft)]">Lobby y arena</a></li>

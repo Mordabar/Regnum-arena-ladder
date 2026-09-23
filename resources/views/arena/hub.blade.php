@@ -25,7 +25,7 @@
             <p class="mx-auto mt-3 max-w-md text-[color:var(--arena-muted)] arena-body-text">
                 Crea el primero. Eliges reino, raza, sexo y subclase, y lo ves en 3D antes de confirmar.
             </p>
-            <a href="{{ route('player.create') }}" class="arena-btn mt-6 inline-flex px-6 py-3">Crear mi primer guerrero</a>
+            <a href="{{ route('player.create') }}" class="arena-btn mt-6 inline-flex px-6 py-3"><x-arena-icon name="plus" class="h-4 w-4 shrink-0" />Crear mi primer guerrero</a>
         </section>
     @else
         {{-- ── CONSOLA ────────────────────────────────────────────────────
@@ -97,8 +97,8 @@
                                 El reino y la subclase no se pueden cambiar.
                             </p>
                             <div class="flex gap-3 pt-1">
-                                <button type="submit" class="arena-btn-secondary px-4 py-2">Guardar cambios</button>
-                                <button type="button" class="arena-btn-ghost px-4 py-2" data-modal-close="modal-rename-{{ $player->id }}">Cancelar</button>
+                                <button type="submit" class="arena-btn-secondary px-4 py-2"><x-arena-icon name="save" class="h-4 w-4 shrink-0" />Guardar cambios</button>
+                                <button type="button" class="arena-btn-ghost px-4 py-2" data-modal-close="modal-rename-{{ $player->id }}"><x-arena-icon name="x" class="h-4 w-4 shrink-0" />Cancelar</button>
                             </div>
                         </form>
                     </x-arena-modal>
@@ -119,9 +119,9 @@
                                 <form method="POST" action="{{ route('player.destroy', $player) }}">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="arena-btn-danger">Eliminar definitivamente</button>
+                                    <button type="submit" class="arena-btn-danger"><x-arena-icon name="trash" class="h-4 w-4 shrink-0" />Eliminar definitivamente</button>
                                 </form>
-                                <button type="button" class="arena-btn-ghost" data-modal-close="modal-delete-{{ $player->id }}">Cancelar</button>
+                                <button type="button" class="arena-btn-ghost" data-modal-close="modal-delete-{{ $player->id }}"><x-arena-icon name="x" class="h-4 w-4 shrink-0" />Cancelar</button>
                             </div>
                         </x-arena-modal>
                     @endif

@@ -17,8 +17,8 @@
         <p class="arena-kicker">Legado competitivo</p>
         <h1 class="mt-3 text-4xl font-bold text-[color:var(--arena-gold-soft)]">Salon de la Fama</h1>
         <p class="mt-3 max-w-3xl text-[color:var(--arena-sand)] arena-body-text">
-            Cada temporada que termina deja aqui su podio y lo que repartio. Las cifras son las del
-            dia que se cerro: lo que se gano entonces no cambia porque se siga jugando ahora.
+            Aquí viven las leyendas. Cada temporada deja su podio para siempre: los campeones, sus
+            guerreros y el botín que se llevaron. ¿Será tu nombre el próximo?
         </p>
     </section>
 
@@ -31,7 +31,7 @@
                     <p class="arena-kicker"><span class="arena-party-dot is-live"></span> En juego ahora</p>
                     <h2 class="mt-2 text-2xl font-semibold text-white">{{ $actual->name }}</h2>
                 </div>
-                <a href="{{ route('ladder.index') }}" class="arena-btn-ghost">Ver clasificacion</a>
+                <a href="{{ route('ladder.index') }}" class="arena-btn-ghost"><x-arena-icon name="ladder" class="h-4 w-4 shrink-0" />Ver clasificacion</a>
             </div>
 
             <p class="mt-3 text-sm text-[color:var(--arena-muted)] arena-body-text">
@@ -45,7 +45,7 @@
                  partida es exactamente lo que se congela el dia del cierre. Sin
                  esto, el Salon solo hablaba de lo que ya paso y no daba ninguna
                  razon para volver durante la temporada. --}}
-            <div class="mt-6 grid gap-4 md:grid-cols-3">
+            <div class="mt-6 arena-hof-podio">
                 @foreach($podioActual as $puesto)
                     {{-- El bloque va explicito: la forma corta de una linea
                          con un indice entre corchetes deja de compilar las
@@ -122,9 +122,9 @@
                      cuando el admin lo reinicia despues de cerrar. Prometer
                      "de esta temporada" seria mentir en cuanto alguien no
                      reinicie. --}}
-                Provisional: es el ladder tal y como esta ahora y cambia con cada combate. El dia
-                que la temporada se cierre, este podio se queda como esta y pasa a la vitrina de
-                abajo para siempre.
+                La carrera sigue abierta: cada combate puede cambiar este podio. Cuando termine la
+                temporada, los que estén aquí entrarán en la vitrina para siempre. ¿Te atreves a
+                quitarles el sitio?
             </p>
         </section>
     @endif
@@ -152,7 +152,7 @@
                     @endif
                 </div>
 
-                <div class="mt-6 grid gap-4 md:grid-cols-3">
+                <div class="mt-6 arena-hof-podio">
                     @forelse($season->leaders as $index => $stat)
                         @php $puesto = $index + 1; @endphp
                         <article class="arena-card arena-card-{{ $stat->realm }} p-5">
@@ -198,7 +198,7 @@
                     El primer podio aparecera aqui en cuanto termine la temporada en curso.
                     Los tres primeros se quedan para siempre.
                 </p>
-                <a href="{{ route('ladder.index') }}" class="arena-btn mt-6">Ver quien va ganando</a>
+                <a href="{{ route('ladder.index') }}" class="arena-btn mt-6"><x-arena-icon name="trophy" class="h-4 w-4 shrink-0" />Ver quien va ganando</a>
             </section>
         @endforelse
     </div>

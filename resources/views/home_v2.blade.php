@@ -67,6 +67,10 @@
                         <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
                         Como funciona
                     </a>
+                    <a href="{{ route('como-jugar') }}" class="arena-btn-ghost">
+                        <x-arena-icon name="book" class="h-4 w-4 shrink-0" />
+                        Cómo jugar
+                    </a>
                 </div>
             </div>
 
@@ -89,18 +93,5 @@
         </div>
     </section>
 
-    {{-- Los pasos y las reglas se fueron a /como-funciona.
-         Aqui abajo eran seis cuadros de texto entre el podio y el pie: quien
-         llega a la portada viene a ver el juego y lo que hay en juego, no un
-         manual. Quien quiera el manual, tiene la puerta. --}}
-    <section class="arena-panel-strong p-6 md:p-8 text-center arena-animate-in">
-        <p class="arena-kicker">Primera vez aqui</p>
-        <h2 class="mt-3 text-2xl font-semibold text-[color:var(--arena-gold-soft)]">Como funciona el Arena Ladder</h2>
-        <p class="mx-auto mt-2 max-w-2xl text-sm text-[color:var(--arena-muted)] arena-body-text">
-            Como se entra a cola, que se ve del rival, como se puntua y que pasa si alguien no
-            aparece. En dos minutos de lectura.
-        </p>
-        <a href="{{ route('guia') }}" class="arena-btn-ghost mt-6">Leer la guia</a>
-    </section>
 </div>
 @endsection

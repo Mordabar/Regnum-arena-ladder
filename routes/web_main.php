@@ -49,6 +49,15 @@ Route::get('/como-funciona', function (\App\Services\SeasonPrizeService $premios
     ]);
 })->name('guia');
 
+// Como jugar: la guia de uso paso a paso, con capturas de cada pantalla. La de
+// arriba explica las reglas; esta enseña a jugar el primer combate.
+Route::get('/como-jugar', function (\App\Services\SeasonPrizeService $premios) {
+    return view('guia.jugar', [
+        'podio' => $premios->podio(),
+        'premios' => $premios,
+    ]);
+})->name('como-jugar');
+
 Route::get('/ladder', [LadderController::class, 'index'])->name('ladder.index');
 
 // El Salon de la Fama: las temporadas que ya terminaron, con su podio y lo que

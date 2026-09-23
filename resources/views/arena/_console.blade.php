@@ -326,12 +326,12 @@
                                 </p>
                                 <div class="arena-console-foot-actions">
                                     @unless($lockedToPlayer)
-                                        <button type="button" class="arena-btn-ghost px-4 py-2 text-sm arena-roster-open" data-roster-open>
+                                        <button type="button" class="arena-btn-ghost px-4 py-2 text-sm arena-roster-open" data-roster-open><x-arena-icon name="swap" class="h-4 w-4 shrink-0" />
                                             <x-admin.icon name="users" class="h-4 w-4" />
                                             Cambiar guerrero
                                         </button>
                                     @endunless
-                                    <button type="button" class="arena-btn-ghost px-4 py-2 text-sm" data-modal-open="modal-arena-rules">
+                                    <button type="button" class="arena-btn-ghost px-4 py-2 text-sm" data-modal-open="modal-arena-rules"><x-arena-icon name="book" class="h-4 w-4 shrink-0" />
                                         <x-admin.icon name="sliders" class="h-4 w-4" />
                                         Reglas
                                     </button>

@@ -46,7 +46,7 @@
                     tu aviso no sanciona a nadie por sí solo.
                 </p>
             </div>
-            <button type="button" class="arena-btn-danger-ghost whitespace-nowrap" data-modal-open="modal-abandono">
+            <button type="button" class="arena-btn-danger-ghost whitespace-nowrap" data-modal-open="modal-abandono"><x-arena-icon name="flag" class="h-4 w-4 shrink-0" />
                 Reportar abandono
             </button>
         </div>
@@ -122,8 +122,8 @@
                 </label>
 
                 <div class="flex gap-3">
-                    <button type="submit" class="arena-btn-danger">Enviar a revisión</button>
-                    <button type="button" class="arena-btn-ghost" data-modal-close="modal-abandono">Cancelar</button>
+                    <button type="submit" class="arena-btn-danger"><x-arena-icon name="send" class="h-4 w-4 shrink-0" />Enviar a revisión</button>
+                    <button type="button" class="arena-btn-ghost" data-modal-close="modal-abandono"><x-arena-icon name="x" class="h-4 w-4 shrink-0" />Cancelar</button>
                 </div>
             </form>
         </x-arena-modal>

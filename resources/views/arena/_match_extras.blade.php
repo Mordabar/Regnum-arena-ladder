@@ -144,7 +144,7 @@
             if (!c) return;
             if (!p) { c.classList.add('hidden'); c.innerHTML = ''; return; }
             c.classList.remove('hidden');
-            c.innerHTML = '<div class="rounded-2xl border border-[color:var(--arena-line-strong)] bg-black/20 px-4 py-3"><div class="flex items-start justify-between gap-3"><div><p class="font-semibold text-white">'+escapeHtml(p.character_name)+'</p><p class="mt-1 text-sm text-[color:var(--arena-muted)]">'+escapeHtml(p.subclass_label)+' - '+escapeHtml(p.realm_label)+'</p><p class="mt-1 text-xs text-[color:var(--arena-muted)]">'+escapeHtml(p.owner_label)+' - '+p.mmr+' MMR - '+Number(p.pl_points).toFixed(1)+' PL</p></div><button type="button" class="arena-btn-ghost px-3 py-2 text-xs" data-premade-clear="'+slot+'">Quitar</button></div></div>';
+            c.innerHTML = '<div class="rounded-2xl border border-[color:var(--arena-line-strong)] bg-black/20 px-4 py-3"><div class="flex items-start justify-between gap-3"><div><p class="font-semibold text-white">'+escapeHtml(p.character_name)+'</p><p class="mt-1 text-sm text-[color:var(--arena-muted)]">'+escapeHtml(p.subclass_label)+' - '+escapeHtml(p.realm_label)+'</p><p class="mt-1 text-xs text-[color:var(--arena-muted)]">'+escapeHtml(p.owner_label)+' - '+p.mmr+' MMR - '+Number(p.pl_points).toFixed(1)+' PL</p></div><button type="button" class="arena-btn-ghost px-3 py-2 text-xs" data-premade-clear="'+slot+'"><x-arena-icon name="x" class="h-4 w-4 shrink-0" />Quitar</button></div></div>';
         };
 
         const clearResults = (slot) => { const c = document.getElementById('premadeResults'+slot); if (c) { c.classList.add('hidden'); c.innerHTML = ''; } };

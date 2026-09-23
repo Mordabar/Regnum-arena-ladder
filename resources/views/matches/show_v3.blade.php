@@ -132,7 +132,7 @@
                     Ver Mapa
                 </button>
                 @if(auth()->user()->isAdmin())
-                    <a href="{{ route('admin.matches.show', $match) }}" class="arena-btn px-4 py-2">Admin</a>
+                    <a href="{{ route('admin.matches.show', $match) }}" class="arena-btn px-4 py-2"><x-arena-icon name="shield" class="h-4 w-4 shrink-0" />Admin</a>
                 @endif
             </div>
         </div>
@@ -195,7 +195,7 @@
                             Aceptar match
                         </button>
                     </form>
-                    <button type="button" class="arena-btn-danger-ghost" data-modal-open="modal-reject-match">Rechazar</button>
+                    <button type="button" class="arena-btn-danger-ghost" data-modal-open="modal-reject-match"><x-arena-icon name="x" class="h-4 w-4 shrink-0" />Rechazar</button>
                 </div>
             </div>
         </section>
@@ -209,9 +209,9 @@
                     @csrf
                     <input type="hidden" name="match_id" value="{{ $match->id }}">
                     <input type="hidden" name="player_id" value="{{ $viewerPlayer['player_id'] }}">
-                    <button type="submit" class="arena-btn-danger">Confirmar rechazo</button>
+                    <button type="submit" class="arena-btn-danger"><x-arena-icon name="check" class="h-4 w-4 shrink-0" />Confirmar rechazo</button>
                 </form>
-                <button type="button" class="arena-btn-ghost" data-modal-close="modal-reject-match">Cancelar</button>
+                <button type="button" class="arena-btn-ghost" data-modal-close="modal-reject-match"><x-arena-icon name="x" class="h-4 w-4 shrink-0" />Cancelar</button>
             </div>
         </x-arena-modal>
     @elseif($match->status === 'pending_acceptance' && !$match->isExpired() && $viewerQueue && $viewerQueue->status === 'accepted')
@@ -290,7 +290,7 @@
                         <span data-lobby-notice hidden>Serás redirigido al lobby...</span>
                     </p>
                 </div>
-                <a href="{{ route('lobby') }}" class="arena-btn-danger mt-3 sm:mt-0 whitespace-nowrap">Volver al Lobby</a>
+                <a href="{{ route('lobby') }}" class="arena-btn-danger mt-3 sm:mt-0 whitespace-nowrap"><x-arena-icon name="back" class="h-4 w-4 shrink-0" />Volver al Lobby</a>
             </div>
             {{--
                 Solo se vuelve solo al lobby si el combate se cayo delante del
@@ -746,8 +746,8 @@
                                 <input type="file" name="rejection_files[]" accept="image/*" class="arena-field text-sm" multiple>
                             </label>
                             <div class="flex gap-3">
-                                <button type="submit" class="arena-btn-warning">Enviar a disputa</button>
-                                <button type="button" class="arena-btn-ghost" data-modal-close="modal-dispute">Cancelar</button>
+                                <button type="submit" class="arena-btn-warning"><x-arena-icon name="send" class="h-4 w-4 shrink-0" />Enviar a disputa</button>
+                                <button type="button" class="arena-btn-ghost" data-modal-close="modal-dispute"><x-arena-icon name="x" class="h-4 w-4 shrink-0" />Cancelar</button>
                             </div>
                         </form>
                     </x-arena-modal>

@@ -250,7 +250,7 @@
                     <textarea name="reporter_note" rows="2" class="arena-textarea" placeholder="Contexto extra para el rival o el admin"></textarea>
                 </label>
 
-                <button type="submit" class="arena-btn w-full" data-report-submit>Enviar reporte</button>
+                <button type="submit" class="arena-btn w-full" data-report-submit><x-arena-icon name="send" class="h-4 w-4 shrink-0" />Enviar reporte</button>
             </form>
         </details>
     @endif
@@ -269,9 +269,9 @@
                     @csrf
                     <input type="hidden" name="report_id" value="{{ $report->id }}">
                     <input type="hidden" name="player_id" value="{{ $lineup['viewer_player_id'] }}">
-                    <button type="submit" class="arena-btn px-5 py-2.5">Confirmar resultado</button>
+                    <button type="submit" class="arena-btn px-5 py-2.5"><x-arena-icon name="check" class="h-4 w-4 shrink-0" />Confirmar resultado</button>
                 </form>
-                <button type="button" class="arena-btn-danger-ghost px-5 py-2.5" data-reject-toggle>Rechazar y explicar</button>
+                <button type="button" class="arena-btn-danger-ghost px-5 py-2.5" data-reject-toggle><x-arena-icon name="x" class="h-4 w-4 shrink-0" />Rechazar y explicar</button>
             </div>
 
             @php
@@ -318,7 +318,7 @@
                         Con pruebas el arbitraje es mucho mas rapido. Mismos formatos que el reporte, hasta 10 MB cada una.
                     </span>
                 </label>
-                <button type="submit" class="arena-btn-danger px-5 py-2.5 mt-4">Enviar el rechazo</button>
+                <button type="submit" class="arena-btn-danger px-5 py-2.5 mt-4"><x-arena-icon name="send" class="h-4 w-4 shrink-0" />Enviar el rechazo</button>
             </form>
         </div>
     @endif

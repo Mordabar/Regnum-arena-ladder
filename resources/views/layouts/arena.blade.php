@@ -228,6 +228,71 @@
             transform: translateY(-1px);
         }
 
+        /* El rayo de luz.
+
+           Una franja clara que cruza el boton cada pocos segundos: dice "esto
+           se pulsa" sin moverse de su sitio ni tapar el texto. Va en ::before
+           porque ::after lo usa el giro de "cargando". Pasa en todos los
+           dispositivos; el efecto del raton va aparte, solo donde hay raton. */
+        .arena-btn::before,
+        .arena-btn-secondary::before,
+        .arena-btn-ghost::before,
+        .arena-btn-warning::before,
+        .arena-btn-danger::before,
+        .arena-btn-danger-ghost::before,
+        .arena-btn-safe::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -75%;
+            width: 45%;
+            height: 100%;
+            background: linear-gradient(100deg, transparent 0%, rgba(255, 244, 214, 0.38) 50%, transparent 100%);
+            transform: skewX(-20deg);
+            pointer-events: none;
+            animation: arenaRayo 6s ease-in-out infinite;
+            animation-delay: var(--arena-rayo-delay, 0s);
+        }
+        .arena-btn-ghost::before,
+        .arena-btn-danger-ghost::before {
+            background: linear-gradient(100deg, transparent 0%, rgba(255, 226, 160, 0.2) 50%, transparent 100%);
+        }
+        /* Que no crucen todos a la vez: en fila parecia un letrero de neon. */
+        .arena-btn-ghost { --arena-rayo-delay: 1.4s; }
+        .arena-btn-secondary { --arena-rayo-delay: .7s; }
+        @keyframes arenaRayo {
+            0%, 72% { left: -75%; }
+            100% { left: 135%; }
+        }
+        .arena-btn:disabled::before, .arena-btn-secondary:disabled::before, .arena-btn-ghost:disabled::before,
+        .arena-btn-warning:disabled::before, .arena-btn-danger:disabled::before, .arena-btn-safe:disabled::before,
+        .arena-btn-loading::before { animation: none; opacity: 0; }
+
+        /* Con raton, al pasar por encima: un halo dorado y el icono que se
+           adelanta un poco. Distinto del rayo a proposito, y solo donde hay
+           puntero de verdad: en un movil el "hover" se queda pegado tras el
+           toque. */
+        .arena-btn svg, .arena-btn-secondary svg, .arena-btn-ghost svg, .arena-btn-warning svg,
+        .arena-btn-danger svg, .arena-btn-danger-ghost svg, .arena-btn-safe svg {
+            transition: transform .22s cubic-bezier(.34, 1.56, .64, 1);
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .arena-btn:hover:not(:disabled), .arena-btn-secondary:hover:not(:disabled), .arena-btn-ghost:hover:not(:disabled),
+            .arena-btn-warning:hover:not(:disabled), .arena-btn-danger:hover:not(:disabled),
+            .arena-btn-danger-ghost:hover:not(:disabled), .arena-btn-safe:hover:not(:disabled) {
+                box-shadow: 0 0 0 1px rgba(240, 205, 128, 0.55), 0 0 22px rgba(216, 177, 92, 0.35), 0 10px 26px rgba(0, 0, 0, 0.3);
+                filter: brightness(1.08);
+            }
+            .arena-btn:hover svg, .arena-btn-secondary:hover svg, .arena-btn-ghost:hover svg, .arena-btn-warning:hover svg,
+            .arena-btn-danger:hover svg, .arena-btn-danger-ghost:hover svg, .arena-btn-safe:hover svg {
+                transform: translateX(2px) scale(1.12);
+            }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .arena-btn::before, .arena-btn-secondary::before, .arena-btn-ghost::before, .arena-btn-warning::before,
+            .arena-btn-danger::before, .arena-btn-danger-ghost::before, .arena-btn-safe::before { animation: none; opacity: 0; }
+        }
+
         .arena-btn:active, .arena-btn-secondary:active, .arena-btn-ghost:active,
         .arena-btn-warning:active, .arena-btn-danger:active, .arena-btn-safe:active {
             transform: translateY(0);
@@ -292,7 +357,8 @@
                 padding-right: 0.85rem;
                 font-size: 0.82rem;
             }
-            .arena-hero-acciones .arena-btn-ghost svg { display: none; }
+            .arena-hero-acciones .arena-btn-ghost { gap: 0.35rem; }
+            .arena-hero-acciones .arena-btn-ghost svg { width: 14px; height: 14px; }
         }
 
         .arena-btn-danger-ghost {
@@ -2107,6 +2173,24 @@
             color: rgba(240, 226, 199, 0.92);
         }
 
+        /* El podio del Salon. En pantalla ancha, los tres en fila. En el movil
+           el campeon va arriba a todo lo ancho y el segundo y el tercero
+           debajo, en dos columnas: uno encima de otro, el primero no se
+           distinguia de los demas. */
+        .arena-hof-podio { display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        @media (max-width: 767px) {
+            .arena-hof-podio { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+            .arena-hof-podio > :first-child { grid-column: 1 / -1; }
+            .arena-hof-podio > :not(:first-child) { padding: 14px; }
+            .arena-hof-podio > :not(:first-child) h3 { font-size: 16px; }
+            .arena-hof-podio > :not(:first-child) .arena-hof-figura { height: 150px; }
+            .arena-hof-podio > :first-child .arena-hof-figura { height: 220px; }
+            /* En media columna, el premio y las cifras se apilan: en fila se
+               montaban "388.0 PL1154 MMR". */
+            .arena-hof-podio > :not(:first-child) p.inline-flex { font-size: 12px; padding: 5px 10px; flex-wrap: wrap; gap: 4px; line-height: 1.3; border-radius: 12px; }
+            .arena-hof-podio > :not(:first-child) .justify-between.text-sm { flex-direction: column; align-items: flex-start; gap: 2px; }
+        }
+
         /* La figura del podio en vivo del Salon de la Fama. */
         .arena-hof-figura {
             display: block;
@@ -2160,6 +2244,19 @@
             border-bottom: 1px solid rgba(216, 177, 92, 0.3);
             border-radius: 10px;
         }
+        /* En pantalla ancha los cajones se estiraban a un tercio del panel
+           -cuatrocientos pixeles para una cifra y un nombre- con la figura
+           de noventa encima: parecian tres barras vacias. Se agrupan en el
+           centro, a la medida de lo que llevan. */
+        .arena-podium.is-compacto .arena-podium-stage {
+            grid-template-columns: repeat(3, minmax(0, 210px));
+            justify-content: center;
+            gap: clamp(8px, 1.6vw, 18px);
+        }
+        /* El premio y su gema en una sola linea: apilados, el cajon crecia en
+           alto sin decir nada mas. */
+        .arena-podium.is-compacto .arena-podium-prize { flex-direction: row; gap: 6px; }
+        .arena-podium.is-compacto .arena-podium-who { margin-top: 4px; padding-top: 5px; }
         .arena-podium.is-compacto .arena-podium-medal { font-size: 17px; }
         .arena-podium.is-compacto .arena-podium-prize b { font-size: 20px; }
         .arena-podium.is-compacto .arena-podium-gema-mini { width: 15px; }
@@ -2220,6 +2317,207 @@
             font-weight: 700;
         }
 
+        /* El desplegable de las guias en la barra. */
+        .arena-nav-drop { position: relative; }
+        .arena-nav-drop > summary { list-style: none; cursor: pointer; white-space: nowrap; }
+        .arena-nav-drop > summary::-webkit-details-marker { display: none; }
+        .arena-nav-drop-flecha { width: 14px; height: 14px; transition: transform .2s ease; }
+        .arena-nav-drop[open] .arena-nav-drop-flecha { transform: rotate(180deg); }
+        .arena-nav-drop-panel {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 60;
+            min-width: 250px;
+            padding: 6px;
+            display: grid;
+            gap: 4px;
+            border: 1px solid var(--arena-line-strong);
+            border-radius: 14px;
+            background: linear-gradient(180deg, rgba(34, 24, 17, 0.98), rgba(13, 9, 7, 0.98));
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+        }
+        .arena-nav-drop-panel a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            color: var(--arena-sand);
+            text-decoration: none;
+        }
+        .arena-nav-drop-panel a:hover,
+        .arena-nav-drop-panel a.is-activa { background: rgba(216, 177, 92, 0.12); color: var(--arena-gold-soft); }
+        .arena-nav-drop-panel b { display: block; font-size: 14px; font-weight: 600; }
+        .arena-nav-drop-panel small { display: block; font-size: 12px; color: var(--arena-muted); }
+
+        /* ── Las guias: Como jugar / Como funciona ─────────────────────────
+           Dos pestañas arriba para pasar de una a otra, y la de jugar como
+           una secuencia de pasos con sus capturas. */
+        .arena-guia-tabs {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 18px;
+            padding: 5px;
+            width: fit-content;
+            max-width: 100%;
+            border: 1px solid var(--arena-line);
+            border-radius: 999px;
+            background: rgba(12, 9, 7, 0.7);
+        }
+        .arena-guia-tabs a {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: 999px;
+            font-size: 13.5px;
+            font-weight: 600;
+            color: var(--arena-muted);
+            text-decoration: none;
+            transition: color .2s ease, background .2s ease;
+        }
+        .arena-guia-tabs a:hover { color: var(--arena-gold-soft); }
+        .arena-guia-tabs a.is-activa {
+            color: #28190a;
+            background: linear-gradient(180deg, #f3d888, #c99534 62%, #8a5f17);
+        }
+
+        .arena-jugar-hero { padding: clamp(20px, 3.4vw, 34px); margin-bottom: 22px; }
+        .arena-jugar-titulo {
+            margin: 10px 0 0;
+            font-family: 'Cinzel', serif;
+            font-size: clamp(25px, 4.2vw, 40px);
+            font-weight: 700;
+            line-height: 1.12;
+            color: var(--arena-gold-soft);
+        }
+        .arena-jugar-sub { margin: 8px 0 0; font-size: clamp(15px, 1.8vw, 18px); color: var(--arena-gold); font-weight: 600; }
+        .arena-jugar-intro { margin: 12px 0 0; max-width: 62ch; color: var(--arena-sand); }
+
+        .arena-jugar-indice {
+            list-style: none;
+            margin: 22px 0 0;
+            padding: 0;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .arena-jugar-indice a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 12px;
+            border: 1px solid var(--arena-line);
+            border-radius: 12px;
+            background: rgba(10, 7, 5, 0.55);
+            color: var(--arena-text);
+            font-size: 13.5px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: border-color .2s ease, transform .2s ease;
+        }
+        .arena-jugar-indice a:hover { border-color: rgba(216, 177, 92, 0.55); transform: translateY(-1px); }
+        .arena-jugar-indice span {
+            flex: none;
+            display: grid;
+            place-items: center;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: rgba(216, 177, 92, 0.16);
+            color: var(--arena-gold);
+            font-family: 'Cinzel', serif;
+            font-size: 12.5px;
+        }
+
+        .arena-jugar-paso {
+            margin-bottom: 18px;
+            padding: clamp(18px, 3vw, 30px);
+            scroll-margin-top: 110px;
+        }
+        .arena-jugar-paso-head { display: flex; align-items: center; gap: 14px; }
+        .arena-jugar-paso-head h2 {
+            margin: 0;
+            font-size: clamp(19px, 2.5vw, 25px);
+            font-weight: 700;
+            color: #fff;
+        }
+        .arena-jugar-texto { margin-top: 12px; color: var(--arena-sand); line-height: 1.65; }
+        .arena-jugar-texto b { color: var(--arena-gold-soft); }
+        .arena-jugar-texto ul { margin: 8px 0 0; padding-left: 20px; list-style: disc; }
+        .arena-jugar-texto li { margin: 4px 0; }
+
+        .arena-jugar-nota {
+            display: flex;
+            gap: 10px;
+            margin: 12px 0 0;
+            padding: 11px 14px;
+            border-radius: 12px;
+            font-size: 14px;
+            line-height: 1.55;
+        }
+        .arena-jugar-nota > span:first-child { flex: none; }
+        .arena-jugar-nota b { color: #fff; }
+        .arena-jugar-nota.is-tip { background: rgba(62, 160, 120, 0.12); border: 1px solid rgba(62, 190, 140, 0.28); color: #cdeedd; }
+        .arena-jugar-nota.is-ojo { background: rgba(214, 150, 60, 0.12); border: 1px solid rgba(230, 170, 80, 0.3); color: #f5dcb4; }
+
+        .arena-jugar-fotos {
+            margin-top: 16px;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .arena-jugar-fotos[data-fotos="1"] { grid-template-columns: minmax(0, 1fr); }
+        .arena-jugar-fotos[data-fotos="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .arena-jugar-fotos figure { margin: 0; }
+        .arena-jugar-fotos a {
+            display: block;
+            border: 1px solid var(--arena-line);
+            border-radius: 12px;
+            overflow: hidden;
+            background: #0b0806;
+            transition: border-color .2s ease, transform .25s ease;
+        }
+        .arena-jugar-fotos a:hover { border-color: rgba(216, 177, 92, 0.6); transform: translateY(-2px); }
+        .arena-jugar-fotos img { display: block; width: 100%; height: auto; }
+        .arena-jugar-fotos figcaption { margin-top: 6px; font-size: 12.5px; color: var(--arena-muted); text-align: center; }
+
+        .arena-jugar-reglas { margin: 14px 0 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+        .arena-jugar-reglas div { padding: 12px 14px; border: 1px solid var(--arena-line); border-radius: 12px; background: rgba(10, 7, 5, 0.45); }
+        .arena-jugar-reglas dt { font-weight: 700; color: var(--arena-gold-soft); font-size: 14px; }
+        .arena-jugar-reglas dd { margin: 4px 0 0; font-size: 13.5px; color: var(--arena-sand); line-height: 1.5; }
+
+        .arena-jugar-dudas { margin-top: 12px; display: grid; gap: 8px; }
+        .arena-jugar-dudas details { border: 1px solid var(--arena-line); border-radius: 12px; background: rgba(10, 7, 5, 0.45); }
+        .arena-jugar-dudas summary { cursor: pointer; padding: 12px 14px; font-weight: 600; color: var(--arena-text); list-style: none; }
+        .arena-jugar-dudas summary::-webkit-details-marker { display: none; }
+        .arena-jugar-dudas summary::after { content: '+'; float: right; color: var(--arena-gold); font-weight: 700; }
+        .arena-jugar-dudas details[open] summary::after { content: '−'; }
+        .arena-jugar-dudas p { margin: 0; padding: 0 14px 12px; color: var(--arena-sand); font-size: 14px; }
+
+        .arena-jugar-medallas { margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 10px; }
+        .arena-jugar-medallas span {
+            padding: 8px 14px;
+            border: 1px solid rgba(216, 177, 92, 0.35);
+            border-radius: 999px;
+            background: rgba(216, 177, 92, 0.08);
+            color: var(--arena-sand);
+        }
+        .arena-jugar-medallas b { color: #fff; }
+
+        .arena-jugar-fin { padding: clamp(20px, 3vw, 30px); text-align: center; }
+        .arena-jugar-fin-botones { margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+
+        @media (max-width: 767px) {
+            .arena-jugar-indice { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .arena-jugar-fotos,
+            .arena-jugar-fotos[data-fotos="3"] { grid-template-columns: minmax(0, 1fr); }
+            .arena-jugar-reglas { grid-template-columns: minmax(0, 1fr); }
+            .arena-guia-tabs a { padding: 7px 12px; font-size: 13px; }
+        }
+
         /* ── Escenario del combate ─────────────────────────────────────────
            Las figuras dejan de ser un icono al lado del nombre y pasan a ser
            lo principal. Dos motivos, los dos practicos: reconocer al rival
@@ -2255,17 +2553,38 @@
             /* Con equipos, el escenario necesita mas: cuatro o seis figuras a
                medias con el chat salen a cien pixeles cada una y los nombres
                se cortan. El chat cede lo justo y conserva su suelo. */
+            /* Con equipos (2v2, 3v3) el chat va DEBAJO, no al lado: cuatro o
+               seis figuras a media pantalla salian a cien pixeles cada una y
+               los nombres se partian letra a letra. Apilado, el escenario usa
+               todo el ancho con figuras mas bajas, y escenario y chat caben
+               juntos en una sola vista. */
             .arena-live-arena.has-chat[data-team-size="2"],
             .arena-live-arena.has-chat[data-team-size="3"] {
-                grid-template-columns: minmax(400px, 1.25fr) minmax(340px, 1fr);
+                display: block;
+                padding-right: 0;
             }
+            .arena-live-arena.has-chat[data-team-size="2"] .arena-battle,
+            .arena-live-arena.has-chat[data-team-size="3"] .arena-battle {
+                padding-right: clamp(14px, 2.4vw, 26px);
+            }
+            .arena-live-arena.has-chat[data-team-size="2"] .arena-chat,
+            .arena-live-arena.has-chat[data-team-size="3"] .arena-chat {
+                margin: 0 clamp(14px, 2.4vw, 26px) clamp(14px, 2.4vw, 26px);
+            }
+            .arena-live-arena.has-chat[data-team-size="2"] .arena-chat-log,
+            .arena-live-arena.has-chat[data-team-size="3"] .arena-chat-log { min-height: 110px; max-height: 190px; }
+            .arena-live-arena.has-chat[data-team-size="2"] .arena-chat-quick,
+            .arena-live-arena.has-chat[data-team-size="3"] .arena-chat-quick { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
             /* Y el nombre se parte en dos lineas antes que cortarse con
                puntos suspensivos: es como se reconoce al rival en la zona, y
                "Guerrero Anón..." no reconoce a nadie. */
             .arena-live-arena.has-chat .arena-battle-fighter figcaption b {
                 white-space: normal;
-                overflow-wrap: anywhere;
+                /* Se parte por los espacios, nunca a mitad de palabra: con
+                   `anywhere` salia "Guerr / ero / Anó / nim / o". */
+                overflow-wrap: normal;
+                word-break: normal;
                 line-height: 1.25;
                 gap: clamp(12px, 1.6vw, 20px);
                 /* Las dos columnas a la misma altura y el escenario centrado
@@ -2349,6 +2668,11 @@
         }
         .arena-battle-fighters[data-count="2"] .arena-battle-stage { height: clamp(150px, 19vw, 215px); }
         .arena-battle-fighters[data-count="3"] .arena-battle-stage { height: clamp(124px, 15vw, 180px); }
+        /* En combate, con el chat debajo, las figuras de equipo bajan un
+           escalon: lo justo para reconocer raza y arquetipo, y que el chat
+           entre en la misma pantalla. */
+        .arena-live-arena.has-chat .arena-battle-fighters[data-count="2"] .arena-battle-stage { height: clamp(130px, 14vw, 180px); }
+        .arena-live-arena.has-chat .arena-battle-fighters[data-count="3"] .arena-battle-stage { height: clamp(112px, 11.5vw, 160px); }
         /* El escenario recorta para que el canvas respete el redondeo, asi que
            el bocadillo va por dentro y con su propio margen. */
         .arena-battle-stage { isolation: isolate; }
@@ -2377,6 +2701,17 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+        }
+        /* En equipo las columnas son estrechas: el nombre baja a dos lineas
+           por los espacios en vez de cortarse en "Guerrero Anó...". Solo una
+           palabra que no cabe sola se parte (`break-word`, no `anywhere`, que
+           encogia la columna y lo partia letra a letra). */
+        .arena-battle-fighters[data-count="2"] .arena-battle-fighter figcaption b,
+        .arena-battle-fighters[data-count="3"] .arena-battle-fighter figcaption b {
+            white-space: normal;
+            word-break: normal;
+            overflow-wrap: break-word;
+            line-height: 1.22;
         }
         .arena-battle-fighter figcaption span {
             display: block;
@@ -3068,7 +3403,7 @@
                         <span class="arena-chip hidden border-amber-500/30 bg-amber-950/30 text-amber-100 lg:inline-flex">🛡️ {{ $arenaAdminDisplayName }}</span>
                         <form method="POST" action="{{ route('admin.logout') }}">
                             @csrf
-                            <button type="submit" class="arena-btn-ghost px-3 py-1.5 text-xs">Cerrar Admin</button>
+                            <button type="submit" class="arena-btn-ghost px-3 py-1.5 text-xs"><x-arena-icon name="logout" class="h-4 w-4 shrink-0" />Cerrar Admin</button>
                         </form>
                     @else
                         {{-- Contexto de Jugador (Juego) --}}
@@ -3080,6 +3415,26 @@
                             <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 1l2.39 4.84 5.34.78-3.86 3.77.91 5.32L10 13.2l-4.78 2.51.91-5.32L2.27 6.62l5.34-.78L10 1z"/></svg>
                             Fama
                         </a>
+                        {{-- Las dos guias en un desplegable: sueltas, la barra no
+                             cabia en un portatil y partia los rotulos en dos
+                             lineas. --}}
+                        <details class="arena-nav-drop" data-nav-drop>
+                            <summary class="arena-nav-link {{ request()->routeIs('como-jugar', 'guia') ? 'arena-nav-link-active' : '' }}">
+                                <x-arena-icon name="book" class="h-4 w-4" />
+                                Guía
+                                <svg class="arena-nav-drop-flecha" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M5.3 7.3a1 1 0 0 1 1.4 0L10 10.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4z"/></svg>
+                            </summary>
+                            <div class="arena-nav-drop-panel">
+                                <a href="{{ route('como-jugar') }}" class="{{ request()->routeIs('como-jugar') ? 'is-activa' : '' }}">
+                                    <x-arena-icon name="book" class="h-4 w-4" />
+                                    <span><b>Cómo jugar</b><small>Paso a paso, con capturas</small></span>
+                                </a>
+                                <a href="{{ route('guia') }}" class="{{ request()->routeIs('guia') ? 'is-activa' : '' }}">
+                                    <x-arena-icon name="scale" class="h-4 w-4" />
+                                    <span><b>Cómo funciona</b><small>Reglas y puntuación</small></span>
+                                </a>
+                            </div>
+                        </details>
                         @auth
                             <a href="{{ route('lobby') }}" class="arena-nav-link relative {{ request()->routeIs('lobby') ? 'arena-nav-link-active' : '' }}">
                                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
@@ -3096,7 +3451,7 @@
                             <span class="arena-chip hidden lg:inline-flex">{{ auth()->user()->discord_username }}</span>
                             <form method="POST" action="{{ route('logout') }}">
                                 @csrf
-                                <button type="submit" class="arena-btn-ghost px-3 py-1.5 text-xs">Salir</button>
+                                <button type="submit" class="arena-btn-ghost px-3 py-1.5 text-xs"><x-arena-icon name="logout" class="h-4 w-4 shrink-0" />Salir</button>
                             </form>
                         @else
                             <a href="{{ route('auth.discord') }}" class="arena-btn-secondary">
@@ -3155,12 +3510,14 @@
                     <a href="{{ route('home') }}" class="block text-center text-sm font-semibold text-[color:var(--arena-sand)] hover:text-white">Cambiar al juego</a>
                     <form method="POST" action="{{ route('admin.logout') }}" class="mt-3">
                         @csrf
-                        <button type="submit" class="arena-btn-danger-ghost w-full">Cerrar Sesión Admin</button>
+                        <button type="submit" class="arena-btn-danger-ghost w-full"><x-arena-icon name="logout" class="h-4 w-4 shrink-0" />Cerrar Sesión Admin</button>
                     </form>
                 @else
                     {{-- Mobile User Context --}}
                     <a href="{{ route('ladder.index') }}" class="arena-nav-link block w-full {{ request()->routeIs('ladder.*') ? 'arena-nav-link-active' : '' }}">Ladder</a>
                     <a href="{{ route('hall-of-fame') }}" class="arena-nav-link block w-full {{ request()->routeIs('hall-of-fame') ? 'arena-nav-link-active' : '' }}">Salon de la Fama</a>
+                    <a href="{{ route('como-jugar') }}" class="arena-nav-link block w-full {{ request()->routeIs('como-jugar') ? 'arena-nav-link-active' : '' }}">Cómo jugar</a>
+                    <a href="{{ route('guia') }}" class="arena-nav-link block w-full {{ request()->routeIs('guia') ? 'arena-nav-link-active' : '' }}">Cómo funciona</a>
                     @auth
                         <a href="{{ route('lobby') }}" class="arena-nav-link block w-full {{ request()->routeIs('lobby') ? 'arena-nav-link-active' : '' }}">Lobby</a>
                         <a href="{{ route('matches.index') }}" class="arena-nav-link block w-full {{ request()->routeIs('matches.*') ? 'arena-nav-link-active' : '' }}">Matches</a>
@@ -3173,10 +3530,10 @@
                         <div class="arena-chip mb-3 w-full justify-center">👤 {{ auth()->user()->discord_username }}</div>
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
-                            <button type="submit" class="arena-btn-ghost w-full">Salir</button>
+                            <button type="submit" class="arena-btn-ghost w-full"><x-arena-icon name="logout" class="h-4 w-4 shrink-0" />Salir</button>
                         </form>
                     @else
-                        <a href="{{ route('auth.discord') }}" class="arena-btn-secondary mt-3 w-full">Entrar con Discord</a>
+                        <a href="{{ route('auth.discord') }}" class="arena-btn-secondary mt-3 w-full"><x-arena-icon name="login" class="h-4 w-4 shrink-0" />Entrar con Discord</a>
                     @endauth
 
                     @if($arenaAdminSessionActive)
@@ -4011,6 +4368,14 @@
             installUnlockListeners();
             updateButtons();
         })();
+
+        // El desplegable de la barra se cierra al tocar fuera o con Escape.
+        document.addEventListener('click', (e) => {
+            document.querySelectorAll('[data-nav-drop][open]').forEach((d) => { if (!d.contains(e.target)) d.removeAttribute('open'); });
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') document.querySelectorAll('[data-nav-drop][open]').forEach((d) => d.removeAttribute('open'));
+        });
 
         document.addEventListener('submit', (e) => {
             const form = e.target;
