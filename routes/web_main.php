@@ -58,6 +58,9 @@ Route::get('/como-jugar', function (\App\Services\SeasonPrizeService $premios) {
     ]);
 })->name('como-jugar');
 
+// La app movil: el APK de Android y los pasos para instalarla en iPhone.
+Route::view('/descargas', 'descargas.index')->name('descargas');
+
 Route::get('/ladder', [LadderController::class, 'index'])->name('ladder.index');
 
 // El Salon de la Fama: las temporadas que ya terminaron, con su podio y lo que

@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\SeasonClosingService;
 use App\Services\SeasonPrizeService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\File;
 
 uses(RefreshDatabase::class);
 
@@ -548,4 +549,26 @@ it('la guia de como jugar enseña los nueve pasos con sus capturas', function ()
     // Y las dos guias se enlazan entre si y desde el menu.
     $respuesta->assertSee(route('guia'), false);
     $this->get(route('guia'))->assertOk()->assertSee(route('como-jugar'), false);
+});
+
+it('la pagina de descargas ofrece el APK y los pasos de iPhone', function () {
+    $respuesta = $this->get(route('descargas'))->assertOk()
+        ->assertSee('Descargar Arena Ladder')
+        ->assertSee('Agregar a Inicio');
+
+    expect(is_file(public_path('apk/arena-ladder.apk')))->toBeTrue();
+
+    preg_match_all('#images/descargas/(ios-[\w-]+)\.webp#', $respuesta->getContent(), $m);
+    expect(array_unique($m[1]))->toHaveCount(8);
+    foreach (array_unique($m[1]) as $foto) {
+        expect(is_file(public_path("images/descargas/{$foto}.webp")))->toBeTrue();
+    }
+});
+
+it('assetlinks reconoce a la app de Android', function () {
+    // Sin este fichero, Chrome abre la app con barra de direcciones.
+    $json = json_decode(File::get(public_path('.well-known/assetlinks.json')), true);
+
+    expect($json[0]['target']['package_name'])->toBe('top.regnumarenaladder.app')
+        ->and($json[0]['target']['sha256_cert_fingerprints'][0])->toMatch('/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/');
 });

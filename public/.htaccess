@@ -60,7 +60,19 @@
 
 <IfModule mod_mime.c>
     AddType application/manifest+json .webmanifest
+    # La app de Android: sin este tipo, algunos moviles la descargan como
+    # ".zip" o como texto y no ofrecen instalarla.
+    AddType application/vnd.android.package-archive .apk
 </IfModule>
+
+# Chrome lee este fichero para saber que la app de Android es de este sitio y
+# quitarle la barra de direcciones. Tiene que salir como JSON y sin redirigir.
+<Files "assetlinks.json">
+    <IfModule mod_headers.c>
+        Header set Content-Type "application/json"
+        Header set Access-Control-Allow-Origin "*"
+    </IfModule>
+</Files>
 
 <IfModule mod_mime.c>
     AddType model/gltf-binary .glb

@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "top.regnumarenaladder.app",
+    "sha256_cert_fingerprints": ["0F:1C:12:78:5F:40:62:4B:79:D9:92:43:F6:0A:EA:56:D0:4B:EB:20:B1:67:FB:AA:36:CE:EC:FE:3E:98:F4:5D"]
+  }
+}]
