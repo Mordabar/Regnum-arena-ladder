@@ -149,7 +149,13 @@ class MatchLineupService
         // se le dibuja con el maniqui neutro del reino.
         $looks = collect();
 
-        if ($isOwnTeam || $revealed) {
+        // En el duelo, el rival es uno y su nombre se ve en cuanto aceptais:
+        // esconder su raza y su sexo mientras tanto solo servia para enseñar
+        // otra figura (el maniqui del reino) y confundir -una elfa salia como
+        // esquelio-. Se dibuja como es desde el cruce.
+        $duelo = ArenaMode::revealsRivalNames($match->arena_mode);
+
+        if ($isOwnTeam || $revealed || $duelo) {
             $ids = collect($team)->pluck('player_id')->filter()->all();
             $looks = Player::query()->whereIn('id', $ids)->get(['id', 'race', 'gender'])->keyBy('id');
         }

@@ -7,6 +7,7 @@
 .super Landroid/os/Binder;
 
 .field final s:Ltop/regnumarenaladder/app/Avisos;
+.field static contador:I
 
 .method constructor <init>(Ltop/regnumarenaladder/app/Avisos;)V
     .registers 2
@@ -66,6 +67,40 @@
     return v0
 
     :no_interfaz
+    # Diagnostico: que le pide Chrome a la app (las 40 primeras llamadas).
+    sget v0, Ltop/regnumarenaladder/app/Avisos$Canal;->contador:I
+    const/16 v2, 0x28
+    if-ge v0, v2, :sin_traza
+    add-int/lit8 v0, v0, 0x1
+    sput v0, Ltop/regnumarenaladder/app/Avisos$Canal;->contador:I
+    new-instance v2, Ljava/lang/StringBuilder;
+    invoke-direct {v2}, Ljava/lang/StringBuilder;-><init>()V
+    const-string v3, "codigo="
+    invoke-virtual {v2, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    invoke-virtual {v2, p1}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;
+    invoke-virtual {v2}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+    move-result-object v2
+    const-string v3, "android-servicio"
+    invoke-static {v3, v2}, Ltop/regnumarenaladder/app/Informe;->enviar(Ljava/lang/String;Ljava/lang/String;)V
+    :sin_traza
+
+    # AIDL estable: version e identificador de la interfaz (por si Chrome los pide).
+    const v0, 0xfffffe
+    if-ne p1, v0, :no_version
+    invoke-virtual {p3}, Landroid/os/Parcel;->writeNoException()V
+    const/4 v0, 0x1
+    invoke-virtual {p3, v0}, Landroid/os/Parcel;->writeInt(I)V
+    return v0
+    :no_version
+    const v0, 0xfffffd
+    if-ne p1, v0, :no_hash
+    invoke-virtual {p3}, Landroid/os/Parcel;->writeNoException()V
+    const-string v0, "notfrozen"
+    invoke-virtual {p3, v0}, Landroid/os/Parcel;->writeString(Ljava/lang/String;)V
+    const/4 v0, 0x1
+    return v0
+    :no_hash
+
     const/4 v0, 0x1
     if-lt p1, v0, :otro
     const/16 v0, 0x9

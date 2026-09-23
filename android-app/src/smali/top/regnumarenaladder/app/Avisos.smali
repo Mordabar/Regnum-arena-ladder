@@ -25,6 +25,9 @@
     invoke-direct {v0, p0}, Ltop/regnumarenaladder/app/Avisos$Canal;-><init>(Ltop/regnumarenaladder/app/Avisos;)V
     iput-object v0, p0, Ltop/regnumarenaladder/app/Avisos;->binder:Landroid/os/IBinder;
     :listo
+    const-string v1, "android-servicio-conectado"
+    const-string p1, "Chrome se ha conectado al servicio de avisos"
+    invoke-static {v1, p1}, Ltop/regnumarenaladder/app/Informe;->enviar(Ljava/lang/String;Ljava/lang/String;)V
     return-object v0
 .end method
 
@@ -99,8 +102,14 @@
     invoke-virtual {p0}, Landroid/app/Service;->getPackageName()Ljava/lang/String;
     move-result-object v3
     invoke-virtual {v0, v1, v2, v3}, Landroid/content/res/Resources;->getIdentifier(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I
-    move-result v0
-    return v0
+    move-result v1
+    if-nez v1, :hay
+    const-string v1, "ic_launcher"
+    const-string v2, "mipmap"
+    invoke-virtual {v0, v1, v2, v3}, Landroid/content/res/Resources;->getIdentifier(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I
+    move-result v1
+    :hay
+    return v1
 .end method
 
 # Enseña el aviso que manda Chrome, en el canal de la app.

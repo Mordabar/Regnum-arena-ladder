@@ -961,3 +961,17 @@ it('el navegador renueva solo la direccion caducada, sin pedir otro toque', func
         ->and($js)->toContain('suscripcion = await guardarRenovando(reg, suscripcion);')
         ->and($js)->toContain('if (!respuesta.ok && respuesta.renovar && !reintento)');
 });
+
+it('en el duelo el rival se dibuja con su raza y su sexo reales desde el cruce', function () {
+    // Antes salia el maniqui del reino hasta aceptar: una elfa oscura se veia
+    // como esquelio. En 2v2 y 3v3 sigue oculto (anonimato).
+    $yo = jugadorPush('DueloYo', 'alsius');
+    $rival = jugadorPush('DueloElla', 'ignis');
+    $rival->forceFill(['race' => 'dark_elf', 'gender' => 'female', 'subclass' => 'conjurer'])->save();
+
+    $match = crucePush($yo, $rival, 'pending_acceptance', ['expires_at' => now()->addMinutes(2)]);
+    $alineacion = app(\App\Services\MatchLineupService::class)->forViewer($match, [$yo->id]);
+
+    expect($alineacion['rival'][0]['race'])->toBe('dark_elf')
+        ->and($alineacion['rival'][0]['gender'])->toBe('female');
+});
