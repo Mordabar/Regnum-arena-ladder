@@ -134,6 +134,10 @@
     invoke-static {p2}, Ltop/regnumarenaladder/app/Avisos$Canal;->leerBundle(Landroid/os/Parcel;)Landroid/os/Bundle;
     invoke-virtual {v1}, Ltop/regnumarenaladder/app/Avisos;->habilitadas()Z
     move-result v3
+    invoke-static {v3}, Ljava/lang/String;->valueOf(Z)Ljava/lang/String;
+    move-result-object v4
+    const-string v0, "android-habilitadas"
+    invoke-static {v0, v4}, Ltop/regnumarenaladder/app/Informe;->enviar(Ljava/lang/String;Ljava/lang/String;)V
     invoke-static {p3, v3}, Ltop/regnumarenaladder/app/Avisos$Canal;->escribirResultado(Landroid/os/Parcel;Z)V
     goto :hecho
 
@@ -186,7 +190,28 @@
     goto :hecho
 
     :extra
-    # Ordenes extra que esta app no usa: se contesta "nada".
+    # checkNotificationPermission: Chrome pregunta el estado del permiso.
+    # Se contesta ALLOW (0) o BLOCK (1) segun Android. El resto de ordenes
+    # no se usan: se contesta "nada".
+    invoke-virtual {p2}, Landroid/os/Parcel;->readString()Ljava/lang/String;
+    move-result-object v2
+    const-string v0, "checkNotificationPermission"
+    invoke-virtual {v0, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+    move-result v0
+    if-eqz v0, :extra_nada
+    new-instance v4, Landroid/os/Bundle;
+    invoke-direct {v4}, Landroid/os/Bundle;-><init>()V
+    const-string v0, "success"
+    const/4 v3, 0x1
+    invoke-virtual {v4, v0, v3}, Landroid/os/Bundle;->putBoolean(Ljava/lang/String;Z)V
+    invoke-virtual {v1}, Ltop/regnumarenaladder/app/Avisos;->habilitadas()Z
+    move-result v3
+    xor-int/lit8 v3, v3, 0x1
+    const-string v0, "permissionStatus"
+    invoke-virtual {v4, v0, v3}, Landroid/os/Bundle;->putInt(Ljava/lang/String;I)V
+    invoke-static {p3, v4}, Ltop/regnumarenaladder/app/Avisos$Canal;->escribirBundle(Landroid/os/Parcel;Landroid/os/Bundle;)V
+    goto :hecho
+    :extra_nada
     const/4 v4, 0x0
     invoke-static {p3, v4}, Ltop/regnumarenaladder/app/Avisos$Canal;->escribirBundle(Landroid/os/Parcel;Landroid/os/Bundle;)V
 

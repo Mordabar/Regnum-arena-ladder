@@ -15,6 +15,9 @@
 .field url:Landroid/net/Uri;
 .field paquete:Ljava/lang/String;
 .field abierto:Z
+# El id de la sesion para Chrome (androidx.browser). Sin el, Chrome tira la
+# sesion en cuanto el proceso de la app se muere.
+.field sesionId:Landroid/app/PendingIntent;
 
 .method public constructor <init>()V
     .registers 1
@@ -75,6 +78,18 @@
     move-result-object v1
     iput-object v1, p0, Ltop/regnumarenaladder/app/Lanzador;->paquete:Ljava/lang/String;
     if-eqz v1, :sin_custom_tabs
+
+    new-instance v2, Landroid/content/Intent;
+    invoke-direct {v2}, Landroid/content/Intent;-><init>()V
+    invoke-virtual {p0}, Landroid/app/Activity;->getPackageName()Ljava/lang/String;
+    move-result-object v3
+    invoke-virtual {v2, v3}, Landroid/content/Intent;->setPackage(Ljava/lang/String;)Landroid/content/Intent;
+    const/4 v3, 0x0
+    # FLAG_IMMUTABLE
+    const/high16 v4, 0x4000000
+    invoke-static {p0, v3, v2, v4}, Landroid/app/PendingIntent;->getActivity(Landroid/content/Context;ILandroid/content/Intent;I)Landroid/app/PendingIntent;
+    move-result-object v2
+    iput-object v2, p0, Ltop/regnumarenaladder/app/Lanzador;->sesionId:Landroid/app/PendingIntent;
 
     # Se apunta que navegador abre la app: el servicio de avisos solo le hace
     # caso a ese.
@@ -182,11 +197,20 @@
     invoke-direct {v2}, Landroid/os/Bundle;-><init>()V
     const-string v3, "android.support.customtabs.extra.SESSION"
     invoke-virtual {v2, v3, p1}, Landroid/os/Bundle;->putBinder(Ljava/lang/String;Landroid/os/IBinder;)V
+    iget-object v3, p0, Ltop/regnumarenaladder/app/Lanzador;->sesionId:Landroid/app/PendingIntent;
+    if-eqz v3, :sin_id
+    const-string v4, "android.support.customtabs.extra.SESSION_ID"
+    invoke-virtual {v2, v4, v3}, Landroid/os/Bundle;->putParcelable(Ljava/lang/String;Landroid/os/Parcelable;)V
+    :sin_id
     invoke-virtual {v0, v2}, Landroid/content/Intent;->putExtras(Landroid/os/Bundle;)Landroid/content/Intent;
 
+    # Modo app solo CON sesion: sin ella Chrome no puede verificarla y la
+    # abriria igual como pestaña con barra.
+    if-eqz p1, :sin_twa
     const-string v3, "android.support.customtabs.extra.LAUNCH_AS_TRUSTED_WEB_ACTIVITY"
     const/4 v4, 0x1
     invoke-virtual {v0, v3, v4}, Landroid/content/Intent;->putExtra(Ljava/lang/String;Z)Landroid/content/Intent;
+    :sin_twa
 
     # El color de la barra de estado y de la de herramientas, el del sitio.
     const-string v3, "android.support.customtabs.extra.TOOLBAR_COLOR"
@@ -220,7 +244,11 @@
     invoke-virtual {p0, v0}, Landroid/app/Activity;->startActivity(Landroid/content/Intent;)V
     :try_end
     .catch Ljava/lang/Exception; {:try_start .. :try_end} :fallo
-    goto :cerrar
+    # Con sesion, el lanzador no se cierra ya: mantiene viva la conexion con
+    # Chrome mientras la app esta abierta, como hace el lanzador oficial.
+    # Se cierra al volver a el (onRestart).
+    if-eqz p1, :cerrar
+    return-void
 
     :fallo
     :try_start2
@@ -234,6 +262,16 @@
 
     :cerrar
     invoke-virtual {p0}, Landroid/app/Activity;->finish()V
+    return-void
+.end method
+
+.method protected onRestart()V
+    .registers 2
+    invoke-super {p0}, Landroid/app/Activity;->onRestart()V
+    iget-boolean v0, p0, Ltop/regnumarenaladder/app/Lanzador;->abierto:Z
+    if-eqz v0, :fin
+    invoke-virtual {p0}, Landroid/app/Activity;->finish()V
+    :fin
     return-void
 .end method
 

@@ -54,7 +54,10 @@ class WebPushService
 
     public function configurado(): bool
     {
-        return (bool) config('services.webpush.enabled', false)
+        // Por defecto ENCENDIDO: con una configuracion cacheada de antes de
+        // existir esta clave, el valor por defecto era false y el servidor
+        // dejaba de mandar avisos sin decir nada.
+        return (bool) config('services.webpush.enabled', true)
             && $this->clavePublica() !== ''
             && (string) config('services.webpush.private_key', '') !== '';
     }

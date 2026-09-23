@@ -23,7 +23,7 @@
     const _baseInterval = {{ (int) $interval }};
     const _slowInterval = 5000;
     const _idleInterval = 8000;
-    const _hiddenInterval = 8000;
+    const _hiddenInterval = 12000;
 
     /* El reloj del sondeo va en un worker.
 

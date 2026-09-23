@@ -40,14 +40,43 @@
     invoke-virtual {v1}, Landroid/os/Parcel;->recycle()V
     invoke-virtual {v2}, Landroid/os/Parcel;->recycle()V
 
-    # newSession(callback)
+    # newSessionWithExtras(callback, {SESSION_ID}) = 9 en el AIDL -> codigo 10.
+    # Es lo que usa androidx.browser: con el id, la sesion sobrevive a que el
+    # proceso de la app se duerma.
     invoke-static {}, Landroid/os/Parcel;->obtain()Landroid/os/Parcel;
     move-result-object v1
     invoke-static {}, Landroid/os/Parcel;->obtain()Landroid/os/Parcel;
     move-result-object v2
     invoke-virtual {v1, v3}, Landroid/os/Parcel;->writeInterfaceToken(Ljava/lang/String;)V
     invoke-virtual {v1, v0}, Landroid/os/Parcel;->writeStrongBinder(Landroid/os/IBinder;)V
-    # newSession = 2 en el AIDL, asi que el codigo es 3.
+    new-instance v6, Landroid/os/Bundle;
+    invoke-direct {v6}, Landroid/os/Bundle;-><init>()V
+    iget-object v7, p0, Ltop/regnumarenaladder/app/Lanzador$Conexion;->a:Ltop/regnumarenaladder/app/Lanzador;
+    iget-object v7, v7, Ltop/regnumarenaladder/app/Lanzador;->sesionId:Landroid/app/PendingIntent;
+    const-string v4, "android.support.customtabs.extra.SESSION_ID"
+    invoke-virtual {v6, v4, v7}, Landroid/os/Bundle;->putParcelable(Ljava/lang/String;Landroid/os/Parcelable;)V
+    const/4 v4, 0x1
+    invoke-virtual {v1, v4}, Landroid/os/Parcel;->writeInt(I)V
+    invoke-virtual {v6, v1, v8}, Landroid/os/Bundle;->writeToParcel(Landroid/os/Parcel;I)V
+    const/16 v4, 0xa
+    invoke-interface {p2, v4, v1, v2, v8}, Landroid/os/IBinder;->transact(ILandroid/os/Parcel;Landroid/os/Parcel;I)Z
+    invoke-virtual {v2}, Landroid/os/Parcel;->readException()V
+    invoke-virtual {v2}, Landroid/os/Parcel;->readInt()I
+    move-result v4
+    invoke-virtual {v1}, Landroid/os/Parcel;->recycle()V
+    invoke-virtual {v2}, Landroid/os/Parcel;->recycle()V
+    if-eqz v4, :clasica
+    move-object v5, v0
+    goto :lanzar
+
+    # Navegador antiguo sin newSessionWithExtras: newSession(callback), codigo 3.
+    :clasica
+    invoke-static {}, Landroid/os/Parcel;->obtain()Landroid/os/Parcel;
+    move-result-object v1
+    invoke-static {}, Landroid/os/Parcel;->obtain()Landroid/os/Parcel;
+    move-result-object v2
+    invoke-virtual {v1, v3}, Landroid/os/Parcel;->writeInterfaceToken(Ljava/lang/String;)V
+    invoke-virtual {v1, v0}, Landroid/os/Parcel;->writeStrongBinder(Landroid/os/IBinder;)V
     const/4 v4, 0x3
     invoke-interface {p2, v4, v1, v2, v8}, Landroid/os/IBinder;->transact(ILandroid/os/Parcel;Landroid/os/Parcel;I)Z
     invoke-virtual {v2}, Landroid/os/Parcel;->readException()V

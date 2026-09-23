@@ -8,9 +8,18 @@
        navegador se duerme en cuanto se cambia de app y es la unica forma de
        avisar. En el escritorio basta el sonido con la pestaña en reposo. */
     (function () {
-        var tactil = window.matchMedia && window.matchMedia('(pointer: coarse)').matches
-            && !window.matchMedia('(hover: hover)').matches;
-        if (tactil) { document.documentElement.setAttribute('data-arena-push', ''); }
+        /* Escritorio de verdad: puntero fino Y ninguna pantalla tactil Y no es
+           una app instalada. Todo lo demas (movil, tablet, iPad con teclado,
+           Android con raton, la app instalada) va con push. Equivocarse hacia
+           este lado solo cuesta un permiso; hacia el otro, dejar a alguien
+           sin avisos. */
+        var instalada = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+            || window.navigator.standalone === true;
+        var escritorio = !instalada
+            && (navigator.maxTouchPoints || 0) === 0
+            && !!(window.matchMedia && window.matchMedia('(pointer: fine)').matches);
+        if (!escritorio) { document.documentElement.setAttribute('data-arena-push', ''); }
+        else { document.documentElement.setAttribute('data-arena-escritorio', ''); }
     })();
     </script>
     @endif
@@ -244,12 +253,13 @@
             content: '';
             position: absolute;
             top: 0;
-            left: -75%;
+            left: 0;
             width: 45%;
             height: 100%;
             background: linear-gradient(100deg, transparent 0%, rgba(255, 244, 214, 0.38) 50%, transparent 100%);
-            transform: skewX(-20deg);
+            transform: translateX(-170%) skewX(-20deg);
             pointer-events: none;
+            will-change: transform;
             animation: arenaRayo 6s ease-in-out infinite;
             animation-delay: var(--arena-rayo-delay, 0s);
         }
@@ -260,9 +270,11 @@
         /* Que no crucen todos a la vez: en fila parecia un letrero de neon. */
         .arena-btn-ghost { --arena-rayo-delay: 1.4s; }
         .arena-btn-secondary { --arena-rayo-delay: .7s; }
+        /* Con transform, no con left: asi lo mueve la tarjeta grafica y no se
+           repinta el boton en cada fotograma. */
         @keyframes arenaRayo {
-            0%, 72% { left: -75%; }
-            100% { left: 135%; }
+            0%, 72% { transform: translateX(-170%) skewX(-20deg); }
+            100% { transform: translateX(310%) skewX(-20deg); }
         }
         .arena-btn:disabled::before, .arena-btn-secondary:disabled::before, .arena-btn-ghost:disabled::before,
         .arena-btn-warning:disabled::before, .arena-btn-danger:disabled::before, .arena-btn-safe:disabled::before,
@@ -2533,11 +2545,11 @@
             content: '';
             position: absolute;
             top: 0;
-            left: -75%;
+            left: 0;
             width: 45%;
             height: 100%;
             background: linear-gradient(100deg, transparent, rgba(255, 226, 160, 0.18), transparent);
-            transform: skewX(-20deg);
+            transform: translateX(-170%) skewX(-20deg);
             animation: arenaRayo 6s ease-in-out infinite;
             pointer-events: none;
         }
@@ -4581,13 +4593,24 @@
        sigue teniendo el worker y la suscripcion: se retiran (tambien en el
        servidor), para que no vuelva a salir ninguna tarjeta del sistema. */
     (function () {
-        // En el movil con push, el worker es el suyo: no se toca.
-        if (document.documentElement.hasAttribute('data-arena-push')) { return; }
+        /* SOLO en un escritorio de verdad (lo decide el <head>). Antes bastaba
+           con que faltara la marca del push, y la marca falta tambien cuando
+           el servidor tiene el push apagado o su configuracion cacheada: en
+           ese caso esto borraba la suscripcion de los iPhone y Android. Nunca
+           en una app instalada. */
+        if (!document.documentElement.hasAttribute('data-arena-escritorio')) { return; }
+        if (window.navigator.standalone === true) { return; }
+        if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) { return; }
         if (!('serviceWorker' in navigator)) { return; }
         navigator.serviceWorker.getRegistrations().then(function (regs) {
             regs.forEach(function (reg) {
                 var baja = reg.pushManager ? reg.pushManager.getSubscription().then(function (s) {
                     if (!s) { return; }
+                    try {
+                        navigator.sendBeacon(@json(route('avisos.fallo')), new Blob([JSON.stringify({
+                            causa: 'limpieza-escritorio', detalle: 'se retira el push de este navegador de escritorio',
+                        })], { type: 'application/json' }));
+                    } catch (e) {}
                     var meta = document.querySelector('meta[name="csrf-token"]');
                     fetch(@json(route('avisos.desuscribir')), {
                         method: 'POST', credentials: 'same-origin', keepalive: true,

@@ -86,7 +86,7 @@
     invoke-virtual {v1, v2}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
     sget v2, Landroid/os/Build$VERSION;->SDK_INT:I
     invoke-virtual {v1, v2}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;
-    const-string v2, " app=1.0.3\",\"permiso\":\"app-android\",\"standalone\":true}"
+    const-string v2, " app=1.0.4\",\"permiso\":\"app-android\",\"standalone\":true}"
     invoke-virtual {v1, v2}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
     invoke-virtual {v1}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
     move-result-object v1

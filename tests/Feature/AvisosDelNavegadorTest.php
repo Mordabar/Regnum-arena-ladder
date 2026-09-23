@@ -553,7 +553,7 @@ it('en el escritorio no hay push ni notificaciones del navegador', function () {
 
     // El push solo se marca en pantallas tactiles, y sin esa marca ni se
     // pide permiso ni sale tarjeta del sistema: sonido y aviso interno.
-    expect($layout)->toContain("window.matchMedia('(pointer: coarse)').matches")
+    expect($layout)->toContain("window.matchMedia('(pointer: fine)').matches")
         ->and($layout)->toContain("const hayNotificaciones = () => document.documentElement.hasAttribute('data-arena-push')")
         ->and(runtimeDeAvisos())->toContain("if (!document.documentElement.hasAttribute('data-arena-push')) { return; }");
 });
@@ -974,4 +974,23 @@ it('en el duelo el rival se dibuja con su raza y su sexo reales desde el cruce',
 
     expect($alineacion['rival'][0]['race'])->toBe('dark_elf')
         ->and($alineacion['rival'][0]['gender'])->toBe('female');
+});
+
+it('la limpieza del push solo corre en un escritorio de verdad, nunca en una app instalada', function () {
+    // Antes bastaba con que faltara la marca del push -por ejemplo con el
+    // servidor mal configurado- para borrar la suscripcion de un iPhone.
+    $layout = File::get(resource_path('views/layouts/arena.blade.php'));
+
+    expect($layout)->toContain("if (!document.documentElement.hasAttribute('data-arena-escritorio')) { return; }")
+        ->and($layout)->toContain("if (window.navigator.standalone === true) { return; }")
+        ->and($layout)->toContain("(navigator.maxTouchPoints || 0) === 0");
+});
+
+it('sin la clave de encendido en la config, el push sigue encendido', function () {
+    conClavesDePrueba();
+    $webpush = config('services.webpush');
+    unset($webpush['enabled']);
+    config(['services.webpush' => $webpush]);
+
+    expect(app(WebPushService::class)->configurado())->toBeTrue();
 });

@@ -45,6 +45,7 @@ class PushCheckCommand extends Command
         $todoBien = true;
 
         $todoBien = $this->revisarClaves() && $todoBien;
+        $todoBien = $this->revisarEncendido($push) && $todoBien;
         $todoBien = $this->revisarTabla() && $todoBien;
         $todoBien = $this->revisarWorker() && $todoBien;
         $todoBien = $this->revisarRutas() && $todoBien;
@@ -71,6 +72,35 @@ class PushCheckCommand extends Command
         $this->newLine();
 
         return $todoBien ? self::SUCCESS : self::FAILURE;
+    }
+
+    /**
+     * Si el servidor manda avisos de verdad. Las claves pueden estar bien y el
+     * envio apagado (VAPID_ENABLED=false, o una cache de config vieja): la
+     * prueba con --user salia bien y los avisos reales no salian nunca.
+     */
+    private function revisarEncendido(WebPushService $push): bool
+    {
+        if (!(bool) config('services.webpush.enabled', true)) {
+            $this->falla('Envio de avisos', 'APAGADO (VAPID_ENABLED=false en el .env)');
+
+            return false;
+        }
+
+        if (!$push->configurado()) {
+            $this->falla('Envio de avisos', 'apagado: faltan claves o la config esta cacheada vieja');
+            $this->line('   php artisan config:clear');
+
+            return false;
+        }
+
+        $this->bien('Envio de avisos', 'encendido');
+
+        if (app()->configurationIsCached()) {
+            $this->aviso('Cache de config', 'activa: tras cada subida, php artisan config:clear');
+        }
+
+        return true;
     }
 
     private function revisarClaves(): bool
