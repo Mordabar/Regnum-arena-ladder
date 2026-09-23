@@ -3,11 +3,11 @@
         <div class="arena-footer-grid">
             <div>
                 <x-arena-brand compact />
+                {{-- Que nadie lo confunda con algo oficial. --}}
                 <p class="mt-4 max-w-xs text-sm text-[color:var(--arena-muted)]">
-                    {{-- "Anonimato rival" a secas dejo de ser cierto al entrar el
-                         duelo 1v1, que publica los nombres desde el cruce. --}}
-                    Duelos 1v1 y arenas 2v2 y 3v3 en la Zona de Guerra. Ranking automático por PL,
-                    anonimato rival en las arenas por equipos y premios cada temporada.
+                    Proyecto independiente, hecho por y para la comunidad. No está afiliado, patrocinado ni
+                    respaldado por NGE ni por los desarrolladores de Regnum Online. Regnum Online y sus marcas
+                    pertenecen a sus respectivos dueños.
                 </p>
             </div>
             <div>
@@ -63,12 +63,6 @@
         <div class="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-[color:var(--arena-line)] pt-6">
             <div class="arena-footer-legal">
                 <p>© {{ date('Y') }} Regnum Arena Ladder — Conquest PvP. Alpha build.</p>
-                {{-- Que nadie lo confunda con algo oficial. --}}
-                <p>
-                    Proyecto independiente, hecho por y para la comunidad. No está afiliado, patrocinado ni
-                    respaldado por NGE ni por los desarrolladores de Regnum Online. Regnum Online y sus marcas
-                    pertenecen a sus respectivos dueños.
-                </p>
             </div>
             <div class="flex items-center gap-4">
                 <div class="flex items-center gap-2">

@@ -109,7 +109,13 @@
     if-eqz p1, :no
     invoke-virtual {p0}, Ltop/regnumarenaladder/app/Avisos;->verificado()Z
     move-result v0
-    if-eqz v0, :no
+    if-nez v0, :verificado
+    const-string v0, "android-no-verificado"
+    invoke-virtual {p0}, Ltop/regnumarenaladder/app/Avisos;->quienLlama()Ljava/lang/String;
+    move-result-object v1
+    invoke-static {v0, v1}, Ltop/regnumarenaladder/app/Informe;->enviar(Ljava/lang/String;Ljava/lang/String;)V
+    goto :no
+    :verificado
 
     const-string v0, "android.support.customtabs.trusted.PLATFORM_TAG"
     invoke-virtual {p1, v0}, Landroid/os/Bundle;->getString(Ljava/lang/String;)Ljava/lang/String;
@@ -153,6 +159,25 @@
     invoke-virtual {v5, v1, v2, v3}, Landroid/app/NotificationManager;->notify(Ljava/lang/String;ILandroid/app/Notification;)V
     invoke-virtual {p0}, Ltop/regnumarenaladder/app/Avisos;->habilitadas()Z
     move-result v0
+
+    # Para el diagnostico: publicada, con que etiqueta y si Android la deja ver.
+    new-instance v6, Ljava/lang/StringBuilder;
+    invoke-direct {v6}, Ljava/lang/StringBuilder;-><init>()V
+    const-string v7, "tag="
+    invoke-virtual {v6, v7}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    invoke-virtual {v6, v1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    const-string v7, " habilitadas="
+    invoke-virtual {v6, v7}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    invoke-virtual {v6, v0}, Ljava/lang/StringBuilder;->append(Z)Ljava/lang/StringBuilder;
+    const-string v7, " icono="
+    invoke-virtual {v6, v7}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    invoke-virtual {p0}, Ltop/regnumarenaladder/app/Avisos;->icono()I
+    move-result v7
+    invoke-virtual {v6, v7}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;
+    invoke-virtual {v6}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+    move-result-object v6
+    const-string v7, "android-aviso-publicado"
+    invoke-static {v7, v6}, Ltop/regnumarenaladder/app/Informe;->enviar(Ljava/lang/String;Ljava/lang/String;)V
     return v0
 
     :no
@@ -208,5 +233,35 @@
     move-result-object v1
     const-string v3, "android.support.customtabs.trusted.SMALL_ICON_BITMAP"
     invoke-virtual {v0, v3, v1}, Landroid/os/Bundle;->putParcelable(Ljava/lang/String;Landroid/os/Parcelable;)V
+    return-object v0
+.end method
+
+# Quien llama y que navegador se guardo, para el informe.
+.method quienLlama()Ljava/lang/String;
+    .registers 6
+    new-instance v0, Ljava/lang/StringBuilder;
+    invoke-direct {v0}, Ljava/lang/StringBuilder;-><init>()V
+    const-string v1, "llama="
+    invoke-virtual {v0, v1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    invoke-virtual {p0}, Landroid/app/Service;->getPackageManager()Landroid/content/pm/PackageManager;
+    move-result-object v1
+    invoke-static {}, Landroid/os/Binder;->getCallingUid()I
+    move-result v2
+    invoke-virtual {v1, v2}, Landroid/content/pm/PackageManager;->getNameForUid(I)Ljava/lang/String;
+    move-result-object v1
+    invoke-virtual {v0, v1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    const-string v1, " guardado="
+    invoke-virtual {v0, v1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    const-string v1, "twa"
+    const/4 v2, 0x0
+    invoke-virtual {p0, v1, v2}, Landroid/app/Service;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
+    move-result-object v1
+    const-string v2, "navegador"
+    const/4 v3, 0x0
+    invoke-interface {v1, v2, v3}, Landroid/content/SharedPreferences;->getString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+    move-result-object v1
+    invoke-virtual {v0, v1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    invoke-virtual {v0}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+    move-result-object v0
     return-object v0
 .end method

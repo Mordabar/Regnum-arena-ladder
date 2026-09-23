@@ -5,6 +5,8 @@
          (Chrome u otro compatible). Desde Android 11 hay que declararlo. -->
     <!-- Android 13+: sin este permiso, la app no puede enseñar los avisos. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Solo para el informe de diagnostico al servidor. -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <queries>
         <intent>

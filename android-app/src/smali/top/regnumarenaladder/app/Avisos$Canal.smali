@@ -103,10 +103,24 @@
     goto :hecho
 
     :notificar
+    const/4 v3, 0x0
+    :try_mostrar_start
     invoke-static {p2}, Ltop/regnumarenaladder/app/Avisos$Canal;->leerBundle(Landroid/os/Parcel;)Landroid/os/Bundle;
     move-result-object v4
     invoke-virtual {v1, v4}, Ltop/regnumarenaladder/app/Avisos;->mostrar(Landroid/os/Bundle;)Z
     move-result v3
+    :try_mostrar_end
+    .catch Ljava/lang/Throwable; {:try_mostrar_start .. :try_mostrar_end} :fallo_mostrar
+    invoke-static {p3, v3}, Ltop/regnumarenaladder/app/Avisos$Canal;->escribirResultado(Landroid/os/Parcel;Z)V
+    goto :hecho
+
+    :fallo_mostrar
+    move-exception v4
+    const-string v0, "android-aviso-error"
+    invoke-virtual {v4}, Ljava/lang/Throwable;->toString()Ljava/lang/String;
+    move-result-object v4
+    invoke-static {v0, v4}, Ltop/regnumarenaladder/app/Informe;->enviar(Ljava/lang/String;Ljava/lang/String;)V
+    const/4 v3, 0x0
     invoke-static {p3, v3}, Ltop/regnumarenaladder/app/Avisos$Canal;->escribirResultado(Landroid/os/Parcel;Z)V
     goto :hecho
 
