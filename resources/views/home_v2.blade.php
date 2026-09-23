@@ -1,6 +1,7 @@
 @extends('layouts.arena')
 
 @section('title', 'Regnum Arena Ladder — Conquest PvP')
+@section('description', 'Arena PvP de Regnum Online: duelos 1v1 y arenas 2v2 y 3v3 entre Alsius, Ignis y Syrtis. Ranking por reino y subclase, avisos de cruce y premios por temporada.')
 
 @section('content')
 <div class="mx-auto max-w-7xl px-4 py-10">

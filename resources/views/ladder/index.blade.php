@@ -1,6 +1,7 @@
 @extends('layouts.arena')
 
 @section('title', 'Ladder - Regnum Arena Ladder')
+@section('description', 'Clasificación en vivo de Regnum Arena Ladder: los mejores guerreros de Alsius, Ignis y Syrtis por puntos de ladder, con sus victorias y su MMR.')
 
 @section('content')
 <div class="mx-auto max-w-7xl px-4 py-8">

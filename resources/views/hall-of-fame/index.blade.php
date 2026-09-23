@@ -1,6 +1,7 @@
 @extends('layouts.arena')
 
 @section('title', 'Salon de la Fama — Regnum Arena Ladder')
+@section('description', 'Salón de la Fama de Regnum Arena Ladder: los campeones de cada temporada, sus guerreros y el botín que se llevaron. Y quién va ganando la temporada en curso.')
 
 @section('content')
 @php

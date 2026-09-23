@@ -6,6 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="robots" content="noindex, nofollow">
     <title>@yield('title', 'Panel') · Arena Ladder</title>
+    @include('partials.favicons')
 
     {{-- Hoja compilada y versionada. El panel no depende del CDN de Tailwind:
          es una herramienta de trabajo y tiene que verse igual sin red. --}}

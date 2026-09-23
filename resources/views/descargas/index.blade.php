@@ -1,6 +1,7 @@
 @extends('layouts.arena')
 
 @section('title', 'Descargar la app - Regnum Arena Ladder')
+@section('description', 'Descarga Regnum Arena Ladder en tu móvil: app para Android e instalación en iPhone, a pantalla completa y con avisos de cada cruce.')
 
 @section('content')
 @php

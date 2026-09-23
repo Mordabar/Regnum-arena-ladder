@@ -1,6 +1,7 @@
 @extends('layouts.arena')
 
 @section('title', 'Cómo jugar - Regnum Arena Ladder')
+@section('description', 'Cómo jugar en Regnum Arena Ladder paso a paso: crea tu guerrero, entra a cola, acepta el cruce, pelea en la zona y reporta el resultado.')
 
 @section('content')
 @php

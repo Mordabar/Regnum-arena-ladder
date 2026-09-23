@@ -61,6 +61,21 @@ Route::get('/como-jugar', function (\App\Services\SeasonPrizeService $premios) {
 // La app movil: el APK de Android y los pasos para instalarla en iPhone.
 Route::view('/descargas', 'descargas.index')->name('descargas');
 
+// El mapa del sitio para los buscadores: las paginas publicas y la ficha de
+// cada guerrero que ya ha jugado.
+Route::get('/sitemap.xml', function () {
+    $guerreros = \App\Models\Player::query()
+        ->where('is_active', true)
+        ->where('matches_played', '>', 0)
+        ->orderByDesc('pl_points')
+        ->limit(1000)
+        ->get(['id', 'updated_at']);
+
+    return response()
+        ->view('sitemap', compact('guerreros'))
+        ->header('Content-Type', 'application/xml; charset=UTF-8');
+})->name('sitemap');
+
 Route::get('/ladder', [LadderController::class, 'index'])->name('ladder.index');
 
 // El Salon de la Fama: las temporadas que ya terminaron, con su podio y lo que

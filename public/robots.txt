@@ -1,0 +1,11 @@
+# Regnum Arena Ladder
+# Paginas publicas abiertas; lo que es de cada jugador no se indexa.
+User-agent: *
+Allow: /
+Disallow: /lobby
+Disallow: /matches
+Disallow: /player
+Disallow: /avisos
+Disallow: /auth
+
+Sitemap: https://regnumarenaladder.top/sitemap.xml

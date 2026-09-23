@@ -1,6 +1,7 @@
 @extends('layouts.arena')
 
 @section('title', 'Como funciona - Regnum Arena Ladder')
+@section('description', 'Cómo funciona Regnum Arena Ladder: modalidades, emparejamiento, zonas de combate, reportes, puntos de ladder y reglas de la arena.')
 
 @section('content')
 @php
