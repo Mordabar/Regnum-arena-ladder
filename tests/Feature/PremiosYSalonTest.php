@@ -559,7 +559,7 @@ it('la pagina de descargas ofrece el APK y los pasos de iPhone', function () {
     expect(is_file(public_path('apk/arena-ladder.apk')))->toBeTrue();
 
     preg_match_all('#images/descargas/(ios-[\w-]+)\.webp#', $respuesta->getContent(), $m);
-    expect(array_unique($m[1]))->toHaveCount(8);
+    expect(array_unique($m[1]))->toHaveCount(9);
     foreach (array_unique($m[1]) as $foto) {
         expect(is_file(public_path("images/descargas/{$foto}.webp")))->toBeTrue();
     }

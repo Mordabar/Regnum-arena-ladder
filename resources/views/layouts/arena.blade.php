@@ -2523,8 +2523,8 @@
             margin: 18px 0 0;
             padding: 0;
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 14px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 16px;
         }
         .arena-descargas-ios figure { margin: 0; }
         .arena-descargas-ios a {

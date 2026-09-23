@@ -20,6 +20,7 @@
         ['5-app-campana', 'Dentro de la app, toca la campana roja de abajo a la derecha.'],
         ['6-permiso', 'El iPhone te pide permiso: toca «Permitir».'],
         ['7-activado', 'Listo: te llega el aviso de prueba y la campana se pone verde.'],
+        ['8-bloqueo', 'Y así te llegan los avisos: aunque tengas el móvil bloqueado o estés en otra app.'],
     ];
 @endphp
 
