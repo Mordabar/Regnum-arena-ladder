@@ -47,7 +47,7 @@
                  gente reconoce "esto se instala". Llevan a los pasos de cada
                  uno en la pagina de descargas. --}}
             <div>
-                <h3 class="font-['Cinzel'] text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--arena-gold)]">Llévatela</h3>
+                <h3 class="font-['Cinzel'] text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--arena-gold)]">La arena en tu bolsillo</h3>
                 <div class="arena-footer-apps">
                     <a href="{{ route('descargas') }}#android" class="arena-footer-app">
                         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.66-.38l-1.87 3.23a11.43 11.43 0 0 0-9.82 0L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48A10.78 10.78 0 0 0 1 18h22a10.78 10.78 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 1.25-1.25A1.25 1.25 0 0 1 7 15.25zm10 0A1.25 1.25 0 1 1 18.25 14 1.25 1.25 0 0 1 17 15.25z"/></svg>

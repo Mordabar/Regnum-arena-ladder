@@ -1,5 +1,4 @@
 @auth
-@if(app(\App\Services\WebPushService::class)->configurado())
 {{-- El interruptor de avisos flotante. Solo en movil.
 
      Ya no decide nada por su cuenta. La vez anterior tenia su propia idea del
@@ -34,10 +33,13 @@
 <style>
     /* Abajo a la derecha, por encima de la barra del sistema en los moviles
        que la tienen. */
+    /* Arriba a la derecha, en la cabecera: el sitio que tenia la hamburguesa.
+       Abajo quedaba debajo de la barra de navegacion y de los avisos. Con el
+       menu de admin (que conserva la hamburguesa) se corre a su izquierda. */
     .arena-avisos {
         position: fixed;
-        right: 14px;
-        bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+        right: 16px;
+        top: calc(env(safe-area-inset-top, 0px) + 24px);
         z-index: 60;
         display: flex;
         align-items: center;
@@ -128,8 +130,14 @@
        4 %. Lo justo para que el ojo la note sin que tape la pantalla. Se
        ancla al boton por la derecha, asi que al crecer lo hace hacia el
        centro y no se sale del borde. */
+    body.arena-con-menu .arena-avisos { right: 72px; }
+
+    /* La pista, debajo de la campana. */
     .arena-avisos-pista {
         pointer-events: auto;
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
         margin: 0;
         padding: 6px 11px;
         border-radius: 99px;
@@ -142,7 +150,7 @@
         white-space: nowrap;
         color: #ffd2cc;
         cursor: pointer;
-        transform-origin: right center;
+        transform-origin: top right;
         animation:
             arenaPistaEntra .35s cubic-bezier(.2, .9, .3, 1.3) both,
             arenaPistaRespira 1.6s ease-in-out .35s infinite;
@@ -290,5 +298,4 @@
     }
 })();
 </script>
-@endif
 @endauth

@@ -16,7 +16,7 @@
                 {{ $currentQueue->queue_type === 'premade' ? 'Tu premade busca rival…' : 'Buscando combate…' }}
             </h2>
             <p class="arena-duel-panel-sub">
-                Afila la espada. En cuanto aparezca tu contrincante, el combate empieza aquí.
+                Calienta tus manos: tu contrincante está por aparecer para que el combate comience en la Zona de Guerra.
             </p>
         </div>
 

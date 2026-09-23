@@ -36,8 +36,8 @@
             sin actualizar nada.
         </p>
         <div class="arena-descargas-saltos">
-            <a href="#android" class="arena-btn"><x-arena-icon name="download" class="h-4 w-4 shrink-0" />Android</a>
-            <a href="#iphone" class="arena-btn-ghost"><x-arena-icon name="phone" class="h-4 w-4 shrink-0" />iPhone</a>
+            <a href="#android" class="arena-btn"><svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.66-.38l-1.87 3.23a11.43 11.43 0 0 0-9.82 0L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48A10.78 10.78 0 0 0 1 18h22a10.78 10.78 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 1.25-1.25A1.25 1.25 0 0 1 7 15.25zm10 0A1.25 1.25 0 1 1 18.25 14 1.25 1.25 0 0 1 17 15.25z"/></svg>Android</a>
+            <a href="#iphone" class="arena-btn-ghost"><svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.37 12.6c-.02-2.2 1.8-3.26 1.88-3.31a4.05 4.05 0 0 0-3.18-1.72c-1.35-.14-2.64.8-3.33.8-.69 0-1.74-.78-2.86-.76a4.24 4.24 0 0 0-3.58 2.18c-1.53 2.65-.39 6.57 1.1 8.72.73 1.05 1.6 2.23 2.73 2.19 1.1-.04 1.51-.71 2.84-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.07 2.65-2.13a9.4 9.4 0 0 0 1.2-2.47 3.83 3.83 0 0 1-2.31-3.48zM14.2 6.13a3.8 3.8 0 0 0 .88-2.73 3.9 3.9 0 0 0-2.52 1.3 3.64 3.64 0 0 0-.9 2.64 3.22 3.22 0 0 0 2.54-1.21z"/></svg>iPhone</a>
         </div>
     </section>
 
@@ -45,7 +45,7 @@
         {{-- ── ANDROID ── --}}
         <section id="android" class="arena-jugar-paso arena-card" data-plataforma="android" aria-labelledby="descargaAndroid">
             <header class="arena-jugar-paso-head">
-                <span class="arena-guia-num" aria-hidden="true">🤖</span>
+                <span class="arena-guia-num" aria-hidden="true"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.66-.38l-1.87 3.23a11.43 11.43 0 0 0-9.82 0L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48A10.78 10.78 0 0 0 1 18h22a10.78 10.78 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 1.25-1.25A1.25 1.25 0 0 1 7 15.25zm10 0A1.25 1.25 0 1 1 18.25 14 1.25 1.25 0 0 1 17 15.25z"/></svg></span>
                 <h2 id="descargaAndroid">Android</h2>
             </header>
 
@@ -78,7 +78,7 @@
         {{-- ── IPHONE ── --}}
         <section id="iphone" class="arena-jugar-paso arena-card" data-plataforma="ios" aria-labelledby="descargaIos">
             <header class="arena-jugar-paso-head">
-                <span class="arena-guia-num" aria-hidden="true">📱</span>
+                <span class="arena-guia-num" aria-hidden="true"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.37 12.6c-.02-2.2 1.8-3.26 1.88-3.31a4.05 4.05 0 0 0-3.18-1.72c-1.35-.14-2.64.8-3.33.8-.69 0-1.74-.78-2.86-.76a4.24 4.24 0 0 0-3.58 2.18c-1.53 2.65-.39 6.57 1.1 8.72.73 1.05 1.6 2.23 2.73 2.19 1.1-.04 1.51-.71 2.84-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.07 2.65-2.13a9.4 9.4 0 0 0 1.2-2.47 3.83 3.83 0 0 1-2.31-3.48zM14.2 6.13a3.8 3.8 0 0 0 .88-2.73 3.9 3.9 0 0 0-2.52 1.3 3.64 3.64 0 0 0-.9 2.64 3.22 3.22 0 0 0 2.54-1.21z"/></svg></span>
                 <h2 id="descargaIos">iPhone</h2>
             </header>
 
@@ -114,7 +114,7 @@
             Entra desde el navegador y deja la pestaña abierta: suena cuando hay novedades.
         </p>
         <div class="arena-jugar-fin-botones">
-            <a href="{{ route('lobby') }}" class="arena-btn"><x-arena-icon name="bolt" class="h-4 w-4 shrink-0" />Entrar a la arena</a>
+            <a href="{{ route('lobby') }}" class="arena-btn"><x-arena-icon name="swords" class="h-4 w-4 shrink-0" />Entrar a la arena</a>
             <a href="{{ route('como-jugar') }}" class="arena-btn-ghost"><x-arena-icon name="book" class="h-4 w-4 shrink-0" />Cómo jugar</a>
         </div>
     </section>

@@ -195,7 +195,7 @@
     <section class="arena-panel-strong arena-jugar-fin">
         <p class="arena-jugar-sub">Nos vemos en la arena. ⚔️</p>
         <div class="arena-jugar-fin-botones">
-            <a href="{{ route('lobby') }}" class="arena-btn"><x-arena-icon name="bolt" class="h-4 w-4 shrink-0" />Entrar a la arena</a>
+            <a href="{{ route('lobby') }}" class="arena-btn"><x-arena-icon name="swords" class="h-4 w-4 shrink-0" />Entrar a la arena</a>
             <a href="{{ route('ladder.index') }}" class="arena-btn-ghost"><x-arena-icon name="ladder" class="h-4 w-4 shrink-0" />Ver el ladder</a>
         </div>
     </section>

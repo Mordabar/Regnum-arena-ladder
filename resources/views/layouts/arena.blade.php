@@ -581,7 +581,112 @@
             animation: arenaSlideIn 0.25s ease-out;
         }
 
+        /* ── Barra de abajo (movil) ── */
+        .arena-tabbar, .arena-tabbar-hoja { display: none; }
+        @media (max-width: 1023px) {
+            body.arena-con-tabbar { padding-bottom: calc(66px + env(safe-area-inset-bottom, 0px)); }
+            .arena-tabbar {
+                position: fixed;
+                left: 0; right: 0; bottom: 0;
+                z-index: 45;
+                display: grid;
+                grid-template-columns: repeat(5, 1fr);
+                padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+                background: linear-gradient(180deg, rgba(28, 20, 15, 0.97), rgba(10, 7, 5, 0.99));
+                border-top: 1px solid var(--arena-line-strong);
+                box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.45);
+                backdrop-filter: blur(10px);
+            }
+            .arena-tabbar-item {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 3px;
+                padding: 4px 2px;
+                border: 0;
+                background: none;
+                color: var(--arena-muted);
+                font-size: 11px;
+                font-weight: 600;
+                letter-spacing: 0.02em;
+                -webkit-tap-highlight-color: transparent;
+            }
+            .arena-tabbar-icono {
+                display: grid;
+                place-items: center;
+                width: 44px;
+                height: 28px;
+                border-radius: 999px;
+                transition: background 0.2s, color 0.2s;
+            }
+            .arena-tabbar-item.is-activa { color: var(--arena-gold-soft); }
+            .arena-tabbar-item.is-activa .arena-tabbar-icono {
+                background: rgba(216, 177, 92, 0.16);
+                box-shadow: inset 0 0 0 1px rgba(216, 177, 92, 0.3);
+            }
+            .arena-tabbar-hoja:not([hidden]) {
+                position: fixed;
+                inset: 0;
+                z-index: 44;
+                display: block;
+            }
+            .arena-tabbar-hoja-fondo {
+                position: absolute;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.55);
+                backdrop-filter: blur(4px);
+            }
+            .arena-tabbar-hoja-panel {
+                position: absolute;
+                left: 10px; right: 10px;
+                bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+                display: grid;
+                gap: 4px;
+                padding: 10px;
+                border: 1px solid var(--arena-line-strong);
+                border-radius: 18px;
+                background: linear-gradient(180deg, rgba(38, 27, 20, 0.99), rgba(12, 8, 6, 0.99));
+                box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+                animation: arenaTabbarSube 0.2s ease-out;
+            }
+            .arena-tabbar-hoja-panel > a {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 12px;
+                border-radius: 12px;
+                color: var(--arena-sand);
+            }
+            .arena-tabbar-hoja-panel > a.is-activa { background: rgba(216, 177, 92, 0.12); color: var(--arena-gold-soft); }
+            .arena-tabbar-hoja-panel > a > span { display: flex; flex-direction: column; }
+            .arena-tabbar-hoja-panel small { color: var(--arena-muted); font-size: 12px; }
+            .arena-tabbar-hoja-pie {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                margin-top: 6px;
+                padding: 10px 4px 2px;
+                border-top: 1px solid var(--arena-line);
+                color: var(--arena-muted);
+                font-size: 13px;
+            }
+        }
+        @keyframes arenaTabbarSube { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
         /* ── Toast styles ── */
+        /* En el movil, arriba y a lo ancho, bajo la cabecera: abajo salian
+           detras de la campana y de la barra de navegacion y no se leian. */
+        @media (max-width: 767px) {
+            #arenaToastContainer {
+                top: calc(76px + env(safe-area-inset-top, 0px));
+                bottom: auto;
+                left: 12px;
+                right: 12px;
+                flex-direction: column;
+            }
+            #arenaToastContainer .arena-toast { padding: 12px 14px; font-size: 14px; }
+        }
         .arena-toast-success { border-color: rgba(46, 160, 67, 0.3); background: rgba(10, 35, 18, 0.92); }
         .arena-toast-success .arena-toast-message { color: #8fe0a8; }
         .arena-toast-warning { border-color: rgba(211, 162, 47, 0.3); background: rgba(40, 28, 10, 0.92); }
@@ -3203,8 +3308,10 @@
         }
 
         .arena-duel-panel .arena-duel-lineups { padding: 18px 22px; }
+        /* Grandes a proposito: con 56 px el guerrero era un punto y no se
+           reconocia ni la clase. */
         .arena-duel-portrait {
-            width: 56px;
+            width: 104px;
             flex: none;
             border-radius: 10px;
             border: 1px solid var(--arena-line);
@@ -3439,8 +3546,12 @@
 @php
     $arenaAdminSessionActive = session('arena_admin.authenticated') === true;
     $arenaAdminDisplayName = session('arena_admin.display_name', 'admin');
+    // En el movil la navegacion del jugador va en la barra de abajo; la
+    // hamburguesa solo queda para lo de admin, arriba junto a la campana.
+    $arenaContextoAdmin = request()->routeIs('admin.*') && $arenaAdminSessionActive;
+    $arenaConMenu = $arenaAdminSessionActive;
 @endphp
-<body class="arena-shell min-h-screen">
+<body class="arena-shell min-h-screen {{ $arenaConMenu ? 'arena-con-menu' : '' }} {{ $arenaContextoAdmin ? '' : 'arena-con-tabbar' }}">
     <script>
         /* Registro de arranques.
            El panel del lobby ya no obliga a recargar la pagina: el sondeo trae
@@ -3506,10 +3617,24 @@
                         </form>
                     @else
                         {{-- Contexto de Jugador (Juego) --}}
+                        {{-- Mismo orden que la barra del movil: Lobby, Ladder,
+                             Matches, Fama y Guia. --}}
+                        @auth
+                            <a href="{{ route('lobby') }}" class="arena-nav-link relative {{ request()->routeIs('lobby') ? 'arena-nav-link-active' : '' }}">
+                                <x-arena-icon name="swords" class="h-4 w-4" />
+                                Lobby
+                            </a>
+                        @endauth
                         <a href="{{ route('ladder.index') }}" class="arena-nav-link {{ request()->routeIs('ladder.*') ? 'arena-nav-link-active' : '' }}">
-                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a1 1 0 000 2c5.523 0 10 4.477 10 10a1 1 0 102 0C17 8.373 11.627 3 5 3z"/><path d="M4 9a1 1 0 011-1 7 7 0 017 7 1 1 0 11-2 0 5 5 0 00-5-5 1 1 0 01-1-1zM3 15a2 2 0 114 0 2 2 0 01-4 0z"/></svg>
+                            <x-arena-icon name="ladder" class="h-4 w-4" />
                             Ladder
                         </a>
+                        @auth
+                            <a href="{{ route('matches.index') }}" class="arena-nav-link {{ request()->routeIs('matches.*') ? 'arena-nav-link-active' : '' }}">
+                                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/></svg>
+                                Matches
+                            </a>
+                        @endauth
                         <a href="{{ route('hall-of-fame') }}" class="arena-nav-link {{ request()->routeIs('hall-of-fame') ? 'arena-nav-link-active' : '' }}">
                             <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 1l2.39 4.84 5.34.78-3.86 3.77.91 5.32L10 13.2l-4.78 2.51.91-5.32L2.27 6.62l5.34-.78L10 1z"/></svg>
                             Fama
@@ -3535,14 +3660,6 @@
                             </div>
                         </details>
                         @auth
-                            <a href="{{ route('lobby') }}" class="arena-nav-link relative {{ request()->routeIs('lobby') ? 'arena-nav-link-active' : '' }}">
-                                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
-                                Lobby
-                            </a>
-                            <a href="{{ route('matches.index') }}" class="arena-nav-link {{ request()->routeIs('matches.*') ? 'arena-nav-link-active' : '' }}">
-                                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/></svg>
-                                Matches
-                            </a>
                             <button type="button" class="arena-btn-ghost px-3 py-1.5 text-xs" data-arena-alert-toggle>
                                 <span class="inline-block h-2 w-2 rounded-full bg-amber-300" data-arena-alert-indicator></span>
                                 <span data-arena-alert-label>Avisos</span>
@@ -3569,10 +3686,12 @@
                     @endif
                 </div>
 
-                {{-- Mobile hamburger --}}
+                {{-- Hamburguesa del movil: solo para lo de admin. --}}
+                @if($arenaConMenu)
                 <button type="button" class="lg:hidden rounded-xl border border-[color:var(--arena-line)] bg-[rgba(15,10,8,0.7)] p-2.5 text-[color:var(--arena-sand)] transition hover:bg-white/10" id="arenaMenuOpen" aria-label="Abrir menú">
                     <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
                 </button>
+                @endif
             </div>
         </div>
     </nav>
@@ -3612,31 +3731,9 @@
                         <button type="submit" class="arena-btn-danger-ghost w-full"><x-arena-icon name="logout" class="h-4 w-4 shrink-0" />Cerrar Sesión Admin</button>
                     </form>
                 @else
-                    {{-- Mobile User Context --}}
-                    <a href="{{ route('ladder.index') }}" class="arena-nav-link block w-full {{ request()->routeIs('ladder.*') ? 'arena-nav-link-active' : '' }}">Ladder</a>
-                    <a href="{{ route('hall-of-fame') }}" class="arena-nav-link block w-full {{ request()->routeIs('hall-of-fame') ? 'arena-nav-link-active' : '' }}">Salon de la Fama</a>
-                    <a href="{{ route('como-jugar') }}" class="arena-nav-link block w-full {{ request()->routeIs('como-jugar') ? 'arena-nav-link-active' : '' }}">Cómo jugar</a>
-                    <a href="{{ route('guia') }}" class="arena-nav-link block w-full {{ request()->routeIs('guia') ? 'arena-nav-link-active' : '' }}">Cómo funciona</a>
-                    @auth
-                        <a href="{{ route('lobby') }}" class="arena-nav-link block w-full {{ request()->routeIs('lobby') ? 'arena-nav-link-active' : '' }}">Lobby</a>
-                        <a href="{{ route('matches.index') }}" class="arena-nav-link block w-full {{ request()->routeIs('matches.*') ? 'arena-nav-link-active' : '' }}">Matches</a>
-                        <button type="button" class="arena-btn-ghost mt-3 w-full justify-center" data-arena-alert-toggle>
-                            <span class="inline-block h-2 w-2 rounded-full bg-amber-300" data-arena-alert-indicator></span>
-                            <span data-arena-alert-label>Avisos</span>
-                        </button>
-                        
-                        <div class="my-4 border-t border-[color:var(--arena-line)]"></div>
-                        <div class="arena-chip mb-3 w-full justify-center">👤 {{ auth()->user()->discord_username }}</div>
-                        <form method="POST" action="{{ route('logout') }}">
-                            @csrf
-                            <button type="submit" class="arena-btn-ghost w-full"><x-arena-icon name="logout" class="h-4 w-4 shrink-0" />Salir</button>
-                        </form>
-                    @else
-                        <a href="{{ route('auth.discord') }}" class="arena-btn-secondary mt-3 w-full"><x-arena-icon name="login" class="h-4 w-4 shrink-0" />Entrar con Discord</a>
-                    @endauth
-
+                    {{-- La navegacion del jugador esta en la barra de abajo;
+                         aqui solo queda el acceso de admin. --}}
                     @if($arenaAdminSessionActive)
-                        <div class="my-4 border-t border-[color:var(--arena-line)]"></div>
                         <div class="mb-2 px-3">
                             <span class="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-[color:var(--arena-gold-soft)]">Staff Access</span>
                         </div>
@@ -3693,6 +3790,11 @@
 
     {{-- ── TOAST CONTAINER ── --}}
     <x-arena-toast />
+
+    {{-- ── BARRA DE ABAJO (movil) ── --}}
+    @unless($arenaContextoAdmin)
+        @include('partials.arena-tabbar')
+    @endunless
 
     {{-- ── GLOBAL SCRIPTS ── --}}
     <script>
@@ -4369,8 +4471,8 @@
                         playPattern('generic');
                         arenaToast(
                             unlocked
-                                ? 'Alertas sonoras activadas. Si no has oido el toque, revisa el interruptor de silencio del movil.'
-                                : 'Alertas activadas. Tu navegador todavia no deja sonar: toca cualquier parte de la pagina.',
+                                ? 'Sonido activado. Si no lo oyes, revisa que el móvil no esté en silencio.'
+                                : 'Sonido activado. Toca cualquier parte de la página para que pueda sonar.',
                             unlocked ? 'success' : 'warning',
                             5000
                         );
@@ -4381,7 +4483,7 @@
                     }));
 
                     if (!options.silent) {
-                        arenaToast('Alertas silenciadas.', 'info', 3500);
+                        arenaToast('Sonido apagado.', 'info', 3500);
                     }
                 }
 

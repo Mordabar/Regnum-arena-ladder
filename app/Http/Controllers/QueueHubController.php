@@ -192,7 +192,10 @@ class QueueHubController extends Controller
         // El guerrero elegido viaja en la URL para que el rail funcione tambien
         // sin JavaScript: cada slot es un enlace de verdad, no solo un boton
         // que el script pinta.
-        $requestedPlayerId = (int) $request->query('player', 0);
+        // Sin ?player en la URL, el ultimo que eligio (cookie que pone el
+        // lobby al cambiar de guerrero). Si no es suyo, firstWhere no lo
+        // encuentra y se cae al primero, como siempre.
+        $requestedPlayerId = (int) ($request->query('player') ?: $request->cookie('arena_guerrero', 0));
         $requestedPlayer = $requestedPlayerId > 0
             ? $players->firstWhere('id', $requestedPlayerId)
             : null;

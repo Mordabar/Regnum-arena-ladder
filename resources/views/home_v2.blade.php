@@ -40,7 +40,7 @@
                         {{-- El lobby y la arena son la misma pantalla: dos
                              botones al mismo sitio solo hacian dudar. --}}
                         <a href="{{ route('lobby') }}" class="arena-btn">
-                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
+                            <x-arena-icon name="swords" class="h-4 w-4" />
                             Entrar al lobby
                         </a>
                     @else
@@ -54,7 +54,7 @@
                         Salon de la Fama
                     </a>
                     <a href="{{ route('ladder.index') }}" class="arena-btn-ghost">
-                        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a1 1 0 000 2c5.523 0 10 4.477 10 10a1 1 0 102 0C17 8.373 11.627 3 5 3z"/><path d="M4 9a1 1 0 011-1 7 7 0 017 7 1 1 0 11-2 0 5 5 0 00-5-5 1 1 0 01-1-1zM3 15a2 2 0 114 0 2 2 0 01-4 0z"/></svg>
+                        <x-arena-icon name="ladder" class="h-4 w-4" />
                         Ver ladder
                     </a>
                     {{-- La guia, aqui arriba con los demas. Estaba solo en el

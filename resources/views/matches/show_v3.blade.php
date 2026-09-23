@@ -374,7 +374,8 @@
                                     :race="$look['race']"
                                     :gender="$look['gender']"
                                     :parallax="false"
-                                    height="72px"
+                                    height="150px"
+                                :tight="true"
                                     class="arena-duel-portrait" />
                                 <div>
                                     <h3 class="font-semibold text-white arena-body-text">{{ $player['character_name'] }} {{ $isViewer ? '(tú)' : '' }}</h3>
@@ -428,7 +429,8 @@
                                 :race="$look['race']"
                                 :gender="$look['gender']"
                                 :parallax="false"
-                                height="72px"
+                                height="150px"
+                                :tight="true"
                                 class="arena-duel-portrait" />
                             <div class="min-w-0">
                                 <h3 class="font-semibold text-white arena-body-text">{{ $player['character_name'] }}</h3>
@@ -446,7 +448,8 @@
                                 :race="\App\Models\Player::defaultRace($rivalRealm)"
                                 gender="male"
                                 :parallax="false"
-                                height="72px"
+                                height="150px"
+                                :tight="true"
                                 class="arena-duel-portrait" />
                             <div class="min-w-0 flex-1">
                                 <h3 class="font-semibold text-[color:var(--arena-text)] arena-body-text italic">Guerrero Anónimo</h3>

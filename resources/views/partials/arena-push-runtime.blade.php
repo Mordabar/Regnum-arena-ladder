@@ -448,7 +448,7 @@
                 if (permiso !== 'granted') {
                     // Cerro el globo sin elegir. No es un error: no se informa.
                     ultimoFallo = { causa: 'permiso-sin-respuesta', mensaje: 'No elegiste nada.' };
-                    if (avisar) { toast('Para avisarte, el navegador necesita tu permiso. Vuelve a tocar y elige "Permitir".', 'info', 6000); }
+                    if (avisar) { toast('Te faltó darle a «Permitir». Toca la campana otra vez cuando quieras.', 'info', 6000); }
                     return { ok: false, causa: 'permiso-sin-respuesta' };
                 }
 
@@ -485,19 +485,19 @@
                 }
 
                 var mensajes = {
-                    worker: 'No se pudo preparar el aviso en segundo plano. Recarga la pagina y vuelve a probar.',
+                    worker: 'Algo falló al activar los avisos. Recarga la página y prueba otra vez.',
                     suscripcion: esIOS && !enStandalone
                         ? instruccionesIOS()
                         : esBrave
-                        ? 'Brave trae los avisos apagados. Abre brave://settings/privacy, activa "Usar los servicios de Google para mensajes push", reinicia Brave y vuelve a tocar.'
-                        : 'Tu navegador no deja recibir avisos aqui. Si estas en una ventana privada, abre el sitio en una normal.',
+                        ? 'Brave trae los avisos apagados: actívalos en brave://settings/privacy («servicios de Google para mensajes push») y reinicia Brave.'
+                        : 'Este navegador no deja recibir avisos. Si estás en modo incógnito, abre la web en una ventana normal.',
                     servidor: e && (e.estado === 419 || e.estado === 401)
-                        ? 'Tu sesion caduco. Recarga la pagina y vuelve a tocar.'
-                        : 'No se pudo guardar en el servidor. Vuelve a tocar en un momento.',
-                    permiso: 'No se pudo pedir el permiso de avisos.',
+                        ? 'Tu sesión caducó. Recarga la página y vuelve a tocar la campana.'
+                        : 'No pudimos guardar tus avisos. Prueba otra vez en un momento.',
+                    permiso: 'No pudimos pedir el permiso de notificaciones. Prueba otra vez.',
                 };
 
-                return fallo(paso, mensajes[paso] || 'No se pudieron activar los avisos.', e, avisar);
+                return fallo(paso, mensajes[paso] || 'No pudimos activar los avisos. Prueba otra vez.', e, avisar);
             }
         })();
 
@@ -573,34 +573,36 @@
             if (respuesta.renovar) { borrar(CONFIRMADA); repintar(); }
             informar('prueba-servidor', 'HTTP ' + (respuesta.estado || respuesta.http) + ' ' + (respuesta.cuerpo || ''));
             toast(respuesta.estado === 401 || respuesta.estado === 403
-                ? 'El servicio de avisos rechaza la firma del servidor. Avisa al admin.'
-                : 'No se pudo mandar el aviso de prueba (' + (respuesta.estado || respuesta.http || 'sin red') + '). Vuelve a tocar en un momento.',
+                ? 'Los avisos no están funcionando por un problema nuestro. Avísanos en Discord.'
+                : 'No pudimos mandarte el aviso de prueba. Prueba otra vez en un momento.',
                 'warning', 8000);
             return { ok: false, tramo: 'servidor' };
         }
 
         if (await acuse) {
             toast(
-                'Recibido. Asi te llegaran los cruces aunque cierres la pagina: basta con que el navegador siga abierto'
-                + (/Windows/.test(navigator.userAgent) ? ' y Windows no este en "No molestar" / asistente de concentracion.' : '.'),
+                enStandalone
+                    ? '¡Listo! Te avisaremos de cada cruce, aunque tengas la app cerrada.'
+                    : '¡Listo! Te avisaremos de cada cruce aunque no estés mirando esta pestaña.'
+                    + (/Windows/.test(navigator.userAgent) ? ' Ojo con el modo «No molestar» de Windows.' : ''),
                 'success', 8000);
             return { ok: true };
         }
 
         informar('prueba-no-llego', 'El servicio de push acepto (' + respuesta.estado + ') pero el dispositivo no confirmo en ' + (ESPERA_PRUEBA_MS / 1000) + 's');
-        toast('El aviso salio del servidor pero no llego a este dispositivo. Revisa que el navegador pueda mostrar notificaciones en los ajustes del sistema.', 'warning', 9000);
+        toast('El aviso de prueba no llegó. Revisa en los ajustes del móvil que las notificaciones estén permitidas.', 'warning', 9000);
 
         return { ok: false, tramo: 'dispositivo' };
     }
 
     function instruccionesDesbloqueo() {
         return esIOS
-            ? 'Los avisos estan bloqueados. Ve a Ajustes → Notificaciones → Regnum Arena y activalos.'
-            : 'Los avisos estan bloqueados para este sitio. Toca el candado junto a la direccion → Notificaciones → Permitir, y recarga.';
+            ? 'Tienes las notificaciones bloqueadas. Actívalas en Ajustes → Notificaciones → Arena Ladder.'
+            : 'Tienes las notificaciones bloqueadas. Toca el candado junto a la dirección → Notificaciones → Permitir.';
     }
 
     function instruccionesIOS() {
-        return 'En iPhone los avisos solo llegan con el sitio en la pantalla de inicio: toca Compartir → "Añadir a pantalla de inicio" y abrelo desde alli.';
+        return 'Para recibir avisos en el iPhone, instala la app: Compartir → «Agregar a Inicio», y ábrela desde el icono.';
     }
 
     /* ── Desactivar ────────────────────────────────────────────────────── */
@@ -627,7 +629,7 @@
         var s = sonidos();
         if (s) { await s.setEnabled(false, { silent: true }); }
 
-        toast('Avisos silenciados. Ya no te avisaremos con la pagina cerrada.', 'info', 3500);
+        toast('Avisos apagados. Toca la campana cuando quieras volver a activarlos.', 'info', 3500);
 
         return { ok: true };
         })();
@@ -667,7 +669,7 @@
         if (estadoActual === 'activo') { return desactivar(); }
 
         if (estadoActual === 'no-soportado') {
-            toast(esIOS ? instruccionesIOS() : 'Este navegador no puede recibir avisos con la pagina cerrada. Prueba con Chrome, Edge o Firefox.', 'info', 9000);
+            toast(esIOS ? instruccionesIOS() : 'Este navegador no puede recibir avisos. Prueba con Chrome, Edge o Firefox.', 'info', 9000);
             informar('no-soportado', null);
             return Promise.resolve({ ok: false, causa: 'no-soportado' });
         }

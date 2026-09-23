@@ -85,7 +85,8 @@
                             :race="$fighter['race']"
                             :gender="$fighter['gender']"
                             :parallax="false"
-                            height="76px"
+                            height="150px"
+                                :tight="true"
                             class="arena-duel-portrait" />
                         <span class="min-w-0">
                             <b @class(['italic' => !$isOwn && !$lineup['names_revealed']])>{{ $fighter['name'] }}{{ $fighter['is_viewer'] ? ' (tú)' : '' }}</b>

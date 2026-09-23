@@ -994,3 +994,18 @@ it('sin la clave de encendido en la config, el push sigue encendido', function (
 
     expect(app(WebPushService::class)->configurado())->toBeTrue();
 });
+
+it('el lobby recuerda el ultimo guerrero elegido', function () {
+    $user = User::create(['discord_id' => 'multi-1', 'discord_username' => 'multi', 'name' => 'Multi', 'email' => 'multi@example.com']);
+    $primero = Player::create(['user_id' => $user->id, 'character_name' => 'Primero', 'subclass' => 'knight', 'realm' => 'ignis', 'pl_points' => 0, 'mmr' => 1000, 'trust_score' => 100, 'is_active' => true]);
+    $segundo = Player::create(['user_id' => $user->id, 'character_name' => 'Segundo', 'subclass' => 'hunter', 'realm' => 'ignis', 'pl_points' => 0, 'mmr' => 1000, 'trust_score' => 100, 'is_active' => true]);
+    $ajeno = jugadorPush('Ajeno');
+
+    // Con la cookie del ultimo elegido, sale ese.
+    $this->actingAs($user)->withUnencryptedCookie('arena_guerrero', (string) $segundo->id)
+        ->get(route('lobby'))->assertOk()->assertViewHas('featured', fn ($p) => $p->id === $segundo->id);
+
+    // Un id que no es suyo se ignora.
+    $this->actingAs($user)->withUnencryptedCookie('arena_guerrero', (string) $ajeno->id)
+        ->get(route('lobby'))->assertOk()->assertViewHas('featured', fn ($p) => $p->id === $primero->id);
+});

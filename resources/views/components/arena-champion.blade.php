@@ -7,6 +7,9 @@
     'id' => null,
     'parallax' => true,
     'defer' => false,
+    // Retratos pequenos: la camara se ciñe al guerrero en vez de dejarle
+    // aire alrededor, para que llene el marco.
+    'tight' => false,
 ])
 @php
     // Un id estable permite que la vista que lo monta se refiera a este visor
@@ -27,6 +30,7 @@
      data-champion-gender="{{ $gender ?: 'male' }}"
      data-champion-parallax="{{ $parallax ? '1' : '0' }}"
      @if($defer) data-champion-defer="1" @endif
+     @if($tight) data-champion-tight="1" @endif
      style="height: {{ $height }}">
 
     <canvas class="arena-champion-canvas" aria-hidden="true"></canvas>
@@ -123,7 +127,8 @@
                     subclass: host.dataset.championSubclass,
                     race: host.dataset.championRace,
                     gender: host.dataset.championGender,
-                    parallax: host.dataset.championParallax !== '0'
+                    parallax: host.dataset.championParallax !== '0',
+                    tight: host.dataset.championTight === '1'
                 });
             };
 

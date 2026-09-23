@@ -33,7 +33,12 @@
         'bolt'    => '<path d="M13 2 4 14h7l-1 8 9-12h-7Z"/>',
         'logout'  => '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
         'login'   => '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/>',
-        'ladder'  => '<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>',
+        // El ladder es una clasificacion: un podio, el mismo en todo el sitio.
+        'ladder'  => '<path d="M8.5 21V9.5h7V21"/><path d="M2.5 21v-6.5h6"/><path d="M15.5 21v-9h6v9"/><path d="M1.5 21h21"/><path d="m12 3 .9 1.8 2 .3-1.45 1.4.35 2-1.8-.95-1.8.95.35-2L9.1 5.1l2-.3Z"/>',
+        // El lobby es donde se entra a pelear: dos espadas cruzadas.
+        'swords'  => '<path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="m13 19 6-6"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/><path d="M14.5 6.5 18 3h3v3l-3.5 3.5"/><path d="m5 14 4 4"/><path d="m7 17-3 3"/><path d="m3 19 2 2"/>',
+        'matches' => '<rect x="5" y="3.5" width="14" height="18" rx="2"/><path d="M9 3.5h6v3H9z"/><path d="M8.5 11h7"/><path d="M8.5 15h5"/>',
+        'star'    => '<path d="m12 2.8 2.8 5.7 6.3.9-4.55 4.45 1.07 6.25L12 17.1l-5.62 2.95 1.07-6.25L2.9 9.4l6.3-.9Z"/>',
         'plus'    => '<path d="M12 5v14"/><path d="M5 12h14"/>',
         'swap'    => '<path d="m17 3 4 4-4 4"/><path d="M3 7h18"/><path d="m7 21-4-4 4-4"/><path d="M21 17H3"/>',
         'book'    => '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5Z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/>',

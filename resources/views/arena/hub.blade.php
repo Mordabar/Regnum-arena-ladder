@@ -313,6 +313,12 @@
             if (window.history && window.history.replaceState) {
                 window.history.replaceState({}, '', slot.getAttribute('href'));
             }
+
+            // Y se recuerda: volver al lobby otro dia enseña el mismo guerrero.
+            try {
+                document.cookie = 'arena_guerrero=' + encodeURIComponent(slot.dataset.playerId)
+                    + ';path=/;max-age=' + (60 * 60 * 24 * 365) + ';samesite=lax';
+            } catch (e) {}
         });
     })();
 </script>

@@ -198,7 +198,7 @@
                     El primer podio aparecera aqui en cuanto termine la temporada en curso.
                     Los tres primeros se quedan para siempre.
                 </p>
-                <a href="{{ route('ladder.index') }}" class="arena-btn mt-6"><x-arena-icon name="trophy" class="h-4 w-4 shrink-0" />Ver quien va ganando</a>
+                <a href="{{ route('ladder.index') }}" class="arena-btn mt-6"><x-arena-icon name="ladder" class="h-4 w-4 shrink-0" />Ver quien va ganando</a>
             </section>
         @endforelse
     </div>

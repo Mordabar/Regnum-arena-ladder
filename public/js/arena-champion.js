@@ -782,6 +782,12 @@ window.ArenaChampion = (function () {
           // se agranda cuando el guerrero es mas alto que la referencia.
           height = Math.max(FRAME_HEIGHT, size.y * 1.24);
           width = Math.max(FRAME_WIDTH * 0.8, size.x * 1.2, size.z * 1.2);
+          // En un retrato estrecho el ancho minimo alejaba la camara y el
+          // guerrero quedaba diminuto: aqui se encuadra solo su silueta.
+          if (options.tight) {
+            height = size.y * 1.08;
+            width = Math.max(size.x, size.z) * 0.9;
+          }
           center = box.min.y + height / 2;
         }
       }

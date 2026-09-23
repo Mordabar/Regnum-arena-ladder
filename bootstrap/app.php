@@ -34,6 +34,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // puerta se defiende sola: pide la direccion vieja de la suscripcion,
         // que solo conoce el navegador que ya estaba dado de alta, y lo unico
         // que deja hacer es mover esa misma fila.
+        // El guerrero elegido en el lobby lo guarda el propio navegador (sin
+        // pasar por el servidor), asi que va sin cifrar. Solo es un id: el
+        // servidor lo busca entre los personajes del usuario y, si no es suyo,
+        // lo ignora.
+        $middleware->encryptCookies(except: ['arena_guerrero']);
         $middleware->validateCsrfTokens(except: [
             'avisos/resuscribir',
             // La baliza de fallos: uno de los fallos que cuenta es justo el
