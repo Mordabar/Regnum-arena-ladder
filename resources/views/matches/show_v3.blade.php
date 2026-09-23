@@ -337,128 +337,98 @@
     @endif
 
     {{-- ── TEAMS ── --}}
-    <div class="mb-6 grid gap-6 lg:grid-cols-2 arena-animate-in arena-stagger-2">
+    {{-- Cada equipo en una fila y los dos equipos a la vista sin scroll: en
+         escritorio lado a lado; en el movil uno encima del otro, salvo el 1v1,
+         que cabe lado a lado tambien. --}}
+    <div class="arena-match-equipos {{ $esDuelo ? 'is-duelo' : '' }} mb-6 arena-animate-in arena-stagger-2">
         {{-- Own team --}}
-        <section class="arena-panel arena-card-{{ $ownRealm }} p-6">
-            <div class="flex items-center justify-between gap-3">
-                <div class="flex items-center gap-2">
-                    <x-arena-realm-icon :realm="$ownRealm" size="md" />
-                    <div>
-                        <p class="arena-kicker">{{ $esDuelo ? 'Tú' : 'Tu equipo' }}</p>
-                        <h2 class="mt-1 text-xl font-semibold text-white">{{ \App\Models\ArenaMatch::REALMS[$ownRealm] ?? strtoupper($ownRealm) }}</h2>
-                    </div>
+        <section class="arena-panel arena-card-{{ $ownRealm }} p-4 sm:p-6">
+            <div class="flex items-center gap-2">
+                <x-arena-realm-icon :realm="$ownRealm" size="md" />
+                <div class="min-w-0">
+                    <p class="arena-kicker">{{ $esDuelo ? 'Tú' : 'Tu equipo' }}</p>
+                    <h2 class="mt-1 text-xl font-semibold text-white">{{ \App\Models\ArenaMatch::REALMS[$ownRealm] ?? strtoupper($ownRealm) }}</h2>
                 </div>
             </div>
-            <div class="mt-4 space-y-3">
+            <div class="arena-duel-team-fila mt-4" data-n="{{ count($ownTeam) }}" style="--n: {{ max(1, count($ownTeam)) }}">
                 @foreach($ownTeam as $player)
                     @php
                         // Use pre-loaded teamQueues — no additional DB query per player
                         $teamQueue = $teamQueues[$player['player_id']] ?? null;
                         $isViewer = $viewerPlayer && (int)$viewerPlayer['player_id'] === (int)$player['player_id'];
+                        $listo = $teamQueue && $teamQueue->status === 'accepted';
+                        $look = $lookOf($player, $ownRealm);
                     @endphp
-                    <article class="arena-card p-4 {{ $isViewer ? 'border-[color:var(--arena-gold)]/30' : '' }}">
-                        <div class="flex items-center justify-between gap-3">
-                            <div class="flex items-center gap-2">
-                                @if($isViewer)
-                                    <span class="flex h-6 w-6 items-center justify-center rounded-full bg-[color:var(--arena-gold)]/20 text-[color:var(--arena-gold)]">
-                                        <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/></svg>
-                                    </span>
+                    <div class="arena-duel-fighter {{ $match->status === 'pending_acceptance' && $listo ? 'is-ready' : '' }} {{ $isViewer ? 'is-tuyo' : '' }}">
+                        <x-arena-champion
+                            :id="'match-own-' . $loop->index"
+                            :realm="$ownRealm"
+                            :subclass="$player['subclass']"
+                            :race="$look['race']"
+                            :gender="$look['gender']"
+                            :parallax="false"
+                            :tight="true"
+                            height="150px"
+                            class="arena-duel-portrait" />
+                        <span class="min-w-0">
+                            <b>{{ $player['character_name'] }}{{ $isViewer ? ' (tú)' : '' }}</b>
+                            <span>
+                                {{ \App\Models\Player::SUBCLASSES[$player['subclass']] ?? ucfirst($player['subclass']) }}
+                                @if(!empty($player['conjurer_role']))
+                                    · {{ ucfirst($player['conjurer_role']) }}
                                 @endif
-                                @php
-                                    $look = $lookOf($player, $ownRealm);
-                                @endphp
-                                <x-arena-champion
-                                    :id="'match-own-' . $loop->index"
-                                    :realm="$ownRealm"
-                                    :subclass="$player['subclass']"
-                                    :race="$look['race']"
-                                    :gender="$look['gender']"
-                                    :parallax="false"
-                                    height="150px"
-                                :tight="true"
-                                    class="arena-duel-portrait" />
-                                <div>
-                                    <h3 class="font-semibold text-white arena-body-text">{{ $player['character_name'] }} {{ $isViewer ? '(tú)' : '' }}</h3>
-                                    <p class="text-xs text-[color:var(--arena-muted)] arena-body-text">
-                                        {{ \App\Models\Player::SUBCLASSES[$player['subclass']] ?? ucfirst($player['subclass']) }}
-                                        @if(!empty($player['conjurer_role']))
-                                            · {{ ucfirst($player['conjurer_role']) }}
-                                        @endif
-                                    </p>
-                                </div>
-                            </div>
-                            @if($match->status === 'pending_acceptance')
-                                <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {{ $teamQueue && $teamQueue->status === 'accepted' ? 'bg-emerald-900/30 text-emerald-300' : 'bg-amber-900/30 text-amber-200' }}">
-                                    @if($teamQueue && $teamQueue->status === 'accepted')
-                                        <svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
-                                        Listo
-                                    @else
-                                        Pendiente
-                                    @endif
-                                </span>
-                            @endif
-                        </div>
-                    </article>
+                            </span>
+                        </span>
+                        @if($match->status === 'pending_acceptance')
+                            <span class="arena-duel-ready">{{ $listo ? 'Listo' : 'Pendiente' }}</span>
+                        @endif
+                    </div>
                 @endforeach
             </div>
         </section>
 
+        <div class="arena-match-vs" aria-hidden="true">VS</div>
+
         {{-- Rival team --}}
-        <section class="arena-panel arena-card-{{ $rivalRealm }} p-6">
-            <div class="flex items-center justify-between gap-3">
-                <div class="flex items-center gap-2">
+        <section class="arena-panel arena-card-{{ $rivalRealm }} p-4 sm:p-6">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex min-w-0 items-center gap-2">
                     <x-arena-realm-icon :realm="$rivalRealm" size="md" />
-                    <div>
+                    <div class="min-w-0">
                         <p class="arena-kicker">Rival</p>
                         <h2 class="mt-1 text-xl font-semibold text-white">{{ \App\Models\ArenaMatch::REALMS[$rivalRealm] ?? strtoupper($rivalRealm) }}</h2>
                     </div>
                 </div>
-                <span class="arena-chip text-xs">{{ $showRivalNames ? 'Revelado' : 'Anónimo' }}</span>
+                <span class="arena-chip text-xs {{ $esDuelo ? 'hidden sm:inline-flex' : '' }}">{{ $showRivalNames ? 'Revelado' : 'Anónimo' }}</span>
             </div>
-            <div class="mt-4 space-y-3">
-                @if($showRivalNames)
-                    @foreach($rivalTeam as $player)
-                        @php
-                            $look = $lookOf($player, $rivalRealm);
-                        @endphp
-                        <article class="arena-card p-4 flex items-center gap-3">
-                            <x-arena-champion
-                                :id="'match-rival-' . $loop->index"
-                                :realm="$rivalRealm"
-                                :subclass="$player['subclass']"
-                                :race="$look['race']"
-                                :gender="$look['gender']"
-                                :parallax="false"
-                                height="150px"
-                                :tight="true"
-                                class="arena-duel-portrait" />
-                            <div class="min-w-0">
-                                <h3 class="font-semibold text-white arena-body-text">{{ $player['character_name'] }}</h3>
-                                <p class="text-xs text-[color:var(--arena-muted)] arena-body-text">{{ \App\Models\Player::SUBCLASSES[$player['subclass']] ?? ucfirst($player['subclass']) }}</p>
-                            </div>
-                        </article>
-                    @endforeach
-                @else
-                    @foreach($rivalTeam as $player)
-                        <article class="arena-card p-4 flex items-center gap-3">
-                            <x-arena-champion
-                                :id="'match-anon-' . $loop->index"
-                                :realm="$rivalRealm"
-                                :subclass="$player['subclass']"
-                                :race="\App\Models\Player::defaultRace($rivalRealm)"
-                                gender="male"
-                                :parallax="false"
-                                height="150px"
-                                :tight="true"
-                                class="arena-duel-portrait" />
-                            <div class="min-w-0 flex-1">
-                                <h3 class="font-semibold text-[color:var(--arena-text)] arena-body-text italic">Guerrero Anónimo</h3>
-                                <p class="text-xs text-[color:var(--arena-gold-soft)] arena-body-text">{{ \App\Models\Player::SUBCLASSES[$player['subclass']] ?? ucfirst($player['subclass']) }}</p>
-                            </div>
-                            <svg class="h-5 w-5 opacity-40 text-[color:var(--arena-muted)]" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clip-rule="evenodd"/><path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z"/></svg>
-                        </article>
-                    @endforeach
-                @endif
+            <div class="arena-duel-team-fila mt-4" data-n="{{ count($rivalTeam) }}" style="--n: {{ max(1, count($rivalTeam)) }}">
+                @foreach($rivalTeam as $player)
+                    @php
+                        $look = $showRivalNames
+                            ? $lookOf($player, $rivalRealm)
+                            : ['race' => \App\Models\Player::defaultRace($rivalRealm), 'gender' => 'male'];
+                    @endphp
+                    <div class="arena-duel-fighter">
+                        <x-arena-champion
+                            :id="($showRivalNames ? 'match-rival-' : 'match-anon-') . $loop->index"
+                            :realm="$rivalRealm"
+                            :subclass="$player['subclass']"
+                            :race="$look['race']"
+                            :gender="$look['gender']"
+                            :parallax="false"
+                            :tight="true"
+                            height="150px"
+                            class="arena-duel-portrait" />
+                        <span class="min-w-0">
+                            @if($showRivalNames)
+                                <b>{{ $player['character_name'] }}</b>
+                            @else
+                                <b class="italic">Guerrero Anónimo</b>
+                            @endif
+                            <span>{{ \App\Models\Player::SUBCLASSES[$player['subclass']] ?? ucfirst($player['subclass']) }}</span>
+                        </span>
+                    </div>
+                @endforeach
             </div>
         </section>
     </div>

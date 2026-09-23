@@ -3307,11 +3307,58 @@
             .arena-chat-log { min-height: 64px; max-height: 112px; }
         }
 
-        .arena-duel-panel .arena-duel-lineups { padding: 18px 22px; }
-        /* Grandes a proposito: con 56 px el guerrero era un punto y no se
-           reconocia ni la clase. */
+        .arena-duel-panel .arena-duel-lineups { padding: 18px 22px; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+        /* Vista del match: los dos equipos con el VS en medio. */
+        .arena-match-equipos { display: grid; gap: 12px; align-items: center; }
+        .arena-match-vs {
+            text-align: center;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            color: var(--arena-gold-soft);
+            text-shadow: 0 0 18px rgba(216, 177, 92, 0.35);
+        }
+        @media (min-width: 1024px) {
+            .arena-match-equipos { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 16px; }
+        }
+        .arena-match-equipos.is-duelo { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; }
+        @media (max-width: 1023px) {
+            .arena-match-equipos:not(.is-duelo) .arena-match-vs { margin: -4px 0; font-size: 18px; }
+            .arena-match-equipos.is-duelo .arena-match-vs { font-size: 16px; }
+        }
+
+        /* Alineaciones: cada equipo en una fila, los combatientes lado a lado.
+           Asi el cruce entero cabe en una pantalla: en escritorio los dos
+           equipos en la misma linea; en el movil un equipo arriba y el otro
+           abajo (y el 1v1, lado a lado). */
+        .arena-duel-team-fila {
+            display: grid;
+            grid-template-columns: repeat(var(--n, 1), minmax(0, 1fr));
+            gap: 8px;
+        }
+        .arena-duel-team-fila .arena-duel-fighter {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 6px;
+            padding: 6px 6px 8px;
+            text-align: center;
+            min-width: 0;
+        }
+        .arena-duel-team-fila .arena-duel-fighter.is-tuyo { border-color: rgba(216, 177, 92, 0.45); }
+        .arena-duel-team-fila .arena-duel-portrait { width: 100%; height: 150px !important; }
+        .arena-duel-team-fila .arena-duel-ready { margin-left: 0; }
+        @media (max-width: 720px) {
+            .arena-duel-team-fila .arena-duel-portrait { height: 104px !important; }
+            .arena-duel-team-fila[data-n="3"] .arena-duel-portrait { height: 90px !important; }
+            .arena-duel-team-fila[data-n="1"] .arena-duel-portrait { height: 140px !important; }
+            .arena-duel-team-fila .arena-duel-fighter { padding: 5px 5px 6px; gap: 4px; }
+            .arena-duel-team-fila .arena-duel-ready { font-size: 9.5px; }
+            .arena-duel-lineups.is-duelo .arena-duel-portrait { height: 150px !important; }
+            .arena-duel-panel .arena-duel-lineups.is-duelo { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; }
+            .arena-duel-lineups:not(.is-duelo) .arena-duel-versus { margin: -4px 0; font-size: 15px; }
+        }
         .arena-duel-portrait {
-            width: 104px;
+            width: 56px;
             flex: none;
             border-radius: 10px;
             border: 1px solid var(--arena-line);

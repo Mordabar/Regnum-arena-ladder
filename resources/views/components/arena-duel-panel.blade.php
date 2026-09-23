@@ -65,13 +65,14 @@
         </div>
     </header>
 
-    <div class="arena-duel-lineups">
+    <div class="arena-duel-lineups {{ $esDuelo ? 'is-duelo' : '' }}">
         @foreach([['own', $lineup['own_realm'], true], ['rival', $lineup['rival_realm'], false]] as [$side, $realm, $isOwn])
             @if(!$isOwn)
                 <div class="arena-duel-versus" aria-hidden="true">VS</div>
             @endif
             <div class="arena-duel-team" style="--team-color: {{ $realmVar($realm) }}">
                 <h3>{{ PlayerModel::REALMS[$realm] ?? $realm }}{{ $isOwn ? ($esDuelo ? ' · tú' : ' · tu equipo') : '' }}</h3>
+                <div class="arena-duel-team-fila" data-n="{{ count($lineup[$side]) }}" style="--n: {{ max(1, count($lineup[$side])) }}">
                 @foreach($lineup[$side] as $fighter)
                     {{-- Cada combatiente con su propio guerrero en 3D. Son
                          escenarios pequenos y sin parallax: lo que importa aqui
@@ -86,7 +87,7 @@
                             :gender="$fighter['gender']"
                             :parallax="false"
                             height="150px"
-                                :tight="true"
+                            :tight="true"
                             class="arena-duel-portrait" />
                         <span class="min-w-0">
                             <b @class(['italic' => !$isOwn && !$lineup['names_revealed']])>{{ $fighter['name'] }}{{ $fighter['is_viewer'] ? ' (tú)' : '' }}</b>
@@ -95,6 +96,7 @@
                         <span class="arena-duel-ready">{{ $fighter['accepted'] ? 'Listo' : 'Esperando' }}</span>
                     </div>
                 @endforeach
+                </div>
             </div>
         @endforeach
     </div>
