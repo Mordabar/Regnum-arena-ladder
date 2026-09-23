@@ -138,13 +138,17 @@
             submitButton.textContent = ready ? ('Entrar a Premade ' + arenaModeLabel) : 'Completa el equipo para entrar a Premade';
         };
 
+        /* El icono de "Quitar" va escrito en una sola linea, no con el
+           componente: el componente pinta el SVG en varias lineas y, dentro de
+           esta cadena entre comillas simples, rompia el script entero y el
+           buscador de compañeros se quedaba bloqueado. */
         const renderSelected = (slot) => {
             const c = document.getElementById('premadeSelected'+slot);
             const p = state.members[slot];
             if (!c) return;
             if (!p) { c.classList.add('hidden'); c.innerHTML = ''; return; }
             c.classList.remove('hidden');
-            c.innerHTML = '<div class="rounded-2xl border border-[color:var(--arena-line-strong)] bg-black/20 px-4 py-3"><div class="flex items-start justify-between gap-3"><div><p class="font-semibold text-white">'+escapeHtml(p.character_name)+'</p><p class="mt-1 text-sm text-[color:var(--arena-muted)]">'+escapeHtml(p.subclass_label)+' - '+escapeHtml(p.realm_label)+'</p><p class="mt-1 text-xs text-[color:var(--arena-muted)]">'+escapeHtml(p.owner_label)+' - '+p.mmr+' MMR - '+Number(p.pl_points).toFixed(1)+' PL</p></div><button type="button" class="arena-btn-ghost px-3 py-2 text-xs" data-premade-clear="'+slot+'"><x-arena-icon name="x" class="h-4 w-4 shrink-0" />Quitar</button></div></div>';
+            c.innerHTML = '<div class="rounded-2xl border border-[color:var(--arena-line-strong)] bg-black/20 px-4 py-3"><div class="flex items-start justify-between gap-3"><div><p class="font-semibold text-white">'+escapeHtml(p.character_name)+'</p><p class="mt-1 text-sm text-[color:var(--arena-muted)]">'+escapeHtml(p.subclass_label)+' - '+escapeHtml(p.realm_label)+'</p><p class="mt-1 text-xs text-[color:var(--arena-muted)]">'+escapeHtml(p.owner_label)+' - '+p.mmr+' MMR - '+Number(p.pl_points).toFixed(1)+' PL</p></div><button type="button" class="arena-btn-ghost px-3 py-2 text-xs" data-premade-clear="'+slot+'"><svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>Quitar</button></div></div>';
         };
 
         const clearResults = (slot) => { const c = document.getElementById('premadeResults'+slot); if (c) { c.classList.add('hidden'); c.innerHTML = ''; } };
