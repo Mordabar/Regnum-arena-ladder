@@ -55,6 +55,8 @@
     // en su sitio. Sin ella (o si la peticion falla) se recarga la pagina, que
     // es lo que se hacia siempre.
     const _refreshUrl = @json($refreshUrl);
+    // Cuanto se espera a que alguien deje de teclear antes de repintar el panel.
+    const _typingGraceMs = 4000;
 
     function initializeStatePolling() {
         let lastHash = null;
@@ -65,6 +67,12 @@
         let timerId = null;
         let isReloading = false;
         let isRefreshing = false;
+        // Ultima tecla pulsada dentro del panel: solo eso cuenta como "esta
+        // escribiendo". Tener el foco en un campo no basta (ver isBusy).
+        let lastTypedAt = 0;
+        document.addEventListener('input', (e) => {
+            if (e.target && e.target.closest && e.target.closest('.arena-console')) { lastTypedAt = Date.now(); }
+        }, true);
 
         function readStoredState() {
             try {
@@ -307,6 +315,44 @@
             }
         };
 
+        // Lo escrito sobrevive al repintado: cada campo de texto o desplegable
+        // se busca en el panel nuevo por su formulario y su nombre y, si sigue
+        // ahi, recupera su valor y el foco. Si el campo ya no existe (el rival
+        // reporto antes y el formulario propio sobra) no hay nada que guardar.
+        const claveCampo = (el) => {
+            if (!el.name) { return null; }
+            const form = el.form ? (el.form.getAttribute('action') || '') : '';
+            return form + '|' + el.name;
+        };
+
+        const recordarCampos = (root) => {
+            const campos = [];
+            const activo = document.activeElement;
+            root.querySelectorAll('textarea, select, input').forEach((el) => {
+                const tipo = (el.type || '').toLowerCase();
+                if (el.tagName === 'INPUT' && ['hidden', 'file', 'checkbox', 'radio', 'submit', 'button'].includes(tipo)) { return; }
+                const clave = claveCampo(el);
+                const cambiado = el.tagName === 'SELECT'
+                    ? Array.from(el.options).some((o) => o.selected !== o.defaultSelected)
+                    : el.value !== el.defaultValue;
+                if (!clave || !cambiado) { return; }
+                campos.push({ clave, valor: el.value, foco: el === activo, inicio: el.selectionStart, fin: el.selectionEnd });
+            });
+            return campos;
+        };
+
+        const restaurarCampos = (root, campos) => {
+            campos.forEach((c) => {
+                const el = Array.from(root.querySelectorAll('textarea, select, input')).find((x) => claveCampo(x) === c.clave);
+                if (!el) { return; }
+                el.value = c.valor;
+                if (c.foco) {
+                    try { el.focus({ preventScroll: true }); } catch (_) { el.focus(); }
+                    try { if (c.inicio !== null && c.inicio !== undefined) { el.setSelectionRange(c.inicio, c.fin); } } catch (_) {}
+                }
+            });
+        };
+
         // El repintado del panel. Antes de tocar el DOM se sueltan los visores
         // 3D que se van: el navegador solo aguanta unos pocos contextos WebGL y
         // dejarlos vivos hacia desaparecer las figuras a los pocos cambios.
@@ -336,7 +382,9 @@
             const fresh = holder.querySelector('.arena-console');
             if (!fresh) { return false; }
 
+            const escrito = recordarCampos(host);
             host.replaceWith(fresh);
+            restaurarCampos(fresh, escrito);
 
             // La cabecera dice en que punto esta el jugador. Sin cambiarla, el
             // panel ensena el lobby y el titulo sigue diciendo "buscando".
@@ -364,23 +412,23 @@
             return true;
         };
 
-        // Cambiar el panel debajo de alguien que esta escribiendo le borraria lo
-        // escrito, y bajo una ventana abierta la haria desaparecer a media
-        // lectura. En esos dos casos se deja para la siguiente vuelta: el hash
-        // ya cambio, asi que el proximo sondeo lo vuelve a intentar.
+        // Bajo una ventana abierta el repintado la haria desaparecer a media
+        // lectura, y debajo de alguien que esta tecleando le moveria el campo
+        // entre dos teclas. En esos casos se deja para la siguiente vuelta: el
+        // hash ya cambio, asi que el proximo sondeo lo vuelve a intentar.
+        //
+        // "Tecleando" es haber escrito hace nada, NO tener el foco en un campo.
+        // Antes bastaba el foco, y el foco se queda en el desplegable del
+        // ganador o en el campo de la captura despues de usarlos: si el rival
+        // reportaba mientras tanto, el panel no se repintaba nunca y no salian
+        // los botones de confirmar o rechazar hasta recargar. Lo escrito no se
+        // pierde: recordarCampos lo lleva al panel nuevo.
         const isBusy = () => {
             if (window.arenaModal && typeof window.arenaModal.isOpen === 'function' && window.arenaModal.isOpen()) {
                 return true;
             }
 
-            const active = document.activeElement;
-            if (!active || !active.closest || !active.closest('.arena-console')) { return false; }
-
-            const tag = active.tagName;
-            if (tag === 'TEXTAREA' || tag === 'SELECT') { return true; }
-            if (tag === 'INPUT') { return active.type !== 'checkbox' && active.type !== 'radio' && active.type !== 'submit'; }
-
-            return false;
+            return Date.now() - lastTypedAt < _typingGraceMs;
         };
 
         // El hash solo se da por visto cuando la pantalla llego a cambiar. Si el
