@@ -303,12 +303,6 @@ class ArenaMatch extends Model
         return in_array($this->status, ['pending_acceptance', 'accepted', 'in_progress'], true);
     }
 
-    public function hasPendingReport(): bool
-    {
-        return $this->report !== null
-            && in_array($this->report->status, ['pending_confirmation', 'rejected', 'disputed'], true);
-    }
-
     public function getArenaModeLabelAttribute(): string
     {
         return \App\Support\ArenaMode::label($this->arena_mode);

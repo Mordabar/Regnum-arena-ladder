@@ -14,4 +14,11 @@ uses(TestCase::class)->in('Feature');
 uses()->beforeEach(function () {
     AppSetting::flushSettingsCache();
     \Illuminate\Support\Facades\Cache::flush();
+
+    // Ningun test escribe en el disco de verdad: las capturas de los reportes
+    // y los respaldos del editor de zonas iban a storage/app y se quedaban
+    // ahi despues de cada pasada. Con los discos falsos todo va a
+    // storage/framework/testing, que se vacia solo en cada test.
+    \Illuminate\Support\Facades\Storage::fake(\App\Models\MatchReport::EVIDENCE_DISK);
+    \Illuminate\Support\Facades\Storage::fake('local');
 })->in('Feature');

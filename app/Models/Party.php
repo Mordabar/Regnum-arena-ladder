@@ -52,11 +52,6 @@ class Party extends Model
         return $this->members()->where('is_accepted_invite', true)->count() === $this->teamSize();
     }
 
-    public function areAllInvitesAccepted()
-    {
-        return $this->members()->where('is_accepted_invite', false)->doesntExist();
-    }
-
     public function scopeForMode($query, ?string $mode)
     {
         return $query->where('arena_mode', ArenaMode::resolve($mode));

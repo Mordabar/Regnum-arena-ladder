@@ -29,7 +29,6 @@
 # Artefactos generados al correr la suite de tests
 /.phpunit.cache
 /.phpunit.result.cache
-/storage/app/arena-reports/match-reports/testing/
 
 # Base de datos local para desarrollo y auditoria de UI
 /database/*.sqlite
@@ -46,3 +45,7 @@
 # Respaldos que deja bin/desplegar.sh antes de migrar. Son datos del sitio y
 # pueden pesar; storage/ no va en git a proposito.
 /storage/app/respaldos/
+
+# Las capturas que suben los jugadores (reportes, rechazos, abandonos). Son
+# datos del sitio: viven en el servidor y nunca van a git.
+/storage/app/arena-reports/

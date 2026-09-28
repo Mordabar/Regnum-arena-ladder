@@ -333,11 +333,6 @@ class Player extends Model
         return $this->hasMany(PartyMember::class);
     }
 
-    public function matchResults()
-    {
-        return $this->hasMany(MatchResult::class);
-    }
-
     public function currentQueue()
     {
         return $this->hasOne(Queue::class)->where('status', 'waiting');
@@ -368,12 +363,6 @@ class Player extends Model
             ->orderByDesc('mmr')
             ->orderByDesc('wins')
             ->orderBy('id');
-    }
-
-    // Métodos útiles
-    public function isInQueue()
-    {
-        return $this->currentQueue()->exists();
     }
 
     public function isQueueLocked(): bool

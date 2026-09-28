@@ -90,27 +90,6 @@ class TestingLabService
         return $createdPlayers;
     }
 
-    public function collectLabMatches(?Collection $playerIds = null, ?int $take = 120): Collection
-    {
-        $playerIds ??= $this->testPlayerIds();
-
-        if ($playerIds->isEmpty()) {
-            return collect();
-        }
-
-        $query = ArenaMatch::query()
-            ->with(['report.reporter', 'results.player'])
-            ->latest('id');
-
-        if ($take !== null) {
-            $query->take($take);
-        }
-
-        return $query->get()
-            ->filter(fn (ArenaMatch $match) => $this->isLabMatch($match, $playerIds))
-            ->values();
-    }
-
     public function collectMatchesInvolvingPlayers(Collection $playerIds, ?int $take = 120): Collection
     {
         if ($playerIds->isEmpty()) {

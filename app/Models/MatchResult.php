@@ -72,21 +72,6 @@ class MatchResult extends Model
         return $this->result === 'win';
     }
 
-    public function isLoss()
-    {
-        return $this->result === 'loss';
-    }
-
-    public function isDraw()
-    {
-        return $this->result === 'draw';
-    }
-
-    public function isNoShow()
-    {
-        return $this->result === 'no_show';
-    }
-
     public static function calculateMMRChange($playerMMR, $opponentAvgMMR, $result)
     {
         $kFactor = 30;

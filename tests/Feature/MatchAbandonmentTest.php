@@ -9,6 +9,16 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
+// Cada test con su disco de capturas falso y la captura de ejemplo ya puesta.
+// Antes tres tests leian del disco real un fichero que escribia OTRO test: en
+// una copia limpia del repositorio, o en otro orden, fallaban, y la suite
+// dejaba capturas de prueba en storage/app/arena-reports.
+beforeEach(function () {
+    Illuminate\Support\Facades\Storage::fake(App\Models\MatchAbandonmentReport::EVIDENCE_DISK);
+    Illuminate\Support\Facades\Storage::disk(App\Models\MatchAbandonmentReport::EVIDENCE_DISK)
+        ->put('match-reports/testing/aban/prueba.png', 'contenido');
+});
+
 /**
  * Abandono: avisar no castiga, confirmar si, y solo a quien se fue.
  *

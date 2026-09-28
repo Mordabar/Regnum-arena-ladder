@@ -39,21 +39,6 @@ class User extends Authenticatable
         return $this->hasMany(Player::class);
     }
 
-    // Personajes activos
-    public function activePlayers()
-    {
-        return $this->players()->where('is_active', true);
-    }
-
-    // Personaje principal (más reciente o con más PL)
-    public function mainPlayer()
-    {
-        return $this->players()
-                    ->where('is_active', true)
-                    ->orderBy('pl_points', 'desc')
-                    ->orderBy('created_at', 'desc');
-    }
-
     public function isAdmin(): bool
     {
         if ($this->is_admin) {

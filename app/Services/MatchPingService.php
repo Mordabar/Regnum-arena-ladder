@@ -215,18 +215,6 @@ class MatchPingService
         return $query->delete();
     }
 
-    /** Borra los avisos de un enfrentamiento concreto. */
-    public function limpiarDe(ArenaMatch|string|int $match): int
-    {
-        if (!$this->disponible()) {
-            return 0;
-        }
-
-        $id = $match instanceof ArenaMatch ? (string) $match->id : (string) $match;
-
-        return MatchPing::query()->where('match_id', $id)->delete();
-    }
-
     private function juegaEnElCruce(ArenaMatch $match, Player $player): bool
     {
         foreach ($match->getAllPlayers() as $fila) {
