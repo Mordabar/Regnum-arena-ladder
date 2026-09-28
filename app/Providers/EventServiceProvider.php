@@ -6,6 +6,7 @@ use App\Models\ArenaMatch;
 use App\Models\Queue;
 use App\Services\ArenaZoneService;
 use App\Services\Discord\ActivityAnnouncer;
+use App\Services\Matchmaking\MatchesSchema;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 use SocialiteProviders\Discord\DiscordExtendSocialite;
 use SocialiteProviders\Manager\SocialiteWasCalled;
@@ -27,6 +28,10 @@ class EventServiceProvider extends ServiceProvider
         // enlace con version del script: con una instancia por sitio esa
         // memoria no sirve de nada y son tres lecturas de la tabla.
         $this->app->singleton(ArenaZoneService::class);
+
+        // Las columnas de la tabla matches se leen una vez por peticion y las
+        // comparten el emparejador y el que elige la zona.
+        $this->app->singleton(MatchesSchema::class);
     }
 
     public function boot(): void

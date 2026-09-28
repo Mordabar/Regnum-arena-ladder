@@ -463,9 +463,9 @@ it('con el MMR empatado, la tabla de niveles intercala los reinos', function () 
         }
     }
 
-    $metodo = new ReflectionMethod(ArenaMatchmakingService::class, 'ordenPorMmr');
+    $metodo = new ReflectionMethod(App\Services\Matchmaking\PairingGenerator::class, 'ordenPorMmr');
     $metodo->setAccessible(true);
-    $orden = $metodo->invoke(app(ArenaMatchmakingService::class), $teams);
+    $orden = $metodo->invoke(app(App\Services\Matchmaking\PairingGenerator::class), $teams);
 
     $reinos = array_map(fn (int $i) => $teams[$i]['realm'], $orden);
 
@@ -484,9 +484,9 @@ it('con el MMR distinto, la tabla sigue ordenada por nivel', function () {
         ['realm' => 'syrtis', 'avg_mmr' => 1000],
     ];
 
-    $metodo = new ReflectionMethod(ArenaMatchmakingService::class, 'ordenPorMmr');
+    $metodo = new ReflectionMethod(App\Services\Matchmaking\PairingGenerator::class, 'ordenPorMmr');
     $metodo->setAccessible(true);
-    $orden = $metodo->invoke(app(ArenaMatchmakingService::class), $teams);
+    $orden = $metodo->invoke(app(App\Services\Matchmaking\PairingGenerator::class), $teams);
 
     expect(array_map(fn (int $i) => $teams[$i]['avg_mmr'], $orden))
         ->toBe([900, 1000, 1100, 1400]);

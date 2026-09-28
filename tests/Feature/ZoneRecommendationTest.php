@@ -1,18 +1,13 @@
 <?php
 
 use App\Models\ArenaMatch;
-use App\Services\ArenaMatchmakingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
 function elegirZona(string $realmA, string $realmB): string
 {
-    $servicio = app(ArenaMatchmakingService::class);
-    $metodo = new ReflectionMethod($servicio, 'pickZone');
-    $metodo->setAccessible(true);
-
-    return $metodo->invoke($servicio, $realmA, $realmB);
+    return app(App\Services\Matchmaking\ZonePicker::class)->pickZone($realmA, $realmB);
 }
 
 function ocuparZona(string $zona, string $realmA, string $realmB): ArenaMatch
