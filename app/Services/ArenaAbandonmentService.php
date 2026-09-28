@@ -15,8 +15,9 @@ use Illuminate\Support\Facades\DB;
 /**
  * Abandonos: avisar de que alguien se fue, y resolverlo.
  *
- * El aviso no sanciona. Deja el enfrentamiento en disputa, sin mover un solo
- * punto, y espera a moderacion. Es a proposito: un boton que castigue con el
+ * El aviso no sanciona. Queda pendiente para moderacion sin mover un solo
+ * punto, y el enfrentamiento sigue en curso para que el otro bando pueda
+ * reportar (ver report()). Es a proposito: un boton que castigue con el
  * clic de un jugador se convierte en un arma el primer dia, y da igual que
  * pidamos captura, porque nadie la mira antes de aplicar nada.
  *

@@ -632,7 +632,10 @@
                     });
                 });
 
-                if (navigator.vibrate && pattern.vibrate) {
+                // Sin un toque previo del jugador el navegador bloquea la
+                // vibracion y lo apunta como error en la consola.
+                var tocada = !navigator.userActivation || navigator.userActivation.hasBeenActive;
+                if (navigator.vibrate && pattern.vibrate && tocada) {
                     navigator.vibrate(pattern.vibrate);
                 }
 
