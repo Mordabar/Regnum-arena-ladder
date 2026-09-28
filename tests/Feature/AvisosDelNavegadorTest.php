@@ -479,7 +479,7 @@ it('un toque nunca apaga lo que la persona ve apagado', function () {
 
     expect($js)->toContain("if (estadoActual === 'activo') { return desactivar(); }");
 
-    $layout = File::get(resource_path('views/layouts/arena.blade.php'));
+    $layout = plantillaDelSitio();
 
     expect($layout)->toContain('window.ArenaAvisos.alternar();')
         // Y un solo pintor: el de sonido cede cuando el controlador existe.
@@ -549,7 +549,7 @@ it('el flotante delega en el push, y sin el es el boton del sonido', function ()
 });
 
 it('en el escritorio no hay push ni notificaciones del navegador', function () {
-    $layout = File::get(resource_path('views/layouts/arena.blade.php'));
+    $layout = plantillaDelSitio();
 
     // El push solo se marca en pantallas tactiles, y sin esa marca ni se
     // pide permiso ni sale tarjeta del sistema: sonido y aviso interno.
@@ -564,7 +564,7 @@ it('en movil el interruptor sale del menu y queda flotante', function () {
     expect($js)->toContain('.arena-mobile-menu [data-arena-alert-toggle] { display: none; }')
         ->and($js)->toContain('@media (min-width: 1024px)');
 
-    $layout = File::get(resource_path('views/layouts/arena.blade.php'));
+    $layout = plantillaDelSitio();
     $push = strpos($layout, "@include('partials.arena-push-runtime')");
     $boton = strpos($layout, "@include('partials.arena-avisos-boton')");
 
@@ -860,7 +860,7 @@ it('el service worker no se cachea en el servidor', function () {
 });
 
 it('los interruptores nacen neutros, ni verdes ni rojos', function () {
-    $layout = File::get(resource_path('views/layouts/arena.blade.php'));
+    $layout = plantillaDelSitio();
 
     expect($layout)->not->toContain('bg-emerald-400" data-arena-alert-indicator')
         ->and($layout)->toContain('bg-amber-300" data-arena-alert-indicator');
@@ -885,7 +885,7 @@ it('la cancelacion de un cruce no tapa al cruce nuevo del mismo segundo', functi
 });
 
 it('el lider se entera por push de que su equipo esta listo', function () {
-    $layout = File::get(resource_path('views/layouts/arena.blade.php'));
+    $layout = plantillaDelSitio();
     $hub = File::get(app_path('Http/Controllers/PartyController.php'));
 
     // Y la pagina no calla nada: si el push esta roto sin saberlo, el aviso
@@ -979,7 +979,7 @@ it('en el duelo el rival se dibuja con su raza y su sexo reales desde el cruce',
 it('la limpieza del push solo corre en un escritorio de verdad, nunca en una app instalada', function () {
     // Antes bastaba con que faltara la marca del push -por ejemplo con el
     // servidor mal configurado- para borrar la suscripcion de un iPhone.
-    $layout = File::get(resource_path('views/layouts/arena.blade.php'));
+    $layout = plantillaDelSitio();
 
     expect($layout)->toContain("if (!document.documentElement.hasAttribute('data-arena-escritorio')) { return; }")
         ->and($layout)->toContain("if (window.navigator.standalone === true) { return; }")

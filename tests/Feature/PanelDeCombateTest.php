@@ -14,7 +14,7 @@ use Illuminate\Support\Str;
  */
 function hojaDelLayout(): string
 {
-    return File::get(resource_path('views/layouts/arena.blade.php'));
+    return plantillaDelSitio();
 }
 
 function plantillaDelCombate(): string

@@ -44,3 +44,15 @@ function sesionDeAdmin(): array
         'arena_admin.display_name' => 'admin',
     ];
 }
+
+/**
+ * El layout del sitio con lo que se saco de el: los estilos (css/arena.css) y
+ * los scripts globales (partials/arena-scripts). Los tests que buscan una
+ * regla o un trozo de script no tienen que saber en cual de los tres vive.
+ */
+function plantillaDelSitio(): string
+{
+    return file_get_contents(resource_path('views/layouts/arena.blade.php'))
+        . "\n" . file_get_contents(resource_path('views/partials/arena-scripts.blade.php'))
+        . "\n" . file_get_contents(public_path('css/arena.css'));
+}

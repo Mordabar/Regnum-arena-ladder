@@ -86,14 +86,17 @@ it('enlaza la hoja despues del bloque de estilos del layout', function () {
     // "arena-nav-link block w-full" solo tienen sentido si gana la utilidad.
     // Enlazar la hoja antes del <style> cambia el relleno de campos y botones
     // y rompe el menu movil.
+    // Los estilos propios viven ahora en css/arena.css, enlazado en el sitio
+    // que ocupaba el <style>: tiene que seguir yendo antes que site.css.
     $layout = file_get_contents(resource_path('views/layouts/arena.blade.php'));
 
-    $styleEnd = strpos($layout, '</style>');
+    $propios = strpos($layout, "asset('css/arena.css')");
     $link = strpos($layout, "asset('css/site.css')");
 
-    expect($styleEnd)->not->toBeFalse();
+    expect($propios)->not->toBeFalse();
     expect($link)->not->toBeFalse();
-    expect($link)->toBeGreaterThan($styleEnd);
+    expect($link)->toBeGreaterThan($propios)
+        ->and($layout)->not->toContain('<style>');
 });
 
 it('los estaticos se sirven comprimidos y cacheados', function () {
@@ -111,7 +114,7 @@ it('las hojas y los scripts llevan version en la URL', function () {
     // El cacheo de un ano solo es seguro si al cambiar el archivo cambia la
     // URL. Si algun dia se quita el ?v=, el jugador se queda con la version
     // vieja hasta que vacie la cache.
-    $layout = file_get_contents(resource_path('views/layouts/arena.blade.php'));
+    $layout = plantillaDelSitio();
 
     $champion = file_get_contents(resource_path('views/components/arena-champion.blade.php'));
 

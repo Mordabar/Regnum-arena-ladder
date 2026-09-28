@@ -19,11 +19,13 @@ uses(RefreshDatabase::class);
 
 function capturaDePrueba(int $ancho, int $alto, string $formato = 'png'): UploadedFile
 {
-    $img = imagecreatetruecolor($ancho, $alto);
-    // Ruido para que el fichero pese de verdad y no se comprima a nada.
-    for ($i = 0; $i < 150; $i++) {
-        imagefilledrectangle($img, random_int(0, $ancho), random_int(0, $alto), random_int(0, $ancho), random_int(0, $alto), random_int(0, 0xFFFFFF));
-    }
+    // Una captura real del juego reescalada: determinista y con el contenido
+    // de verdad (texto, barras, escenario). Con ruido aleatorio a veces el PNG
+    // comprimia mejor que el WebP y el test fallaba por azar.
+    $real = imagecreatefromwebp(public_path('images/guia/13-combate.webp'));
+    $img = imagescale($real, $ancho, $alto);
+    imagedestroy($real);
+
     $ruta = tempnam(sys_get_temp_dir(), 'cap');
     $formato === 'jpg' ? imagejpeg($img, $ruta, 95) : imagepng($img, $ruta);
     imagedestroy($img);
