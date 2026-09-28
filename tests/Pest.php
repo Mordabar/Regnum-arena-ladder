@@ -22,3 +22,25 @@ uses()->beforeEach(function () {
     \Illuminate\Support\Facades\Storage::fake(\App\Models\MatchReport::EVIDENCE_DISK);
     \Illuminate\Support\Facades\Storage::fake('local');
 })->in('Feature');
+
+/**
+ * Una sesion de admin con una cuenta de verdad detras.
+ *
+ * La sesion del panel se revalida en cada peticion contra la tabla de cuentas:
+ * una sesion que dice "soy admin" sin una cuenta activa que la respalde ya no
+ * vale. Los tests usaban un account_id inventado.
+ */
+function sesionDeAdmin(): array
+{
+    $cuenta = \App\Models\AdminAccount::query()->updateOrCreate(
+        ['username' => 'admin'],
+        ['password_hash' => password_hash('clave-de-tests', PASSWORD_BCRYPT), 'display_name' => 'admin', 'is_active' => true]
+    );
+
+    return [
+        'arena_admin.authenticated' => true,
+        'arena_admin.account_id' => $cuenta->id,
+        'arena_admin.username' => $cuenta->username,
+        'arena_admin.display_name' => 'admin',
+    ];
+}

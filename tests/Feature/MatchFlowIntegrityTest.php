@@ -265,12 +265,7 @@ it('exige un ganador explicito al cerrar a mano un match sin reporte', function 
     $match = flowMatch('sin-ganador');
     $match->update(['status' => 'disputed']);
 
-    $this->withSession([
-        'arena_admin.authenticated' => true,
-        'arena_admin.account_id' => 1,
-        'arena_admin.username' => 'admin',
-        'arena_admin.display_name' => 'admin',
-    ])->post(route('admin.matches.resolve', $match), ['action' => 'force_complete'])
+    $this->withSession(sesionDeAdmin())->post(route('admin.matches.resolve', $match), ['action' => 'force_complete'])
         ->assertSessionHasErrors();
 
     expect($match->fresh()->results()->count())->toBe(0);

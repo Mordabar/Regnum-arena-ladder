@@ -11,12 +11,7 @@ uses(RefreshDatabase::class);
 
 function labSession(): array
 {
-    return [
-        'arena_admin.authenticated' => true,
-        'arena_admin.account_id' => 1,
-        'arena_admin.username' => 'admin',
-        'arena_admin.display_name' => 'admin',
-    ];
+    return sesionDeAdmin();
 }
 
 /** Un bot del laboratorio: se reconoce por el prefijo de discord_id. */

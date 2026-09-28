@@ -245,12 +245,7 @@ it('el laboratorio se puede vaciar y regenerar desde el panel', function () {
         'player_count' => 2,
     ]);
 
-    $sesion = [
-        'arena_admin.authenticated' => true,
-        'arena_admin.account_id' => 1,
-        'arena_admin.username' => 'admin',
-        'arena_admin.display_name' => 'admin',
-    ];
+    $sesion = sesionDeAdmin();
 
     $this->withSession($sesion)
         ->post(route('admin.testing.destroy'))
@@ -320,12 +315,7 @@ it('un bot puede reportar para que la persona ensaye la confirmacion', function 
         'started_at' => now(), 'expires_at' => now()->addMinutes(30),
     ]);
 
-    $admin = [
-        'arena_admin.authenticated' => true,
-        'arena_admin.account_id' => 1,
-        'arena_admin.username' => 'admin',
-        'arena_admin.display_name' => 'admin',
-    ];
+    $admin = sesionDeAdmin();
 
     // Cerrar de golpe: se niega, porque hay una persona dentro.
     $this->withSession($admin)
@@ -386,10 +376,7 @@ it('un bot puede contestar al reporte que subio la persona', function () {
     app(\App\Services\ArenaMatchResultService::class)
         ->submitSyntheticReport($match, $human, 'team_a', 'reporte de la persona');
 
-    $admin = [
-        'arena_admin.authenticated' => true, 'arena_admin.account_id' => 1,
-        'arena_admin.username' => 'admin', 'arena_admin.display_name' => 'admin',
-    ];
+    $admin = sesionDeAdmin();
 
     $this->withSession($admin)
         ->post(route('admin.testing.bot-confirm', $match), ['decision' => 'confirm'])
@@ -501,12 +488,7 @@ it('un bot puede mandar un aviso del chat de combate', function () {
         'started_at' => now(), 'expires_at' => now()->addMinutes(30),
     ]);
 
-    $admin = [
-        'arena_admin.authenticated' => true,
-        'arena_admin.account_id' => 1,
-        'arena_admin.username' => 'admin',
-        'arena_admin.display_name' => 'admin',
-    ];
+    $admin = sesionDeAdmin();
 
     $this->withSession($admin)
         ->post(route('admin.testing.bot-ping', $match), ['code' => 'voy'])

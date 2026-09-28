@@ -90,11 +90,7 @@ it('resolves sandbox matches using the rival side when a report already exists',
         ],
     ]);
 
-    $this->withSession([
-            'arena_admin.authenticated' => true,
-            'arena_admin.username' => 'admin',
-            'arena_admin.display_name' => 'admin',
-        ])
+    $this->withSession(sesionDeAdmin())
         ->actingAs($admin)
         ->post(route('admin.testing.resolve', $match), [
             'winner_team' => 'team_b',

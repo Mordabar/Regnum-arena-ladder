@@ -277,12 +277,7 @@ it('el boton de cerrar exige escribir la palabra', function () {
         'enabled_modes' => ['2v2'], 'starts_at' => now()->subMonth(),
     ]);
 
-    $sesion = [
-        'arena_admin.authenticated' => true,
-        'arena_admin.account_id' => 1,
-        'arena_admin.username' => 'admin',
-        'arena_admin.display_name' => 'admin',
-    ];
+    $sesion = sesionDeAdmin();
 
     $this->withSession($sesion)
         ->post(route('admin.season.close'), ['confirmacion' => 'vale'])

@@ -209,14 +209,12 @@
 
             pendiente = traer('link', {
                 rel: 'stylesheet',
-                href: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+                href: @json(asset('vendor/leaflet/leaflet.css')),
                 integrity: 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=',
-                crossorigin: '',
             }).then(function () {
                 return traer('script', {
-                    src: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+                    src: @json(asset('vendor/leaflet/leaflet.js')),
                     integrity: 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=',
-                    crossorigin: '',
                 });
             }).then(function () {
                 // Con el sello de la configuracion en la URL: mientras nadie

@@ -192,12 +192,7 @@ it('el boton de procesar a mano del panel no espera a nadie', function () {
 it('los bots encolados se quedan en cola para poder mirar como reparte', function () {
     AppSetting::setValue('matchmaking_hold_seconds', 30, 'runtime', 'integer', false);
 
-    $sesion = [
-        'arena_admin.authenticated' => true,
-        'arena_admin.account_id' => 1,
-        'arena_admin.username' => 'admin',
-        'arena_admin.display_name' => 'admin',
-    ];
+    $sesion = sesionDeAdmin();
 
     app(TestingLabService::class)->seedRoster(['ignis' => 3, 'alsius' => 3]);
 
@@ -291,12 +286,7 @@ it('con el descanso en cero no hay recargo por repetir', function () {
 });
 
 it('el check de borrar los bots que ya existan se respeta en los dos sentidos', function () {
-    $sesion = [
-        'arena_admin.authenticated' => true,
-        'arena_admin.account_id' => 1,
-        'arena_admin.username' => 'admin',
-        'arena_admin.display_name' => 'admin',
-    ];
+    $sesion = sesionDeAdmin();
 
     $lab = app(TestingLabService::class);
     $lab->seedRoster(['ignis' => 2]);

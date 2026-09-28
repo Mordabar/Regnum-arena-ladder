@@ -65,12 +65,7 @@ function queueModePlayer(Player $player, string $mode): Queue
 
 function adminSession(): array
 {
-    return [
-        'arena_admin.authenticated' => true,
-        'arena_admin.account_id' => 1,
-        'arena_admin.username' => 'admin',
-        'arena_admin.display_name' => 'admin',
-    ];
+    return sesionDeAdmin();
 }
 
 it('arma un match de 3v3 con seis jugadores sin mezclar las colas de 2v2', function () {

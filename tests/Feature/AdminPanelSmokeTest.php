@@ -18,12 +18,7 @@ uses(RefreshDatabase::class);
 
 function adminPanelSession(): array
 {
-    return [
-        'arena_admin.authenticated' => true,
-        'arena_admin.account_id' => 1,
-        'arena_admin.username' => 'admin',
-        'arena_admin.display_name' => 'admin',
-    ];
+    return sesionDeAdmin();
 }
 
 function adminPanelPlayer(string $suffix, string $realm = 'ignis'): Player

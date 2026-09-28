@@ -102,12 +102,7 @@ it('anota la ultima visita al navegar y no reescribe en cada peticion', function
 
 function dormancyAdminSession(): array
 {
-    return [
-        'arena_admin.authenticated' => true,
-        'arena_admin.account_id' => 1,
-        'arena_admin.username' => 'admin',
-        'arena_admin.display_name' => 'admin',
-    ];
+    return sesionDeAdmin();
 }
 
 /** El formulario de reglas manda todos los campos de golpe: si falta uno, falla la validacion. */

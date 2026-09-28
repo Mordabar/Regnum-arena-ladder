@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\RevalidateArenaAdminSession;
 use App\Models\AdminAccount;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -84,12 +85,7 @@ class AdminAuthController extends Controller
 
     public function logout(Request $request)
     {
-        $request->session()->forget([
-            'arena_admin.authenticated',
-            'arena_admin.account_id',
-            'arena_admin.username',
-            'arena_admin.display_name',
-        ]);
+        $request->session()->forget(RevalidateArenaAdminSession::SESSION_KEYS);
         $request->session()->regenerateToken();
 
         return redirect()->route('admin.login')

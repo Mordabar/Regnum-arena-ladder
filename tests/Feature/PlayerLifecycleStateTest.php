@@ -35,12 +35,7 @@ function lifecyclePlayer(User $user, string $name, int $matches = 0): Player
 
 function lifecycleAdminSession(): array
 {
-    return [
-        'arena_admin.authenticated' => true,
-        'arena_admin.account_id' => 1,
-        'arena_admin.username' => 'admin',
-        'arena_admin.display_name' => 'admin',
-    ];
+    return sesionDeAdmin();
 }
 
 it('borrar un personaje con partidas lo marca eliminado y conserva sus datos', function () {

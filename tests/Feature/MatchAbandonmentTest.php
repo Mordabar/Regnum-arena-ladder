@@ -442,12 +442,7 @@ it('no borra un cruce que ya tenia reporte', function () {
 
 function sesionAdminAbandono(): array
 {
-    return [
-        'arena_admin.authenticated' => true,
-        'arena_admin.account_id' => 1,
-        'arena_admin.username' => 'admin',
-        'arena_admin.display_name' => 'admin',
-    ];
+    return sesionDeAdmin();
 }
 
 it('el panel enseña los avisos y deja confirmarlos', function () {

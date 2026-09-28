@@ -663,12 +663,7 @@ it('con muchos duelistas en cola no queda nadie sin pareja', function () {
 /** La sesion del panel, como en el resto de tests del admin. */
 function sesionPanelDuelo(): array
 {
-    return [
-        'arena_admin.authenticated' => true,
-        'arena_admin.account_id' => 1,
-        'arena_admin.username' => 'admin',
-        'arena_admin.display_name' => 'admin',
-    ];
+    return sesionDeAdmin();
 }
 
 it('el laboratorio corre un duelo entero con bots, de la cola al resultado', function () {

@@ -29,7 +29,13 @@ return Application::configure(basePath: dirname(__DIR__))
         // interesa medir es "entro al ladder", no "hizo tal accion".
         $middleware->web(append: [
             \App\Http\Middleware\TrackUserActivity::class,
+            // La sesion del panel se revalida contra su cuenta en cada
+            // peticion: desactivar una cuenta cierra sus sesiones abiertas.
+            \App\Http\Middleware\RevalidateArenaAdminSession::class,
         ]);
+        // Cabeceras de seguridad (CSP, nosniff, HSTS...) en todas las
+        // respuestas, tambien en las de error.
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
         // El service worker no tiene documento del que sacar un token, y esta
         // puerta se defiende sola: pide la direccion vieja de la suscripcion,
         // que solo conoce el navegador que ya estaba dado de alta, y lo unico
