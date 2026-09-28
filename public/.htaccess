@@ -78,3 +78,14 @@
     AddType model/gltf-binary .glb
     AddType model/gltf+json .gltf
 </IfModule>
+
+# Capturas antiguas en el disco public (servidas directamente desde
+# /storage/... si existe storage:link): las mismas protecciones que las que
+# sirve la aplicacion, para que un fichero subido no pueda ejecutar nada.
+<IfModule mod_setenvif.c>
+    SetEnvIf Request_URI "^/storage/match-reports/" ARENA_CAPTURA
+</IfModule>
+<IfModule mod_headers.c>
+    Header set Content-Security-Policy "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox" env=ARENA_CAPTURA
+    Header set X-Content-Type-Options "nosniff" env=ARENA_CAPTURA
+</IfModule>
