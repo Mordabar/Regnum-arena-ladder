@@ -7,9 +7,9 @@ navegador.
 
 | Anuncio | Cuándo sale | Límite |
 |---|---|---|
-| ⚔️ *Duelo 1v1: hay alguien esperando rival* | Alguien entra en una cola que estaba vacía (dice su reino) | 1 cada 15 min por modalidad |
-| 🔥 *Arranca un 2v2* | Un combate empieza (reinos y zona) | 1 cada 10 min en total |
-| 📊 *Ahora mismo en la arena* | El cron, si hay gente en cola o combates en marcha | 1 cada 60 min |
+| ⚔️ *Duelo 1v1: hay alguien esperando rival* | Alguien (o un grupo) entra en una cola que estaba vacía; dice su reino | 1 cada 15 min por modalidad |
+| 🔥 *Arranca un 2v2* | Un combate empieza (solo los reinos: la zona no, para no invitar a terceros a meterse) | 1 cada 10 min en total |
+| 📊 *Ahora mismo en la arena* | El mantenimiento periódico, si hay gente en cola o combates en marcha | 1 cada 60 min |
 
 Los bots del laboratorio de pruebas no cuentan ni disparan anuncios.
 

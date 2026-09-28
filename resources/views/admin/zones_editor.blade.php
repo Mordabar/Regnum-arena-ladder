@@ -12,7 +12,7 @@
 @endsection
 
 @push('styles')
-<link rel="stylesheet" href="{{ asset('vendor/leaflet/leaflet.css') }}" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="/>
+<link rel="stylesheet" href="{{ asset('vendor/leaflet/leaflet.css') }}"/>
 <style>
     /* Popups */
     .leaflet-popup-content-wrapper { background-color: var(--arena-panel); border: 1px solid rgba(216, 177, 92, 0.3); color: #fff; border-radius: 8px; }
@@ -147,7 +147,7 @@
 @endsection
 
 @push('scripts')
-<script src="{{ asset('vendor/leaflet/leaflet.js') }}" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="></script>
+<script src="{{ asset('vendor/leaflet/leaflet.js') }}"></script>
 {{-- Las zonas llegan del servidor, no de un fichero cacheable: el editor tiene
      que estar viendo exactamente lo mismo que esta publicado. --}}
 <script>window.ARENA_ZONES_CONFIG = @json($zonas);</script>

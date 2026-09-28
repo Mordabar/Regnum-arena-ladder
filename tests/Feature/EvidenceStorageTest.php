@@ -191,3 +191,47 @@ it('las capturas se sirven sin poder ejecutar nada', function () {
         ->assertHeader('X-Content-Type-Options', 'nosniff')
         ->assertHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox");
 });
+
+it('un gif animado enorme no bloquea la subida', function () {
+    // El arbitro lo encontro: con los fotogramas decodificados, un GIF de
+    // 300 KB con 40 fotogramas de 4000x2500 tardaba 40 s y la peticion moria.
+    // Aqui, 40 de 1600x1000: antes unos 6 s, ahora una fraccion de segundo.
+    Storage::fake(MatchReport::EVIDENCE_DISK);
+    $m = new Intervention\Image\ImageManager(new Intervention\Image\Drivers\Gd\Driver());
+    $anim = $m->animate(function ($a) use ($m) {
+        for ($i = 0; $i < 40; $i++) {
+            $a->add($m->create(1600, 1000)->fill(sprintf('#%06x', $i * 4000)), 0.1);
+        }
+    });
+    $ruta = tempnam(sys_get_temp_dir(), 'gif');
+    file_put_contents($ruta, (string) $anim->toGif());
+
+    $inicio = microtime(true);
+    $guardada = app(EvidenceStorage::class)->store(cruceParaCapturas(), new UploadedFile($ruta, 'a.gif', 'image/gif', null, true), 'evidence-1');
+
+    expect(microtime(true) - $inicio)->toBeLessThan(2)
+        ->and($guardada)->toEndWith('.webp');
+});
+
+it('el servidor rechaza un svg en el reporte, el rechazo y el abandono', function () {
+    $reporte = reporteConCapturasViejas();
+    $user = User::where('discord_id', 'cap-1')->first();
+    $svg = UploadedFile::fake()->createWithContent('captura.svg', '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+
+    $this->actingAs($user)->post(route('matches.report'), [
+        'match_id' => $reporte->match_id, 'player_id' => $reporte->reported_by_player_id,
+        'claimed_winner_team' => 'team_a', 'evidence_files' => [$svg],
+    ])->assertSessionHasErrors('evidence_files.0');
+
+    $this->actingAs($user)->post(route('matches.report.reject'), [
+        'report_id' => $reporte->id, 'player_id' => $reporte->reported_by_player_id,
+        'rejection_note' => 'No fue asi de ninguna manera', 'rejection_files' => [$svg],
+    ])->assertSessionHasErrors('rejection_files.0');
+
+    $this->actingAs($user)->post(route('matches.abandonment.report'), [
+        'match_id' => $reporte->match_id, 'player_id' => $reporte->reported_by_player_id,
+        'accused_player_id' => $reporte->reported_by_player_id, 'note' => 'Se fue al principio', 'files' => [$svg],
+    ])->assertSessionHasErrors('files.0');
+
+    expect(Storage::disk(MatchReport::EVIDENCE_DISK)->allFiles('match-reports/2026/09'))->toBe([]);
+});

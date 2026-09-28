@@ -767,7 +767,11 @@ class AdminController extends Controller
         AppSetting::setValue('discord_invite_url', $validated['discord_invite_url'] ?? '', 'branding', 'string', true);
         AppSetting::setValue('discord_server_label', $validated['discord_server_label'] ?? '', 'branding', 'string', true);
         AppSetting::setValue('season_prizes_enabled', $request->boolean('season_prizes_enabled') ? '1' : '0', 'branding', 'boolean', true);
-        AppSetting::setValue(\App\Services\Discord\ActivityAnnouncer::SETTING_ENABLED, $request->boolean('discord_announcements_enabled') ? '1' : '0', 'runtime', 'boolean', false);
+        // Solo si el formulario lo trae: una pestaña de ajustes abierta desde
+        // antes de existir el interruptor no puede apagar los anuncios.
+        if ($request->has('discord_announcements_enabled')) {
+            AppSetting::setValue(\App\Services\Discord\ActivityAnnouncer::SETTING_ENABLED, $request->boolean('discord_announcements_enabled') ? '1' : '0', 'runtime', 'boolean', false);
+        }
 
         foreach ([1, 2, 3] as $puesto) {
             if (($validated['season_prize_' . $puesto] ?? null) !== null) {

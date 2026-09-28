@@ -20,6 +20,11 @@
         <env name="DB_CONNECTION" value="sqlite"/>
         <env name="DB_DATABASE" value=":memory:"/>
         <env name="LOG_CHANNEL" value="null"/>
+        <!-- Nunca Discord ni push de verdad desde los tests, aunque el .env local los tenga. -->
+        <env name="DISCORD_BOT_TOKEN" value=""/>
+        <env name="DISCORD_ANNOUNCEMENTS_CHANNEL_ID" value=""/>
+        <env name="VAPID_PUBLIC_KEY" value=""/>
+        <env name="VAPID_PRIVATE_KEY" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

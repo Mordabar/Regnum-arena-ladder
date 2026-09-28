@@ -85,9 +85,13 @@ class ActivityAnnouncer
         }
 
         $mode = ArenaMode::resolve($queue->arena_mode);
-        $waiting = $this->waitingByRealm($mode);
 
-        if (array_sum($waiting) !== 1) {
+        // Se anuncia cuando no habia nadie mas esperando: la entrada que abre
+        // la cola. Un grupo entra con varias filas a la vez (una por
+        // miembro, mismo team_id), asi que se descuenta el grupo entero y no
+        // solo esta fila; si no, una party nunca se anunciaba. Cada fila del
+        // grupo llega aqui, y el limite de frecuencia deja pasar solo una.
+        if ($this->waitingOutsideGroup($queue, $mode) > 0) {
             return;
         }
 
@@ -95,14 +99,31 @@ class ActivityAnnouncer
             return;
         }
 
-        $realm = (string) array_key_first(array_filter($waiting));
+        $realm = (string) Player::query()->whereKey($queue->player_id)->value('realm');
         $realmName = Player::REALMS[$realm] ?? ucfirst($realm);
         $others = collect(Player::REALMS)->except($realm)->values()->implode(' y ');
+        $quien = $queue->team_id ? 'Un grupo' : 'Un guerrero';
 
         $this->post(
             '⚔️ ' . ArenaMode::displayName($mode) . ': hay alguien esperando rival',
-            "Un guerrero de **{$realmName}** acaba de entrar en cola. {$others}: es vuestro momento.",
+            "{$quien} de **{$realmName}** acaba de entrar en cola. {$others}: es vuestro momento.",
         );
+    }
+
+    /** Cuantos esperan en la modalidad sin contar el grupo de esta fila. */
+    private function waitingOutsideGroup(Queue $queue, string $mode): int
+    {
+        return Queue::query()
+            ->where('status', 'waiting')
+            ->where('arena_mode', $mode)
+            ->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+            ->whereNotIn('player_id', $this->lab->testPlayersQuery()->select('players.id'))
+            ->when(
+                $queue->team_id,
+                fn ($q) => $q->where(fn ($w) => $w->whereNull('team_id')->orWhere('team_id', '!=', $queue->team_id)),
+                fn ($q) => $q->whereKeyNot($queue->getKey())
+            )
+            ->count();
     }
 
     /** Un combate arranca (todos aceptaron). */
@@ -128,9 +149,12 @@ class ActivityAnnouncer
         $a = ArenaMatch::REALMS[$match->team_a_realm] ?? ucfirst((string) $match->team_a_realm);
         $b = ArenaMatch::REALMS[$match->team_b_realm] ?? ucfirst((string) $match->team_b_realm);
 
+        // Sin la zona a proposito: es un mundo abierto, y anunciar en un canal
+        // publico donde se esta peleando ahora mismo invitaria a terceros a
+        // meterse en el combate.
         $this->post(
             '🔥 Arranca un ' . ArenaMode::label($match->arena_mode),
-            "**{$a}** contra **{$b}** en {$match->zone_name}. La arena está viva: entra y busca el tuyo.",
+            "**{$a}** contra **{$b}**. La arena está viva: entra y busca el tuyo.",
         );
     }
 

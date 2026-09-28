@@ -7,6 +7,7 @@ use App\Models\MatchReport;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -121,8 +122,15 @@ class EvidenceMaintenance
     {
         $paths = collect();
 
+        // rejection_evidence_paths llego con una migracion posterior: si falta,
+        // el comando no puede caerse por ello.
+        $columnas = ['id', 'encounter_screenshot_path', 'final_screenshot_path', 'evidence_paths'];
+        if (Schema::hasColumn('match_reports', 'rejection_evidence_paths')) {
+            $columnas[] = 'rejection_evidence_paths';
+        }
+
         MatchReport::query()
-            ->select(['id', 'encounter_screenshot_path', 'final_screenshot_path', 'evidence_paths', 'rejection_evidence_paths'])
+            ->select($columnas)
             ->chunkById(500, function ($reports) use ($paths) {
                 foreach ($reports as $report) {
                     $paths->push($report->encounter_screenshot_path, $report->final_screenshot_path);

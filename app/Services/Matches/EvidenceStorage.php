@@ -52,6 +52,12 @@ class EvidenceStorage
 
     public function store(ArenaMatch $match, UploadedFile $file, string $slot): string
     {
+        // Nunca un SVG (o cualquier XML): puede llevar JavaScript, y un
+        // servidor con Imagick y soporte SVG lo leeria como imagen.
+        if ($this->isVectorOrMarkup($file)) {
+            throw new \RuntimeException('Ese archivo no es una captura valida. Sube una imagen JPG, PNG o WEBP.');
+        }
+
         $directory = 'match-reports/' . now()->format('Y/m') . '/' . strtolower($match->match_code);
         $base = $slot . '-' . now()->format('His') . '-' . bin2hex(random_bytes(6));
 
@@ -131,15 +137,30 @@ class EvidenceStorage
     {
         $managers = [];
 
+        // decodeAnimation desactivado: una captura es una imagen fija. Con el
+        // valor por defecto un GIF de 300 KB con cientos de fotogramas grandes
+        // se decodificaba entero (40 s en la prueba del arbitro) y la peticion
+        // moria por tiempo antes de llegar a guardar la original.
         if (extension_loaded('imagick')) {
-            $managers[] = new ImageManager(new ImagickDriver());
+            $managers[] = new ImageManager(new ImagickDriver(), decodeAnimation: false);
         }
 
         if (extension_loaded('gd') && function_exists('imagewebp')) {
-            $managers[] = new ImageManager(new GdDriver());
+            $managers[] = new ImageManager(new GdDriver(), decodeAnimation: false);
         }
 
         return $managers;
+    }
+
+    private function isVectorOrMarkup(UploadedFile $file): bool
+    {
+        $extension = strtolower((string) $file->guessExtension() . '|' . $file->getClientOriginalExtension());
+        $mime = strtolower((string) $file->getMimeType());
+
+        return str_contains($extension, 'svg')
+            || str_contains($mime, 'svg')
+            || str_contains($mime, 'xml')
+            || str_contains($mime, 'html');
     }
 
     private function write(string $directory, string $filename, string $contents): string

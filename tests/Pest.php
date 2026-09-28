@@ -21,6 +21,10 @@ uses()->beforeEach(function () {
     // storage/framework/testing, que se vacia solo en cada test.
     \Illuminate\Support\Facades\Storage::fake(\App\Models\MatchReport::EVIDENCE_DISK);
     \Illuminate\Support\Facades\Storage::fake('local');
+
+    // Ninguna peticion HTTP de verdad (Discord, push...): el test que la
+    // necesite tiene que simularla con Http::fake.
+    \Illuminate\Support\Facades\Http::preventStrayRequests();
 })->in('Feature');
 
 /**

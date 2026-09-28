@@ -100,7 +100,7 @@ it('los bots del laboratorio no anuncian nada', function () {
     expect(anunciosEnviados())->toBe([]);
 });
 
-it('anuncia el arranque de un combate con reinos y zona, sin nombres', function () {
+it('anuncia el arranque de un combate con los reinos, sin zona ni nombres', function () {
     $a = guerreroAnuncio('Nombreoculto', 'ignis');
     $b = guerreroAnuncio('Otrooculto', 'alsius');
     $fila = fn (Player $p) => ['player_id' => $p->id, 'character_name' => $p->character_name, 'subclass' => 'knight', 'realm' => $p->realm, 'discord_id' => $p->user->discord_id, 'conjurer_role' => null];
@@ -116,6 +116,8 @@ it('anuncia el arranque de un combate con reinos y zona, sin nombres', function 
     $anuncios = anunciosEnviados();
     expect($anuncios)->toHaveCount(1)
         ->and($anuncios[0]['description'])->toContain('Ignis')->toContain('Alsius')
+        // Ni la zona: en mundo abierto invitaria a terceros a meterse.
+        ->and(json_encode($anuncios))->not->toContain($match->zone_name)
         ->and(json_encode($anuncios))->not->toContain('Nombreoculto')->not->toContain('Otrooculto');
 });
 
@@ -139,7 +141,9 @@ it('el pulso del cron solo sale con actividad y como mucho una vez por periodo',
 it('el interruptor del panel los apaga', function () {
     AppSetting::setValue(ActivityAnnouncer::SETTING_ENABLED, '0', 'runtime', 'boolean', false);
 
-    entraEnCola(guerreroAnuncio('Apagado', 'ignis'));
+    // 2v2, que esta encendida por defecto: con 1v1 el pulso salia vacio por
+    // falta de modalidad y el test pasaba sin mirar el interruptor.
+    entraEnCola(guerreroAnuncio('Apagado', 'ignis'), '2v2');
     app(ActivityAnnouncer::class)->pulse();
     finDePeticion();
 
@@ -157,6 +161,28 @@ it('sin canal configurado no hace nada', function () {
 
 it('arena:anuncios --probar manda un mensaje al canal', function () {
     $this->artisan('arena:anuncios --probar')->assertSuccessful();
+    finDePeticion();
+
+    expect(anunciosEnviados())->toHaveCount(1);
+});
+
+it('una party que abre la cola tambien se anuncia, una sola vez', function () {
+    $a = guerreroAnuncio('Lider', 'syrtis');
+    $b = guerreroAnuncio('Aliado', 'syrtis');
+    foreach ([$a, $b] as $p) {
+        Queue::create(['player_id' => $p->id, 'queue_type' => 'premade', 'arena_mode' => '2v2', 'status' => 'waiting', 'team_id' => 'equipo-1', 'joined_at' => now(), 'expires_at' => now()->addMinutes(30)]);
+    }
+    finDePeticion();
+
+    $anuncios = anunciosEnviados();
+    expect($anuncios)->toHaveCount(1)
+        ->and($anuncios[0]['description'])->toContain('Un grupo')->toContain('Syrtis');
+});
+
+it('el mantenimiento lanza el pulso aunque no haya cron', function () {
+    Queue::withoutEvents(fn () => entraEnCola(guerreroAnuncio('Tick', 'alsius'), '2v2'));
+
+    app(\App\Services\ArenaMaintenanceService::class)->runTick(false);
     finDePeticion();
 
     expect(anunciosEnviados())->toHaveCount(1);

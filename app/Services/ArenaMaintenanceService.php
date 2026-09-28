@@ -61,6 +61,15 @@ class ArenaMaintenanceService
         $avisosBorrados = app(MatchPingService::class)->limpiarCerrados();
         $createdMatches = $this->matchmakingService->processRandomQueue(false);
 
+        // El resumen de actividad para el canal de Discord. Va aqui y no solo en
+        // el comando del cron: este tick tambien lo lanza el respaldo por HTTP
+        // cuando el cron no corre. Nunca puede tumbar el mantenimiento.
+        try {
+            app(\App\Services\Discord\ActivityAnnouncer::class)->pulse();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('No se pudo preparar el resumen de actividad', ['error' => $e->getMessage()]);
+        }
+
         return [
             'skipped' => false,
             'reason' => null,
