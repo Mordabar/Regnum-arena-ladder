@@ -9,6 +9,19 @@ return [
         'guild_id' => env('DISCORD_GUILD_ID'),
         'alerts_channel_id' => env('DISCORD_ALERTS_CHANNEL_ID'),
         'admin_ids' => array_values(array_filter(array_map('trim', explode(',', (string) env('ADMIN_DISCORD_IDS', ''))))),
+
+        // Anuncios de actividad en un canal publico del servidor ("hay gente
+        // en cola 1v1", "arranca un 2v2"...). Nada con nombres: para lo
+        // personal estan los avisos. Sin canal, no se anuncia nada.
+        'announcements' => [
+            'channel_id' => env('DISCORD_ANNOUNCEMENTS_CHANNEL_ID'),
+            // Como mucho un anuncio de cola abierta por modalidad cada tanto.
+            'queue_every_minutes' => (int) env('DISCORD_ANNOUNCE_QUEUE_MINUTES', 15),
+            // Como mucho un "arranca un combate" cada tanto, en total.
+            'match_every_minutes' => (int) env('DISCORD_ANNOUNCE_MATCH_MINUTES', 10),
+            // El resumen de actividad del cron.
+            'pulse_every_minutes' => (int) env('DISCORD_ANNOUNCE_PULSE_MINUTES', 60),
+        ],
     ],
 
     /*

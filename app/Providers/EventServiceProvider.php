@@ -2,7 +2,10 @@
 
 namespace App\Providers;
 
+use App\Models\ArenaMatch;
+use App\Models\Queue;
 use App\Services\ArenaZoneService;
+use App\Services\Discord\ActivityAnnouncer;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 use SocialiteProviders\Discord\DiscordExtendSocialite;
 use SocialiteProviders\Manager\SocialiteWasCalled;
@@ -28,6 +31,17 @@ class EventServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        //
+        // Anuncios de actividad en el canal de Discord. Van colgados de los
+        // modelos y no de los controladores: da igual por donde entre alguien
+        // en cola (lobby, grupo, panel) o por donde arranque un combate.
+        Queue::created(function (Queue $queue) {
+            app(ActivityAnnouncer::class)->queueJoined($queue);
+        });
+
+        ArenaMatch::updated(function (ArenaMatch $match) {
+            if ($match->wasChanged('status') && $match->status === 'in_progress') {
+                app(ActivityAnnouncer::class)->matchStarted($match);
+            }
+        });
     }
 }

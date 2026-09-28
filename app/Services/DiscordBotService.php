@@ -251,6 +251,20 @@ class DiscordBotService
     }
 
     /**
+     * Publica un mensaje en un canal del servidor (no un DM).
+     *
+     * Sale despues de responder, como el resto de avisos.
+     */
+    public function publicarEnCanal(string $channelId, array $message): void
+    {
+        if ($channelId === '') {
+            return;
+        }
+
+        $this->despues(fn () => $this->sendMessage($channelId, $message));
+    }
+
+    /**
      * Las llamadas a Discord, siempre con limite de tiempo. Sin el, un Discord
      * lento dejaba colgada la peticion el tiempo que tardase.
      */

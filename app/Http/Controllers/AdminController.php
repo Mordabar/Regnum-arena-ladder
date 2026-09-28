@@ -699,12 +699,14 @@ class AdminController extends Controller
             'support_infraction_trust_penalty' => AppSetting::getValue('support_infraction_trust_penalty', 25),
             'penalty_max_lock_hours' => AppSetting::getValue('penalty_max_lock_hours', 96),
             'inactive_after_days' => AppSetting::getValue('inactive_after_days', 14),
+            'discord_announcements_enabled' => (bool) AppSetting::getValue(\App\Services\Discord\ActivityAnnouncer::SETTING_ENABLED, true),
         ];
 
         $discordConfig = [
             'bot_token_configured' => filled(config('services.discord.bot_token')),
             'guild_id' => config('services.discord.guild_id'),
             'alerts_channel_id' => config('services.discord.alerts_channel_id'),
+            'announcements_channel_id' => config('services.discord.announcements.channel_id'),
             'admin_ids' => config('services.discord.admin_ids', []),
         ];
 
@@ -727,6 +729,7 @@ class AdminController extends Controller
             // por el navegador -o cualquier otro sitio que empuje ajustes- no
             // puede quedarse sin poder guardar nada por no traerlos.
             'season_prizes_enabled' => 'nullable|boolean',
+            'discord_announcements_enabled' => 'nullable|boolean',
             'season_prize_1' => 'nullable|integer|min:0|max:100000',
             'season_prize_2' => 'nullable|integer|min:0|max:100000',
             'season_prize_3' => 'nullable|integer|min:0|max:100000',
@@ -764,6 +767,7 @@ class AdminController extends Controller
         AppSetting::setValue('discord_invite_url', $validated['discord_invite_url'] ?? '', 'branding', 'string', true);
         AppSetting::setValue('discord_server_label', $validated['discord_server_label'] ?? '', 'branding', 'string', true);
         AppSetting::setValue('season_prizes_enabled', $request->boolean('season_prizes_enabled') ? '1' : '0', 'branding', 'boolean', true);
+        AppSetting::setValue(\App\Services\Discord\ActivityAnnouncer::SETTING_ENABLED, $request->boolean('discord_announcements_enabled') ? '1' : '0', 'runtime', 'boolean', false);
 
         foreach ([1, 2, 3] as $puesto) {
             if (($validated['season_prize_' . $puesto] ?? null) !== null) {

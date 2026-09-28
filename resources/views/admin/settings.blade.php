@@ -260,6 +260,10 @@
                     <span class="ap-kv-value">{{ $discordConfig['alerts_channel_id'] ?: 'sin valor' }}</span>
                 </div>
                 <div class="ap-kv">
+                    <span class="ap-kv-key">Canal de anuncios</span>
+                    <span class="ap-kv-value">{{ $discordConfig['announcements_channel_id'] ?: 'sin valor' }}</span>
+                </div>
+                <div class="ap-kv">
                     <span class="ap-kv-key">Administradores</span>
                     <span class="ap-kv-value">{{ implode(', ', $discordConfig['admin_ids']) ?: 'sin valores' }}</span>
                 </div>
@@ -269,6 +273,18 @@
                 Si algo aqui aparece sin valor, hay que anadirlo al archivo de entorno del servidor
                 y volver a cargar la configuracion.
             </p>
+
+            {{-- Esto si se guarda desde aqui: apagar los anuncios sin tocar el
+                 servidor, por ejemplo si hacen demasiado ruido en el canal. --}}
+            <label class="ap-switch-row mt-4">
+                <span class="min-w-0">
+                    <span class="ap-switch-title">Anuncios de actividad</span>
+                    <span class="ap-section-note">"Hay gente en cola 1v1", "arranca un 2v2"… en el canal de anuncios. Sin nombres. Necesita el canal configurado.</span>
+                </span>
+                <input type="hidden" name="discord_announcements_enabled" value="0">
+                <input type="checkbox" name="discord_announcements_enabled" value="1" class="ap-checkbox"
+                       @checked($settings['discord_announcements_enabled'])>
+            </label>
         </aside>
     </div>
 

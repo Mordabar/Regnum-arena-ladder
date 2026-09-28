@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Services\ArenaMaintenanceService;
+use App\Services\Discord\ActivityAnnouncer;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -12,7 +13,7 @@ class LadderTickCommand extends Command
 
     protected $description = 'Run the unified arena maintenance tick.';
 
-    public function handle(ArenaMaintenanceService $maintenanceService): int
+    public function handle(ArenaMaintenanceService $maintenanceService, ActivityAnnouncer $anuncios): int
     {
         $result = $maintenanceService->runTick();
 
@@ -30,6 +31,10 @@ class LadderTickCommand extends Command
         $this->info("Expired report confirmations: {$result['expired_report_confirmations']}");
         $this->info("Created matches: {$result['created_matches']}");
         Log::info('Cron ladder:tick ran.', $result);
+
+        // El resumen de actividad para el canal de Discord. Tiene su propio
+        // limite de frecuencia y no hace nada sin canal configurado.
+        $anuncios->pulse();
 
         return self::SUCCESS;
     }
