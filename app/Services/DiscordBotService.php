@@ -6,7 +6,10 @@ use App\Models\ArenaMatch;
 use App\Models\MatchReport;
 use App\Models\Player;
 use App\Support\ArenaMode;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -14,6 +17,8 @@ class DiscordBotService
 {
     private string $botToken;
     private string $baseUrl = 'https://discord.com/api/v10';
+
+    private const DM_CACHE_PREFIX = 'discord:dm:';
 
     public function __construct()
     {
@@ -29,11 +34,11 @@ class DiscordBotService
      */
     public function notifyMatchFound(ArenaMatch $match): void
     {
-        if (!$this->isConfigured()) {
-            Log::warning('Discord bot not configured, skipping notifications');
-            return;
-        }
+        $this->despues(fn () => $this->enviarMatchFound($match));
+    }
 
+    private function enviarMatchFound(ArenaMatch $match): void
+    {
         $allPlayers = $match->getAllPlayers();
         
         foreach ($allPlayers as $playerData) {
@@ -206,15 +211,24 @@ class DiscordBotService
             return null;
         }
 
-        $response = Http::withHeaders([
-            'Authorization' => 'Bot ' . $this->botToken,
-            'Content-Type' => 'application/json'
-        ])->post($this->baseUrl . '/users/@me/channels', [
+        // El canal de DM con un usuario no cambia: se guarda y cada aviso
+        // cuesta una llamada a Discord en vez de dos.
+        $cacheado = Cache::get(self::DM_CACHE_PREFIX . $userId);
+        if (is_string($cacheado) && $cacheado !== '') {
+            return ['id' => $cacheado];
+        }
+
+        $response = $this->http()->post($this->baseUrl . '/users/@me/channels', [
             'recipient_id' => $userId
         ]);
 
         if ($response->successful()) {
-            return $response->json();
+            $canal = $response->json();
+            if (is_array($canal) && !empty($canal['id'])) {
+                Cache::put(self::DM_CACHE_PREFIX . $userId, (string) $canal['id'], now()->addDays(7));
+            }
+
+            return $canal;
         }
 
         $this->logDiscordFailure('create DM channel', $response, ['discord_id' => $userId]);
@@ -226,10 +240,7 @@ class DiscordBotService
      */
     private function sendMessage(string $channelId, array $message): bool
     {
-        $response = Http::withHeaders([
-            'Authorization' => 'Bot ' . $this->botToken,
-            'Content-Type' => 'application/json'
-        ])->post($this->baseUrl . "/channels/$channelId/messages", $message);
+        $response = $this->http()->post($this->baseUrl . "/channels/$channelId/messages", $message);
 
         if ($response->successful()) {
             return true;
@@ -237,6 +248,54 @@ class DiscordBotService
 
         $this->logDiscordFailure('send message', $response, ['channel_id' => $channelId]);
         return false;
+    }
+
+    /**
+     * Las llamadas a Discord, siempre con limite de tiempo. Sin el, un Discord
+     * lento dejaba colgada la peticion el tiempo que tardase.
+     */
+    private function http(): PendingRequest
+    {
+        return Http::withHeaders([
+            'Authorization' => 'Bot ' . $this->botToken,
+            'Content-Type' => 'application/json',
+        ])->connectTimeout(3)->timeout(5);
+    }
+
+    /**
+     * Los mensajes de Discord salen DESPUES de guardar y de responder.
+     *
+     * Antes se mandaban dentro de la peticion que creaba el cruce: dos llamadas
+     * por jugador (abrir el DM y escribir), doce en un 3v3. Si Discord iba
+     * lento, el jugador tardaba en saber que habia entrado en partida. Ahora es
+     * como con el push: `afterCommit` espera a que el cruce este guardado y
+     * `terminating` lo manda cuando el jugador ya tiene su respuesta.
+     */
+    private function despues(\Closure $trabajo): void
+    {
+        if (!$this->isConfigured()) {
+            return;
+        }
+
+        $mandar = function () use ($trabajo) {
+            try {
+                $trabajo();
+            } catch (\Throwable $e) {
+                // Un aviso que no sale nunca puede tumbar lo que lo provoco.
+                Log::warning('No se pudo mandar un aviso de Discord', ['error' => $e->getMessage()]);
+            }
+        };
+
+        DB::afterCommit(function () use ($mandar) {
+            // Desde el cron no hay nadie esperando: se manda ya.
+            if (app()->runningInConsole() && !app()->runningUnitTests()) {
+                $mandar();
+
+                return;
+            }
+
+            app()->terminating($mandar);
+        });
     }
 
     /**
@@ -251,6 +310,11 @@ class DiscordBotService
      * Enviar notificación de match cancelado
      */
     public function notifyMatchCancelled(ArenaMatch $match, string $reason = 'timeout'): void
+    {
+        $this->despues(fn () => $this->enviarMatchCancelled($match, $reason));
+    }
+
+    private function enviarMatchCancelled(ArenaMatch $match, string $reason = 'timeout'): void
     {
         if (!$this->isConfigured()) return;
 
@@ -288,6 +352,11 @@ class DiscordBotService
      * Enviar notificación de match aceptado por todos
      */
     public function notifyMatchAccepted(ArenaMatch $match): void
+    {
+        $this->despues(fn () => $this->enviarMatchAccepted($match));
+    }
+
+    private function enviarMatchAccepted(ArenaMatch $match): void
     {
         if (!$this->isConfigured()) return;
 
@@ -327,6 +396,11 @@ class DiscordBotService
 
     public function notifyReportSubmitted(ArenaMatch $match, MatchReport $report): void
     {
+        $this->despues(fn () => $this->enviarReportSubmitted($match, $report));
+    }
+
+    private function enviarReportSubmitted(ArenaMatch $match, MatchReport $report): void
+    {
         if (!$this->isConfigured()) {
             return;
         }
@@ -362,6 +436,11 @@ class DiscordBotService
 
     public function notifyReportResolved(ArenaMatch $match, array $payload): void
     {
+        $this->despues(fn () => $this->enviarReportResolved($match, $payload));
+    }
+
+    private function enviarReportResolved(ArenaMatch $match, array $payload): void
+    {
         if (!$this->isConfigured()) {
             return;
         }
@@ -394,6 +473,11 @@ class DiscordBotService
     }
 
     public function notifyMatchDisputed(ArenaMatch $match, MatchReport $report): void
+    {
+        $this->despues(fn () => $this->enviarMatchDisputed($match, $report));
+    }
+
+    private function enviarMatchDisputed(ArenaMatch $match, MatchReport $report): void
     {
         if (!$this->isConfigured()) {
             return;
