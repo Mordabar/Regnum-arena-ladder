@@ -779,7 +779,7 @@ class ArenaMatchResultService
     /**
      * Checks if all players have accepted the match and, if so, transitions it to in_progress.
      * This consolidates the duplicate logic from ArenaMatchController::checkAllPlayersAccepted()
-     * and QueueHubController::promoteMatchIfFullyAccepted() into one authoritative location.
+     * and the old lobby controller into one authoritative location.
      *
      * @return bool Whether the match was promoted to in_progress
      */

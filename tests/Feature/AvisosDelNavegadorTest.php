@@ -886,7 +886,7 @@ it('la cancelacion de un cruce no tapa al cruce nuevo del mismo segundo', functi
 
 it('el lider se entera por push de que su equipo esta listo', function () {
     $layout = File::get(resource_path('views/layouts/arena.blade.php'));
-    $hub = File::get(app_path('Http/Controllers/QueueHubController.php'));
+    $hub = File::get(app_path('Http/Controllers/PartyController.php'));
 
     // Y la pagina no calla nada: si el push esta roto sin saberlo, el aviso
     // de la pestaña de lado es lo unico que queda.

@@ -4,12 +4,16 @@ use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ArenaMatchController;
 use App\Http\Controllers\ArenaZoneAssetController;
-use App\Http\Controllers\AvisosController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\AvisosController;
 use App\Http\Controllers\HallOfFameController;
 use App\Http\Controllers\LadderController;
+use App\Http\Controllers\LobbyController;
+use App\Http\Controllers\PartyController;
 use App\Http\Controllers\PlayerController;
-use App\Http\Controllers\QueueHubController;
+use App\Http\Controllers\QueueController;
+use App\Http\Controllers\QueueStateController;
+use App\Http\Controllers\TestingLabController;
 use Illuminate\Support\Facades\Route;
 
 $arenaAdminPath = trim((string) config('arena_admin.path', 'lowly-control-room'), '/');
@@ -104,11 +108,11 @@ Route::middleware(['auth', 'arena.maintenance'])->group(function () {
     // El lobby y la arena eran dos paginas que ensenaban lo mismo, y desde el
     // lobby "Pelear" llevaba a la otra en vez de a la cola. Ahora son una: se
     // elige guerrero y se entra a combatir en la misma pantalla.
-    Route::get('/lobby', [QueueHubController::class, 'index'])->name('lobby');
+    Route::get('/lobby', [LobbyController::class, 'index'])->name('lobby');
 
     // Solo el panel, para que el sondeo lo cambie en su sitio en vez de
     // recargar la pagina entera y tirar el scroll y los escenarios 3D.
-    Route::get('/lobby/console', [QueueHubController::class, 'consoleFragment'])
+    Route::get('/lobby/console', [LobbyController::class, 'consoleFragment'])
         ->middleware('throttle:60,1,consola')
         ->name('lobby.console');
 
@@ -123,7 +127,7 @@ Route::middleware(['auth', 'arena.maintenance'])->group(function () {
 });
 
 Route::middleware('arena.maintenance')->group(function () {
-    Route::get('/queue/state-poll', [QueueHubController::class, 'statePoll'])
+    Route::get('/queue/state-poll', [QueueStateController::class, 'statePoll'])
         ->middleware('throttle:30,1,sondeo')
         ->name('queue.state-poll');
 });
@@ -164,14 +168,14 @@ Route::post('/avisos/resuscribir', [AvisosController::class, 'resuscribir'])
     ->name('avisos.resuscribir');
 
 Route::middleware('auth')->group(function () {
-    Route::get('/queue/premade/candidates', [QueueHubController::class, 'premadeCandidates'])->name('queue.premade.candidates');
-    Route::post('/queue/join', [QueueHubController::class, 'join'])->name('queue.join');
-    Route::post('/queue/leave', [QueueHubController::class, 'leave'])->name('queue.leave');
-    Route::post('/party/create', [QueueHubController::class, 'createParty'])->name('party.create');
-    Route::post('/party/{party}/invite/{member}/accept', [QueueHubController::class, 'acceptPartyInvite'])->name('party.accept');
-    Route::post('/party/{party}/invite/{member}/reject', [QueueHubController::class, 'rejectPartyInvite'])->name('party.reject');
-    Route::post('/party/{party}/leave', [QueueHubController::class, 'leaveParty'])->name('party.leave');
-    Route::post('/party/{party}/enqueue', [QueueHubController::class, 'enqueueParty'])->name('party.enqueue');
+    Route::get('/queue/premade/candidates', [PartyController::class, 'premadeCandidates'])->name('queue.premade.candidates');
+    Route::post('/queue/join', [QueueController::class, 'join'])->name('queue.join');
+    Route::post('/queue/leave', [QueueController::class, 'leave'])->name('queue.leave');
+    Route::post('/party/create', [PartyController::class, 'createParty'])->name('party.create');
+    Route::post('/party/{party}/invite/{member}/accept', [PartyController::class, 'acceptPartyInvite'])->name('party.accept');
+    Route::post('/party/{party}/invite/{member}/reject', [PartyController::class, 'rejectPartyInvite'])->name('party.reject');
+    Route::post('/party/{party}/leave', [PartyController::class, 'leaveParty'])->name('party.leave');
+    Route::post('/party/{party}/enqueue', [PartyController::class, 'enqueueParty'])->name('party.enqueue');
     Route::post('/matches/accept', [ArenaMatchController::class, 'accept'])->name('matches.accept');
     Route::post('/matches/reject', [ArenaMatchController::class, 'reject'])->name('matches.reject');
     // Los avisos rapidos del cruce. Con su propio limite de peticiones: aqui
@@ -205,22 +209,22 @@ Route::prefix('/' . $arenaAdminPath)->group(function () {
         Route::post('/operations/process-queue', [AdminController::class, 'processQueue'])->name('operations.process-queue');
         Route::post('/operations/expire-pending', [AdminController::class, 'expirePendingAcceptance'])->name('operations.expire-pending');
 
-        Route::post('/testing/seed', [QueueHubController::class, 'sandboxSeed'])->name('testing.seed');
-        Route::post('/testing/toggle-bot', [QueueHubController::class, 'sandboxToggleBot'])->name('testing.toggle-bot');
-        Route::post('/testing/enqueue-realm', [QueueHubController::class, 'sandboxEnqueueRealm'])->name('testing.enqueue-realm');
-        Route::post('/testing/process', [QueueHubController::class, 'sandboxProcess'])->name('testing.process');
-        Route::post('/testing/accept', [QueueHubController::class, 'sandboxAccept'])->name('testing.accept');
-        Route::post('/testing/accept-parties', [QueueHubController::class, 'sandboxAcceptParties'])->name('testing.accept-parties');
-        Route::post('/testing/invite-me', [QueueHubController::class, 'sandboxInviteMe'])->name('testing.invite-me');
-        Route::post('/testing/resolve-all', [QueueHubController::class, 'sandboxResolveAll'])->name('testing.resolve-all');
-        Route::post('/testing/resolve/{match}', [QueueHubController::class, 'sandboxResolve'])->name('testing.resolve');
-        Route::post('/testing/bot-report/{match}', [QueueHubController::class, 'sandboxBotReport'])->name('testing.bot-report');
-        Route::post('/testing/bot-confirm/{match}', [QueueHubController::class, 'sandboxBotConfirm'])->name('testing.bot-confirm');
+        Route::post('/testing/seed', [TestingLabController::class, 'sandboxSeed'])->name('testing.seed');
+        Route::post('/testing/toggle-bot', [TestingLabController::class, 'sandboxToggleBot'])->name('testing.toggle-bot');
+        Route::post('/testing/enqueue-realm', [TestingLabController::class, 'sandboxEnqueueRealm'])->name('testing.enqueue-realm');
+        Route::post('/testing/process', [TestingLabController::class, 'sandboxProcess'])->name('testing.process');
+        Route::post('/testing/accept', [TestingLabController::class, 'sandboxAccept'])->name('testing.accept');
+        Route::post('/testing/accept-parties', [TestingLabController::class, 'sandboxAcceptParties'])->name('testing.accept-parties');
+        Route::post('/testing/invite-me', [TestingLabController::class, 'sandboxInviteMe'])->name('testing.invite-me');
+        Route::post('/testing/resolve-all', [TestingLabController::class, 'sandboxResolveAll'])->name('testing.resolve-all');
+        Route::post('/testing/resolve/{match}', [TestingLabController::class, 'sandboxResolve'])->name('testing.resolve');
+        Route::post('/testing/bot-report/{match}', [TestingLabController::class, 'sandboxBotReport'])->name('testing.bot-report');
+        Route::post('/testing/bot-confirm/{match}', [TestingLabController::class, 'sandboxBotConfirm'])->name('testing.bot-confirm');
         // Que un bot mande un aviso del chat: sin esto el chat de combate no se
         // puede probar sin dos personas, una en cada bando.
-        Route::post('/testing/bot-ping/{match}', [QueueHubController::class, 'sandboxBotPing'])->name('testing.bot-ping');
-        Route::post('/testing/reset', [QueueHubController::class, 'sandboxReset'])->name('testing.reset');
-        Route::post('/testing/destroy', [QueueHubController::class, 'sandboxDestroy'])->name('testing.destroy');
+        Route::post('/testing/bot-ping/{match}', [TestingLabController::class, 'sandboxBotPing'])->name('testing.bot-ping');
+        Route::post('/testing/reset', [TestingLabController::class, 'sandboxReset'])->name('testing.reset');
+        Route::post('/testing/destroy', [TestingLabController::class, 'sandboxDestroy'])->name('testing.destroy');
 
         Route::post('/matches/{match}/resolve', [AdminController::class, 'resolveMatch'])->name('matches.resolve');
 
@@ -249,7 +253,7 @@ Route::prefix('/' . $arenaAdminPath)->group(function () {
         Route::middleware('arena.maintenance')->group(function () {
             Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
             Route::get('/inbox', [AdminController::class, 'moderationInbox'])->name('inbox');
-            Route::get('/testing', [QueueHubController::class, 'sandbox'])->name('testing');
+            Route::get('/testing', [TestingLabController::class, 'sandbox'])->name('testing');
             Route::get('/matches', [AdminController::class, 'matches'])->name('matches.index');
             Route::get('/matches/{match}', [AdminController::class, 'showMatch'])
                 ->whereNumber('match')
