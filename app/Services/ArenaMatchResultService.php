@@ -9,6 +9,8 @@ use App\Models\MatchResult;
 use App\Models\Player;
 use App\Models\Queue;
 use App\Models\User;
+use App\Services\DiscordBotService;
+use App\Services\Matches\EvidenceStorage;
 use Carbon\CarbonInterface;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
@@ -16,7 +18,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
-use App\Services\DiscordBotService;
 
 class ArenaMatchResultService
 {
@@ -38,6 +39,7 @@ class ArenaMatchResultService
         private readonly LadderScoringService $ladderScoringService,
         private readonly DiscordBotService $discordBotService,
         private readonly LadderCacheService $ladderCacheService,
+        private readonly EvidenceStorage $evidenceStorage,
     ) {
     }
 
@@ -1628,35 +1630,7 @@ class ArenaMatchResultService
 
     private function storeScreenshot(ArenaMatch $match, UploadedFile $file, string $slot): string
     {
-        $directory = 'match-reports/' . now()->format('Y/m') . '/' . strtolower($match->match_code);
-        $disk = Storage::disk(MatchReport::EVIDENCE_DISK);
-        $extension = strtolower($file->guessExtension() ?: $file->getClientOriginalExtension() ?: 'png');
-        $filename = $slot . '-' . now()->format('His') . '-' . bin2hex(random_bytes(6)) . '.' . $extension;
-        $path = $directory . '/' . $filename;
-        $stream = fopen($file->getRealPath(), 'r');
-
-        if ($stream === false) {
-            throw new \RuntimeException('No se pudo leer la captura seleccionada. Intenta subirla de nuevo.');
-        }
-
-        try {
-            $disk->makeDirectory($directory);
-
-            $stored = $disk->put($path, $stream);
-        } catch (\Throwable $e) {
-            throw new \RuntimeException(
-                'No se pudo guardar la evidencia del match. Revisa permisos de storage en el servidor.',
-                previous: $e
-            );
-        } finally {
-            fclose($stream);
-        }
-
-        if (!$stored || !$disk->exists($path)) {
-            throw new \RuntimeException('La captura no pudo almacenarse correctamente en el servidor.');
-        }
-
-        return $path;
+        return $this->evidenceStorage->store($match, $file, $slot);
     }
 
     private function storeSyntheticScreenshot(ArenaMatch $match, string $slot): string

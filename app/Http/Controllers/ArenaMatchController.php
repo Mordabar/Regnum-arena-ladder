@@ -444,11 +444,7 @@ class ArenaMatchController extends Controller
             abort(404, 'La evidencia solicitada no existe en el servidor.');
         }
 
-        return Storage::disk($diskName)->response(
-            $path,
-            basename($path),
-            ['Content-Disposition' => 'inline; filename="' . basename($path) . '"']
-        );
+        return $this->servirCaptura(Storage::disk($diskName), $path);
     }
 
     /**
@@ -469,11 +465,13 @@ class ArenaMatchController extends Controller
             'accused_player_id' => 'required|exists:players,id',
             'note' => 'required|string|min:5|max:500',
             'files' => 'nullable|array|max:3',
-            'files.*' => 'image|max:5120',
+            // La misma lista que los reportes. `image` a secas acepta SVG, y
+            // un SVG puede llevar JavaScript.
+            'files.*' => 'file|mimes:jpg,jpeg,png,webp,gif,bmp,avif,heic,heif|max:5120',
         ], [
             'note.required' => 'Explica que paso: sin motivo no hay nada que revisar.',
             'note.min' => 'Escribe algo mas de detalle sobre el abandono.',
-            'files.*.image' => 'Las pruebas tienen que ser imagenes.',
+            'files.*.mimes' => 'Las pruebas tienen que ser imagenes JPG, PNG, WEBP, GIF, BMP, AVIF o HEIC.',
             'files.*.max' => 'Cada captura debe pesar menos de 5 MB.',
         ]);
 
@@ -564,11 +562,23 @@ class ArenaMatchController extends Controller
             abort(404, 'La evidencia solicitada no existe en el servidor.');
         }
 
-        return $disk->response(
-            $path,
-            basename($path),
-            ['Content-Disposition' => 'inline; filename="' . basename($path) . '"']
-        );
+        return $this->servirCaptura($disk, $path);
+    }
+
+    /**
+     * Sirve una captura subida por un jugador sin darle ninguna oportunidad de
+     * ejecutar nada: nosniff para que el navegador no reinterprete el tipo, y
+     * una CSP con sandbox para que ni un SVG con script ni un HTML disfrazado
+     * puedan correr en nuestro dominio si alguno se colara.
+     */
+    private function servirCaptura(\Illuminate\Contracts\Filesystem\Filesystem $disk, string $path)
+    {
+        return $disk->response($path, basename($path), [
+            'Content-Disposition' => 'inline; filename="' . basename($path) . '"',
+            'X-Content-Type-Options' => 'nosniff',
+            'Content-Security-Policy' => "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox",
+            'Cache-Control' => 'private, max-age=3600',
+        ]);
     }
 
     private function constrainMatchesToPlayers(Builder $query, array $userPlayerIds): Builder

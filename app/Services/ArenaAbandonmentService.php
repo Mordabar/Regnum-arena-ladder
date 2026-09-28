@@ -2,15 +2,15 @@
 
 namespace App\Services;
 
-use App\Models\ArenaMatch;
 use App\Models\AppSetting;
+use App\Models\ArenaMatch;
 use App\Models\MatchAbandonmentReport;
 use App\Models\MatchReport;
 use App\Models\Player;
 use App\Models\User;
+use App\Services\Matches\EvidenceStorage;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Abandonos: avisar de que alguien se fue, y resolverlo.
@@ -33,6 +33,7 @@ class ArenaAbandonmentService
     public function __construct(
         private readonly ArenaMatchResultService $resultService,
         private readonly LadderCacheService $ladderCacheService,
+        private readonly EvidenceStorage $evidenceStorage,
     ) {
     }
 
@@ -345,34 +346,7 @@ class ArenaAbandonmentService
 
     private function guardarCaptura(ArenaMatch $match, UploadedFile $file, string $slot): string
     {
-        $carpeta = 'match-reports/' . now()->format('Y/m') . '/' . strtolower($match->match_code);
-        $disco = Storage::disk(MatchReport::EVIDENCE_DISK);
-        $extension = strtolower($file->guessExtension() ?: $file->getClientOriginalExtension() ?: 'png');
-        $ruta = $carpeta . '/' . $slot . '-' . now()->format('His') . '-' . bin2hex(random_bytes(6)) . '.' . $extension;
-
-        $stream = fopen($file->getRealPath(), 'r');
-
-        if ($stream === false) {
-            throw new \RuntimeException('No se pudo leer la captura seleccionada. Intenta subirla de nuevo.');
-        }
-
-        try {
-            $disco->makeDirectory($carpeta);
-            $guardado = $disco->put($ruta, $stream);
-        } catch (\Throwable $e) {
-            throw new \RuntimeException(
-                'No se pudo guardar la captura del abandono. Revisa permisos de storage en el servidor.',
-                previous: $e
-            );
-        } finally {
-            fclose($stream);
-        }
-
-        if (!$guardado || !$disco->exists($ruta)) {
-            throw new \RuntimeException('La captura no pudo almacenarse correctamente en el servidor.');
-        }
-
-        return $ruta;
+        return $this->evidenceStorage->store($match, $file, $slot);
     }
 
     private function añadirNota(?string $notas, string $nueva): string
