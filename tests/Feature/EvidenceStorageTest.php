@@ -295,3 +295,27 @@ it('imagick no abre una imagen gigante: mira antes sus dimensiones', function ()
     expect(fn () => (new ReflectionMethod($servicio, 'source'))->invoke($servicio, 'imagick', $ruta))
         ->toThrow(RuntimeException::class, 'demasiado grande');
 });
+
+it('una captura ultrapanoramica no se queda ilegible', function () {
+    // Limitando solo el lado mayor, un 32:9 de 7680x2160 quedaba en 1920x540.
+    Storage::fake(MatchReport::EVIDENCE_DISK);
+
+    $ruta = app(EvidenceStorage::class)->store(cruceParaCapturas(), capturaDePrueba(7680, 2160), 'evidence-1');
+    [$ancho, $alto] = getimagesizefromstring(Storage::disk(MatchReport::EVIDENCE_DISK)->get($ruta));
+
+    expect($alto)->toBeGreaterThanOrEqual(760)
+        ->and($ancho * $alto)->toBeLessThanOrEqual(EvidenceStorage::MAX_AREA + 4000);
+});
+
+it('si se guarda la original jpeg, va sin exif', function () {
+    $captura = capturaDePrueba(64, 48, 'jpg');
+    $jpeg = file_get_contents($captura->getRealPath());
+    $exif = "Exif\0\0" . 'MM' . "\0*\0\0\0\x08" . str_repeat("\0", 6) . 'GPS-SECRETO-DEL-MOVIL';
+    $conExif = substr($jpeg, 0, 2) . "\xFF\xE1" . pack('n', strlen($exif) + 2) . $exif . substr($jpeg, 2);
+
+    $servicio = app(EvidenceStorage::class);
+    $limpio = (new ReflectionMethod($servicio, 'stripJpegMetadata'))->invoke($servicio, $conExif);
+
+    expect($limpio)->not->toContain('GPS-SECRETO-DEL-MOVIL')
+        ->and(getimagesizefromstring($limpio)[0])->toBe(64);
+});

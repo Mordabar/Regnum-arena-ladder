@@ -19,8 +19,8 @@ use Intervention\Image\ImageManager;
  * (modelo, fecha y a veces la posicion GPS). Con unos cientos de partidas eso
  * llenaba el disco contado de Hostinger y exponia datos que nadie necesita.
  *
- * Ahora cada captura se normaliza: como mucho 1920 px por lado, en WebP y sin
- * metadatos. Para moderar un combate sobra: se leen los nombres, las barras y
+ * Ahora cada captura se normaliza: como mucho el area de una pantalla 1080p
+ * (1920x1080), en WebP y sin metadatos. Para moderar un combate sobra: se leen los nombres, las barras y
  * el chat, y una captura de 10 MB se queda en unos cientos de KB.
  *
  * Si la imagen no se puede procesar (un HEIC en un servidor sin soporte, un
@@ -30,7 +30,14 @@ use Intervention\Image\ImageManager;
 class EvidenceStorage
 {
     /** Lado mayor maximo de la captura guardada. */
-    public const MAX_SIDE = 1920;
+    public const MAX_SIDE = 3840;
+
+    /**
+     * Area maxima: la de una pantalla de 1920x1080. Se limita por area y no
+     * solo por el lado mayor para que una captura de monitor ultrapanoramico
+     * (32:9) no quede en 1920x540 con el texto del chat ilegible.
+     */
+    public const MAX_AREA = 1920 * 1080;
 
     /** Calidad del WebP. Por debajo de ~75 el texto pequeño del chat se emborrona. */
     public const QUALITY = 82;
@@ -80,7 +87,49 @@ class EvidenceStorage
             throw new \RuntimeException('No se pudo leer la captura seleccionada. Intenta subirla de nuevo.');
         }
 
+        if (in_array($extension, ['jpg', 'jpeg'], true)) {
+            $original = $this->stripJpegMetadata($original);
+        }
+
         return $this->write($directory, $base . '.' . $extension, $original);
+    }
+
+    /**
+     * Quita del JPEG los bloques de metadatos (APP1: EXIF con el GPS y XMP;
+     * APP13: IPTC) sin tocar la imagen. Es para cuando no se pudo convertir y
+     * se guarda la original: la prueba se conserva, los datos del movil no.
+     */
+    private function stripJpegMetadata(string $jpeg): string
+    {
+        if (!str_starts_with($jpeg, "\xFF\xD8")) {
+            return $jpeg;
+        }
+
+        $salida = "\xFF\xD8";
+        $i = 2;
+        $n = strlen($jpeg);
+
+        while ($i + 4 <= $n && $jpeg[$i] === "\xFF") {
+            $marca = ord($jpeg[$i + 1]);
+
+            // Inicio de los datos de imagen: lo que queda se copia tal cual.
+            if ($marca === 0xDA) {
+                break;
+            }
+
+            $largo = unpack('n', substr($jpeg, $i + 2, 2))[1] ?? 0;
+            if ($largo < 2 || $i + 2 + $largo > $n) {
+                return $jpeg;
+            }
+
+            if ($marca !== 0xE1 && $marca !== 0xED) {
+                $salida .= substr($jpeg, $i, 2 + $largo);
+            }
+
+            $i += 2 + $largo;
+        }
+
+        return $salida . substr($jpeg, $i);
     }
 
     /**
@@ -105,7 +154,7 @@ class EvidenceStorage
                 // del movil en vertical sale derecha) y el WebP resultante no
                 // lleva ningun metadato del original.
                 $image = $manager->read($this->source($motor, $path));
-                $image->scaleDown(width: self::MAX_SIDE, height: self::MAX_SIDE);
+                $this->fit($image);
 
                 $encoded = (string) $image->toWebp(self::QUALITY);
 
@@ -125,6 +174,18 @@ class EvidenceStorage
         }
 
         return null;
+    }
+
+    /** Reduce la imagen hasta caber en MAX_AREA y MAX_SIDE, sin agrandarla nunca. */
+    private function fit(\Intervention\Image\Interfaces\ImageInterface $image): void
+    {
+        $ancho = $image->width();
+        $alto = $image->height();
+        $factor = min(1.0, sqrt(self::MAX_AREA / max(1, $ancho * $alto)), self::MAX_SIDE / max($ancho, $alto));
+
+        if ($factor < 1.0) {
+            $image->resize(max(1, (int) round($ancho * $factor)), max(1, (int) round($alto * $factor)));
+        }
     }
 
     /**
