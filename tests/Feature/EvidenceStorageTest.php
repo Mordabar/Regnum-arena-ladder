@@ -233,5 +233,27 @@ it('el servidor rechaza un svg en el reporte, el rechazo y el abandono', functio
         'accused_player_id' => $reporte->reported_by_player_id, 'note' => 'Se fue al principio', 'files' => [$svg],
     ])->assertSessionHasErrors('files.0');
 
-    expect(Storage::disk(MatchReport::EVIDENCE_DISK)->allFiles('match-reports/2026/09'))->toBe([]);
+    expect(Storage::disk(MatchReport::EVIDENCE_DISK)->allFiles('match-reports/' . now()->format('Y/m')))->toBe([]);
+});
+
+it('con imagick tambien se lee solo el primer fotograma', function () {
+    // Con la ruta, Imagick carga y recompone todos los fotogramas antes de
+    // mirar decodeAnimation (17 s y error con un GIF de 40 fotogramas grandes).
+    if (!extension_loaded('imagick')) {
+        $this->markTestSkipped('Sin la extension imagick.');
+    }
+
+    $m = new Intervention\Image\ImageManager(new Intervention\Image\Drivers\Gd\Driver());
+    $anim = $m->animate(function ($a) use ($m) {
+        for ($i = 0; $i < 30; $i++) {
+            $a->add($m->create(1600, 1000)->fill(sprintf('#%06x', $i * 4000)), 0.1);
+        }
+    });
+    $ruta = tempnam(sys_get_temp_dir(), 'gif');
+    file_put_contents($ruta, (string) $anim->toGif());
+
+    $origen = (new ReflectionMethod(EvidenceStorage::class, 'source'))->invoke(app(EvidenceStorage::class), 'imagick', $ruta);
+
+    expect($origen)->toBeInstanceOf(Imagick::class)
+        ->and($origen->getNumberImages())->toBe(1);
 });

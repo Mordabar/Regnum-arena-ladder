@@ -164,7 +164,9 @@ class ActivityAnnouncer
      */
     public function pulse(): void
     {
-        if (!$this->enabled()) {
+        // Si ya se anuncio en este periodo no se cuenta nada: esto corre en
+        // cada tick del mantenimiento, tambien dentro de peticiones.
+        if (!$this->enabled() || Cache::has('discord:anuncio:pulse')) {
             return;
         }
 

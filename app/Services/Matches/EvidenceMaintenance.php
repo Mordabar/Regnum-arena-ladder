@@ -166,13 +166,20 @@ class EvidenceMaintenance
         $one = fn (?string $p) => $p !== null && isset($map[$p]) ? $map[$p] : $p;
         $list = fn (?array $l) => $l === null ? null : array_map($one, $l);
 
-        DB::transaction(function () use ($one, $list) {
-            MatchReport::query()->chunkById(500, function ($reports) use ($one, $list) {
+        $conRechazo = Schema::hasColumn('match_reports', 'rejection_evidence_paths');
+
+        DB::transaction(function () use ($one, $list, $conRechazo) {
+            MatchReport::query()->chunkById(500, function ($reports) use ($one, $list, $conRechazo) {
                 foreach ($reports as $report) {
                     $report->encounter_screenshot_path = $one($report->encounter_screenshot_path);
                     $report->final_screenshot_path = $one($report->final_screenshot_path);
                     $report->evidence_paths = $list($report->evidence_paths);
-                    $report->rejection_evidence_paths = $list($report->rejection_evidence_paths);
+
+                    // Solo si la columna existe: asignarla sin ella marcaba el
+                    // modelo como cambiado y el UPDATE fallaba.
+                    if ($conRechazo) {
+                        $report->rejection_evidence_paths = $list($report->rejection_evidence_paths);
+                    }
 
                     if ($report->isDirty()) {
                         $report->saveQuietly();

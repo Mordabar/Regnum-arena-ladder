@@ -99,12 +99,12 @@ class EvidenceStorage
             return null;
         }
 
-        foreach ($this->managers() as $manager) {
+        foreach ($this->managers() as $motor => $manager) {
             try {
                 // El decodificador ya gira la imagen segun su EXIF (una foto
                 // del movil en vertical sale derecha) y el WebP resultante no
                 // lleva ningun metadato del original.
-                $image = $manager->read($path);
+                $image = $manager->read($this->source($motor, $path));
                 $image->scaleDown(width: self::MAX_SIDE, height: self::MAX_SIDE);
 
                 $encoded = (string) $image->toWebp(self::QUALITY);
@@ -128,28 +128,48 @@ class EvidenceStorage
     }
 
     /**
-     * Imagick primero si esta (lee HEIC cuando el servidor lo trae), GD
-     * despues, que es lo que hay en casi cualquier hosting.
+     * GD primero: lee solo el primer fotograma de un GIF por su cuenta, y es
+     * lo que hay en casi cualquier hosting. Imagick despues, para lo que GD no
+     * sabe leer (HEIC cuando el servidor lo trae).
      *
-     * @return array<int, ImageManager>
+     * decodeAnimation desactivado: una captura es una imagen fija. Con el
+     * valor por defecto un GIF de 300 KB con cientos de fotogramas grandes se
+     * decodificaba entero (40 s en la prueba del arbitro) y la peticion moria
+     * por tiempo antes de llegar a guardar la original.
+     *
+     * @return array<string, ImageManager>
      */
     private function managers(): array
     {
         $managers = [];
 
-        // decodeAnimation desactivado: una captura es una imagen fija. Con el
-        // valor por defecto un GIF de 300 KB con cientos de fotogramas grandes
-        // se decodificaba entero (40 s en la prueba del arbitro) y la peticion
-        // moria por tiempo antes de llegar a guardar la original.
-        if (extension_loaded('imagick')) {
-            $managers[] = new ImageManager(new ImagickDriver(), decodeAnimation: false);
+        if (extension_loaded('gd') && function_exists('imagewebp')) {
+            $managers['gd'] = new ImageManager(new GdDriver(), decodeAnimation: false);
         }
 
-        if (extension_loaded('gd') && function_exists('imagewebp')) {
-            $managers[] = new ImageManager(new GdDriver(), decodeAnimation: false);
+        if (extension_loaded('imagick')) {
+            $managers['imagick'] = new ImageManager(new ImagickDriver(), decodeAnimation: false);
         }
 
         return $managers;
+    }
+
+    /**
+     * Lo que se le pasa al motor. A Imagick, solo el primer fotograma ya
+     * leido: si se le da la ruta carga y recompone TODOS los fotogramas antes
+     * de mirar decodeAnimation, y ese trabajo (que ademas no cuenta en el
+     * memory_limit de PHP) es justo el que se queria evitar.
+     */
+    private function source(string $motor, string $path): mixed
+    {
+        if ($motor !== 'imagick') {
+            return $path;
+        }
+
+        $imagick = new \Imagick();
+        $imagick->readImage($path . '[0]');
+
+        return $imagick;
     }
 
     private function isVectorOrMarkup(UploadedFile $file): bool
