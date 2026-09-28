@@ -257,3 +257,41 @@ it('con imagick tambien se lee solo el primer fotograma', function () {
     expect($origen)->toBeInstanceOf(Imagick::class)
         ->and($origen->getNumberImages())->toBe(1);
 });
+
+it('por imagick tampoco sobrevive el exif (gps)', function () {
+    // Las HEIC de iPhone van por Imagick, y sin strip copiaba el EXIF al WebP.
+    if (!extension_loaded('imagick')) {
+        $this->markTestSkipped('Sin la extension imagick.');
+    }
+
+    $captura = capturaDePrueba(640, 480, 'jpg');
+    $jpeg = file_get_contents($captura->getRealPath());
+    $exif = "Exif\0\0" . 'MM' . "\0*\0\0\0\x08" . str_repeat("\0", 6) . 'GPS-SECRETO-DEL-MOVIL';
+    file_put_contents($captura->getRealPath(), substr($jpeg, 0, 2) . "\xFF\xE1" . pack('n', strlen($exif) + 2) . $exif . substr($jpeg, 2));
+
+    $servicio = app(EvidenceStorage::class);
+    $motores = (new ReflectionMethod($servicio, 'managers'))->invoke($servicio);
+    $origen = (new ReflectionMethod($servicio, 'source'))->invoke($servicio, 'imagick', $captura->getRealPath());
+    $webp = (string) $motores['imagick']->read($origen)->toWebp(EvidenceStorage::QUALITY);
+
+    expect($webp)->not->toContain('GPS-SECRETO-DEL-MOVIL')
+        ->and($webp)->not->toContain('EXIF');
+});
+
+it('imagick no abre una imagen gigante: mira antes sus dimensiones', function () {
+    if (!extension_loaded('imagick')) {
+        $this->markTestSkipped('Sin la extension imagick.');
+    }
+
+    // Un PNG que dice medir 10.000 x 10.000 (100 MP): pesa nada en disco.
+    $png = file_get_contents(capturaDePrueba(4, 4)->getRealPath());
+    $ihdr = pack('NN', 10000, 10000) . substr($png, 24, 5);
+    $png = substr($png, 0, 16) . $ihdr . pack('N', crc32('IHDR' . $ihdr)) . substr($png, 33);
+    $ruta = tempnam(sys_get_temp_dir(), 'big');
+    file_put_contents($ruta, $png);
+
+    $servicio = app(EvidenceStorage::class);
+
+    expect(fn () => (new ReflectionMethod($servicio, 'source'))->invoke($servicio, 'imagick', $ruta))
+        ->toThrow(RuntimeException::class, 'demasiado grande');
+});

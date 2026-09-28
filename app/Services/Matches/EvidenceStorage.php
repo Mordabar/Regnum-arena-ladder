@@ -132,6 +132,9 @@ class EvidenceStorage
      * lo que hay en casi cualquier hosting. Imagick despues, para lo que GD no
      * sabe leer (HEIC cuando el servidor lo trae).
      *
+     * strip: sin EXIF (GPS, modelo del movil) ni perfiles. GD los pierde solo
+     * al reescribir, pero Imagick los copiaba al WebP si no se le pedia.
+     *
      * decodeAnimation desactivado: una captura es una imagen fija. Con el
      * valor por defecto un GIF de 300 KB con cientos de fotogramas grandes se
      * decodificaba entero (40 s en la prueba del arbitro) y la peticion moria
@@ -144,11 +147,11 @@ class EvidenceStorage
         $managers = [];
 
         if (extension_loaded('gd') && function_exists('imagewebp')) {
-            $managers['gd'] = new ImageManager(new GdDriver(), decodeAnimation: false);
+            $managers['gd'] = new ImageManager(new GdDriver(), decodeAnimation: false, strip: true);
         }
 
         if (extension_loaded('imagick')) {
-            $managers['imagick'] = new ImageManager(new ImagickDriver(), decodeAnimation: false);
+            $managers['imagick'] = new ImageManager(new ImagickDriver(), decodeAnimation: false, strip: true);
         }
 
         return $managers;
@@ -164,6 +167,16 @@ class EvidenceStorage
     {
         if ($motor !== 'imagick') {
             return $path;
+        }
+
+        // Las dimensiones sin decodificar: getimagesize() no entiende HEIC, y
+        // un HEIC de cientos de megapixeles comprime muchisimo en disco pero
+        // se come la memoria al abrirlo (la de ImageMagick, que no cuenta en
+        // el memory_limit de PHP).
+        $imagick = new \Imagick();
+        $imagick->pingImage($path . '[0]');
+        if ($imagick->getImageWidth() * $imagick->getImageHeight() > self::MAX_PIXELS) {
+            throw new \RuntimeException('Captura demasiado grande para convertirla.');
         }
 
         $imagick = new \Imagick();
