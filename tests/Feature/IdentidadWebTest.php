@@ -46,7 +46,24 @@ it('el sitemap lista las paginas publicas en xml', function () {
         ->assertHeader('Content-Type', 'application/xml; charset=UTF-8')
         ->assertSee(route('ladder.index'), false)
         ->assertSee(route('descargas'), false)
-        ->assertDontSee('/lobby', false);
+        ->assertDontSee('/lobby', false)
+        ->assertDontSee('/matches', false)
+        ->assertDontSee('/auth', false)
+        ->assertSee('hreflang="en"', false);
+
+    $xml = simplexml_load_string($this->get('/sitemap.xml')->getContent());
+
+    expect($xml)->not->toBeFalse()
+        ->and(count($xml->url))->toBeGreaterThanOrEqual(6);
+});
+
+it('robots.txt referencia el sitemap y cierra lo privado', function () {
+    $robots = file_get_contents(public_path('robots.txt'));
+
+    expect($robots)->toContain('Sitemap: https://regnumarenaladder.top/sitemap.xml')
+        ->and($robots)->toContain('Disallow: /lobby')
+        ->and($robots)->toContain('Disallow: /matches')
+        ->and($robots)->toContain('Disallow: /auth');
 });
 
 it('las paginas de un jugador no se ofrecen a los buscadores', function () {

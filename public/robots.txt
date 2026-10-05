@@ -7,5 +7,9 @@ Disallow: /matches
 Disallow: /player
 Disallow: /avisos
 Disallow: /auth
+Disallow: /login
+Disallow: /logout
+Disallow: /queue
+Disallow: /party
 
 Sitemap: https://regnumarenaladder.top/sitemap.xml
