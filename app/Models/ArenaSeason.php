@@ -14,6 +14,7 @@ class ArenaSeason extends Model
 
     public const STATUS_ACTIVE = 'active';
     public const STATUS_ARCHIVED = 'archived';
+    public const STATUS_SCHEDULED = 'scheduled';
 
     protected $fillable = [
         'name',
@@ -31,6 +32,7 @@ class ArenaSeason extends Model
         'reset_on_close',
         'next_prizes_enabled',
         'open_next',
+        'prizes_on_open',
     ];
 
     protected function casts(): array
@@ -45,7 +47,21 @@ class ArenaSeason extends Model
             'reset_on_close' => 'boolean',
             'next_prizes_enabled' => 'boolean',
             'open_next' => 'boolean',
+            'prizes_on_open' => 'boolean',
         ];
+    }
+
+    /** La temporada programada para abrirse a futuro, si hay alguna. */
+    public static function programada(): ?self
+    {
+        if (!Schema::hasTable('arena_seasons')) {
+            return null;
+        }
+
+        return static::query()
+            ->where('status', self::STATUS_SCHEDULED)
+            ->orderBy('starts_at')
+            ->first();
     }
 
     public static function current(): ?self

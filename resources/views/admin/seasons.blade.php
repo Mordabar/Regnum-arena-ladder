@@ -177,6 +177,65 @@
             </form>
         @endif
 
+        {{-- La temporada programada: se abre sola en su fecha, sea cuando sea. --}}
+        @if(\Illuminate\Support\Facades\Schema::hasColumn('arena_seasons', 'prizes_on_open'))
+            @if($programada)
+                <section class="ap-card ap-rise p-4">
+                    <x-admin.section-head title="Temporada programada" icon="calendar" tone="gold"
+                                            note="Se abrira sola en su fecha. Si el servidor estaba caido, abre al volver. Si hay otra temporada abierta, espera a que se cierre." />
+                    <p class="text-sm text-white font-semibold">{{ $programada->name }}</p>
+                    <p class="ap-hint mt-1">
+                        Empieza el {{ \App\Models\ArenaSeason::fechaCorta($programada->starts_at) }} a las {{ $programada->starts_at->copy()->setTimezone($zona)->format('H:i') }} ({{ $zona }})
+                        · {{ $programada->next_duration_days ? $programada->next_duration_days . ' días' : 'sin fecha de fin' }}
+                        · {{ $programada->prizes_on_open ? 'con premios' : 'sin premios' }}
+                        @if($programada->reset_on_close) · ranking a cero al cerrar @endif
+                    </p>
+                    <form method="POST" action="{{ route('admin.seasons.schedule.cancel', $programada) }}" class="mt-3 flex justify-end" onsubmit="return confirm('¿Cancelar la temporada programada?')">
+                        @csrf @method('DELETE')
+                        <button type="submit" class="ap-btn ap-btn-danger"><x-admin.icon name="trash" class="h-3.5 w-3.5" />Cancelar programación</button>
+                    </form>
+                </section>
+            @else
+                <form method="POST" action="{{ route('admin.seasons.schedule') }}" class="ap-card ap-rise p-4">
+                    @csrf
+                    <x-admin.section-head title="Programar una temporada" icon="calendar" tone="gold"
+                                            note="Opcional. Se abrira sola en la fecha y hora que pongas (hora de {{ $zona }}). Sin programar nada, el ladder sigue como esta." />
+                    <div class="ap-field">
+                        <label class="ap-label" for="p-name">Nombre</label>
+                        <input type="text" id="p-name" name="name" maxlength="120" required placeholder="Season 1" value="{{ old('name') }}" class="ap-input">
+                    </div>
+                    <div class="grid gap-3 md:grid-cols-2 mt-3">
+                        <div class="ap-field">
+                            <label class="ap-label" for="p-start">Empieza</label>
+                            <input type="datetime-local" id="p-start" name="starts_at" required value="{{ old('starts_at') }}" class="ap-input">
+                        </div>
+                        <div class="ap-field">
+                            <label class="ap-label" for="p-days">Dura (días, opcional)</label>
+                            <input type="number" id="p-days" name="duration_days" min="1" max="3650" placeholder="Sin fecha de fin" value="{{ old('duration_days') }}" class="ap-input">
+                        </div>
+                    </div>
+                    <label class="ap-switch-row mt-3">
+                        <span class="min-w-0"><span class="ap-switch-title">Reparte premios</span></span>
+                        <input type="hidden" name="prizes" value="0">
+                        <input type="checkbox" class="ap-checkbox" name="prizes" value="1" @checked(old('prizes', true))>
+                    </label>
+                    <label class="ap-switch-row mt-3">
+                        <span class="min-w-0"><span class="ap-switch-title">Poner el ranking a cero al cerrarse</span></span>
+                        <input type="hidden" name="reset_on_close" value="0">
+                        <input type="checkbox" class="ap-checkbox" name="reset_on_close" value="1" @checked(old('reset_on_close'))>
+                    </label>
+                    <label class="ap-switch-row mt-3">
+                        <span class="min-w-0"><span class="ap-switch-title">Abrir la siguiente al cerrarse</span></span>
+                        <input type="hidden" name="open_next" value="0">
+                        <input type="checkbox" class="ap-checkbox" name="open_next" value="1" @checked(old('open_next'))>
+                    </label>
+                    <div class="mt-4 flex justify-end">
+                        <button type="submit" class="ap-btn ap-btn-primary"><x-admin.icon name="calendar" class="h-3.5 w-3.5" />Programar apertura</button>
+                    </div>
+                </form>
+            @endif
+        @endif
+
         {{-- El historial. --}}
         <section class="ap-card ap-rise ap-delay-2 p-4">
             <x-admin.section-head title="Temporadas cerradas" icon="trophy"

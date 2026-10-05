@@ -244,6 +244,8 @@ Route::prefix('/' . $arenaAdminPath)->group(function () {
         // El calendario de temporadas: fechas, cierre automatico, abrir y cerrar.
         Route::get('/temporadas', [AdminSeasonController::class, 'index'])->name('seasons');
         Route::post('/temporadas/abrir', [AdminSeasonController::class, 'open'])->name('seasons.open');
+        Route::post('/temporadas/programar', [AdminSeasonController::class, 'schedule'])->name('seasons.schedule');
+        Route::delete('/temporadas/programada/{season}', [AdminSeasonController::class, 'cancelSchedule'])->name('seasons.schedule.cancel');
         Route::post('/temporadas/{season}', [AdminSeasonController::class, 'update'])->whereNumber('season')->name('seasons.update');
 
         Route::get('/players', [AdminController::class, 'players'])->name('players.index');

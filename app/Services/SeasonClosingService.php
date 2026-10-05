@@ -193,6 +193,88 @@ class SeasonClosingService
     }
 
     /**
+     * Programa una temporada para que se abra sola en una fecha futura.
+     *
+     * Solo puede haber una programada: la de antes se cancela desde el panel.
+     *
+     * @param  array{dias?: int|null, premios?: bool, resetear?: bool, abrir_siguiente?: bool}  $opciones
+     * @return array{ok: bool, motivo?: string, season?: ArenaSeason}
+     */
+    public function programar(string $nombre, CarbonInterface $inicio, array $opciones = []): array
+    {
+        if (!$this->disponible() || !Schema::hasColumn('arena_seasons', 'prizes_on_open')) {
+            return ['ok' => false, 'motivo' => 'Las temporadas no estan disponibles en este esquema.'];
+        }
+
+        if (!$inicio->gt(now())) {
+            return ['ok' => false, 'motivo' => 'La fecha de inicio tiene que ser futura. Para abrir una temporada ya, usa "Abrir temporada".'];
+        }
+
+        return DB::transaction(function () use ($nombre, $inicio, $opciones) {
+            if (ArenaSeason::query()->where('status', ArenaSeason::STATUS_SCHEDULED)->lockForUpdate()->exists()) {
+                return ['ok' => false, 'motivo' => 'Ya hay una temporada programada. Cancelala antes de programar otra.'];
+            }
+
+            $nombre = trim($nombre) !== '' ? trim($nombre) : 'Temporada ' . (ArenaSeason::query()->count() + 1);
+            $dias = isset($opciones['dias']) && (int) $opciones['dias'] > 0 ? (int) $opciones['dias'] : null;
+
+            return ['ok' => true, 'season' => ArenaSeason::create([
+                'name' => $nombre,
+                'slug' => $this->slugLibre($nombre),
+                'status' => ArenaSeason::STATUS_SCHEDULED,
+                'enabled_modes' => ArenaMode::enabled(),
+                'starts_at' => $inicio,
+                'ends_at' => $dias !== null ? $inicio->copy()->addDays($dias) : null,
+                'auto_close' => $dias !== null,
+                'next_duration_days' => $dias,
+                'reset_on_close' => (bool) ($opciones['resetear'] ?? false),
+                'open_next' => (bool) ($opciones['abrir_siguiente'] ?? false),
+                'prizes_on_open' => (bool) ($opciones['premios'] ?? true),
+            ])];
+        });
+    }
+
+    /**
+     * Abre la temporada programada cuya fecha ya llego.
+     *
+     * Si el servidor estuvo caido y la fecha ya paso, abre al instante: el
+     * calendario manda aunque el reloj se haya retrasado. Si hay otra temporada
+     * abierta, espera a que se cierre -dos abiertas a la vez no existen-.
+     */
+    public function abrirProgramada(): ?ArenaSeason
+    {
+        if (!$this->disponible() || !Schema::hasColumn('arena_seasons', 'prizes_on_open')) {
+            return null;
+        }
+
+        return DB::transaction(function () {
+            $programada = ArenaSeason::query()
+                ->where('status', ArenaSeason::STATUS_SCHEDULED)
+                ->where('starts_at', '<=', now())
+                ->lockForUpdate()
+                ->orderBy('starts_at')
+                ->first();
+
+            if ($programada === null) {
+                return null;
+            }
+
+            if (ArenaSeason::query()->where('status', ArenaSeason::STATUS_ACTIVE)->lockForUpdate()->exists()) {
+                return null;
+            }
+
+            $programada->update([
+                'status' => ArenaSeason::STATUS_ACTIVE,
+                'enabled_modes' => ArenaMode::enabled(),
+            ]);
+
+            AppSetting::setValue('season_prizes_enabled', $programada->prizes_on_open ? '1' : '0', 'branding', 'boolean', true);
+
+            return $programada->refresh();
+        });
+    }
+
+    /**
      * Cierra lo competitivo que quedaba a medias: los cruces sin aceptar se
      * cancelan (y sus colas se liberan) y los combates en curso o en disputa
      * sin puntuar se anulan, sin sancionar a nadie.

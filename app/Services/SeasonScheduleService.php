@@ -42,7 +42,8 @@ class SeasonScheduleService
         $vencida = $this->vencida();
 
         if ($vencida === null) {
-            return ['cerrada' => false];
+            // Nada que cerrar: puede que toque abrir la programada.
+            return ['cerrada' => false, 'abierta' => $this->abrirProgramada()];
         }
 
         // forzar: una temporada con fecha de fin se cierra aunque nadie haya
@@ -71,11 +72,34 @@ class SeasonScheduleService
             'congelados' => $resultado['congelados'],
         ]);
 
+        // Recien cerrada y sin siguiente: si habia una programada y su fecha ya
+        // llego, es el momento de abrirla.
+        $abierta = $resultado['siguiente'] === null ? $this->abrirProgramada() : null;
+
         return [
             'cerrada' => true,
             'season' => $resultado['season'],
-            'siguiente' => $resultado['siguiente'],
+            'siguiente' => $resultado['siguiente'] ?? $abierta,
             'congelados' => $resultado['congelados'],
+            'abierta' => $abierta,
         ];
+    }
+
+    /** Abre la temporada programada cuya fecha llego, si la hay. Nunca tumba el tick. */
+    public function abrirProgramada(): ?ArenaSeason
+    {
+        try {
+            $abierta = $this->cierre->abrirProgramada();
+        } catch (\Throwable $e) {
+            Log::error('No se pudo abrir la temporada programada', ['error' => $e->getMessage()]);
+
+            return null;
+        }
+
+        if ($abierta !== null) {
+            Log::info('Temporada abierta por calendario', ['season' => $abierta->name]);
+        }
+
+        return $abierta;
     }
 }

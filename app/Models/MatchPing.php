@@ -32,18 +32,27 @@ class MatchPing extends Model
     public const CATALOGO = [
         'voy' => ['texto' => 'Voy en camino', 'icono' => '🏃', 'tono' => 'camino'],
         'cerca' => ['texto' => 'Estoy cerca', 'icono' => '📍', 'tono' => 'camino'],
+        'puente' => ['texto' => 'Estoy pasando el puente', 'icono' => '🌉', 'tono' => 'camino'],
         'llegue' => ['texto' => 'Estoy en el punto', 'icono' => '🚩', 'tono' => 'sitio'],
         'esperame' => ['texto' => 'Espérame, ya voy', 'icono' => '🙏', 'tono' => 'camino'],
         'un_momento' => ['texto' => 'Dame un momento', 'icono' => '⏳', 'tono' => 'aviso'],
+        // Encontrarse en un mundo abierto: preguntar y avisar que ya se esta.
+        // La respuesta a "¿Dónde estás?" son 'cerca', 'puente' o 'llegue'.
+        'donde' => ['texto' => '¿Dónde estás?', 'icono' => '❓', 'tono' => 'sitio'],
+        'no_veo' => ['texto' => 'No te veo en la zona', 'icono' => '👀', 'tono' => 'sitio'],
+        'listo' => ['texto' => 'Estoy listo', 'icono' => '✅', 'tono' => 'sitio'],
         // Lo que pasa en medio del combate: un tercero que se mete es lo mas
         // comun en un mundo abierto, y decirlo evita que el rival crea que
         // se esta escondiendo.
         'atacan' => ['texto' => 'Me están atacando', 'icono' => '⚔️', 'tono' => 'aviso'],
         'tercero' => ['texto' => 'Me atacó un tercero', 'icono' => '🗡️', 'tono' => 'aviso'],
         'muerto' => ['texto' => 'Me han matado', 'icono' => '💀', 'tono' => 'aviso'],
+        'desconecte' => ['texto' => 'Un segundo, me desconecté', 'icono' => '📡', 'tono' => 'aviso'],
+        'error' => ['texto' => 'Hubo un error, reportaré', 'icono' => '⚠️', 'tono' => 'aviso'],
         // Lo social: contestar sin escribir y despedirse bien.
         'ok' => ['texto' => 'Ok', 'icono' => '👍', 'tono' => 'social'],
         'gg' => ['texto' => 'Bien jugado', 'icono' => '🤝', 'tono' => 'social'],
+        'gracias' => ['texto' => 'Gracias por el combate', 'icono' => '🙌', 'tono' => 'social'],
     ];
 
     protected $fillable = [

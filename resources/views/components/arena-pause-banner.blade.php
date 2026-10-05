@@ -10,6 +10,8 @@
         ? ArenaSeason::query()->where('status', ArenaSeason::STATUS_ARCHIVED)->orderByDesc('ends_at')->orderByDesc('id')->first()
         : null;
     $amistosos = Competition::friendlyEnabled();
+    // Opcional: solo sale si hay una temporada programada.
+    $proxima = $enPausa && \Illuminate\Support\Facades\Schema::hasTable('arena_seasons') && \Illuminate\Support\Facades\Schema::hasColumn('arena_seasons', 'prizes_on_open') ? ArenaSeason::programada() : null;
 @endphp
 
 @if($enPausa)
@@ -28,6 +30,9 @@
                     @endif
                 @else
                     No hay ninguna temporada en juego.
+                @endif
+                @if($proxima)
+                    {{ __('Próxima temporada: :name, empieza el :fecha.', ['name' => $proxima->name, 'fecha' => ArenaSeason::fechaCorta($proxima->starts_at)]) }}
                 @endif
                 @if($amistosos)
                     {{ __('Los combates son amistosos: se juegan igual, pero no mueven el ranking.') }}

@@ -45,6 +45,7 @@ class AdminSeasonController extends Controller
             'disponible' => $disponible,
             'actual' => $actual,
             'progreso' => $actual?->progreso(),
+            'programada' => $disponible && Schema::hasColumn('arena_seasons', 'prizes_on_open') ? ArenaSeason::programada() : null,
             'historial' => $historial,
             'congelados' => $congelados,
             'zona' => ArenaSeason::zone(),
@@ -200,6 +201,54 @@ class AdminSeasonController extends Controller
         }
 
         return back()->with('success', $resultado['season']->name . ' abierta.');
+    }
+
+    /** Programa una temporada para que se abra sola en una fecha futura. */
+    public function schedule(Request $request, SeasonClosingService $cierre)
+    {
+        $datos = $request->validate([
+            'name' => 'required|string|max:120',
+            'starts_at' => 'required|date_format:Y-m-d\TH:i',
+            'duration_days' => 'nullable|integer|min:1|max:3650',
+            'prizes' => 'nullable|boolean',
+            'reset_on_close' => 'nullable|boolean',
+            'open_next' => 'nullable|boolean',
+        ], [
+            'starts_at.required' => 'Pon la fecha y la hora de inicio.',
+            'starts_at.date_format' => 'La fecha de inicio no es valida.',
+        ]);
+
+        $inicio = $this->enZona($datos['starts_at']);
+
+        $resultado = $cierre->programar($datos['name'], $inicio, [
+            'dias' => filled($datos['duration_days'] ?? null) ? (int) $datos['duration_days'] : null,
+            'premios' => $request->boolean('prizes'),
+            'resetear' => $request->boolean('reset_on_close'),
+            'abrir_siguiente' => $request->boolean('open_next'),
+        ]);
+
+        if (!$resultado['ok']) {
+            return back()->withErrors(['error' => $resultado['motivo']])->withInput();
+        }
+
+        return back()->with('success', sprintf(
+            '%s programada: se abrirá sola el %s a las %s.',
+            $resultado['season']->name,
+            ArenaSeason::fechaCorta($inicio),
+            $inicio->copy()->setTimezone(ArenaSeason::zone())->format('H:i')
+        ));
+    }
+
+    /** Cancela la temporada programada. */
+    public function cancelSchedule(ArenaSeason $season)
+    {
+        if ($season->status !== ArenaSeason::STATUS_SCHEDULED) {
+            return back()->withErrors(['error' => 'Esa temporada no esta programada.']);
+        }
+
+        $season->delete();
+
+        return back()->with('success', 'Temporada programada cancelada.');
     }
 
     /** "2026-11-29T23:59" escrito en la zona de las temporadas, a UTC. */
