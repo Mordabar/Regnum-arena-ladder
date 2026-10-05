@@ -28,7 +28,11 @@ class SeasonClosingService
 {
     public function disponible(): bool
     {
-        return Schema::hasTable('arena_seasons') && Schema::hasTable('season_player_stats');
+        // Con las columnas del calendario: cerrar escribe closed_reason, y con el
+        // codigo nuevo subido antes que las migraciones fallaria a medias.
+        return Schema::hasTable('arena_seasons')
+            && Schema::hasTable('season_player_stats')
+            && Schema::hasColumn('arena_seasons', 'closed_reason');
     }
 
     /**
@@ -110,7 +114,9 @@ class SeasonClosingService
                 'closed_reason' => $opciones['motivo'] ?? 'manual',
                 // El reparto se guarda CON la temporada. Si el Salon lo leyera
                 // de los ajustes, la temporada 0 diria lo que reparte la 3.
-                'prizes' => $premios->reparto(),
+                // Si los premios estaban apagados no se repartio nada, y la
+                // vitrina no puede decir que si.
+                'prizes' => $premios->activos() ? $premios->reparto() : [],
                 'prize_currency' => $premios->moneda(),
             ]);
 
@@ -312,7 +318,10 @@ class SeasonClosingService
             'auto_close' => $dias !== null,
             'next_duration_days' => $dias,
             'reset_on_close' => (bool) ($opciones['resetear'] ?? $anterior->reset_on_close),
-            'next_prizes_enabled' => (bool) ($opciones['premios_siguiente'] ?? $anterior->next_prizes_enabled),
+            // No se hereda: "apagar los premios al cerrar la 0" es una decision
+            // para ese cierre. Si el admin los vuelve a encender, el siguiente
+            // cierre no debe apagarlos sin que nadie lo pida.
+            'next_prizes_enabled' => (bool) ($opciones['premios_siguiente'] ?? true),
         ]);
     }
 

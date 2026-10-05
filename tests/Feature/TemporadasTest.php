@@ -549,3 +549,38 @@ it('cerrar a mano una temporada que ya no es la abierta no cierra la nueva', fun
 
     expect($nueva->fresh()->status)->toBe(ArenaSeason::STATUS_ACTIVE);
 });
+
+// ------------------------------------------------- hallazgos del arbitro
+
+it('con los premios apagados la barra sigue saliendo en la portada y en el ladder', function () {
+    temporada();
+    AppSetting::setValue('season_prizes_enabled', '0', 'branding', 'boolean', true);
+
+    foreach (['home', 'ladder.index'] as $ruta) {
+        $this->get(route($ruta))
+            ->assertOk()
+            ->assertSee('arena-season-track', false)
+            ->assertDontSee('lingotes de Magnanita');
+    }
+});
+
+it('una temporada cerrada con los premios apagados no dice que repartio nada', function () {
+    $season = temporada();
+    personajeDeTemporada('o', 100);
+    AppSetting::setValue('season_prizes_enabled', '0', 'branding', 'boolean', true);
+    Carbon::setTestNow(enBogota(2026, 12, 1));
+
+    app(SeasonScheduleService::class)->aplicar();
+
+    expect($season->fresh()->reparto())->toBe([]);
+});
+
+it('apagar los premios al cerrar la 0 no se hereda a las siguientes', function () {
+    temporada(['next_prizes_enabled' => false]);
+    personajeDeTemporada('p', 100);
+    Carbon::setTestNow(enBogota(2026, 12, 1));
+
+    $siguiente = app(SeasonScheduleService::class)->aplicar()['siguiente'];
+
+    expect($siguiente->next_prizes_enabled)->toBeTrue();
+});

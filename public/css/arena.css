@@ -2295,6 +2295,16 @@ h1, h2, h3, h4, h5, h6,
     .arena-season-fill, .arena-season-head, .arena-season-fill::after, .arena-season-live::after { animation: none !important; }
 }
 
+.arena-season-solo {
+    margin: 0 0 clamp(16px, 2.4vw, 24px);
+    padding: clamp(14px, 2.2vw, 20px) clamp(16px, 2.6vw, 24px) 0;
+    border: 1px solid var(--arena-line-strong);
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(34, 24, 17, 0.9), rgba(13, 9, 7, 0.94));
+}
+.arena-season-solo .arena-season { margin-top: 0; max-width: none; }
+.arena-panel .arena-season { margin-left: 0; margin-right: 0; max-width: none; }
+
 .arena-podium.is-compacto .arena-season { margin-top: 12px; padding-bottom: 12px; }
 
 .arena-podium-stage {

@@ -35,6 +35,11 @@
                  tabla -que es a lo que se viene- fuera de la pantalla. --}}
             <x-arena-podium :podio="$podio" :premios="$premios" compacto />
         </div>
+    @else
+        @php $temporadaSola = \App\Models\ArenaSeason::current(); @endphp
+        @if($temporadaSola?->progreso())
+            <div class="arena-season-solo"><x-arena-season-bar :season="$temporadaSola" /></div>
+        @endif
     @endif
 
     {{-- ── TABLA GENERAL ── --}}
