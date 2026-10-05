@@ -6,11 +6,12 @@
     $p = $season?->progreso();
     $pct = $p ? $p['porcentaje'] : 0;
     $entero = (int) round($pct);
-    $fmt = fn ($f) => $f->day . ' ' . ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][$f->month - 1] . ' ' . $f->year;
+    // "8 abr 2026"; el orden y los meses los pone el idioma.
+    $fmt = fn ($f) => __(':d :m :y', ['d' => $f->day, 'm' => __(['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][$f->month - 1]), 'y' => $f->year]);
 @endphp
 
 @if($p)
-    <div class="arena-season is-{{ str_replace('_', '-', $p['estado']) }}" role="group" aria-label="Calendario de {{ $season->name }}"
+    <div class="arena-season is-{{ str_replace('_', '-', $p['estado']) }}" role="group" aria-label="{{ __('Calendario de :name', ['name' => $season->name]) }}"
          style="--p: {{ $pct }}%">
         <div class="arena-season-top">
             <span class="arena-season-name">
@@ -24,7 +25,7 @@
              marca "hoy"; las muescas son el primer dia de cada mes. --}}
         <div class="arena-season-track" role="progressbar" aria-valuemin="0" aria-valuemax="100"
              aria-valuenow="{{ $entero }}"
-             aria-valuetext="{{ $p['estado'] === 'pendiente' ? 'Aún no ha empezado' : 'Día ' . $p['dia'] . ' de ' . $p['dias'] . ', ' . $entero . ' por ciento' }}">
+             aria-valuetext="{{ $p['estado'] === 'pendiente' ? __('Aún no ha empezado') : __('Día :dia de :dias, :pct por ciento', ['dia' => $p['dia'], 'dias' => $p['dias'], 'pct' => $entero]) }}">
             <span class="arena-season-fill"></span>
             @foreach($p['hitos'] as $hito)
                 <span class="arena-season-tick @if($hito['pos'] <= $pct) is-passed @endif" style="left: {{ $hito['pos'] }}%" aria-hidden="true"></span>

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="{{ \App\Support\I18n\Idioma::htmlLang() }}">
 <head>
     @auth
     @if(app(\App\Services\WebPushService::class)->configurado())
@@ -313,6 +313,11 @@
     {{-- ── BARRA DE ABAJO (movil) ── --}}
     @unless($arenaContextoAdmin)
         @include('partials.arena-tabbar')
+    @endunless
+
+    {{-- ── IDIOMA ── El panel de administracion se queda en español. --}}
+    @unless($arenaContextoAdmin)
+        <x-arena-idiomas />
     @endunless
 
     {{-- ── GLOBAL SCRIPTS ── --}}

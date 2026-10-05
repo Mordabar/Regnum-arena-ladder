@@ -76,7 +76,7 @@
                              guerreros en 3D por todas partes menos aqui, que
                              es justo donde se presume. --}}
                         @if($player)
-                            <a href="{{ route('ladder.show', $player) }}" class="arena-hof-figura" aria-label="Ver la ficha de {{ $player->cleanName() }}">
+                            <a href="{{ route('ladder.show', $player) }}" class="arena-hof-figura" aria-label="{{ __('Ver la ficha de :name', ['name' => $player->cleanName()]) }}">
                                 <x-arena-champion
                                     :id="'hof-vivo-' . $puesto['puesto']"
                                     :realm="$player->realm"

@@ -191,13 +191,13 @@ class PlayerController extends Controller
 
             app(LadderCacheService::class)->forgetSummary();
 
-            return redirect()->route('lobby')->with('warning', "Personaje '{$characterName}' eliminado. Su historial de enfrentamientos se conserva para no falsear las partidas ya jugadas, pero sale del ranking y de tu lobby, y el nombre queda libre para volver a crearlo. Si necesitas recuperarlo tal cual, pideselo a un administrador.");
+            return redirect()->route('lobby')->with('warning', __("Personaje ':name' eliminado. Su historial de enfrentamientos se conserva para no falsear las partidas ya jugadas, pero sale del ranking y de tu lobby, y el nombre queda libre para volver a crearlo. Si necesitas recuperarlo tal cual, pideselo a un administrador.", ['name' => $characterName]));
         }
 
         $player->delete();
         app(LadderCacheService::class)->forgetSummary();
 
-        return redirect()->route('lobby')->with('success', "Personaje '{$characterName}' eliminado completamente (sin partidas jugadas)");
+        return redirect()->route('lobby')->with('success', __("Personaje ':name' eliminado completamente (sin partidas jugadas)", ['name' => $characterName]));
     }
 
 }

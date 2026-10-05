@@ -28,6 +28,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // Anota la ultima visita del usuario. Va en el grupo web porque lo que
         // interesa medir es "entro al ladder", no "hizo tal accion".
         $middleware->web(append: [
+            // El idioma: uno decide cual es, el otro cambia el texto de la
+            // respuesta. Van pegados y al principio para que lo que sigue ya
+            // vea el idioma elegido.
+            \App\Http\Middleware\AplicarIdioma::class,
+            \App\Http\Middleware\TraducirRespuesta::class,
             \App\Http\Middleware\TrackUserActivity::class,
             // La sesion del panel se revalida contra su cuenta en cada
             // peticion: desactivar una cuenta cierra sus sesiones abiertas.

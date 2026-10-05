@@ -97,7 +97,7 @@
                     @if($player)
                         {{-- El campeon de verdad, no un icono: la portada de un
                              juego enseña el juego. --}}
-                        <a href="{{ route('ladder.show', $player) }}" class="arena-podium-champion" aria-label="Ver la ficha de {{ $player->cleanName() }}">
+                        <a href="{{ route('ladder.show', $player) }}" class="arena-podium-champion" aria-label="{{ __('Ver la ficha de :name', ['name' => $player->cleanName()]) }}">
                             <x-arena-champion
                                 :id="'podium-' . $puesto['puesto']"
                                 :realm="$player->realm"

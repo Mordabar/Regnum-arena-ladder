@@ -171,7 +171,7 @@ class ArenaSeason extends Model
     private function textoRestante(string $estado, CarbonInterface $ahora, CarbonInterface $inicio, CarbonInterface $fin): string
     {
         if ($estado === 'pendiente') {
-            return 'Empieza el ' . self::fechaCorta($inicio);
+            return __('Empieza el :fecha', ['fecha' => self::fechaCorta($inicio)]);
         }
 
         if ($estado === 'terminada') {
@@ -212,7 +212,7 @@ class ArenaSeason extends Model
             $pos = ($mes->getTimestamp() - $inicio->getTimestamp()) / $total * 100;
 
             if ($pos > 0 && $pos < 100) {
-                $hitos[] = ['pos' => round($pos, 2), 'mes' => self::MESES[$mes->month - 1]];
+                $hitos[] = ['pos' => round($pos, 2), 'mes' => __(self::MESES[$mes->month - 1])];
             }
 
             $mes->addMonth();
@@ -233,7 +233,12 @@ class ArenaSeason extends Model
     {
         $fecha = $fecha->copy()->setTimezone(self::zone());
 
-        return $fecha->day . ' de ' . self::MESES_LARGOS[$fecha->month - 1] . ' de ' . $fecha->year;
+        // Plantilla y meses por el traductor: en inglés es "April 8, 2026".
+        return __(':d de :m de :y', [
+            'd' => $fecha->day,
+            'm' => __(self::MESES_LARGOS[$fecha->month - 1]),
+            'y' => $fecha->year,
+        ]);
     }
 
     public function stats()

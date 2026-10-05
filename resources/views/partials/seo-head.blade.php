@@ -14,12 +14,22 @@
         ?: 'Arena PvP de Regnum Online: duelos 1v1 y arenas 2v2 y 3v3 entre Alsius, Ignis y Syrtis. Ranking por reino y subclase, avisos de cruce y premios por temporada.';
     $seoVersion = fn (string $ruta) => asset($ruta) . '?v=' . (@filemtime(public_path($ruta)) ?: '1');
     $seoImagen = $seoVersion('images/og-arena-ladder.jpg');
-    $seoUrl = url()->current();
+    $idiomaActual = \App\Support\I18n\Idioma::actual();
+    // Cada idioma es una version de la misma pagina con su propia direccion
+    // (?lang=xx): el canonical de una version es ella misma, y las demas se
+    // anuncian como alternativas para que cada buscador sirva la suya.
+    $seoUrl = $idiomaActual === \App\Support\I18n\Idioma::FUENTE ? url()->current() : url()->current() . '?lang=' . $idiomaActual;
     $seoIndexable = request()->routeIs('home', 'ladder.index', 'ladder.show', 'hall-of-fame', 'como-jugar', 'guia', 'descargas');
 @endphp
 <meta name="description" content="{!! $seoDescripcion !!}">
 <meta name="robots" content="{{ $seoIndexable ? 'index, follow, max-image-preview:large' : 'noindex, follow' }}">
 <link rel="canonical" href="{{ $seoUrl }}">
+@if($seoIndexable)
+@foreach(\App\Support\I18n\Idioma::IDIOMAS as $seoCodigo => $seoDatos)
+<link rel="alternate" hreflang="{{ $seoDatos['html'] }}" href="{{ $seoCodigo === \App\Support\I18n\Idioma::FUENTE ? url()->current() : url()->current() . '?lang=' . $seoCodigo }}">
+@endforeach
+<link rel="alternate" hreflang="x-default" href="{{ url()->current() }}">
+@endif
 
 <link rel="icon" href="{{ $seoVersion('favicon.ico') }}" sizes="48x48">
 <link rel="icon" type="image/png" sizes="32x32" href="{{ $seoVersion('favicon-32x32.png') }}">
@@ -28,7 +38,7 @@
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="{{ $seoSitio }}">
-<meta property="og:locale" content="es_ES">
+<meta property="og:locale" content="{{ \App\Support\I18n\Idioma::IDIOMAS[\App\Support\I18n\Idioma::actual()]['og'] }}">
 <meta property="og:title" content="{!! $seoTitulo !!}">
 <meta property="og:description" content="{!! $seoDescripcion !!}">
 <meta property="og:url" content="{{ $seoUrl }}">

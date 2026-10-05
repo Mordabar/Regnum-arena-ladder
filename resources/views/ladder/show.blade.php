@@ -1,7 +1,14 @@
 @extends('layouts.arena')
 
-@section('title', $player->character_name . ' - Ladder')
-@section('description', $player->cleanName() . ' · ' . (\App\Models\Player::SUBCLASSES[$player->subclass] ?? ucfirst($player->subclass)) . ' de ' . (\App\Models\Player::REALMS[$player->realm] ?? ucfirst($player->realm)) . ': ' . number_format((float) $player->pl_points, 1) . ' PL, ' . $player->wins . ' victorias en ' . $player->matches_played . ' combates en Regnum Arena Ladder.')
+@section('title', __(':name - Ladder', ['name' => $player->character_name]))
+@section('description', __(':name · :subclase de :reino: :pl PL, :victorias victorias en :combates combates en Regnum Arena Ladder.', [
+    'name' => $player->cleanName(),
+    'subclase' => __(\App\Models\Player::SUBCLASSES[$player->subclass] ?? ucfirst($player->subclass)),
+    'reino' => \App\Models\Player::REALMS[$player->realm] ?? ucfirst($player->realm),
+    'pl' => number_format((float) $player->pl_points, 1),
+    'victorias' => $player->wins,
+    'combates' => $player->matches_played,
+]))
 
 @section('content')
 <div class="mx-auto max-w-5xl px-4 py-8">

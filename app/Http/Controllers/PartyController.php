@@ -213,7 +213,7 @@ class PartyController extends Controller
             foreach ($players as $index => $player) {
                 /** @var \App\Models\Player $player */
                 if (!$player->is_active) throw new \RuntimeException('Todos los personajes de la party deben estar habilitados.');
-                if ($player->isQueueLocked()) throw new \RuntimeException($player->character_name . ' esta bloqueado de las colas de juego.');
+                if ($player->isQueueLocked()) throw new \RuntimeException(__(':name está bloqueado de las colas de juego.', ['name' => $player->character_name]));
                 
                 $role = ConjurerRole::resolve($player, $roleInputs->get($index));
                 if ($role === 'support') $supportCount++;
@@ -392,8 +392,7 @@ class PartyController extends Controller
         $conflictingQueue = $this->findQueueConflictForPlayers($partyPlayers->pluck('player_id'));
         if ($conflictingQueue) {
             return back()->withErrors([
-                'error' => ($conflictingQueue->player?->character_name ?? 'Uno de los personajes')
-                    . ' ya tiene una cola o match activo externamente.',
+                'error' => __(':name ya tiene una cola o match activo externamente.', ['name' => $conflictingQueue->player?->character_name ?? __('Uno de los personajes')]),
             ]);
         }
 
@@ -404,7 +403,7 @@ class PartyController extends Controller
 
             if (!$memberPlayer || !$memberPlayer->is_active) {
                 return back()->withErrors([
-                    'error' => ($memberPlayer->character_name ?? 'Un integrante') . ' ya no esta activo.',
+                    'error' => __(':name ya no está activo.', ['name' => $memberPlayer->character_name ?? __('Un integrante')]),
                 ]);
             }
 
@@ -412,7 +411,7 @@ class PartyController extends Controller
                 $reason = $memberPlayer->queue_lock_reason_name ? ' (' . $memberPlayer->queue_lock_reason_name . ')' : '';
 
                 return back()->withErrors([
-                    'error' => $memberPlayer->character_name . ' esta bloqueado de las colas' . $reason . '.',
+                    'error' => __(':name está bloqueado de las colas:reason.', ['name' => $memberPlayer->character_name, 'reason' => $reason]),
                 ]);
             }
         }
@@ -528,12 +527,12 @@ class PartyController extends Controller
 
     private function describePartyConflict(PartyMember $partyMember): string
     {
-        $characterName = $partyMember->player?->character_name ?? 'Uno de los personajes';
+        $characterName = $partyMember->player?->character_name ?? __('Uno de los personajes');
 
         if ($partyMember->is_accepted_invite) {
-            return $characterName . ' ya pertenece a otra party activa.';
+            return __(':name ya pertenece a otra party activa.', ['name' => $characterName]);
         }
 
-        return $characterName . ' ya tiene una invitacion de party pendiente.';
+        return __(':name ya tiene una invitación de party pendiente.', ['name' => $characterName]);
     }
 }

@@ -131,10 +131,10 @@ class QueueController extends Controller
 
             if ($playerQueue?->match_id) {
                 return redirect()->route('lobby', ['mode' => $arenaMode, 'kind' => $kind])
-                    ->with('success', $player->character_name . ' entro a cola y ya tiene un match real.');
+                    ->with('success', __(':name entró a cola y ya tiene un match real.', ['name' => $player->character_name]));
             }
 
-            return back()->with('success', $player->character_name . ' se unio a la cola.');
+            return back()->with('success', __(':name se unió a la cola.', ['name' => $player->character_name]));
         } catch (\Throwable $e) {
             Log::error('Arena queue join failed', [
                 'user_id' => Auth::id(),
@@ -210,7 +210,7 @@ class QueueController extends Controller
             'expires_at' => null,
         ]);
 
-        return back()->with('success', $player->character_name . ' salio de la cola random.');
+        return back()->with('success', __(':name salió de la cola random.', ['name' => $player->character_name]));
     }
 
     private function ensurePlayerCanQueueRandom(Player $player): void

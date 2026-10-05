@@ -46,4 +46,23 @@ return [
 
     'season_timezone' => env('ARENA_SEASON_TIMEZONE', 'America/Bogota'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Grabar las frases sin traducir
+    |--------------------------------------------------------------------------
+    |
+    | Solo para desarrollo: con ARENA_I18N_RECORD=true cada frase que se pide a
+    | un catalogo y no esta se anota en storage/app/i18n-pendientes.json, y de
+    | ahi sale la lista de lo que falta traducir. En produccion, apagado: no
+    | escribe nada.
+    |
+    */
+
+    // Elegir el idioma del navegador la primera vez que se entra.
+    'i18n_detect_browser' => (bool) env('ARENA_I18N_DETECT_BROWSER', true),
+
+    'i18n_record' => (bool) env('ARENA_I18N_RECORD', false),
+
+    'i18n_record_file' => storage_path('app/i18n-pendientes.json'),
+
 ];

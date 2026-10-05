@@ -13,6 +13,9 @@
 
     <php>
         <env name="APP_ENV" value="testing"/>
+        <!-- El cliente de pruebas manda Accept-Language de ingles: sin esto la suite saldria traducida. -->
+        <env name="ARENA_I18N_DETECT_BROWSER" value="false"/>
+        <env name="ARENA_I18N_RECORD" value="false"/>
         <env name="APP_DEBUG" value="true"/>
         <env name="APP_KEY" value="base64:2uH+z3j/9NsdVvB5r0r4A2tQ6G7W3X7M4+J9J9Gx4mM="/>
         <env name="BCRYPT_ROUNDS" value="4"/>

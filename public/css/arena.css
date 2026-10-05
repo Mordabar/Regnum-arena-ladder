@@ -3823,3 +3823,125 @@ h1, h2, h3, h4, h5, h6,
     .arena-pause-banner a.cta { margin-left: 0; width: 100%; text-align: center; }
 }
 @media (prefers-reduced-motion: reduce) { .arena-pause-banner { animation: none; } }
+
+
+/* ── Selector de idioma ────────────────────────────────────────────
+   Un boton flotante abajo a la izquierda con la bandera del idioma actual
+   y, al abrirse, una hoja con todos. En movil se levanta sobre la barra de
+   abajo; en escritorio, un poco de aire del borde. */
+.arena-lang {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    z-index: 48;
+}
+
+.arena-flag {
+    display: block;
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+    background: #1a1410;
+    /* La bandera es mas ancha que alta: se recorta en redondo por el centro. */
+    overflow: hidden;
+    object-fit: cover;
+}
+.arena-flag use { /* el simbolo ya trae su lienzo de 36x24 */ }
+.arena-lang svg.arena-flag { aspect-ratio: 1; }
+
+.arena-lang-fab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 6px 12px 6px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--arena-line-strong);
+    background: linear-gradient(180deg, rgba(40, 29, 21, 0.96), rgba(14, 10, 8, 0.98));
+    color: var(--arena-sand);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(8px);
+    cursor: pointer;
+    font: 700 12px/1 'Cinzel', serif;
+    letter-spacing: 0.14em;
+    transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+.arena-lang-fab:hover { border-color: var(--arena-gold); transform: translateY(-1px); }
+.arena-lang-fab:focus-visible { outline: 2px solid var(--arena-gold); outline-offset: 3px; }
+.arena-lang-chev { width: 14px; height: 14px; color: var(--arena-muted); transition: transform 0.25s ease; }
+.arena-lang.is-abierto .arena-lang-chev { transform: rotate(180deg); }
+.arena-lang.is-abierto .arena-lang-fab { border-color: var(--arena-gold); }
+
+.arena-lang-sheet {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 10px);
+    width: min(272px, calc(100vw - 28px));
+    padding: 12px 10px 10px;
+    border-radius: 18px;
+    border: 1px solid var(--arena-line-strong);
+    background:
+        radial-gradient(120% 80% at 0% 0%, rgba(216, 177, 92, 0.12), transparent 60%),
+        linear-gradient(180deg, rgba(36, 26, 19, 0.99), rgba(11, 8, 6, 0.99));
+    box-shadow: 0 22px 54px rgba(0, 0, 0, 0.6);
+    transform-origin: 20px 100%;
+    animation: arena-lang-in 0.22s cubic-bezier(0.22, 0.8, 0.2, 1) both;
+}
+.arena-lang-sheet[hidden] { display: none; }
+
+.arena-lang-title {
+    margin: 0 8px 8px;
+    font: 700 10px/1 'Cinzel', serif;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--arena-muted);
+}
+.arena-lang-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+
+.arena-lang-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+    padding: 6px 10px;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    color: var(--arena-sand);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+.arena-lang-item:hover, .arena-lang-item:focus-visible {
+    background: rgba(216, 177, 92, 0.1);
+    border-color: var(--arena-line-strong);
+    color: var(--arena-gold-soft);
+    outline: none;
+}
+.arena-lang-item.is-actual {
+    background: linear-gradient(180deg, rgba(63, 45, 31, 0.85), rgba(26, 18, 13, 0.9));
+    border-color: var(--arena-line-strong);
+    color: var(--arena-gold-soft);
+}
+.arena-lang-name { flex: 1; min-width: 0; }
+.arena-lang-check { width: 16px; height: 16px; color: var(--arena-gold); opacity: 0; transform: scale(0.6); transition: opacity 0.2s ease, transform 0.2s ease; }
+.arena-lang-item.is-actual .arena-lang-check { opacity: 1; transform: none; }
+
+@keyframes arena-lang-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.96); }
+    to { opacity: 1; transform: none; }
+}
+
+/* En movil se levanta sobre la barra de abajo (66px + el borde seguro). */
+@media (max-width: 1023px) {
+    .arena-lang { left: 12px; bottom: calc(66px + env(safe-area-inset-bottom, 0px) + 12px); }
+    .arena-lang-fab { min-height: 42px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .arena-lang-sheet { animation: none; }
+    .arena-lang-fab, .arena-lang-chev { transition: none; }
+}

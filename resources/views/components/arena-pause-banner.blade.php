@@ -21,7 +21,11 @@
             <b>Ladder en pausa</b>
             <span class="t">
                 @if($ultima)
-                    {{ $ultima->name }} terminó{{ $ultima->ends_at ? ' el ' . ArenaSeason::fechaCorta($ultima->ends_at) : '' }}.
+                    @if($ultima->ends_at)
+                        {{ __(':name terminó el :fecha.', ['name' => $ultima->name, 'fecha' => ArenaSeason::fechaCorta($ultima->ends_at)]) }}
+                    @else
+                        {{ __(':name terminó.', ['name' => $ultima->name]) }}
+                    @endif
                 @else
                     No hay ninguna temporada en juego.
                 @endif
