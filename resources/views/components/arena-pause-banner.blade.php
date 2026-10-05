@@ -30,7 +30,7 @@
                     No hay ninguna temporada en juego.
                 @endif
                 @if($amistosos)
-                    Los combates son amistosos: se juegan igual, pero no mueven el ranking.
+                    {{ __('Los combates son amistosos: se juegan igual, pero no mueven el ranking.') }}
                 @else
                     Por ahora no hay colas abiertas.
                 @endif
