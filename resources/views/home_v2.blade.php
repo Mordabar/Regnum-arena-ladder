@@ -88,7 +88,7 @@
                     <x-arena-podium :podio="$podio" :premios="$premios" />
                 @else
                     <div class="flex justify-center lg:justify-end">
-                        <x-arena-brand class="rounded-[2rem] border border-[color:var(--arena-line)] bg-[linear-gradient(180deg,rgba(47,34,24,0.74),rgba(16,11,8,0.9))] px-6 py-5 shadow-[0_20px_45px_rgba(0,0,0,0.26)]" />
+                        <x-arena-brand class="max-[420px]:flex-col max-[420px]:px-4 max-[420px]:text-center rounded-[2rem] border border-[color:var(--arena-line)] bg-[linear-gradient(180deg,rgba(47,34,24,0.74),rgba(16,11,8,0.9))] px-6 py-5 shadow-[0_20px_45px_rgba(0,0,0,0.26)]" />
                     </div>
                     {{-- Sin premios no hay podio, pero la temporada sigue teniendo
                          fecha de fin y la barra tiene que verse igual. --}}

@@ -12,7 +12,7 @@
         : 'h-24 w-auto md:h-28';
     $titleClass = $isCompact
         ? 'text-base md:text-lg'
-        : 'text-3xl md:text-4xl';
+        : 'text-2xl sm:text-3xl md:text-4xl';
     $subtitleClass = $isCompact
         ? 'text-[0.62rem] tracking-[0.42em]'
         : 'text-xs tracking-[0.48em]';
