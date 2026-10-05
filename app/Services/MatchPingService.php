@@ -177,8 +177,8 @@ class MatchPingService
                         $seVenLosNombres || $esMio
                     ),
                     'nombre' => ($seVenLosNombres || $esMio)
-                        ? ($nombres[(int) $ping->player_id] ?? 'Alguien')
-                        : 'Rival',
+                        ? ($nombres[(int) $ping->player_id] ?? __('Alguien'))
+                        : __('Rival'),
                     'mio' => $esMio,
                     'bando' => $bando,
                     'code' => (string) $ping->code,

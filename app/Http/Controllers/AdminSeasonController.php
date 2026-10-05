@@ -61,8 +61,8 @@ class AdminSeasonController extends Controller
 
         $datos = $request->validate([
             'name' => 'required|string|max:120',
-            'starts_at' => 'required|date_format:Y-m-d\TH:i',
-            'ends_at' => 'nullable|date_format:Y-m-d\TH:i',
+            'starts_at' => 'required|date_format:Y-m-d\TH:i,Y-m-d\TH:i:s',
+            'ends_at' => 'nullable|date_format:Y-m-d\TH:i,Y-m-d\TH:i:s',
             'duration_days' => 'nullable|integer|min:1|max:3650',
             'auto_close' => 'nullable|boolean',
             'next_name' => 'nullable|string|max:120',
@@ -102,17 +102,27 @@ class AdminSeasonController extends Controller
             throw ValidationException::withMessages(['ends_at' => 'Esa fecha ya paso: con el cierre automatico la temporada se cerraria en el proximo minuto. Pon una fecha futura, o usa "Cerrar la temporada" si es lo que quieres.']);
         }
 
-        $season->update([
-            'name' => trim($datos['name']),
-            'starts_at' => $inicio,
-            'ends_at' => $fin,
-            'auto_close' => $auto,
-            'next_name' => filled($datos['next_name'] ?? null) ? trim($datos['next_name']) : null,
-            'next_duration_days' => filled($datos['next_duration_days'] ?? null) ? (int) $datos['next_duration_days'] : null,
-            'reset_on_close' => $request->boolean('reset_on_close'),
-            'next_prizes_enabled' => $request->boolean('next_prizes_enabled'),
-            'open_next' => $request->boolean('open_next'),
-        ]);
+        // Una sola sentencia condicionada al estado: si el reloj la cerro un
+        // instante antes, no se pisan las fechas de una temporada ya archivada.
+        $cambiadas = ArenaSeason::query()
+            ->whereKey($season->getKey())
+            ->where('status', ArenaSeason::STATUS_ACTIVE)
+            ->update([
+                'name' => trim($datos['name']),
+                'starts_at' => $inicio,
+                'ends_at' => $fin,
+                'auto_close' => $auto,
+                'next_name' => filled($datos['next_name'] ?? null) ? trim($datos['next_name']) : null,
+                'next_duration_days' => filled($datos['next_duration_days'] ?? null) ? (int) $datos['next_duration_days'] : null,
+                'reset_on_close' => $request->boolean('reset_on_close'),
+                'next_prizes_enabled' => $request->boolean('next_prizes_enabled'),
+                'open_next' => $request->boolean('open_next'),
+                'updated_at' => now(),
+            ]);
+
+        if ($cambiadas === 0) {
+            return back()->withErrors(['error' => 'Esa temporada ya no esta abierta: puede que acabe de cerrarse. Recarga la pagina.']);
+        }
 
         return back()->with('success', 'Calendario guardado.' . ($auto ? ' Se cerrará sola el ' . ArenaSeason::fechaCorta($fin) . ' a las ' . $fin->copy()->setTimezone(ArenaSeason::zone())->format('H:i') . '.' : ''));
     }
@@ -190,8 +200,8 @@ class AdminSeasonController extends Controller
     {
         $datos = $request->validate([
             'name' => 'required|string|max:120',
-            'starts_at' => 'nullable|date_format:Y-m-d\TH:i',
-            'ends_at' => 'nullable|date_format:Y-m-d\TH:i',
+            'starts_at' => 'nullable|date_format:Y-m-d\TH:i,Y-m-d\TH:i:s',
+            'ends_at' => 'nullable|date_format:Y-m-d\TH:i,Y-m-d\TH:i:s',
             'auto_close' => 'nullable|boolean',
         ]);
 

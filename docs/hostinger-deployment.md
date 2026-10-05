@@ -130,6 +130,13 @@ DB_USERNAME=tu_usuario DB_PASSWORD=tu_clave \
 ./vendor/bin/pest
 ```
 
+Con `bin/test-mysql.sh` (o `composer test:mysql`) se hace lo mismo en un
+solo paso. **No lances dos suites a la vez** (SQLite y MySQL, por ejemplo):
+comparten la carpeta de capturas de prueba y se pisan, y salen fallos de 404
+que no son del codigo. En SQLite quedan 2 tests omitidos a proposito -las
+longitudes de columna solo se pueden comprobar en MySQL-; en MySQL corren y
+pasan.
+
 Comprueba despues el login de Discord, una cola 2v2, una cola 3v3, la subida de evidencias y el panel de modalidades en la configuracion administrativa.
 
 ## Avisos del navegador (Web Push)
@@ -229,3 +236,28 @@ Ademas de las vistas y `public/build/`:
 Despues de subir: `php artisan view:clear && php artisan route:clear &&
 php artisan config:clear`. Sin `route:clear`, una cache de rutas vieja deja
 fuera las rutas nuevas y el sitio da 500 a quien tiene sesion.
+
+
+## Temporadas, idiomas y avisos de Discord (feat/idiomas)
+
+Migraciones nuevas, en este orden (`php artisan migrate --force`):
+
+- `2026_10_05_000001_add_schedule_to_arena_seasons` y
+  `2026_10_05_000002_set_season_zero_calendar`: fechas y cierre automatico.
+- `2026_10_06_000001_add_friendly_matches`: amistosos (`is_ranked`, `open_next`).
+- `2026_10_07_000001_schedule_season_opening`: `prizes_on_open`, para la
+  temporada programada.
+- `2026_10_07_000002_add_confirmation_note_to_match_reports`: comentario
+  opcional al confirmar un reporte.
+- `2026_10_07_000003_add_locale_to_users`: idioma de cada usuario (DM de Discord).
+
+Que subir ademas del codigo: `lang/*.json` (los cinco catalogos: en, pt, de, fr,
+nl), `public/css/arena.css`, `site.css` y `admin.css`, `public/robots.txt`.
+
+`.env`: `ARENA_SEASON_TIMEZONE=America/Bogota` y `ARENA_I18N_RECORD=false`
+(en produccion no debe grabar frases). Despues:
+`php artisan config:clear && php artisan route:clear && php artisan view:clear`.
+
+La temporada programada se abre en el tick del mantenimiento (cron cada minuto
+o respaldo por HTTP); no hace falta nada mas. El candado de programar usa la
+cache `file`, valido para un solo servidor como Hostinger compartido.

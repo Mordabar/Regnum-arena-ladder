@@ -57,13 +57,11 @@ class MatchLifecycleService
         // expediente y lo pasaba a 'completed', mientras la sancion al que se
         // fue seguia aplicada. Quedaban castigo y partida normal a la vez.
         if (in_array($match->status, ['cancelled', 'void', 'abandoned'], true)) {
-            $comoQuedo = match ($match->status) {
-                'void' => 'anulado',
-                'abandoned' => 'marcado como abandonado',
-                default => 'interrumpido',
-            };
-
-            throw new \RuntimeException('Este match fue ' . $comoQuedo . ' y ya no puede puntuarse.');
+            throw new \RuntimeException(match ($match->status) {
+                'void' => __('Este match fue anulado y ya no puede puntuarse.'),
+                'abandoned' => __('Este match fue marcado como abandonado y ya no puede puntuarse.'),
+                default => __('Este match fue interrumpido y ya no puede puntuarse.'),
+            });
         }
 
         $resultRows = [];
@@ -782,7 +780,7 @@ class MatchLifecycleService
         // Para cambiar el ganador esta forceComplete, y para deshacerlo del
         // todo, markVoid, que devuelve lo repartido.
         if ($match->results()->exists()) {
-            throw new \RuntimeException('No puedes mandar a disputa un match ya puntuado. Corrige el resultado en su lugar.');
+            throw new \RuntimeException(__('No puedes mandar a disputa un match ya puntuado. Corrige el resultado en su lugar.'));
         }
 
         DB::transaction(function () use ($match, $admin, $note) {

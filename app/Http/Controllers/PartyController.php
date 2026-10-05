@@ -185,7 +185,7 @@ class PartyController extends Controller
 
             $realms = $players->pluck('realm')->unique();
             if ($realms->count() !== 1) {
-                return back()->withErrors(['error' => 'Todos deben ser del mismo reino.']);
+                return back()->withErrors(['error' => __('Todos deben ser del mismo reino.')]);
             }
 
             $conflictingQueue = $this->findQueueConflictForPlayers($selectedIds);

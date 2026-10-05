@@ -112,7 +112,7 @@ class ArenaMatchController extends Controller
     public function ping(Request $request, MatchPingService $avisos)
     {
         if (!Auth::check()) {
-            return response()->json(['ok' => false, 'motivo' => 'Inicia sesion.'], 401);
+            return response()->json(['ok' => false, 'motivo' => __('Inicia sesion.')], 401);
         }
 
         $validated = $request->validate([

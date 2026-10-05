@@ -266,6 +266,7 @@ class SeasonClosingService
             ->where('status', ArenaSeason::STATUS_SCHEDULED)
             ->update([
                 'name' => trim($nombre) !== '' ? trim($nombre) : $season->name,
+                'slug' => $this->slugLibre(trim($nombre) !== '' ? trim($nombre) : $season->name, $season->getKey()),
                 'starts_at' => $inicio,
                 'ends_at' => $dias !== null ? $inicio->copy()->addDays($dias) : null,
                 'auto_close' => $dias !== null,
@@ -529,13 +530,13 @@ class SeasonClosingService
         return 'Temporada ' . (ArenaSeason::query()->count() + 1);
     }
 
-    private function slugLibre(string $nombre): string
+    private function slugLibre(string $nombre, ?int $ignorar = null): string
     {
         $base = Str::slug($nombre) ?: 'temporada';
         $slug = $base;
         $n = 2;
 
-        while (ArenaSeason::query()->where('slug', $slug)->exists()) {
+        while (ArenaSeason::query()->where('slug', $slug)->when($ignorar, fn ($q) => $q->whereKeyNot($ignorar))->exists()) {
             $slug = $base . '-' . $n++;
         }
 

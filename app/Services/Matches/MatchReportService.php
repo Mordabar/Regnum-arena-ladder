@@ -42,7 +42,7 @@ class MatchReportService
     public function submitReport(ArenaMatch $match, Player $reporter, array $payload): MatchReport
     {
         if ($match->status !== 'in_progress') {
-            throw new \RuntimeException('Solo puedes reportar matches en progreso.');
+            throw new \RuntimeException(__('Solo puedes reportar matches en progreso.'));
         }
 
         // Un amistoso no se reporta: no hay nada que puntuar. Se termina con su
@@ -67,7 +67,7 @@ class MatchReportService
 
         $claimedWinnerTeam = $payload['claimed_winner_team'];
         if (!in_array($claimedWinnerTeam, ['team_a', 'team_b', 'draw'], true)) {
-            throw new \RuntimeException('Equipo ganador invalido.');
+            throw new \RuntimeException(__('Equipo ganador invalido.'));
         }
 
         $evidenceFiles = collect($payload['evidence_files'] ?? [])
@@ -180,7 +180,7 @@ class MatchReportService
         }
 
         if ($match->status !== 'in_progress') {
-            throw new \RuntimeException('Solo puedes crear un reporte sintetico en matches en progreso.');
+            throw new \RuntimeException(__('Solo puedes crear un reporte sintetico en matches en progreso.'));
         }
 
         $reportingTeam = $match->getTeamSideForPlayer($reporter->id, (string) $reporter->user?->discord_id);
@@ -193,7 +193,7 @@ class MatchReportService
             ->first();
 
         if (!$primaryEvidencePath) {
-            throw new \RuntimeException('No se pudo generar evidencia sintetica para el reporte.');
+            throw new \RuntimeException(__('No se pudo generar evidencia sintetica para el reporte.'));
         }
 
         $report = MatchReport::updateOrCreate(

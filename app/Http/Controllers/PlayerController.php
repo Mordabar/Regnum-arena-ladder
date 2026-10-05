@@ -91,7 +91,7 @@ class PlayerController extends Controller
 
         app(LadderCacheService::class)->forgetSummary();
 
-        return redirect()->route('lobby')->with('success', 'Personaje registrado exitosamente');
+        return redirect()->route('lobby')->with('success', __('Personaje registrado exitosamente'));
     }
 
     public function update(Request $request, Player $player)
@@ -142,7 +142,7 @@ class PlayerController extends Controller
 
         app(LadderCacheService::class)->forgetSummary();
 
-        return redirect()->route('lobby')->with('success', 'Personaje actualizado exitosamente');
+        return redirect()->route('lobby')->with('success', __('Personaje actualizado exitosamente'));
     }
 
     public function destroy(Player $player)

@@ -134,7 +134,9 @@ it('el idioma de todos los destinatarios se lee con una sola consulta', function
 
     $consultas = 0;
     DB::listen(function ($q) use (&$consultas) {
-        if (str_contains($q->sql, '"locale"') && str_contains($q->sql, '"users"')) {
+        $sql = str_replace(['"', '`'], '', $q->sql);
+
+        if (str_contains($sql, 'locale') && str_contains($sql, 'from users')) {
             $consultas++;
         }
     });

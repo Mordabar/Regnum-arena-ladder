@@ -297,7 +297,6 @@ class DiscordBotService
         $ids = collect($jugadores)
             ->map(fn ($j) => (string) ($j['discord_id'] ?? ''))
             ->filter()
-            ->reject(fn (string $id) => isset($this->idiomas[$id]))
             ->unique()
             ->values();
 
@@ -333,7 +332,7 @@ class DiscordBotService
             'timeout' => __('Tiempo agotado para aceptar'),
             'player_rejected' => __('Un jugador rechazó el match'),
             'season_closed' => __('La temporada se cerró'),
-            default => __(ucfirst(str_replace('_', ' ', $reason))),
+            default => __('Cancelado'),
         };
     }
 
