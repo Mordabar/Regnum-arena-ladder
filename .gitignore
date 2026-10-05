@@ -49,3 +49,4 @@
 # Las capturas que suben los jugadores (reportes, rechazos, abandonos). Son
 # datos del sitio: viven en el servidor y nunca van a git.
 /storage/app/arena-reports/
+/storage/app/i18n-pendientes.json
