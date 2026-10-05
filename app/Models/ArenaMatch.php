@@ -156,6 +156,7 @@ class ArenaMatch extends Model
         'report_token',
         'queue_mode',
         'arena_mode',
+        'is_ranked',
         'team_a_queue_type',
         'team_b_queue_type',
         'team_a_realm',
@@ -183,6 +184,7 @@ class ArenaMatch extends Model
     ];
 
     protected $casts = [
+        'is_ranked' => 'boolean',
         'team_a' => 'array',
         'meeting_point' => 'array',
         'team_b' => 'array',
@@ -196,6 +198,16 @@ class ArenaMatch extends Model
         'expires_at' => 'datetime',
         'created_at' => 'datetime',
     ];
+
+    /**
+     * Un amistoso: PvP que no mueve el ranking. Se mira con === false y no con
+     * !is_ranked porque un enfrentamiento recien creado sin la columna cargada
+     * trae null, y eso es competitivo (el valor por defecto de la base).
+     */
+    public function isFriendly(): bool
+    {
+        return $this->getAttribute('is_ranked') === false;
+    }
 
     public function results()
     {

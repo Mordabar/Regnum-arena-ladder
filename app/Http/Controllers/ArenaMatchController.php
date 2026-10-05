@@ -283,6 +283,38 @@ class ArenaMatchController extends Controller
             ->with('warning', 'Match rechazado. Los demás jugadores fueron reencolados.');
     }
 
+    /**
+     * Termina un amistoso. Cualquiera de los jugadores del combate puede: no hay
+     * nada que reportar ni que confirmar, solo avisar de que ya acabo.
+     */
+    public function finishFriendly(Request $request, ArenaMatchResultService $resultService)
+    {
+        if (!Auth::check()) {
+            return redirect()->route('auth.discord');
+        }
+
+        $request->validate([
+            'match_id' => 'required|exists:matches,id',
+            'player_id' => 'required|exists:players,id',
+        ]);
+
+        $match = ArenaMatch::findOrFail($request->match_id);
+        $player = Auth::user()->players()->findOrFail((int) $request->player_id);
+
+        if (!$match->getAllPlayers()->firstWhere('player_id', $player->id)) {
+            return back()->withErrors(['error' => 'No estás en este match.']);
+        }
+
+        if (!$match->isFriendly()) {
+            return back()->withErrors(['error' => 'Este combate es competitivo: se cierra con el reporte del resultado.']);
+        }
+
+        $resultService->finishFriendly($match);
+
+        return redirect()->route('lobby', ['mode' => $match->arena_mode, 'kind' => 'friendly'])
+            ->with('success', 'Amistoso terminado. Cuando quieras, busca otro rival.');
+    }
+
     public function report(Request $request, ArenaMatchResultService $resultService)
     {
         if (!Auth::check()) {

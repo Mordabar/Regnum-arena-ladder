@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Party;
 use App\Models\Queue;
 use App\Support\ArenaMode;
+use App\Support\Competition;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
@@ -112,13 +113,25 @@ class ArenaMaintenanceService
     {
         $enabledModes = ArenaMode::enabled();
 
+        // Atascada = esperando algo que ya no existe: una modalidad apagada, o
+        // un tipo de partida cerrado (el ladder en pausa al acabar la
+        // temporada, o los amistosos apagados desde el panel).
         $stuckQueues = Queue::query()
             ->where('status', 'waiting')
             ->whereNull('match_id')
-            ->when(
-                $enabledModes !== [],
-                fn ($query) => $query->whereNotIn('arena_mode', $enabledModes)
-            )
+            ->when($enabledModes !== [], function ($query) {
+                $query->where(function ($cerradas) {
+                    $cerradas->whereNotIn('arena_mode', ArenaMode::enabled());
+
+                    if (!Competition::rankedOpen()) {
+                        $cerradas->orWhere('is_ranked', true);
+                    }
+
+                    if (!Competition::friendlyEnabled()) {
+                        $cerradas->orWhere('is_ranked', false);
+                    }
+                });
+            })
             ->get(['id', 'arena_mode', 'team_id']);
 
         if ($stuckQueues->isEmpty()) {

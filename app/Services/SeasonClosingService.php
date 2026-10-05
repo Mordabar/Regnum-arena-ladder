@@ -46,9 +46,10 @@ class SeasonClosingService
      * - duracion_dias: cuanto dura la siguiente; sin valor queda abierta sin fecha.
      * - resetear: poner el ranking a cero DESPUES de congelar el podio.
      * - premios_siguiente: false apaga el reparto de premios para la siguiente.
+     * - abrir_siguiente: false no abre ninguna: el ladder se queda en pausa.
      *
-     * @param  array{esperada?: int, motivo?: string, duracion_dias?: int|null, resetear?: bool, premios_siguiente?: bool}  $opciones
-     * @return array{ok: bool, motivo?: string, season?: ArenaSeason, siguiente?: ArenaSeason, congelados?: int, reinicio?: array|null}
+     * @param  array{esperada?: int, motivo?: string, duracion_dias?: int|null, resetear?: bool, premios_siguiente?: bool, abrir_siguiente?: bool}  $opciones
+     * @return array{ok: bool, motivo?: string, season?: ArenaSeason, siguiente?: ArenaSeason|null, congelados?: int, reinicio?: array|null}
      */
     public function cerrar(?string $nombreSiguiente = null, bool $forzar = false, array $opciones = []): array
     {
@@ -116,11 +117,14 @@ class SeasonClosingService
                 // de los ajustes, la temporada 0 diria lo que reparte la 3.
                 // Si los premios estaban apagados no se repartio nada, y la
                 // vitrina no puede decir que si.
-                'prizes' => $premios->activos() ? $premios->reparto() : [],
+                'prizes' => $premios->configurados() ? $premios->reparto() : [],
                 'prize_currency' => $premios->moneda(),
             ]);
 
-            $siguiente = $this->abrirSiguiente($actual, $nombreSiguiente, $opciones);
+            // Sin siguiente, el ladder queda en pausa: ninguna temporada abierta
+            // significa que solo se juegan amistosos hasta que se abra otra.
+            $abrir = (bool) ($opciones['abrir_siguiente'] ?? $actual->open_next);
+            $siguiente = $abrir ? $this->abrirSiguiente($actual, $nombreSiguiente, $opciones) : null;
 
             return [
                 'ok' => true,

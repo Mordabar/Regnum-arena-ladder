@@ -303,6 +303,49 @@ class MatchLifecycleService
         return true;
     }
 
+    /**
+     * Termina un amistoso: PvP sin ranking.
+     *
+     * No crea resultados, no toca PL ni MMR ni victorias, y por eso tampoco
+     * puede reportarse, disputarse ni sancionarse. Solo cierra el combate y
+     * libera a los jugadores para que busquen otro.
+     *
+     * @param  string  $como  'manual' (alguien lo termino) o 'timeout' (se acabo el plazo)
+     */
+    public function finishFriendly(ArenaMatch $match, string $como = 'manual'): bool
+    {
+        if (!$match->isFriendly()) {
+            throw new \RuntimeException('Esto es un combate competitivo: se cierra con el reporte del resultado.');
+        }
+
+        $cerrado = DB::transaction(function () use ($match, $como) {
+            $actual = ArenaMatch::query()->whereKey($match->getKey())->lockForUpdate()->first();
+
+            // Dos jugadores pueden pulsar a la vez: el segundo no encuentra
+            // nada que terminar y no es un error.
+            if ($actual === null || $actual->status !== 'in_progress') {
+                return false;
+            }
+
+            $actual->update([
+                'status' => 'completed',
+                'completed_at' => now(),
+                'expires_at' => null,
+                'notes' => trim(($actual->notes ?? '') . "\nAmistoso terminado: " . ($como === 'timeout' ? 'se acabo el plazo' : 'por un jugador')),
+            ]);
+
+            $this->closeMatchQueues($actual);
+
+            return true;
+        });
+
+        if ($cerrado) {
+            $match->refresh();
+        }
+
+        return $cerrado;
+    }
+
     public function sweepPostMatchState(): array
     {
         return [
@@ -372,12 +415,27 @@ class MatchLifecycleService
      */
     private function expireInProgressMatchesWithoutReport(): int
     {
-        $expiredMatches = ArenaMatch::query()
+        $vencidos = ArenaMatch::query()
             ->where('status', 'in_progress')
             ->whereNull('reported_at')
             ->whereNotNull('expires_at')
             ->where('expires_at', '<=', now())
             ->get();
+
+        // Un amistoso que se queda sin terminar no es un fallo de nadie: se
+        // cierra solo, sin anular nada ni sancionar a nadie.
+        [$amistosos, $expiredMatches] = $vencidos->partition(fn (ArenaMatch $match) => $match->isFriendly());
+
+        foreach ($amistosos as $match) {
+            try {
+                $this->finishFriendly($match, 'timeout');
+            } catch (\Throwable $exception) {
+                Log::warning('No se pudo cerrar un amistoso vencido.', [
+                    'match_id' => $match->id,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+        }
 
         foreach ($expiredMatches as $match) {
             try {
@@ -390,7 +448,7 @@ class MatchLifecycleService
             }
         }
 
-        return $expiredMatches->count();
+        return $expiredMatches->count() + $amistosos->count();
     }
 
     /**

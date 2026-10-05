@@ -8,6 +8,7 @@ use App\Models\Player;
 use App\Models\Queue;
 use App\Services\ArenaMatchmakingService;
 use App\Support\ArenaMode;
+use App\Support\Competition;
 use App\Support\ConjurerRole;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -124,6 +125,7 @@ class PartyController extends Controller
 
             $validated = $request->validate([
                 'arena_mode' => 'nullable|in:' . implode(',', ArenaMode::all()),
+                'kind' => 'nullable|in:' . Competition::RANKED . ',' . Competition::FRIENDLY,
                 'party_player_ids' => 'required|array|size:' . $teamSize,
                 'party_player_ids.*' => 'required|integer|distinct|exists:players,id',
                 'party_conjurer_roles' => 'nullable|array|size:' . $teamSize,
@@ -132,6 +134,14 @@ class PartyController extends Controller
 
             if (!ArenaMode::isEnabled($arenaMode)) {
                 return back()->withErrors(['error' => 'La modalidad ' . $arenaMode . ' no esta activa en este momento.']);
+            }
+
+            $kind = Competition::normalize($request->input('kind')) ?? Competition::default();
+
+            if (!Competition::isOpen($kind)) {
+                return back()->withErrors(['error' => $kind === Competition::RANKED
+                    ? 'El ladder esta en pausa: no hay ninguna temporada abierta. Puedes jugar amistosos.'
+                    : 'Los amistosos no estan activos en este momento.']);
             }
 
             // Un duelo no tiene con quien hacer grupo. La vista ya no ofrece el
@@ -218,12 +228,13 @@ class PartyController extends Controller
                 return back()->withErrors(['error' => 'No se permiten 2 conjuradores soporte dentro de la misma party.']);
             }
 
-            DB::transaction(function () use ($leader, $composition, $arenaMode) {
+            DB::transaction(function () use ($leader, $composition, $arenaMode, $kind) {
                 $party = Party::create([
                     'leader_player_id' => $leader->id,
                     'status' => 'forming',
                     'realm' => $leader->realm,
                     'arena_mode' => $arenaMode,
+                    'is_ranked' => $kind === Competition::RANKED,
                 ]);
 
                 foreach ($composition as $index => $comp) {
@@ -361,6 +372,16 @@ class PartyController extends Controller
             ]);
         }
 
+        // Lo mismo con el tipo: una party competitiva armada antes de que
+        // acabara la temporada ya no puede buscar partida.
+        if (!Competition::isOpen(Competition::kindOf((bool) $party->is_ranked))) {
+            return back()->withErrors([
+                'error' => $party->is_ranked
+                    ? 'El ladder esta en pausa. Disuelve la party y creala de nuevo en amistoso.'
+                    : 'Los amistosos ya no estan activos.',
+            ]);
+        }
+
         $partyPlayers = $party->members()->with('player.user')->get();
 
         $conflictingPartyMember = $this->findPartyConflictForPlayers($partyPlayers->pluck('player_id'), $party->id);
@@ -429,6 +450,7 @@ class PartyController extends Controller
                     'player_id' => $member->player_id,
                     'queue_type' => 'premade',
                     'arena_mode' => $party->arena_mode,
+                    'is_ranked' => (bool) $party->is_ranked,
                     'status' => 'waiting',
                     'conjurer_role' => $member->conjurer_role,
                     'estimated_mmr' => $member->player->mmr ?? 800,

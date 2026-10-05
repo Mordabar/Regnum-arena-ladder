@@ -27,6 +27,7 @@ class Queue extends Model
         'player_id',
         'queue_type',
         'arena_mode',
+        'is_ranked',
         'status',
         'conjurer_role',
         'estimated_mmr',
@@ -41,6 +42,7 @@ class Queue extends Model
     ];
 
     protected $casts = [
+        'is_ranked' => 'boolean',
         'team_composition' => 'array',
         'joined_at' => 'datetime',
         'matched_at' => 'datetime',

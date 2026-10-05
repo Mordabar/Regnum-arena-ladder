@@ -45,6 +45,12 @@ class MatchReportService
             throw new \RuntimeException('Solo puedes reportar matches en progreso.');
         }
 
+        // Un amistoso no se reporta: no hay nada que puntuar. Se termina con su
+        // propio boton y no deja rastro en el ranking.
+        if ($match->isFriendly()) {
+            throw new \RuntimeException('Un amistoso no se reporta: no mueve el ranking. Termínalo con el botón "Terminar amistoso".');
+        }
+
         if ($match->results()->exists()) {
             throw new \RuntimeException('Este match ya fue procesado.');
         }

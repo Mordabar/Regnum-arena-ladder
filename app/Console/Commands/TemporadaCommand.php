@@ -51,10 +51,10 @@ class TemporadaCommand extends Command
         }
 
         $this->info(sprintf(
-            '%s cerrada con %d personaje(s) en la vitrina. Abierta: %s.',
+            '%s cerrada con %d personaje(s) en la vitrina. %s',
             $resultado['season']->name,
             $resultado['congelados'],
-            $resultado['siguiente']->name
+            $resultado['siguiente'] ? 'Abierta: ' . $resultado['siguiente']->name . '.' : 'Ladder en pausa: solo amistosos hasta que abras otra.'
         ));
 
         return self::SUCCESS;

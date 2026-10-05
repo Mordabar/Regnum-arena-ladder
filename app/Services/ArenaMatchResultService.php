@@ -94,15 +94,12 @@ class ArenaMatchResultService
         return $this->moderation->forceComplete($match, $winnerTeam, $admin, $note);
     }
 
-    /**
-     * Anula un enfrentamiento.
-     *
-     * Si ya estaba puntuado tambien se anula, deshaciendo lo que repartio. La
-     * negativa de antes dejaba a moderacion sin salida: una partida cerrada por
-     * un fallo -el rival confirmo algo que no paso, o el sistema la cerro sola-
-     * se quedaba contando en el ladder para siempre, porque forceComplete solo
-     * sabe cambiar el ganador, y aqui el problema es que no hubo partida.
-     */
+    /** Termina un amistoso: PvP sin ranking. */
+    public function finishFriendly(ArenaMatch $match, string $como = 'manual'): bool
+    {
+        return $this->lifecycle->finishFriendly($match, $como);
+    }
+
     /**
      * Anula un enfrentamiento.
      *

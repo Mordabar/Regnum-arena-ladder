@@ -30,6 +30,7 @@ class ArenaSeason extends Model
         'next_duration_days',
         'reset_on_close',
         'next_prizes_enabled',
+        'open_next',
     ];
 
     protected function casts(): array
@@ -43,6 +44,7 @@ class ArenaSeason extends Model
             'next_duration_days' => 'integer',
             'reset_on_close' => 'boolean',
             'next_prizes_enabled' => 'boolean',
+            'open_next' => 'boolean',
         ];
     }
 

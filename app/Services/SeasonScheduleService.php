@@ -35,7 +35,7 @@ class SeasonScheduleService
     /**
      * Cierra la temporada vencida y deja su podio en el Salon de la Fama.
      *
-     * @return array{cerrada: bool, season?: ArenaSeason, siguiente?: ArenaSeason, congelados?: int, motivo?: string}
+     * @return array{cerrada: bool, season?: ArenaSeason, siguiente?: ArenaSeason|null, congelados?: int, motivo?: string}
      */
     public function aplicar(): array
     {
@@ -67,7 +67,7 @@ class SeasonScheduleService
 
         Log::info('Temporada cerrada por calendario', [
             'season' => $resultado['season']->name,
-            'siguiente' => $resultado['siguiente']->name,
+            'siguiente' => $resultado['siguiente']?->name,
             'congelados' => $resultado['congelados'],
         ]);
 

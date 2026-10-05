@@ -209,6 +209,9 @@ class RepeatOpponentPolicy
     {
         return ArenaMatch::query()
             ->where('status', 'completed')
+            // Los amistosos no cuentan: enfrentarse en uno no tiene que
+            // empujar hacia abajo el emparejamiento competitivo.
+            ->where('is_ranked', true)
             ->where('completed_at', '>=', now()->subHours(self::REPEAT_PAIR_WINDOW_HOURS))
             ->get()
             ->reduce(function (array $history, ArenaMatch $match) {
@@ -230,6 +233,9 @@ class RepeatOpponentPolicy
     {
         return ArenaMatch::query()
             ->where('status', 'completed')
+            // Los amistosos no cuentan: enfrentarse en uno no tiene que
+            // empujar hacia abajo el emparejamiento competitivo.
+            ->where('is_ranked', true)
             ->where('completed_at', '>=', now()->subHours(self::REPEAT_PAIR_WINDOW_HOURS))
             ->get()
             ->map(function (ArenaMatch $match) {

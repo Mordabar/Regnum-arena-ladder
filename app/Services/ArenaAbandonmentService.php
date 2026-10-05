@@ -69,6 +69,12 @@ class ArenaAbandonmentService
             throw new \RuntimeException('Solo se puede reportar un abandono mientras el combate esta en curso.');
         }
 
+        // Sin ranking en juego no hay sancion que pedir: si alguien se va de un
+        // amistoso, basta con terminarlo.
+        if ($match->isFriendly()) {
+            throw new \RuntimeException('En un amistoso no hay abandonos que reportar: terminalo y busca otro rival.');
+        }
+
         $yaAvisado = MatchAbandonmentReport::query()
             ->where('match_id', $match->id)
             ->where('reported_by_player_id', $reporter->id)

@@ -67,6 +67,7 @@ class AdminSeasonController extends Controller
             'next_duration_days' => 'nullable|integer|min:1|max:3650',
             'reset_on_close' => 'nullable|boolean',
             'next_prizes_enabled' => 'nullable|boolean',
+            'open_next' => 'nullable|boolean',
         ], [
             'starts_at.required' => 'Pon la fecha de inicio.',
             'starts_at.date_format' => 'La fecha de inicio no es valida.',
@@ -101,6 +102,7 @@ class AdminSeasonController extends Controller
             'next_duration_days' => filled($datos['next_duration_days'] ?? null) ? (int) $datos['next_duration_days'] : null,
             'reset_on_close' => $request->boolean('reset_on_close'),
             'next_prizes_enabled' => $request->boolean('next_prizes_enabled'),
+            'open_next' => $request->boolean('open_next'),
         ]);
 
         return back()->with('success', 'Calendario guardado.' . ($auto ? ' Se cerrará sola el ' . ArenaSeason::fechaCorta($fin) . ' a las ' . $fin->copy()->setTimezone(ArenaSeason::zone())->format('H:i') . '.' : ''));
@@ -122,6 +124,7 @@ class AdminSeasonController extends Controller
             'duracion_dias' => 'nullable|integer|min:1|max:3650',
             'resetear' => 'nullable|boolean',
             'premios_siguiente' => 'nullable|boolean',
+            'abrir_siguiente' => 'nullable|boolean',
         ], [
             'confirmacion.required' => 'Escribe CERRAR para confirmar.',
             'confirmacion.in' => 'Escribe CERRAR para confirmar.',
@@ -143,6 +146,10 @@ class AdminSeasonController extends Controller
             $opciones['resetear'] = $request->boolean('resetear');
         }
 
+        if ($request->has('abrir_siguiente')) {
+            $opciones['abrir_siguiente'] = $request->boolean('abrir_siguiente');
+        }
+
         if ($request->has('premios_siguiente')) {
             $opciones['premios_siguiente'] = $request->boolean('premios_siguiente');
         }
@@ -154,10 +161,12 @@ class AdminSeasonController extends Controller
         }
 
         $mensaje = sprintf(
-            '%s cerrada con %d personaje(s) en la vitrina. Ya esta abierta %s.',
+            '%s cerrada con %d personaje(s) en la vitrina. %s',
             $resultado['season']->name,
             $resultado['congelados'],
-            $resultado['siguiente']->name
+            $resultado['siguiente']
+                ? 'Ya esta abierta ' . $resultado['siguiente']->name . '.'
+                : 'El ladder queda en pausa: solo se juegan amistosos hasta que abras otra temporada.'
         );
 
         if (!empty($resultado['reinicio'])) {

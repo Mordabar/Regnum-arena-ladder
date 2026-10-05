@@ -185,6 +185,7 @@ Route::middleware('auth')->group(function () {
         ->middleware('throttle:20,1,chat')
         ->name('matches.ping');
 
+    Route::post('/matches/amistoso/terminar', [ArenaMatchController::class, 'finishFriendly'])->name('matches.friendly.finish');
     Route::post('/matches/report', [ArenaMatchController::class, 'report'])->name('matches.report');
     Route::post('/matches/report/confirm', [ArenaMatchController::class, 'confirmReport'])->name('matches.report.confirm');
     Route::post('/matches/report/reject', [ArenaMatchController::class, 'rejectReport'])->name('matches.report.reject');

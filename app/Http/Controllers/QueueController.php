@@ -8,6 +8,7 @@ use App\Models\Player;
 use App\Models\Queue;
 use App\Services\ArenaMatchmakingService;
 use App\Support\ArenaMode;
+use App\Support\Competition;
 use App\Support\ConjurerRole;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -32,6 +33,7 @@ class QueueController extends Controller
             $request->validate([
                 'player_id' => 'required|integer|exists:players,id',
                 'arena_mode' => 'nullable|in:' . implode(',', ArenaMode::all()),
+                'kind' => 'nullable|in:' . Competition::RANKED . ',' . Competition::FRIENDLY,
                 'queue_type' => 'required|in:random,premade',
                 'conjurer_role' => 'nullable|in:support,offensive',
                 'party_player_ids' => 'nullable|array|size:' . $teamSize,
@@ -42,6 +44,16 @@ class QueueController extends Controller
 
             if (!ArenaMode::isEnabled($arenaMode)) {
                 return back()->withErrors(['error' => 'La modalidad ' . $arenaMode . ' no esta activa en este momento.']);
+            }
+
+            // Competitivo o amistoso. Sin pedir ninguno entra al competitivo si
+            // esta abierto; si el ladder esta en pausa, al amistoso.
+            $kind = Competition::normalize($request->input('kind')) ?? Competition::default();
+
+            if (!Competition::isOpen($kind)) {
+                return back()->withErrors(['error' => $kind === Competition::RANKED
+                    ? 'El ladder esta en pausa: no hay ninguna temporada abierta. Puedes jugar amistosos.'
+                    : 'Los amistosos no estan activos en este momento.']);
             }
 
             if (!$matchmakingService->isMatchesSchemaReady()) {
@@ -75,7 +87,7 @@ class QueueController extends Controller
             // la cuenta bloqueados: sin esto, dos peticiones simultaneas (doble
             // clic, dos pestañas) leian "sin cola" a la vez y ambas insertaban,
             // dejando al usuario en dos colas y potencialmente dos matches.
-            $created = DB::transaction(function () use ($player, $arenaMode, $conjurerRole) {
+            $created = DB::transaction(function () use ($player, $arenaMode, $conjurerRole, $kind) {
                 $lockedPlayerIds = Player::query()
                     ->where('user_id', $player->user_id)
                     ->lockForUpdate()
@@ -94,6 +106,7 @@ class QueueController extends Controller
                     'player_id' => $player->id,
                     'queue_type' => 'random',
                     'arena_mode' => $arenaMode,
+                    'is_ranked' => $kind === Competition::RANKED,
                     'status' => 'waiting',
                     'conjurer_role' => $conjurerRole,
                     'estimated_mmr' => $player->mmr ?? 800,
@@ -117,7 +130,7 @@ class QueueController extends Controller
                 ->first();
 
             if ($playerQueue?->match_id) {
-                return redirect()->route('lobby', ['mode' => $arenaMode])
+                return redirect()->route('lobby', ['mode' => $arenaMode, 'kind' => $kind])
                     ->with('success', $player->character_name . ' entro a cola y ya tiene un match real.');
             }
 

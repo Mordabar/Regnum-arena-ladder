@@ -22,10 +22,18 @@ class SeasonPrizeService
     /** El orden en que se mira un podio: el ganador en medio y mas alto. */
     public const ORDEN_DEL_PODIO = [2, 1, 3];
 
-    public function activos(): bool
+    /** Los premios estan encendidos y hay algo que repartir, haya o no temporada en juego. */
+    public function configurados(): bool
     {
         return (bool) AppSetting::getValue('season_prizes_enabled', true)
             && $this->total() > 0;
+    }
+
+    public function activos(): bool
+    {
+        // Sin temporada en juego no hay nada que ganar: con el ladder en pausa
+        // anunciar premios seria prometer algo que ya no se reparte.
+        return $this->configurados() && \App\Support\Competition::rankedOpen();
     }
 
     /** @return array<int, int> puesto => cantidad */

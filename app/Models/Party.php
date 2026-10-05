@@ -18,6 +18,11 @@ class Party extends Model
         'status',
         'realm',
         'arena_mode',
+        'is_ranked',
+    ];
+
+    protected $casts = [
+        'is_ranked' => 'boolean',
     ];
 
     protected static function booted(): void

@@ -88,6 +88,9 @@ class MatchPoints
         $recentMatches = ArenaMatch::query()
             ->where('id', '!=', $match->id)
             ->where('status', 'completed')
+            // Un amistoso contra el mismo rival no devalua el siguiente
+            // competitivo: no repartio puntos, asi que no cuenta como repeticion.
+            ->where('is_ranked', true)
             ->where('completed_at', '>=', now()->subHours(self::REPEAT_WINDOW_HOURS))
             ->get();
 

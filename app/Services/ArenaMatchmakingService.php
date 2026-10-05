@@ -12,6 +12,7 @@ use App\Services\Matchmaking\PairingGenerator;
 use App\Services\Matchmaking\RepeatOpponentPolicy;
 use App\Services\Matchmaking\ZonePicker;
 use App\Support\ArenaMode;
+use App\Support\Competition;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -302,8 +303,29 @@ class ArenaMatchmakingService
         // al instante aunque llegue un rival mucho mejor dos segundos despues.
         $maduros = $ignorarEspera ? now() : now()->subSeconds($this->segundosDeEspera());
 
+        // Competitivo y amistoso se reparten por separado: cada tipo tiene su
+        // propia cola de equipos y nunca se mezclan. El competitivo solo se
+        // procesa mientras el ladder esta en juego; el amistoso, si esta
+        // encendido en el panel.
+        $creados = 0;
+
+        foreach (Competition::open() as $kind) {
+            $creados += $this->barrerTipo($kind === Competition::RANKED, $enabledModes, $maduros);
+        }
+
+        return $creados;
+    }
+
+    /**
+     * Un barrido de la cola para un solo tipo de partida.
+     *
+     * @param  list<string>  $enabledModes
+     */
+    private function barrerTipo(bool $ranked, array $enabledModes, $maduros): int
+    {
         $randomWaitingQueues = Queue::query()
             ->where('queue_type', 'random')
+            ->where('is_ranked', $ranked)
             ->whereIn('arena_mode', $enabledModes)
             ->where('status', 'waiting')
             // La columna es NOT NULL, asi que hoy este OR no salva a nadie: es
@@ -333,6 +355,7 @@ class ArenaMatchmakingService
 
         $premadeWaitingQueues = Queue::query()
             ->where('queue_type', 'premade')
+            ->where('is_ranked', $ranked)
             ->whereIn('arena_mode', $enabledModes)
             ->where('status', 'waiting')
             // La columna es NOT NULL, asi que hoy este OR no salva a nadie: es
@@ -377,7 +400,7 @@ class ArenaMatchmakingService
         }
 
         $candidateTeams = $candidateTeams->merge(
-            $this->buildPremadeTeams($premadeWaitingQueues)
+            $this->buildPremadeTeams($premadeWaitingQueues, $ranked)
         );
 
         $this->anotarBarridoDeConsola();
@@ -391,8 +414,8 @@ class ArenaMatchmakingService
 
         foreach ($pairings as $pairing) {
             try {
-                $match = DB::transaction(function () use ($pairing, $activeMatches) {
-                    return $this->createArenaMatch($pairing['team_a'], $pairing['team_b'], $activeMatches);
+                $match = DB::transaction(function () use ($pairing, $activeMatches, $ranked) {
+                    return $this->createArenaMatch($pairing['team_a'], $pairing['team_b'], $activeMatches, $ranked);
                 });
             } catch (\Throwable $e) {
                 Log::warning('ArenaMatchmakingService skipped stale pairing', [
@@ -700,7 +723,7 @@ class ArenaMatchmakingService
         return $teams;
     }
 
-    private function buildPremadeTeams(Collection $queues): Collection
+    private function buildPremadeTeams(Collection $queues, bool $ranked = true): Collection
     {
         return $queues
             // La clave incluye la modalidad para que un mismo team_id no pueda
@@ -730,7 +753,7 @@ class ArenaMatchmakingService
                 }
 
                 $partySignature = $this->resolvePartySignature($teamEntries);
-                if ($this->countPartyMatchesToday($partySignature) >= $this->premadeDailyLimit()) {
+                if ($ranked && $this->countPartyMatchesToday($partySignature) >= $this->premadeDailyLimit()) {
                     return null;
                 }
 
@@ -751,7 +774,7 @@ class ArenaMatchmakingService
             ->values();
     }
 
-    private function createArenaMatch(array $teamA, array $teamB, Collection $activeMatches): ArenaMatch
+    private function createArenaMatch(array $teamA, array $teamB, Collection $activeMatches, bool $ranked = true): ArenaMatch
     {
         $expiresAt = now()->addMinutes((int) AppSetting::getValue('accept_window_minutes', 5));
 
@@ -779,11 +802,11 @@ class ArenaMatchmakingService
         // El limite diario no necesita filtrarse por modalidad: la firma de
         // party es la lista de user_ids, asi que una dupla ("7-12") y un trio
         // ("7-12-19") nunca comparten firma.
-        if (($teamA['queue_type'] ?? 'random') === 'premade' && $this->countPartyMatchesToday((string) ($teamA['party_signature'] ?? '')) >= $this->premadeDailyLimit()) {
+        if ($ranked && ($teamA['queue_type'] ?? 'random') === 'premade' && $this->countPartyMatchesToday((string) ($teamA['party_signature'] ?? '')) >= $this->premadeDailyLimit()) {
             throw new \RuntimeException('Premade party A reached its daily limit.');
         }
 
-        if (($teamB['queue_type'] ?? 'random') === 'premade' && $this->countPartyMatchesToday((string) ($teamB['party_signature'] ?? '')) >= $this->premadeDailyLimit()) {
+        if ($ranked && ($teamB['queue_type'] ?? 'random') === 'premade' && $this->countPartyMatchesToday((string) ($teamB['party_signature'] ?? '')) >= $this->premadeDailyLimit()) {
             throw new \RuntimeException('Premade party B reached its daily limit.');
         }
 
@@ -794,6 +817,7 @@ class ArenaMatchmakingService
                 ? 'premade'
                 : 'random',
             'arena_mode' => $arenaMode,
+            'is_ranked' => $ranked,
             'team_a_realm' => $teamA['realm'],
             'team_b_realm' => $teamB['realm'],
             'team_a' => $teamAPayload,
@@ -980,6 +1004,9 @@ class ArenaMatchmakingService
         $query = ArenaMatch::query()
             ->whereDate('created_at', now()->toDateString())
             ->whereNotIn('status', ['cancelled', 'void'])
+            // Los amistosos no gastan el cupo diario de la party: el limite
+            // existe para que no se farmee ladder repitiendo la misma duo.
+            ->where('is_ranked', true)
             ->where(function ($builder) use ($partySignature) {
                 $builder->where('team_a_party_signature', $partySignature)
                     ->orWhere('team_b_party_signature', $partySignature);

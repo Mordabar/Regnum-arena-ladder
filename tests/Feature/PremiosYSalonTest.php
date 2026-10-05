@@ -53,6 +53,15 @@ function jugadorConPuntos(string $sufijo, string $realm, float $pl, int $mmr = 1
     ]);
 }
 
+/** Con el ladder en juego: sin temporada abierta los premios no se anuncian. */
+function abrirTemporadaDePrueba(): ArenaSeason
+{
+    return ArenaSeason::create([
+        'name' => 'En juego', 'slug' => 'en-juego-' . uniqid(), 'status' => ArenaSeason::STATUS_ACTIVE,
+        'enabled_modes' => ['1v1', '2v2', '3v3'], 'starts_at' => now()->subWeek(),
+    ]);
+}
+
 /** Un cruce cualquiera dentro de la temporada: basta con que exista. */
 function cruceDeLaTemporada(ArenaSeason $season): void
 {
@@ -77,6 +86,7 @@ function cruceDeLaTemporada(ArenaSeason $season): void
 // -------------------------------------------------------------------- premios
 
 it('el reparto por defecto son 17 lingotes', function () {
+    abrirTemporadaDePrueba();
     $premios = app(SeasonPrizeService::class);
 
     expect($premios->reparto())->toBe([1 => 10, 2 => 5, 3 => 2])
@@ -126,6 +136,7 @@ it('el podio sale con huecos cuando no hay nadie', function () {
 });
 
 it('la portada enseña el podio y lo que se reparte', function () {
+    abrirTemporadaDePrueba();
     jugadorConPuntos('e', 'ignis', 400);
 
     $this->get(route('home'))
@@ -410,6 +421,7 @@ it('cerrar archiva la temporada que el resto del sitio da por viva', function ()
 });
 
 it('los cajones del podio usan la moneda configurada', function () {
+    abrirTemporadaDePrueba();
     // Con "lingotes" escrito a mano en la plantilla, cambiar el premio a otra
     // cosa dejaba el titulo diciendo una moneda y los tres cajones otra.
     AppSetting::setValue('season_prize_currency', 'monedas de oro');
