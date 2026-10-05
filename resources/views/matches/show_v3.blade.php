@@ -593,7 +593,7 @@
                              resto de la pagina seguia diciendo "Guerrero Anonimo". --}}
                         <p class="mt-1 font-semibold text-white arena-body-text">
                             @if($showRivalNames || $report->reporting_team === $ownSide)
-                                {{ $report->reporter?->character_name ?? 'Sin dato' }}
+                                @if($report->reporter?->character_name)<span translate="no">{{ $report->reporter->character_name }}</span>@else Sin dato @endif
                             @else
                                 Guerrero Anónimo
                             @endif

@@ -3943,6 +3943,7 @@ h1, h2, h3, h4, h5, h6,
 @media (max-width: 1023px) {
     .arena-lang { left: 12px; bottom: calc(66px + env(safe-area-inset-bottom, 0px) + 12px); }
     .arena-lang-fab { min-height: 42px; }
+    .arena-lang-sheet { max-height: calc(100dvh - 140px); }
 }
 
 @media (prefers-reduced-motion: reduce) {

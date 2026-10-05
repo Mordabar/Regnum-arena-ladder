@@ -273,3 +273,13 @@ it('los literales de script conservan el espacio de los bordes', function () {
     expect(en()->html("<script>x('No se pudo cargar ' + u)</script>"))
         ->toBe("<script>x('Could not load ' + u)</script>");
 });
+
+it('los mensajes del servidor bajo motivo se traducen y los nombres no', function () {
+    catalogoDePrueba(['Vas muy rapido.' => 'Too fast.', 'Rival' => 'Opponent']);
+
+    $fuera = en()->datos(['motivo' => 'Vas muy rapido.', 'players' => [['character_name' => 'Rival', 'rol' => 'Rival']]]);
+
+    expect($fuera['motivo'])->toBe('Too fast.')
+        ->and($fuera['players'][0]['character_name'])->toBe('Rival')
+        ->and($fuera['players'][0]['rol'])->toBe('Opponent');
+});

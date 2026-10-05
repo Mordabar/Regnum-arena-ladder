@@ -517,7 +517,7 @@ class Traductor
 
         // Nombres y notas que escribio una persona no son texto de la interfaz:
         // un personaje llamado "Rival" no puede salir como "Opponent".
-        if ($clave !== null && !preg_match('/zone|zona/i', $clave) && preg_match('/name|nombre|note|nota|reason|motivo|character|player|label_raw/i', $clave)) {
+        if ($clave !== null && preg_match('/^(character_?name|player_?name|display_?name|leader_?name|username|name|nombre|note|nota)$/i', $clave)) {
             return $valor;
         }
 

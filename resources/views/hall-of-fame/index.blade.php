@@ -32,7 +32,7 @@
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <p class="arena-kicker"><span class="arena-party-dot is-live"></span> En juego ahora</p>
-                    <h2 class="mt-2 text-2xl font-semibold text-white">{{ $actual->name }}</h2>
+                    <h2 class="mt-2 text-2xl font-semibold text-white"><span translate="no">{{ $actual->name }}</span></h2>
                 </div>
                 <a href="{{ route('ladder.index') }}" class="arena-btn-ghost"><x-arena-icon name="ladder" class="h-4 w-4 shrink-0" />Ver clasificacion</a>
             </div>
@@ -148,7 +148,7 @@
                 <div class="flex flex-wrap items-start justify-between gap-4">
                     <div>
                         <p class="arena-kicker">Temporada cerrada</p>
-                        <h2 class="mt-2 text-2xl font-semibold text-white">{{ $season->name }}</h2>
+                        <h2 class="mt-2 text-2xl font-semibold text-white"><span translate="no">{{ $season->name }}</span></h2>
                         <p class="mt-1 text-sm text-[color:var(--arena-muted)]">
                             {{ implode(' · ', $season->enabledModes()) }}
                             @if($season->ends_at) · cerrada el {{ $season->ends_at->format('d/m/Y') }} @endif

@@ -16,7 +16,7 @@
         <div class="arena-season-top">
             <span class="arena-season-name">
                 <span class="arena-season-live" aria-hidden="true"></span>
-                {{ $season->name }}
+                <span translate="no">{{ $season->name }}</span>
             </span>
             <span class="arena-season-left">{{ $p['restante'] }}</span>
         </div>

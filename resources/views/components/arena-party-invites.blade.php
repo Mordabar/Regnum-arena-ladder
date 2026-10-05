@@ -30,7 +30,7 @@
 
             <div data-invite-detail>
                 <p class="arena-invite-body">
-                    <b>{{ $invite->party->leader?->character_name ?? 'Un jugador' }}</b>
+                    <b>@if($invite->party->leader?->character_name)<span translate="no">{{ $invite->party->leader->character_name }}</span>@else Un jugador @endif</b>
                     invita a tu <b><span translate="no">{{ $invite->player->character_name }}</span></b>
                     a jugar {{ \App\Support\ArenaMode::label($invite->party->arena_mode) }}.
                 </p>

@@ -69,13 +69,13 @@
             if (!hoja.hidden && !raiz.contains(e.target)) { abrir(false); }
         });
 
-        // Salir de la hoja con el tabulador la cierra: no se queda abierta detras.
-        raiz.addEventListener('focusout', function (e) {
-            if (!hoja.hidden && e.relatedTarget && !raiz.contains(e.relatedTarget)) { abrir(false); }
-        });
-
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape' && !hoja.hidden) { abrir(false); boton.focus(); }
+            // Tabular desde el ultimo idioma saca el foco de la hoja: se cierra.
+            if (e.key === 'Tab' && !e.shiftKey && !hoja.hidden) {
+                var enlaces = hoja.querySelectorAll('a');
+                if (document.activeElement === enlaces[enlaces.length - 1]) { abrir(false); }
+            }
         });
     })();
 </script>
