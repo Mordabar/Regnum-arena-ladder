@@ -124,7 +124,12 @@ class SeasonClosingService
 
             // Sin siguiente, el ladder queda en pausa: ninguna temporada abierta
             // significa que solo se juegan amistosos hasta que se abra otra.
-            $abrir = (bool) ($opciones['abrir_siguiente'] ?? $actual->open_next);
+            // Con una temporada programada, la siguiente es ESA: abrir una
+            // generica ahora la dejaria bloqueada para siempre. El ladder queda
+            // en pausa hasta su fecha (o se abre ya si su fecha llego).
+            $hayProgramada = Schema::hasColumn('arena_seasons', 'prizes_on_open')
+                && ArenaSeason::query()->where('status', ArenaSeason::STATUS_SCHEDULED)->exists();
+            $abrir = !$hayProgramada && (bool) ($opciones['abrir_siguiente'] ?? $actual->open_next);
             $siguiente = $abrir ? $this->abrirSiguiente($actual, $nombreSiguiente, $opciones) : null;
 
             return [
@@ -210,7 +215,9 @@ class SeasonClosingService
             return ['ok' => false, 'motivo' => 'La fecha de inicio tiene que ser futura. Para abrir una temporada ya, usa "Abrir temporada".'];
         }
 
-        return DB::transaction(function () use ($nombre, $inicio, $opciones) {
+        // El candado hace que dos envios a la vez no creen dos: bloquear filas
+        // que todavia no existen no sirve de nada en MariaDB.
+        return \Illuminate\Support\Facades\Cache::lock('season-schedule', 10)->block(5, fn () => DB::transaction(function () use ($nombre, $inicio, $opciones) {
             if (ArenaSeason::query()->where('status', ArenaSeason::STATUS_SCHEDULED)->lockForUpdate()->exists()) {
                 return ['ok' => false, 'motivo' => 'Ya hay una temporada programada. Cancelala antes de programar otra.'];
             }
@@ -231,7 +238,7 @@ class SeasonClosingService
                 'open_next' => (bool) ($opciones['abrir_siguiente'] ?? false),
                 'prizes_on_open' => (bool) ($opciones['premios'] ?? true),
             ])];
-        });
+        }));
     }
 
     /**
@@ -263,9 +270,17 @@ class SeasonClosingService
                 return null;
             }
 
+            // La temporada empieza cuando de verdad abre. Si el servidor estuvo
+            // caido o tuvo que esperar a otra, conservar el calendario original
+            // la dejaria con la duracion recortada o ya vencida.
+            $dias = $programada->next_duration_days;
+
             $programada->update([
                 'status' => ArenaSeason::STATUS_ACTIVE,
                 'enabled_modes' => ArenaMode::enabled(),
+                'starts_at' => now(),
+                'ends_at' => $dias ? now()->addDays($dias) : null,
+                'auto_close' => (bool) $dias,
             ]);
 
             AppSetting::setValue('season_prizes_enabled', $programada->prizes_on_open ? '1' : '0', 'branding', 'boolean', true);

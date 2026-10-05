@@ -28,7 +28,7 @@ class MatchPingService
      * Tope por jugador y minuto.
      *
      * Ocho da de sobra para avisar de todo lo que pasa en un combate y sigue
-     * cortando la rafaga. Con doce, alternando las seis frases, se podia tener
+     * cortando la rafaga. Con doce, alternando las frases, se podia tener
      * al rival pitando y vibrando cada cinco segundos durante todo el cruce:
      * eso no es avisar, es una forma de molestar con otro nombre. El cliente
      * ademas espacia los pitidos, para que ni ocho seguidos suenen ocho veces.

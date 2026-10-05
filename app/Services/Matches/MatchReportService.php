@@ -273,7 +273,7 @@ SVG;
             throw new \RuntimeException('Solo el equipo rival puede confirmar este reporte.');
         }
 
-        $note = $note !== null ? trim($note) : null;
+        $note = $note !== null ? mb_substr(trim($note), 0, 500) : null;
 
         return DB::transaction(function () use ($report, $match, $confirmer, $note) {
             $report->update([

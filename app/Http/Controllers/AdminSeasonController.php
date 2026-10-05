@@ -208,7 +208,7 @@ class AdminSeasonController extends Controller
     {
         $datos = $request->validate([
             'name' => 'required|string|max:120',
-            'starts_at' => 'required|date_format:Y-m-d\TH:i',
+            'starts_at' => 'required|date_format:Y-m-d\TH:i,Y-m-d\TH:i:s',
             'duration_days' => 'nullable|integer|min:1|max:3650',
             'prizes' => 'nullable|boolean',
             'reset_on_close' => 'nullable|boolean',
@@ -242,11 +242,16 @@ class AdminSeasonController extends Controller
     /** Cancela la temporada programada. */
     public function cancelSchedule(ArenaSeason $season)
     {
-        if ($season->status !== ArenaSeason::STATUS_SCHEDULED) {
-            return back()->withErrors(['error' => 'Esa temporada no esta programada.']);
-        }
+        // Una sola sentencia condicionada al estado: si el reloj la abrio un
+        // instante antes, no borra nada (y menos una temporada en juego).
+        $borradas = ArenaSeason::query()
+            ->whereKey($season->getKey())
+            ->where('status', ArenaSeason::STATUS_SCHEDULED)
+            ->delete();
 
-        $season->delete();
+        if ($borradas === 0) {
+            return back()->withErrors(['error' => 'Esa temporada ya no esta programada: puede que acabe de abrirse.']);
+        }
 
         return back()->with('success', 'Temporada programada cancelada.');
     }
@@ -254,6 +259,7 @@ class AdminSeasonController extends Controller
     /** "2026-11-29T23:59" escrito en la zona de las temporadas, a UTC. */
     private function enZona(string $valor): Carbon
     {
-        return Carbon::createFromFormat('Y-m-d\TH:i', $valor, ArenaSeason::zone())->utc();
+        // Algunos navegadores mandan segundos ("...T23:59:00").
+        return Carbon::createFromFormat('Y-m-d\TH:i', substr($valor, 0, 16), ArenaSeason::zone())->utc();
     }
 }

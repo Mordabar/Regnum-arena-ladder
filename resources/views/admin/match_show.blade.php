@@ -225,6 +225,10 @@
                 <p class="ap-label mt-3 mb-1.5">Version de quien reporto</p>
                 <p class="ap-quote">“{{ $report->reporter_note }}”</p>
             @endif
+            @if($report->confirmation_note)
+                <p class="ap-hint mt-2">Comentario de quien confirmó</p>
+                <p class="ap-quote">“{{ $report->confirmation_note }}”</p>
+            @endif
 
             @if($report->rejection_note)
                 <p class="ap-label mt-3 mb-1.5">Version del rival, que lo rechazo</p>

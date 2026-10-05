@@ -282,15 +282,6 @@ class DiscordBotService
         ])->connectTimeout(3)->timeout(5);
     }
 
-    /**
-     * Los mensajes de Discord salen DESPUES de guardar y de responder.
-     *
-     * Antes se mandaban dentro de la peticion que creaba el cruce: dos llamadas
-     * por jugador (abrir el DM y escribir), doce en un 3v3. Si Discord iba
-     * lento, el jugador tardaba en saber que habia entrado en partida. Ahora es
-     * como con el push: `afterCommit` espera a que el cruce este guardado y
-     * `terminating` lo manda cuando el jugador ya tiene su respuesta.
-     */
     /** El idioma de un usuario de Discord; español si no se sabe. */
     private function idiomaDe(string $discordId): string
     {
@@ -316,6 +307,15 @@ class DiscordBotService
         }
     }
 
+    /**
+     * Los mensajes de Discord salen DESPUES de guardar y de responder.
+     *
+     * Antes se mandaban dentro de la peticion que creaba el cruce: dos llamadas
+     * por jugador (abrir el DM y escribir), doce en un 3v3. Si Discord iba
+     * lento, el jugador tardaba en saber que habia entrado en partida. Ahora es
+     * como con el push: `afterCommit` espera a que el cruce este guardado y
+     * `terminating` lo manda cuando el jugador ya tiene su respuesta.
+     */
     private function despues(\Closure $trabajo): void
     {
         if (!$this->isConfigured()) {

@@ -125,3 +125,48 @@ it('el panel programa y cancela', function () {
         'name' => 'Pasada', 'starts_at' => '2020-01-01T00:00',
     ])->assertSessionHasErrors('error');
 });
+
+it('al cerrarse una temporada con una programada no se abre otra generica', function () {
+    ArenaSeason::create([
+        'name' => 'Season 0', 'slug' => 's0', 'status' => ArenaSeason::STATUS_ACTIVE, 'enabled_modes' => ['1v1'],
+        'starts_at' => now()->subDays(20), 'ends_at' => now()->addDay(), 'auto_close' => true, 'open_next' => true,
+    ]);
+    app(SeasonClosingService::class)->programar('Season 1', now()->addDays(10), ['dias' => 30]);
+
+    Carbon::setTestNow(now()->addDays(2));
+    app(SeasonScheduleService::class)->aplicar();
+
+    expect(ArenaSeason::current())->toBeNull()
+        ->and(ArenaSeason::programada()?->name)->toBe('Season 1');
+
+    Carbon::setTestNow(now()->addDays(9));
+    app(SeasonScheduleService::class)->aplicar();
+
+    expect(ArenaSeason::current()?->name)->toBe('Season 1');
+});
+
+it('una programada que abre tarde conserva su duracion completa', function () {
+    app(SeasonClosingService::class)->programar('Season 1', now()->addDay(), ['dias' => 30]);
+
+    Carbon::setTestNow(now()->addDays(60));
+    app(SeasonScheduleService::class)->aplicar();
+
+    $actual = ArenaSeason::current();
+
+    expect($actual?->name)->toBe('Season 1')
+        ->and($actual->vencida())->toBeFalse()
+        ->and($actual->ends_at->equalTo($actual->starts_at->copy()->addDays(30)))->toBeTrue();
+});
+
+it('cancelar no borra una temporada que ya se abrio', function () {
+    $p = app(SeasonClosingService::class)->programar('Season 1', now()->addDay())['season'];
+
+    Carbon::setTestNow(now()->addDays(2));
+    app(SeasonScheduleService::class)->aplicar();
+
+    $this->withSession(sesionDeAdmin())
+        ->delete(route('admin.seasons.schedule.cancel', $p))
+        ->assertSessionHasErrors('error');
+
+    expect(ArenaSeason::query()->whereKey($p->id)->value('status'))->toBe(ArenaSeason::STATUS_ACTIVE);
+});

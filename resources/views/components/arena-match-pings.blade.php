@@ -21,11 +21,11 @@
      cenar.
 
      Se comporta como cualquier chat -burbujas a un lado y a otro, lo ultimo
-     abajo, aviso con sonido- pero se escribe con botones: seis frases cerradas,
+     abajo, aviso con sonido- pero se escribe con botones: frases cerradas,
      sin texto libre. Un chat abierto entre rivales de tres reinos seria un
      problema de moderacion desde el primer dia.
 
-     Siempre abierto y con las seis frases a la vista. Plegado no servia: se
+     Siempre abierto y con las frases a la vista. Plegado no servia: se
      usa con prisa, a mitad de un combate, y cualquier paso de mas -abrir la
      caja, arrastrar una barra para encontrar el boton- es un paso que no se
      da. --}}
@@ -62,7 +62,7 @@
         </ol>
 
         @if($miId)
-            {{-- Las seis frases, todas a la vista y en rejilla.
+            {{-- Las frases, todas a la vista y en rejilla.
                  Antes iban en una barra que se arrastraba de lado: con raton no
                  se arrastra, asi que en escritorio la mitad de las frases no
                  existian. --}}

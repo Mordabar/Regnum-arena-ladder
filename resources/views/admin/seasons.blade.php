@@ -190,6 +190,9 @@
                         · {{ $programada->prizes_on_open ? 'con premios' : 'sin premios' }}
                         @if($programada->reset_on_close) · ranking a cero al cerrar @endif
                     </p>
+                    @if($actual && (!$actual->auto_close || !$actual->ends_at))
+                        <p class="ap-hint mt-2" style="color: var(--ap-warn, #e0b34a)">Ojo: la temporada abierta no tiene cierre automático, así que esta no se abrirá hasta que la cierres a mano.</p>
+                    @endif
                     <form method="POST" action="{{ route('admin.seasons.schedule.cancel', $programada) }}" class="mt-3 flex justify-end" onsubmit="return confirm('¿Cancelar la temporada programada?')">
                         @csrf @method('DELETE')
                         <button type="submit" class="ap-btn ap-btn-danger"><x-admin.icon name="trash" class="h-3.5 w-3.5" />Cancelar programación</button>
