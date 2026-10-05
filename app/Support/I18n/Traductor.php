@@ -480,6 +480,11 @@ class Traductor
                     return $completo;
                 }
 
+                // El espacio de los bordes ('No se pudo cargar ' + url) es del codigo.
+                preg_match('/^(\s*)/u', $texto, $antes);
+                preg_match('/(\s*)$/u', $texto, $despues);
+                $traduccion = ($antes[1] ?? '') . trim($traduccion) . ($despues[1] ?? '');
+
                 return $comilla . addcslashes($traduccion, "\\" . $comilla . "\n\r") . $comilla;
             },
             $js
@@ -491,13 +496,28 @@ class Traductor
     /**
      * Los textos de una respuesta JSON. Si un valor es HTML se traduce como HTML.
      */
-    public function datos(mixed $valor): mixed
+    public function datos(mixed $valor, ?string $clave = null): mixed
     {
         if (is_array($valor)) {
-            foreach ($valor as $clave => $contenido) {
-                $valor[$clave] = $this->datos($contenido);
+            foreach ($valor as $k => $contenido) {
+                $valor[$k] = $this->datos($contenido, is_string($k) ? $k : $clave);
             }
 
+            return $valor;
+        }
+
+        // Un objeto JSON ({}): se recorre sin convertirlo en lista.
+        if (is_object($valor)) {
+            foreach (get_object_vars($valor) as $k => $contenido) {
+                $valor->{$k} = $this->datos($contenido, (string) $k);
+            }
+
+            return $valor;
+        }
+
+        // Nombres y notas que escribio una persona no son texto de la interfaz:
+        // un personaje llamado "Rival" no puede salir como "Opponent".
+        if ($clave !== null && !preg_match('/zone|zona/i', $clave) && preg_match('/name|nombre|note|nota|reason|motivo|character|player|label_raw/i', $clave)) {
             return $valor;
         }
 

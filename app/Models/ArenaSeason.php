@@ -184,7 +184,7 @@ class ArenaSeason extends Model
         if ($horas > 24) {
             $dias = (int) ceil($segundos / 86400);
 
-            return 'Quedan ' . $dias . ' días';
+            return $dias === 1 ? 'Queda 1 día' : 'Quedan ' . $dias . ' días';
         }
 
         if ($horas > 1) {

@@ -119,7 +119,7 @@
                             @endif
                         </p>
                         <span class="text-[0.7rem] text-[color:var(--arena-muted)]">
-                            {{ $aviso->created_at?->locale('es')->isoFormat('D MMM YYYY, HH:mm') }}
+                            {{ $aviso->created_at?->locale(app()->getLocale())->isoFormat('D MMM YYYY, HH:mm') }}
                         </span>
                     </div>
 

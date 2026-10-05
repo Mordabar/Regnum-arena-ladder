@@ -3888,6 +3888,10 @@ h1, h2, h3, h4, h5, h6,
         linear-gradient(180deg, rgba(36, 26, 19, 0.99), rgba(11, 8, 6, 0.99));
     box-shadow: 0 22px 54px rgba(0, 0, 0, 0.6);
     transform-origin: 20px 100%;
+    /* En una pantalla baja (movil de lado) la hoja no puede salirse por arriba. */
+    max-height: calc(100dvh - 96px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
     animation: arena-lang-in 0.22s cubic-bezier(0.22, 0.8, 0.2, 1) both;
 }
 .arena-lang-sheet[hidden] { display: none; }
@@ -3945,3 +3949,7 @@ h1, h2, h3, h4, h5, h6,
     .arena-lang-sheet { animation: none; }
     .arena-lang-fab, .arena-lang-chev { transition: none; }
 }
+
+/* El selector de idioma flota abajo a la izquierda: el pie deja sitio para que
+   nunca tape el ultimo renglon de texto. */
+body > footer, footer.relative.mt-auto { padding-bottom: 64px; }

@@ -18,7 +18,13 @@
     // Cada idioma es una version de la misma pagina con su propia direccion
     // (?lang=xx): el canonical de una version es ella misma, y las demas se
     // anuncian como alternativas para que cada buscador sirva la suya.
-    $seoUrl = $idiomaActual === \App\Support\I18n\Idioma::FUENTE ? url()->current() : url()->current() . '?lang=' . $idiomaActual;
+    // Solo la pagina cuenta en la direccion (page=2 es otra pagina); el resto
+    // de parametros -filtros, buscador- no van al canonical.
+    $seoPagina = request()->integer('page') > 1 ? ['page' => request()->integer('page')] : [];
+    $seoEn = fn (?string $codigo) => rtrim(url()->current() . '?' . http_build_query(($codigo ? ['lang' => $codigo] : []) + $seoPagina), '?');
+    // Explicito tambien en español: la direccion sin ?lang= puede servir otro
+    // idioma segun el navegador, asi que no es "la version española".
+    $seoUrl = $seoEn($idiomaActual);
     $seoIndexable = request()->routeIs('home', 'ladder.index', 'ladder.show', 'hall-of-fame', 'como-jugar', 'guia', 'descargas');
 @endphp
 <meta name="description" content="{!! $seoDescripcion !!}">
@@ -26,9 +32,9 @@
 <link rel="canonical" href="{{ $seoUrl }}">
 @if($seoIndexable)
 @foreach(\App\Support\I18n\Idioma::IDIOMAS as $seoCodigo => $seoDatos)
-<link rel="alternate" hreflang="{{ $seoDatos['html'] }}" href="{{ $seoCodigo === \App\Support\I18n\Idioma::FUENTE ? url()->current() : url()->current() . '?lang=' . $seoCodigo }}">
+<link rel="alternate" hreflang="{{ $seoDatos['html'] }}" href="{{ $seoEn($seoCodigo) }}">
 @endforeach
-<link rel="alternate" hreflang="x-default" href="{{ url()->current() }}">
+<link rel="alternate" hreflang="x-default" href="{{ $seoEn(null) }}">
 @endif
 
 <link rel="icon" href="{{ $seoVersion('favicon.ico') }}" sizes="48x48">
@@ -65,7 +71,7 @@
             'name' => $seoSitio,
             'alternateName' => 'Arena Ladder',
             'url' => url('/'),
-            'inLanguage' => 'es',
+            'inLanguage' => \App\Support\I18n\Idioma::IDIOMAS[$idiomaActual]['html'],
             'description' => html_entity_decode($seoDescripcion, ENT_QUOTES),
         ],
         [

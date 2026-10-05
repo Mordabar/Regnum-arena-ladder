@@ -253,7 +253,7 @@ class AvisosPendientesService
                 $avisos[] = [
                     'tag' => 'cruce:' . $match->id,
                     'titulo' => 'Rival encontrado',
-                    'cuerpo' => ArenaMode::displayName($match->arena_mode) . '. Tienes que aceptar para que empiece.',
+                    'cuerpo' => __(':modo. Tienes que aceptar para que empiece.', ['modo' => __(ArenaMode::displayName($match->arena_mode))]),
                     'url' => $lobby,
                     'en' => $this->cuando($match->created_at),
                     // Hay dos minutos para aceptar: este aviso no se va solo.
@@ -264,7 +264,7 @@ class AvisosPendientesService
             $avisos[] = [
                 'tag' => 'combate:' . $match->id,
                 'titulo' => '¡A pelear!',
-                'cuerpo' => 'Quedad en ' . $match->zone_name . '.',
+                'cuerpo' => __('Quedad en :zona.', ['zona' => \Illuminate\Support\Str::replaceFirst('Zona', __('Zona'), (string) $match->zone_name)]),
                 'url' => $lobby,
                 'en' => $this->cuando($match->started_at ?? $match->accepted_at ?? $match->updated_at),
             ];

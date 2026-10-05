@@ -329,7 +329,7 @@
                     <p class="mt-1 text-sm text-sky-200/70 arena-body-text">
                         {{ $esDuelo ? 'Tu rival' : 'El equipo rival' }} debe confirmar o disputar tu reporte.
                         @if($match->expires_at)
-                            Tiempo restante: {{ $match->expires_at->locale('es')->diffForHumans() }}
+                            Tiempo restante: {{ $match->expires_at->locale(app()->getLocale())->diffForHumans() }}
                         @endif
                     </p>
                 </div>
@@ -372,7 +372,7 @@
                             height="150px"
                             class="arena-duel-portrait" />
                         <span class="min-w-0">
-                            <b>{{ $player['character_name'] }}{{ $isViewer ? ' (tú)' : '' }}</b>
+                            <b><span translate="no">{{ $player['character_name'] }}</span>{{ $isViewer ? ' ' . __('(tú)') : '' }}</b>
                             <span>
                                 {{ \App\Models\Player::SUBCLASSES[$player['subclass']] ?? ucfirst($player['subclass']) }}
                                 @if(!empty($player['conjurer_role']))
@@ -422,7 +422,7 @@
                             class="arena-duel-portrait" />
                         <span class="min-w-0">
                             @if($showRivalNames)
-                                <b>{{ $player['character_name'] }}</b>
+                                <b><span translate="no">{{ $player['character_name'] }}</span></b>
                             @else
                                 <b class="italic">Guerrero Anónimo</b>
                             @endif
@@ -653,7 +653,7 @@
                                     </p>
                                     @if($report->rejected_at)
                                         <p class="text-[0.7rem] text-[color:var(--arena-muted)]">
-                                            {{ $report->rejected_at->locale('es')->isoFormat('D MMM YYYY, HH:mm') }}
+                                            {{ $report->rejected_at->locale(app()->getLocale())->isoFormat('D MMM YYYY, HH:mm') }}
                                         </p>
                                     @endif
                                 </div>
@@ -683,7 +683,7 @@
                                     <p class="text-xs font-semibold text-sky-300">Resolución de moderación</p>
                                     @if($report->reviewed_at)
                                         <p class="text-[0.7rem] text-[color:var(--arena-muted)]">
-                                            {{ $report->reviewed_at->locale('es')->isoFormat('D MMM YYYY, HH:mm') }}
+                                            {{ $report->reviewed_at->locale(app()->getLocale())->isoFormat('D MMM YYYY, HH:mm') }}
                                         </p>
                                     @endif
                                 </div>
@@ -802,7 +802,7 @@
                                 <tr class="arena-animate-in" style="animation-delay: {{ $loop->index * 60 }}ms">
                                     <td class="py-3 pr-4">
                                         <a href="{{ route('ladder.show', $result->player) }}" class="font-medium text-white hover:text-[color:var(--arena-gold-soft)] transition-colors arena-body-text">
-                                            {{ $result->player->character_name }}
+                                            <span translate="no">{{ $result->player->character_name }}</span>
                                         </a>
                                     </td>
                                     <td class="py-3 pr-4">
@@ -836,7 +836,7 @@
                     @foreach($match->results as $result)
                         <article class="arena-card p-4">
                             <div class="flex items-center justify-between gap-3">
-                                <a href="{{ route('ladder.show', $result->player) }}" class="font-medium text-white arena-body-text">{{ $result->player->character_name }}</a>
+                                <a href="{{ route('ladder.show', $result->player) }}" class="font-medium text-white arena-body-text"><span translate="no">{{ $result->player->character_name }}</span></a>
                                 <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {{ $result->result === 'win' ? 'bg-emerald-900/30 text-emerald-300' : 'bg-rose-900/30 text-rose-300' }}">
                                     {{ strtoupper($result->result) }}
                                 </span>

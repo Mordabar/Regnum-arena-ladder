@@ -31,7 +31,7 @@
             <div data-invite-detail>
                 <p class="arena-invite-body">
                     <b>{{ $invite->party->leader?->character_name ?? 'Un jugador' }}</b>
-                    invita a tu <b>{{ $invite->player->character_name }}</b>
+                    invita a tu <b><span translate="no">{{ $invite->player->character_name }}</span></b>
                     a jugar {{ \App\Support\ArenaMode::label($invite->party->arena_mode) }}.
                 </p>
 

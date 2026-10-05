@@ -21,7 +21,7 @@
 
 <div class="arena-lang" data-lang-root translate="no">
     <button type="button" class="arena-lang-fab" data-lang-toggle
-            aria-haspopup="true" aria-expanded="false" aria-controls="arenaLangSheet"
+            aria-expanded="false" aria-controls="arenaLangSheet"
             aria-label="{{ __('Idioma') }}: {{ $idiomas[$actual]['nombre'] }}">
         <svg class="arena-flag" viewBox="0 0 36 24" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#flag-{{ $actual }}"/></svg>
         <span class="arena-lang-code">{{ $idiomas[$actual]['corto'] }}</span>
@@ -67,6 +67,11 @@
 
         document.addEventListener('click', function (e) {
             if (!hoja.hidden && !raiz.contains(e.target)) { abrir(false); }
+        });
+
+        // Salir de la hoja con el tabulador la cierra: no se queda abierta detras.
+        raiz.addEventListener('focusout', function (e) {
+            if (!hoja.hidden && e.relatedTarget && !raiz.contains(e.relatedTarget)) { abrir(false); }
         });
 
         document.addEventListener('keydown', function (e) {

@@ -172,7 +172,7 @@
                                 <x-arena-realm-icon :realm="$stat->realm" size="sm" />
                             </div>
 
-                            <h3 class="mt-4 text-xl font-semibold text-white">{{ $stat->character_name }}</h3>
+                            <h3 class="mt-4 text-xl font-semibold text-white"><span translate="no">{{ $stat->character_name }}</span></h3>
                             <p class="mt-1 text-sm text-[color:var(--arena-muted)]">
                                 {{ PlayerModel::SUBCLASSES[$stat->subclass] ?? ucfirst($stat->subclass) }}
                             </p>

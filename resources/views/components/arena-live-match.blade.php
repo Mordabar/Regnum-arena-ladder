@@ -194,7 +194,7 @@
                                 </div>
 
                                 <figcaption>
-                                    <b @class(['italic' => !$isOwn && !$lineup['names_revealed']])>{{ $fighter['name'] }}{{ $fighter['is_viewer'] ? ' (tú)' : '' }}</b>
+                                    <b @class(['italic' => !$isOwn && !$lineup['names_revealed']])><span translate="no">{{ $fighter['name'] }}</span>{{ $fighter['is_viewer'] ? ' ' . __('(tú)') : '' }}</b>
                                     <span>{{ $fighter['subclass_name'] }}</span>
                                 </figcaption>
                             </figure>

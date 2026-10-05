@@ -93,7 +93,7 @@
                                     {{ $rank }}
                                 </td>
                                 <td class="py-3 pr-4">
-                                    <a href="{{ route('ladder.show', $player) }}" class="font-medium text-white hover:text-[color:var(--arena-gold-soft)] transition-colors arena-body-text">{{ $player->character_name }}</a>
+                                    <a href="{{ route('ladder.show', $player) }}" class="font-medium text-white hover:text-[color:var(--arena-gold-soft)] transition-colors arena-body-text"><span translate="no">{{ $player->character_name }}</span></a>
                                 </td>
                                 <td class="py-3 pr-4">
                                     <span class="inline-flex items-center gap-1.5">
@@ -124,7 +124,7 @@
                                 </span>
                                 <x-arena-realm-icon :realm="$player->realm" size="sm" />
                                 <div>
-                                    <p class="font-medium text-white arena-body-text">{{ $player->character_name }}</p>
+                                    <p class="font-medium text-white arena-body-text"><span translate="no">{{ $player->character_name }}</span></p>
                                     <p class="text-xs text-[color:var(--arena-muted)] arena-body-text">{{ \App\Models\Player::SUBCLASSES[$player->subclass] ?? ucfirst($player->subclass) }}</p>
                                 </div>
                             </div>
@@ -168,7 +168,7 @@
                                     <span class="w-6 text-center text-sm font-bold {{ $index === 0 ? 'arena-medal-1' : ($index === 1 ? 'arena-medal-2' : ($index === 2 ? 'arena-medal-3' : 'text-amber-300')) }}">
                                         #{{ $index + 1 }}
                                     </span>
-                                    <a href="{{ route('ladder.show', $player) }}" class="font-medium text-white hover:text-[color:var(--arena-gold-soft)] transition-colors arena-body-text">{{ $player->character_name }}</a>
+                                    <a href="{{ route('ladder.show', $player) }}" class="font-medium text-white hover:text-[color:var(--arena-gold-soft)] transition-colors arena-body-text"><span translate="no">{{ $player->character_name }}</span></a>
                                 </div>
                                 <span class="font-semibold text-amber-300 arena-body-text">{{ number_format((float) $player->pl_points, 1) }} PL</span>
                             </div>

@@ -235,3 +235,41 @@ it('anota lo que falta solo cuando se pide, y sin ruido', function () {
         ->and($anotadas)->not->toContain('a3f9c1e2b4d5f6a7')
         ->and($anotadas)->not->toContain('12');
 });
+
+// ------------------------------------------------------------ arbitraje
+
+it('un objeto JSON vacio sigue siendo un objeto', function () {
+    catalogoDePrueba(['Hola' => 'Hello']);
+
+    $datos = json_decode('{"obj":{},"lista":[],"mapa":{"0":"Hola","1":"x"},"texto":"Hola"}', false);
+    $fuera = json_encode(en()->datos($datos));
+
+    expect($fuera)->toContain('"obj":{}')
+        ->and($fuera)->toContain('"lista":[]')
+        ->and($fuera)->toContain('"mapa":{"0":"Hello"')
+        ->and($fuera)->toContain('"texto":"Hello"');
+});
+
+it('los nombres que escribio una persona no se traducen en JSON', function () {
+    catalogoDePrueba(['Rival' => 'Opponent']);
+
+    $fuera = en()->datos(['character_name' => 'Rival', 'etiqueta' => 'Rival', 'zone_name' => 'Rival']);
+
+    expect($fuera['character_name'])->toBe('Rival')
+        ->and($fuera['etiqueta'])->toBe('Opponent')
+        ->and($fuera['zone_name'])->toBe('Opponent');
+});
+
+it('un nombre marcado translate=no no se traduce en el HTML', function () {
+    catalogoDePrueba(['Cazador' => 'Hunter']);
+
+    expect(en()->html('<span translate="no">Cazador</span> <i>Cazador</i>'))
+        ->toBe('<span translate="no">Cazador</span> <i>Hunter</i>');
+});
+
+it('los literales de script conservan el espacio de los bordes', function () {
+    catalogoDePrueba(['No se pudo cargar' => 'Could not load']);
+
+    expect(en()->html("<script>x('No se pudo cargar ' + u)</script>"))
+        ->toBe("<script>x('Could not load ' + u)</script>");
+});

@@ -31,7 +31,7 @@ class TraducirRespuesta
         }
 
         if ($response instanceof JsonResponse) {
-            $response->setData($traductor->datos($response->getData(true)));
+            $response->setData($traductor->datos($response->getData(false)));
 
             return $response;
         }

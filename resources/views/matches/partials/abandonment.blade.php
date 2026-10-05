@@ -93,7 +93,7 @@
                                              rival" cuando tienes su nombre delante sonaba a que el
                                              sistema no sabia contra quien estabas jugando. --}}
                                         @if($esCompanero || $nombresVisibles)
-                                            {{ $candidato['character_name'] }}
+                                            <span translate="no">{{ $candidato['character_name'] }}</span>
                                         @else
                                             {{ \App\Models\Player::SUBCLASSES[$candidato['subclass']] ?? 'Guerrero' }} rival
                                         @endif

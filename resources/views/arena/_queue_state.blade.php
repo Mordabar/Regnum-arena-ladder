@@ -85,7 +85,7 @@
     <footer class="arena-duel-panel-foot">
         <div class="arena-duel-zone">
             <span class="arena-duel-zone-key">Expira</span>
-            <span class="arena-duel-zone-value">{{ $currentQueue->expires_at?->locale('es')->diffForHumans() ?? 'sin límite' }}</span>
+            <span class="arena-duel-zone-value">{{ $currentQueue->expires_at?->locale(app()->getLocale())->diffForHumans() ?? 'sin límite' }}</span>
         </div>
         <div class="arena-duel-actions">
             <form method="POST" action="{{ route('queue.leave') }}">

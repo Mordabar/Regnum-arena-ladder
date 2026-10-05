@@ -90,7 +90,7 @@
                             :tight="true"
                             class="arena-duel-portrait" />
                         <span class="min-w-0">
-                            <b @class(['italic' => !$isOwn && !$lineup['names_revealed']])>{{ $fighter['name'] }}{{ $fighter['is_viewer'] ? ' (tú)' : '' }}</b>
+                            <b @class(['italic' => !$isOwn && !$lineup['names_revealed']])><span translate="no">{{ $fighter['name'] }}</span>{{ $fighter['is_viewer'] ? ' ' . __('(tú)') : '' }}</b>
                             <span>{{ $fighter['subclass_name'] }}</span>
                         </span>
                         <span class="arena-duel-ready">{{ $fighter['accepted'] ? 'Listo' : 'Esperando' }}</span>
