@@ -4028,3 +4028,28 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
 /* La primera etiqueta de la regla -el mes en que empieza la temporada- va
    pegada al borde izquierdo, no centrada sobre el: se saldria de la barra. */
 .arena-season-scale span.is-inicio { transform: none; }
+
+/* ------------------------------------------------------------------
+   Las acciones del guerrero (editar, eliminar) en movil.
+
+   Eran dos botones en fila pegados a la esquina de arriba a la derecha, y
+   el selector de modalidad -que ocupa todo el ancho que le dejan- se
+   montaba encima del primero. Ahora los botones se apilan en una columna de
+   40px y el selector reserva exactamente ese hueco: ni se tocan ni dependen
+   de cuantas acciones haya.
+   ------------------------------------------------------------------ */
+@media (max-width: 520px) {
+    .arena-console-tools { top: 10px; right: 10px; left: auto; }
+    .arena-console-tools-set { flex-direction: column; gap: 6px; }
+    .arena-console-tool {
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        justify-content: center;
+    }
+    .arena-console-arenas { width: calc(100% - 72px); }
+}
+/* Pantalla muy estrecha: sin la etiqueta "Arena" los tres modos caben con holgura. */
+@media (max-width: 400px) {
+    .arena-console-arenas-key { display: none; }
+}
