@@ -224,9 +224,12 @@ class QueueController extends Controller
         }
 
         if ($player->isQueueLocked()) {
-            $reason = $player->queue_lock_reason_name ? ' (' . $player->queue_lock_reason_name . ')' : '';
+            $motivo = $player->queue_lock_reason_name ? ' (' . __($player->queue_lock_reason_name) . ')' : '';
             throw new \RuntimeException(
-                'Este personaje tiene bloqueo activo' . $reason . ' hasta ' . $player->queue_locked_until?->format('Y-m-d H:i')
+                __('Este personaje tiene bloqueo activo:motivo hasta :fecha', [
+                    'motivo' => $motivo,
+                    'fecha' => $player->queue_locked_until?->format('Y-m-d H:i'),
+                ])
             );
         }
     }

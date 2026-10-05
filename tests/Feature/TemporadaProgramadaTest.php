@@ -229,3 +229,14 @@ it('la temporada abierta se alarga o se acorta por dias sin romper el calendario
 
     expect($s->fresh()->vencida())->toBeFalse();
 });
+
+it('renombrar una programada actualiza su slug sin chocar con otras', function () {
+    ArenaSeason::create(['name' => 'Season 2', 'slug' => 'season-2', 'status' => ArenaSeason::STATUS_ARCHIVED, 'enabled_modes' => ['1v1'], 'starts_at' => now()->subYear()]);
+    $p = app(SeasonClosingService::class)->programar('Season 1', now()->addDays(5))['season'];
+
+    $r = app(SeasonClosingService::class)->reprogramar($p, 'Season 2', now()->addDays(6));
+
+    expect($r['ok'])->toBeTrue()
+        ->and($p->fresh()->name)->toBe('Season 2')
+        ->and($p->fresh()->slug)->toBe('season-2-2');
+});

@@ -218,7 +218,7 @@ class MatchAbandonmentReport extends Model
         return collect($this->evidencePaths())
             ->map(fn (string $path, int $indice) => [
                 'slot' => (string) ($indice + 1),
-                'label' => 'Captura ' . ($indice + 1),
+                'label' => __('Captura :n', ['n' => $indice + 1]),
                 'path' => $path,
                 'url' => route('matches.abandonment.evidence', [
                     'abandonment' => $this,

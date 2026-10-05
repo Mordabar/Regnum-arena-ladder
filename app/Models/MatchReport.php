@@ -181,7 +181,7 @@ class MatchReport extends Model
 
                 return [
                     'slot' => $slot,
-                    'label' => 'Prueba del rechazo ' . ($index + 1),
+                    'label' => __('Prueba del rechazo :n', ['n' => $index + 1]),
                     'path' => $path,
                     'url' => $this->evidenceUrl($slot),
                 ];

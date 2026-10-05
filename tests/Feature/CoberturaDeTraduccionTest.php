@@ -49,36 +49,55 @@ it('todos los catalogos tienen las mismas claves y los mismos placeholders', fun
 });
 
 it('ningun mensaje para el jugador se queda escrito solo en español', function () {
-    // Recorre el codigo buscando los textos que acaban en un flash, un error de
-    // validacion o una excepcion que el jugador lee, y exige su clave. Los
-    // textos del panel de administracion y del laboratorio de pruebas son del
-    // equipo y se quedan en español.
+    // Recorre el codigo buscando los textos que acaban en un flash, un abort,
+    // una excepcion, una etiqueta o un __(), y exige su clave en el catalogo.
+    // Lo del panel de administracion, el laboratorio de pruebas y los
+    // mensajes internos (esquema, claves VAPID, cierre de temporadas) lo lee el
+    // equipo, no el jugador, y se queda en español.
     $excluidos = ['Admin', 'TestingLab', 'VapidKeys', 'SeasonClosingService', 'MatchModerationService', 'MatchPenaltyService',
-        'PlayerCleanupService', 'ArenaMatchmakingService', 'Console'];
-    $patron = '/(?:RuntimeException|withErrors\(\[[^\]]*?=>|->with\(\'(?:success|error|warning)\',|\'motivo\'\s*=>)\s*(?:__\()?\s*([\'"])((?:\\\\.|(?!\1).)+)\1/s';
+        'PlayerCleanupService', 'Console', 'AppSetting', 'LadderScoringService', 'ArenaMatchmakingService'];
+
+    $disparador = "(?:RuntimeException|InvalidArgumentException|abort\\(\\s*\\d+\\s*,|withErrors\\(\\[[^\\]]*?=>"
+        . "|->with\\(\\s*'(?:success|error|warning)'\\s*,|'(?:motivo|message|label|title|error)'\\s*=>"
+        . "|withMessages\\(\\[[^\\]]*?=>|__\\()\\s*\\(?\\s*";
+    $patron = '/' . $disparador . '([\'"])((?:\\\\.|(?!\\1).)+)\\1(\\s*\\.)?/s';
     $catalogo = catalogoDe('en');
     $faltan = [];
 
-    $archivos = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(app_path()));
-
-    foreach ($archivos as $archivo) {
+    foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator(app_path())) as $archivo) {
         $ruta = (string) $archivo;
 
         if (!str_ends_with($ruta, '.php') || collect($excluidos)->contains(fn ($x) => str_contains($ruta, $x))) {
             continue;
         }
 
-        preg_match_all($patron, (string) file_get_contents($ruta), $m);
+        preg_match_all($patron, (string) file_get_contents($ruta), $m, PREG_SET_ORDER);
 
-        foreach ($m[2] as $texto) {
-            $texto = str_replace("\\'", "'", $texto);
-            $esEspañol = preg_match('/[áéíóúñ¿¡]|\b(el|la|los|las|de|que|tu|te|se|no|ya|un|una|para|con|por)\b/i', $texto) === 1;
+        foreach ($m as $hallazgo) {
+            $texto = str_replace("\\'", "'", $hallazgo[2]);
+            $concatenado = ($hallazgo[3] ?? '') !== '';
 
-            if ($esEspañol && !str_contains($texto, '$') && !array_key_exists($texto, $catalogo)) {
-                $faltan[] = basename($ruta) . ': ' . $texto;
+            if (!preg_match('/[A-Za-zÁ-ú]{3}/u', $texto) || preg_match('/^[a-z_.:\-\/0-9]+$/', $texto)) {
+                continue; // claves tecnicas
+            }
+
+            // Una concatenacion no se puede traducir: hay que usar placeholders.
+            // Un literal con variable dentro, lo mismo; solo se acepta si ya esta en el catalogo.
+            if (!array_key_exists($texto, $catalogo) && (!str_contains($texto, '$') || $concatenado)) {
+                $faltan[] = basename($ruta) . ': ' . ($concatenado ? '[concatenado] ' : '') . $texto;
             }
         }
     }
 
-    expect($faltan)->toBe([]);
+    expect(array_values(array_unique($faltan)))->toBe([]);
+});
+
+it('los nombres de bloqueo y de motivo que ve el jugador estan traducidos', function () {
+    foreach (array_diff(Idioma::codigos(), [Idioma::FUENTE]) as $idioma) {
+        $catalogo = catalogoDe($idioma);
+
+        foreach (array_values(\App\Models\Player::PENALTY_TYPES) as $texto) {
+            expect(array_key_exists($texto, $catalogo))->toBeTrue("Falta en {$idioma}: {$texto}");
+        }
+    }
 });

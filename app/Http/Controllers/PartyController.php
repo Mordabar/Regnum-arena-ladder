@@ -408,7 +408,7 @@ class PartyController extends Controller
             }
 
             if ($memberPlayer->isQueueLocked()) {
-                $reason = $memberPlayer->queue_lock_reason_name ? ' (' . $memberPlayer->queue_lock_reason_name . ')' : '';
+                $reason = $memberPlayer->queue_lock_reason_name ? ' (' . __($memberPlayer->queue_lock_reason_name) . ')' : '';
 
                 return back()->withErrors([
                     'error' => __(':name está bloqueado de las colas:reason.', ['name' => $memberPlayer->character_name, 'reason' => $reason]),

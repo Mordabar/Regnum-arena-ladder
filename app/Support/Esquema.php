@@ -40,7 +40,8 @@ class Esquema
     /**
      * Olvida lo recordado: la memoria del proceso y SOLO las claves de esquema
      * de la cache. Nunca vacia la cache entera: ahi viven los candados y los
-     * limites de frecuencia.
+     * limites de frecuencia. Solo conoce las claves que ha usado este proceso:
+     * las que escribio otro caducan solas (un dia).
      */
     public static function olvidar(): void
     {
