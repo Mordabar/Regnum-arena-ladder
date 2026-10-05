@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AdminSeasonController;
 use App\Http\Controllers\ArenaMatchController;
 use App\Http\Controllers\ArenaZoneAssetController;
 use App\Http\Controllers\AuthController;
@@ -237,7 +238,12 @@ Route::prefix('/' . $arenaAdminPath)->group(function () {
 
         // Cerrar la temporada: congela el podio en el Salon de la Fama y abre
         // la siguiente. NO toca el ranking vivo: poner a cero es otro boton.
-        Route::post('/temporada/cerrar', [AdminController::class, 'closeSeason'])->name('season.close');
+        Route::post('/temporada/cerrar', [AdminSeasonController::class, 'close'])->name('season.close');
+
+        // El calendario de temporadas: fechas, cierre automatico, abrir y cerrar.
+        Route::get('/temporadas', [AdminSeasonController::class, 'index'])->name('seasons');
+        Route::post('/temporadas/abrir', [AdminSeasonController::class, 'open'])->name('seasons.open');
+        Route::post('/temporadas/{season}', [AdminSeasonController::class, 'update'])->whereNumber('season')->name('seasons.update');
 
         Route::get('/players', [AdminController::class, 'players'])->name('players.index');
         Route::post('/players/create', [AdminController::class, 'storePlayer'])->name('players.store');

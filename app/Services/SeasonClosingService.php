@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\AppSetting;
+use Carbon\CarbonInterface;
 use App\Models\ArenaSeason;
 use App\Models\Player;
 use App\Models\SeasonPlayerStat;
@@ -32,9 +34,19 @@ class SeasonClosingService
     /**
      * Cierra la temporada en curso y deja su podio en el Salon de la Fama.
      *
-     * @return array{ok: bool, motivo?: string, season?: ArenaSeason, congelados?: int}
+     * Opciones (todas opcionales; lo que falte se toma de la propia temporada):
+     * - esperada: id de la temporada que se quiere cerrar. Si la abierta ya es
+     *   otra, no se cierra nada: es lo que evita que dos ticks a la vez cierren
+     *   la temporada y, acto seguido, la que acaba de nacer.
+     * - motivo: 'manual' o 'auto', para el historial.
+     * - duracion_dias: cuanto dura la siguiente; sin valor queda abierta sin fecha.
+     * - resetear: poner el ranking a cero DESPUES de congelar el podio.
+     * - premios_siguiente: false apaga el reparto de premios para la siguiente.
+     *
+     * @param  array{esperada?: int, motivo?: string, duracion_dias?: int|null, resetear?: bool, premios_siguiente?: bool}  $opciones
+     * @return array{ok: bool, motivo?: string, season?: ArenaSeason, siguiente?: ArenaSeason, congelados?: int, reinicio?: array|null}
      */
-    public function cerrar(?string $nombreSiguiente = null, bool $forzar = false): array
+    public function cerrar(?string $nombreSiguiente = null, bool $forzar = false, array $opciones = []): array
     {
         if (!$this->disponible()) {
             return ['ok' => false, 'motivo' => 'Las temporadas no estan disponibles en este esquema.'];
@@ -42,7 +54,7 @@ class SeasonClosingService
 
         $premios = app(SeasonPrizeService::class);
 
-        return DB::transaction(function () use ($premios, $nombreSiguiente, $forzar) {
+        $resultado = DB::transaction(function () use ($premios, $nombreSiguiente, $forzar, $opciones) {
             // La temporada se elige DENTRO de la transaccion y con candado.
             // Cerrar deja otra abierta al instante, asi que dos peticiones a la
             // vez -o el doble clic de siempre- archivarian dos temporadas y la
@@ -64,6 +76,10 @@ class SeasonClosingService
                 return ['ok' => false, 'motivo' => 'No hay ninguna temporada abierta que cerrar.'];
             }
 
+            if (isset($opciones['esperada']) && (int) $opciones['esperada'] !== (int) $actual->getKey()) {
+                return ['ok' => false, 'motivo' => 'Esa temporada ya se habia cerrado.', 'ya_cerrada' => true];
+            }
+
             if (!$forzar && $this->reciennacidaYSinJugar($actual)) {
                 return [
                     'ok' => false,
@@ -83,16 +99,22 @@ class SeasonClosingService
                 ->whereKeyNot($actual->getKey())
                 ->update(['status' => ArenaSeason::STATUS_ARCHIVED, 'ends_at' => now()]);
 
+            // Si se cierra porque llego su fecha, la temporada acabo ese dia y no
+            // el minuto en que el cron se dio cuenta; si se cierra antes de
+            // tiempo, acabo ahora. El Salon de la Fama ordena por esta fecha.
+            $fin = $actual->ends_at !== null && $actual->ends_at->lte(now()) ? $actual->ends_at : now();
+
             $actual->update([
                 'status' => ArenaSeason::STATUS_ARCHIVED,
-                'ends_at' => now(),
+                'ends_at' => $fin,
+                'closed_reason' => $opciones['motivo'] ?? 'manual',
                 // El reparto se guarda CON la temporada. Si el Salon lo leyera
                 // de los ajustes, la temporada 0 diria lo que reparte la 3.
                 'prizes' => $premios->reparto(),
                 'prize_currency' => $premios->moneda(),
             ]);
 
-            $siguiente = $this->abrirSiguiente($actual, $nombreSiguiente);
+            $siguiente = $this->abrirSiguiente($actual, $nombreSiguiente, $opciones);
 
             return [
                 'ok' => true,
@@ -100,6 +122,57 @@ class SeasonClosingService
                 'siguiente' => $siguiente,
                 'congelados' => $congelados,
             ];
+        });
+
+        if (!$resultado['ok']) {
+            return $resultado;
+        }
+
+        // Lo que toca el ranking vivo va FUERA de la transaccion y DESPUES de
+        // ella: el podio ya esta congelado y confirmado, asi que si el reinicio
+        // falla la vitrina sigue intacta.
+        $resultado['reinicio'] = null;
+
+        if ($opciones['resetear'] ?? $resultado['season']->reset_on_close) {
+            $resultado['reinicio'] = app(LadderMaintenanceService::class)->reiniciarRanking();
+        }
+
+        if (!($opciones['premios_siguiente'] ?? $resultado['season']->next_prizes_enabled)) {
+            AppSetting::setValue('season_prizes_enabled', '0', 'branding', 'boolean', true);
+        }
+
+        return $resultado;
+    }
+
+    /**
+     * Abre una temporada cuando no hay ninguna abierta (la primera, o despues de
+     * haber cerrado una a mano sin sucesora). Con una abierta no hace nada: dos
+     * temporadas vivas a la vez es justo lo que el resto del codigo no espera.
+     *
+     * @return array{ok: bool, motivo?: string, season?: ArenaSeason}
+     */
+    public function abrirNueva(string $nombre, ?CarbonInterface $inicio = null, ?CarbonInterface $fin = null, bool $cierreAutomatico = false): array
+    {
+        if (!$this->disponible()) {
+            return ['ok' => false, 'motivo' => 'Las temporadas no estan disponibles en este esquema.'];
+        }
+
+        return DB::transaction(function () use ($nombre, $inicio, $fin, $cierreAutomatico) {
+            if (ArenaSeason::query()->where('status', ArenaSeason::STATUS_ACTIVE)->lockForUpdate()->exists()) {
+                return ['ok' => false, 'motivo' => 'Ya hay una temporada abierta. Cierrala antes de abrir otra.'];
+            }
+
+            $nombre = trim($nombre) !== '' ? trim($nombre) : 'Temporada ' . (ArenaSeason::query()->count() + 1);
+
+            return ['ok' => true, 'season' => ArenaSeason::create([
+                'name' => $nombre,
+                'slug' => $this->slugLibre($nombre),
+                'status' => ArenaSeason::STATUS_ACTIVE,
+                'enabled_modes' => ArenaMode::enabled(),
+                'starts_at' => $inicio ?? now(),
+                'ends_at' => $fin,
+                'auto_close' => $fin !== null && $cierreAutomatico,
+            ])];
         });
     }
 
@@ -208,13 +281,22 @@ class SeasonClosingService
      * Hereda las modalidades de la anterior: cerrar una temporada no puede
      * dejar la arena sin modos y a todo el mundo fuera de la cola.
      */
-    private function abrirSiguiente(ArenaSeason $anterior, ?string $nombre): ArenaSeason
+    private function abrirSiguiente(ArenaSeason $anterior, ?string $nombre, array $opciones = []): ArenaSeason
     {
         $nombre = trim((string) $nombre);
 
         if ($nombre === '') {
+            $nombre = trim((string) $anterior->next_name);
+        }
+
+        if ($nombre === '') {
             $nombre = $this->nombrePorDefecto($anterior);
         }
+
+        $dias = array_key_exists('duracion_dias', $opciones)
+            ? $opciones['duracion_dias']
+            : $anterior->next_duration_days;
+        $dias = $dias !== null && (int) $dias > 0 ? (int) $dias : null;
 
         return ArenaSeason::create([
             'name' => $nombre,
@@ -222,6 +304,15 @@ class SeasonClosingService
             'status' => ArenaSeason::STATUS_ACTIVE,
             'enabled_modes' => $anterior->enabledModes() ?: ArenaMode::enabled(),
             'starts_at' => now(),
+            // Con duracion, la siguiente nace con su calendario y se cierra
+            // sola; sin ella queda abierta hasta que alguien la cierre. El
+            // nombre elegido era para esta vez, pero lo demas se hereda: asi
+            // una liga de temporadas de 60 dias se mantiene sola.
+            'ends_at' => $dias !== null ? now()->addDays($dias) : null,
+            'auto_close' => $dias !== null,
+            'next_duration_days' => $dias,
+            'reset_on_close' => (bool) ($opciones['resetear'] ?? $anterior->reset_on_close),
+            'next_prizes_enabled' => (bool) ($opciones['premios_siguiente'] ?? $anterior->next_prizes_enabled),
         ]);
     }
 

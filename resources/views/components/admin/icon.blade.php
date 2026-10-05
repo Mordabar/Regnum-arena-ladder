@@ -39,6 +39,7 @@
         'eye' => '<path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="3"/>',
         'crown' => '<path d="m3 7 4 4 5-6 5 6 4-4v11H3V7Z"/><path d="M3 20h18"/>',
         'megaphone' => '<path d="M4 10v4a2 2 0 0 0 2 2h1l8 4V4L7 8H6a2 2 0 0 0-2 2Z"/><path d="M19 9a3 3 0 0 1 0 6"/>',
+        'calendar' => '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/>',
         'dot' => '<circle cx="12" cy="12" r="4"/>',
     ];
 @endphp

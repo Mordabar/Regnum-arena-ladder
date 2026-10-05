@@ -974,6 +974,41 @@
     }
     .ap-bulkbar b { color: var(--ap-danger); }
 
+    /* La barra del calendario de temporada en el panel. */
+    .ap-season { margin-top: 4px; }
+    .ap-season-track {
+        position: relative;
+        height: 10px;
+        border-radius: 999px;
+        border: 1px solid var(--ap-line-strong);
+        background: var(--ap-bg);
+        overflow: hidden;
+    }
+    .ap-season-fill {
+        position: absolute;
+        inset: 0 auto 0 0;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #8a6420, var(--ap-accent));
+    }
+    .ap-season-tick {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 1px;
+        background: rgba(255, 255, 255, 0.18);
+    }
+    .ap-season-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 4px 12px;
+        margin-top: 8px;
+        font-size: 12px;
+        color: var(--ap-text-muted);
+    }
+    .ap-season-meta b { color: var(--ap-accent); font-weight: 600; }
+
     .ap-maint {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
@@ -991,7 +1026,8 @@
         background: var(--ap-surface-soft, rgba(255, 255, 255, 0.02));
     }
     .ap-maint-block.is-danger { border-color: var(--ap-danger-dim); }
-    .ap-maint-block .ap-field { width: 100%; }
+    .ap-maint-block .ap-field,
+    .ap-maint-block .ap-switch-row { width: 100%; }
     .ap-maint-text {
         margin: 0;
         font-size: 12.5px;

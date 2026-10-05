@@ -61,6 +61,17 @@ class ArenaMaintenanceService
         $avisosBorrados = app(MatchPingService::class)->limpiarCerrados();
         $createdMatches = $this->matchmakingService->processRandomQueue(false);
 
+        // El calendario de temporadas: si la abierta llego a su fecha de fin se
+        // cierra y deja su podio en el Salon de la Fama. Primero, antes del
+        // resumen de Discord: lo que se anuncia debe ser la temporada nueva.
+        // Nunca puede tumbar el mantenimiento.
+        $temporadaCerrada = false;
+        try {
+            $temporadaCerrada = app(SeasonScheduleService::class)->aplicar()['cerrada'];
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('No se pudo aplicar el calendario de temporadas', ['error' => $e->getMessage()]);
+        }
+
         // El resumen de actividad para el canal de Discord. Va aqui y no solo en
         // el comando del cron: este tick tambien lo lanza el respaldo por HTTP
         // cuando el cron no corre. Nunca puede tumbar el mantenimiento.
@@ -81,6 +92,7 @@ class ArenaMaintenanceService
             'expired_hunts' => (int) ($sweep['expired_hunts'] ?? 0),
             'expired_report_confirmations' => (int) ($sweep['expired_report_confirmations'] ?? 0),
             'pings_deleted' => $avisosBorrados,
+            'season_closed' => $temporadaCerrada,
         ];
     }
 

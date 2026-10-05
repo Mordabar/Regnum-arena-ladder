@@ -25,7 +25,7 @@
 
     {{-- La temporada en marcha. No es historia todavia, pero quien entra a ver
          la vitrina quiere saber que hay en juego ahora mismo. --}}
-    @if($actual && $premios->activos())
+    @if($actual && ($premios->activos() || $actual->progreso()))
         <section class="arena-panel mb-8 p-6 arena-animate-in">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -35,6 +35,10 @@
                 <a href="{{ route('ladder.index') }}" class="arena-btn-ghost"><x-arena-icon name="ladder" class="h-4 w-4 shrink-0" />Ver clasificacion</a>
             </div>
 
+            {{-- El calendario, con la misma barra que el podio de la portada. --}}
+            <x-arena-season-bar :season="$actual" />
+
+            @if($premios->activos())
             <p class="mt-3 text-sm text-[color:var(--arena-muted)] arena-body-text">
                 <b class="text-[color:var(--arena-gold-soft)]">{{ $premios->total() }} {{ $premios->moneda() }}</b>
                 en juego. {{ $premios->bases() }}
@@ -127,6 +131,7 @@
                 temporada, los que estén aquí entrarán en la vitrina para siempre. ¿Te atreves a
                 quitarles el sitio?
             </p>
+            @endif
         </section>
     @endif
 

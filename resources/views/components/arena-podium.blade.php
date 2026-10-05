@@ -78,6 +78,11 @@
             </span>
         </h2>
         <p class="arena-podium-note">{{ $premios->bases() }}</p>
+
+        {{-- El calendario de la temporada: cuanto lleva y cuanto queda. Va en
+             la cabecera del podio porque es la otra mitad de lo que se viene a
+             mirar: que se reparte y hasta cuando se puede ganar. --}}
+        <x-arena-season-bar :season="\App\Models\ArenaSeason::current()" />
     </header>
 
     <div class="arena-podium-stage">

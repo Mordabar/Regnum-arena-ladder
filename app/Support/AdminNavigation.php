@@ -43,6 +43,7 @@ class AdminNavigation
                 'label' => 'Configuracion',
                 'items' => [
                     self::item('admin.settings', 'Reglas del ladder', 'sliders'),
+                    self::item('admin.seasons', 'Temporadas', 'calendar'),
                     self::item('admin.zones', 'Zonas de combate', 'map'),
                 ],
             ],

@@ -32,4 +32,18 @@ return [
 
     'rematch_rest_minutes' => (int) env('ARENA_REMATCH_REST_MINUTES', 2),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Zona horaria de las temporadas
+    |--------------------------------------------------------------------------
+    |
+    | Las fechas de inicio y fin de una temporada se escriben y se leen en esta
+    | zona, no en la del servidor (UTC): "termina el 29 de noviembre a las 23:59"
+    | tiene que significar lo mismo para quien lo configura y para quien mira la
+    | barra. En la base de datos se guardan en UTC, como todo lo demas.
+    |
+    */
+
+    'season_timezone' => env('ARENA_SEASON_TIMEZONE', 'America/Bogota'),
+
 ];

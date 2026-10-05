@@ -204,45 +204,16 @@
             </button>
         </form>
 
-        <form method="POST" action="{{ route('admin.season.close') }}" class="ap-maint-block">
-            @csrf
+        <div class="ap-maint-block">
             <p class="ap-maint-text">
-                Cierra la temporada en curso: congela el podio en el <b>Salon de la Fama</b> con las
-                cifras de hoy y abre la siguiente. <b>No</b> borra nada ni pone el ranking a cero.
+                Cerrar la temporada, programar su fecha de fin y decidir que pasa con el
+                ranking vive ahora en su propia pantalla.
             </p>
-            {{-- El orden importa y no se adivina: lo que se congela son las
-                 cifras VIVAS del jugador. Si primero se reinicia el ladder, la
-                 vitrina guarda ceros y la temporada se pierde sin remedio. --}}
-            <p class="ap-maint-text ap-maint-warn">
-                <b>Primero cerrar, despues reiniciar.</b> Lo que entra en la vitrina son las cifras
-                que tiene cada personaje en este momento: si reinicias el ranking antes, el Salon
-                de la Fama guarda la temporada en blanco y eso no se deshace.
-            </p>
-            <label class="ap-field">
-                <span class="ap-label" for="next-season">Nombre de la siguiente (opcional)</span>
-                <input type="text" id="next-season" name="siguiente" class="ap-input" placeholder="Season 1" autocomplete="off">
-            </label>
-            <label class="ap-field">
-                <span class="ap-label" for="close-confirm">Escribe CERRAR para confirmar</span>
-                <input type="text" id="close-confirm" name="confirmacion" class="ap-input" placeholder="CERRAR" autocomplete="off">
-            </label>
-            {{-- La salida para el caso raro. Sin esto, quien quiera cerrar a
-                 proposito una temporada vacia -una de prueba, o una abierta por
-                 error- se queda sin manera de hacerlo. --}}
-            <label class="ap-switch-row">
-                <span class="min-w-0">
-                    <span class="ap-switch-title">Cerrarla aunque este vacia</span>
-                    <span class="ap-section-note">Solo hace falta si la temporada acaba de abrirse y no se ha jugado nada en ella.</span>
-                </span>
-                <input type="hidden" name="forzar" value="0">
-                <input type="checkbox" class="ap-checkbox" name="forzar" value="1">
-            </label>
-            <button class="ap-btn ap-btn-sm"
-                    onclick="return confirm('La temporada actual pasa al Salon de la Fama y se abre una nueva. ¿Seguir?')">
-                <x-admin.icon name="star" class="h-3.5 w-3.5" />
-                Cerrar la temporada
-            </button>
-        </form>
+            <a href="{{ route('admin.seasons') }}" class="ap-btn ap-btn-sm">
+                <x-admin.icon name="calendar" class="h-3.5 w-3.5" />
+                Ir a Temporadas
+            </a>
+        </div>
 
         <form method="POST" action="{{ route('admin.ladder.reset') }}" class="ap-maint-block is-danger">
             @csrf

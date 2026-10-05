@@ -16,7 +16,6 @@ use App\Services\ArenaMatchmakingService;
 use App\Services\PlayerCleanupService;
 use App\Services\LadderCacheService;
 use App\Services\ArenaZoneService;
-use App\Services\SeasonClosingService;
 use App\Services\LadderMaintenanceService;
 use App\Support\ArenaMode;
 use Illuminate\Http\Request;
@@ -950,40 +949,6 @@ class AdminController extends Controller
             '%d enfrentamiento(s) borrados. %d personaje(s) recalculados.',
             $resumen['matches_deleted'],
             $resumen['players_recalculated']
-        ));
-    }
-
-    /**
-     * Cierra la temporada en curso y deja su podio en el Salon de la Fama.
-     *
-     * Pide el nombre escrito a mano, igual que reiniciar el ranking: cerrar una
-     * temporada no se deshace, y un clic de mas no puede archivarla.
-     */
-    public function closeSeason(Request $request, SeasonClosingService $cierre)
-    {
-        $validated = $request->validate([
-            'confirmacion' => 'required|in:CERRAR',
-            'siguiente' => 'nullable|string|max:120',
-            'forzar' => 'nullable|boolean',
-        ], [
-            'confirmacion.required' => 'Escribe CERRAR para confirmar.',
-            'confirmacion.in' => 'Escribe CERRAR para confirmar.',
-        ]);
-
-        $resultado = $cierre->cerrar(
-            $validated['siguiente'] ?? null,
-            (bool) $request->boolean('forzar')
-        );
-
-        if (!$resultado['ok']) {
-            return back()->withErrors(['error' => $resultado['motivo']]);
-        }
-
-        return back()->with('success', sprintf(
-            '%s cerrada con %d personaje(s) en la vitrina. Ya esta abierta %s.',
-            $resultado['season']->name,
-            $resultado['congelados'],
-            $resultado['siguiente']->name
         ));
     }
 
