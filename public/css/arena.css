@@ -4128,3 +4128,17 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
     background: rgba(216, 177, 92, 0.1); font-weight: 700; font-size: 13px;
 }
 .arena-file-txt { color: var(--arena-muted); font-size: 13px; min-width: 0; overflow-wrap: anywhere; }
+
+/* Barra superior mas baja en escritorio: 102px de cabecera fija comian
+   pantalla sin dar nada a cambio. */
+@media (min-width: 1024px) {
+    .arena-navbar [data-arena-navbar-brand], .arena-navbar a.min-w-0 img { height: 48px; }
+    .arena-navbar a.min-w-0 > span > span:first-child { padding: 4px; }
+    .arena-navbar > div { padding-top: 8px; padding-bottom: 8px; }
+}
+
+/* Los chips del chat se desplazan de lado: el borde difuminado lo avisa. */
+.arena-chat-quick {
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
+            mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
+}
