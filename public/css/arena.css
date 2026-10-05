@@ -3954,3 +3954,73 @@ h1, h2, h3, h4, h5, h6,
 /* El selector de idioma flota abajo a la izquierda: el pie deja sitio para que
    nunca tape el ultimo renglon de texto. */
 body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
+
+/* ------------------------------------------------------------------
+   Selector de modalidad y de tipo de partida, bien visible.
+
+   Las opciones inactivas parecian texto suelto: sin borde ni fondo no se
+   distinguia que fueran botones, y en movil el "Competitivo / Amistoso" caia
+   a una segunda linea desalineado. Ahora cada opcion es un boton con su
+   borde; en movil son dos filas -modo arriba, tipo debajo- y las opciones de
+   cada fila se reparten el ancho a partes iguales, con un area de toque de
+   38px.
+   ------------------------------------------------------------------ */
+.arena-console-arena {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-color: var(--arena-line);
+    background: rgba(255, 255, 255, 0.035);
+    color: var(--arena-sand);
+}
+.arena-console-arena:hover { border-color: var(--arena-line-strong); background: rgba(255, 255, 255, 0.07); }
+.arena-console-arena:focus-visible { outline: 2px solid var(--arena-gold); outline-offset: 2px; }
+.arena-console-arena.is-active { box-shadow: 0 0 0 1px rgba(216, 177, 92, 0.18), 0 6px 16px rgba(0, 0, 0, 0.35); }
+.arena-console-arena.is-kind-friendly.is-active { box-shadow: 0 0 0 1px rgba(120, 180, 220, 0.2), 0 6px 16px rgba(0, 0, 0, 0.35); }
+
+@media (max-width: 520px) {
+    .arena-console-arenas {
+        gap: 6px;
+        padding: 6px;
+        border-radius: 14px;
+        background: rgba(8, 5, 4, 0.84);
+        /* El lapiz de editar vive a la derecha: se le deja su sitio. */
+        width: calc(100% - 72px);
+        max-width: none;
+    }
+    .arena-console-arenas-key { flex: none; padding: 0 4px 0 6px; }
+    .arena-console-arenas .arena-console-arena {
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 38px;
+        padding: 6px 8px;
+        font-size: 13px;
+        text-align: center;
+    }
+    /* La raya entre modo y tipo pasa a ser el salto de fila. */
+    .arena-console-arenas-sep {
+        display: block;
+        flex: 0 0 100%;
+        height: 0;
+        margin: 0;
+        background: none;
+    }
+}
+
+/* El selector de idioma, compacto en movil: solo la bandera, redonda. Con el
+   codigo y la flecha tapaba contenido del lobby (la cola, la etiqueta de la
+   arena). Al abrirse sigue dando el nombre de cada idioma. */
+@media (max-width: 1023px) {
+    .arena-lang-fab {
+        width: 44px;
+        min-height: 44px;
+        height: 44px;
+        padding: 0;
+        justify-content: center;
+        border-radius: 50%;
+        opacity: 0.92;
+    }
+    .arena-lang-fab .arena-lang-code,
+    .arena-lang-fab .arena-lang-chev { display: none; }
+    .arena-lang-fab .arena-flag { width: 30px; height: 30px; }
+}
