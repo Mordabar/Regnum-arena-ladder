@@ -196,15 +196,18 @@ it('el rival puede confirmar el reporte sin salir del lobby', function () {
 
     $response->assertOk()
         ->assertSee('Confirma si es correcto')
+        ->assertSee('name="confirmation_note"', false)
         ->assertSee('name="report_id" value="' . $match->fresh('report')->report->id . '"', false);
 
     $this->actingAs($mine->user)->post(route('matches.report.confirm'), [
         'report_id' => $match->fresh('report')->report->id,
         'player_id' => $mine->id,
+        'confirmation_note' => '  Buen combate, gg  ',
     ])->assertRedirect();
 
     expect($match->fresh()->status)->toBe('completed')
-        ->and($match->fresh()->winner_team)->toBe('team_b');
+        ->and($match->fresh()->winner_team)->toBe('team_b')
+        ->and($match->fresh('report')->report->confirmation_note)->toBe('Buen combate, gg');
 });
 
 it('quien todavia no ha reportado ve el formulario en el lobby', function () {

@@ -601,6 +601,13 @@
                     </div>
                 </div>
 
+                @if($report->confirmation_note)
+                    <div class="arena-card p-4">
+                        <p class="text-xs font-semibold text-[color:var(--arena-gold-soft)]">Comentario de quien confirmó</p>
+                        <p class="mt-2 whitespace-pre-line break-words text-sm text-[color:var(--arena-text)] arena-body-text">{{ $report->confirmation_note }}</p>
+                    </div>
+                @endif
+
                 @if($report->reporter_note)
                     <div class="arena-card p-4">
                         <p class="text-xs font-semibold text-[color:var(--arena-gold-soft)]">Nota del reporter</p>
@@ -710,6 +717,7 @@
                             @csrf
                             <input type="hidden" name="report_id" value="{{ $report->id }}">
                             <input type="hidden" name="player_id" value="{{ $viewerPlayer['player_id'] }}">
+                            <textarea name="confirmation_note" rows="2" maxlength="500" class="arena-textarea mb-2 w-full" placeholder="Comentario opcional para el rival" aria-label="Comentario opcional"></textarea>
                             <button type="submit" class="arena-btn-safe w-full">
                                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
                                 Confirmar reporte

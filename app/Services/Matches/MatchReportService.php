@@ -252,7 +252,7 @@ SVG;
         return $path;
     }
 
-    public function confirmReport(MatchReport $report, Player $confirmer): array
+    public function confirmReport(MatchReport $report, Player $confirmer, ?string $note = null): array
     {
         $match = $report->match()->firstOrFail();
 
@@ -273,11 +273,14 @@ SVG;
             throw new \RuntimeException('Solo el equipo rival puede confirmar este reporte.');
         }
 
-        return DB::transaction(function () use ($report, $match, $confirmer) {
+        $note = $note !== null ? trim($note) : null;
+
+        return DB::transaction(function () use ($report, $match, $confirmer, $note) {
             $report->update([
                 'status' => 'confirmed',
                 'confirmed_by_player_id' => $confirmer->id,
                 'confirmed_at' => now(),
+                'confirmation_note' => $note !== '' ? $note : null,
             ]);
 
             return $this->lifecycle->finalizeMatch($match->fresh('report'), $report->claimed_winner_team, false, [

@@ -369,13 +369,14 @@ class ArenaMatchController extends Controller
         $request->validate([
             'report_id' => 'required|exists:match_reports,id',
             'player_id' => 'required|exists:players,id',
+            'confirmation_note' => 'nullable|string|max:500',
         ]);
 
         $report = MatchReport::with('match')->findOrFail($request->report_id);
         $player = Auth::user()->players()->findOrFail((int) $request->player_id);
 
         try {
-            $resultService->confirmReport($report, $player);
+            $resultService->confirmReport($report, $player, $request->input('confirmation_note'));
         } catch (\Throwable $e) {
             return back()->withErrors(['error' => $e->getMessage()]);
         }

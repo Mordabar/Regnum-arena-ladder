@@ -33,6 +33,7 @@ class MatchReport extends Model
         'evidence_paths',
         'rejection_evidence_paths',
         'reporter_note',
+        'confirmation_note',
         'confirmed_by_player_id',
         'confirmed_at',
         'rejected_by_player_id',

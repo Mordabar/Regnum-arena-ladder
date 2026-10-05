@@ -45,9 +45,9 @@ class ArenaMatchResultService
         return $this->reports->submitSyntheticReport($match, $reporter, $claimedWinnerTeam, $note);
     }
 
-    public function confirmReport(MatchReport $report, Player $confirmer): array
+    public function confirmReport(MatchReport $report, Player $confirmer, ?string $note = null): array
     {
-        return $this->reports->confirmReport($report, $confirmer);
+        return $this->reports->confirmReport($report, $confirmer, $note);
     }
 
     /**

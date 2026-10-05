@@ -281,11 +281,16 @@
                 Confirma si es correcto, o rechazalo y explica por que.
             </p>
 
+            @if($report->reporter_note)
+                <p class="arena-report-inline-lead whitespace-pre-line break-words"><b>{{ __('Comentario del rival') }}:</b> {{ $report->reporter_note }}</p>
+            @endif
+
             <div class="arena-duel-actions">
                 <form method="POST" action="{{ route('matches.report.confirm') }}">
                     @csrf
                     <input type="hidden" name="report_id" value="{{ $report->id }}">
                     <input type="hidden" name="player_id" value="{{ $lineup['viewer_player_id'] }}">
+                    <textarea name="confirmation_note" rows="2" maxlength="500" class="arena-textarea mb-2 w-full" placeholder="Comentario opcional para el rival (por ejemplo: buen combate)" aria-label="Comentario opcional"></textarea>
                     <button type="submit" class="arena-btn px-5 py-2.5"><x-arena-icon name="check" class="h-4 w-4 shrink-0" />Confirmar resultado</button>
                 </form>
                 <button type="button" class="arena-btn-danger-ghost px-5 py-2.5" data-reject-toggle><x-arena-icon name="x" class="h-4 w-4 shrink-0" />Rechazar y explicar</button>

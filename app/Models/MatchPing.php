@@ -52,6 +52,7 @@ class MatchPing extends Model
         // Lo social: contestar sin escribir y despedirse bien.
         'ok' => ['texto' => 'Ok', 'icono' => '👍', 'tono' => 'social'],
         'gg' => ['texto' => 'Bien jugado', 'icono' => '🤝', 'tono' => 'social'],
+        'revancha' => ['texto' => 'Revancha', 'icono' => '🔁', 'tono' => 'social'],
         'gracias' => ['texto' => 'Gracias por el combate', 'icono' => '🙌', 'tono' => 'social'],
     ];
 
