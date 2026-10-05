@@ -50,7 +50,7 @@ class MatchPingService
 
     public function disponible(): bool
     {
-        return Schema::hasTable('match_pings');
+        return \App\Support\Esquema::tabla('match_pings');
     }
 
     /** Si en este enfrentamiento todavia se puede avisar de algo. */

@@ -54,7 +54,7 @@ class ArenaSeason extends Model
     /** La temporada programada para abrirse a futuro, si hay alguna. */
     public static function programada(): ?self
     {
-        if (!Schema::hasTable('arena_seasons')) {
+        if (!\App\Support\Esquema::tabla('arena_seasons')) {
             return null;
         }
 
@@ -66,7 +66,7 @@ class ArenaSeason extends Model
 
     public static function current(): ?self
     {
-        if (!Schema::hasTable('arena_seasons')) {
+        if (!\App\Support\Esquema::tabla('arena_seasons')) {
             return null;
         }
 

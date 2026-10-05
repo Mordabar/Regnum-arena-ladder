@@ -6,12 +6,12 @@
     // El ladder esta en pausa cuando no hay temporada en juego. Solo se pinta
     // entonces: con una temporada abierta no hay nada que avisar.
     $enPausa = !Competition::rankedOpen();
-    $ultima = $enPausa && \Illuminate\Support\Facades\Schema::hasTable('arena_seasons')
+    $ultima = $enPausa && \App\Support\Esquema::tabla('arena_seasons')
         ? ArenaSeason::query()->where('status', ArenaSeason::STATUS_ARCHIVED)->orderByDesc('ends_at')->orderByDesc('id')->first()
         : null;
     $amistosos = Competition::friendlyEnabled();
     // Opcional: solo sale si hay una temporada programada.
-    $proxima = $enPausa && \Illuminate\Support\Facades\Schema::hasTable('arena_seasons') && \Illuminate\Support\Facades\Schema::hasColumn('arena_seasons', 'prizes_on_open') ? ArenaSeason::programada() : null;
+    $proxima = $enPausa && \App\Support\Esquema::tabla('arena_seasons') && \App\Support\Esquema::columna('arena_seasons', 'prizes_on_open') ? ArenaSeason::programada() : null;
 @endphp
 
 @if($enPausa)

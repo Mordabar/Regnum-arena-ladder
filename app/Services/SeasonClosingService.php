@@ -31,9 +31,9 @@ class SeasonClosingService
     {
         // Con las columnas del calendario: cerrar escribe closed_reason, y con el
         // codigo nuevo subido antes que las migraciones fallaria a medias.
-        return Schema::hasTable('arena_seasons')
-            && Schema::hasTable('season_player_stats')
-            && Schema::hasColumn('arena_seasons', 'closed_reason');
+        return \App\Support\Esquema::tabla('arena_seasons')
+            && \App\Support\Esquema::tabla('season_player_stats')
+            && \App\Support\Esquema::columna('arena_seasons', 'closed_reason');
     }
 
     /**
@@ -127,7 +127,7 @@ class SeasonClosingService
             // Con una temporada programada, la siguiente es ESA: abrir una
             // generica ahora la dejaria bloqueada para siempre. El ladder queda
             // en pausa hasta su fecha (o se abre ya si su fecha llego).
-            $hayProgramada = Schema::hasColumn('arena_seasons', 'prizes_on_open')
+            $hayProgramada = \App\Support\Esquema::columna('arena_seasons', 'prizes_on_open')
                 && ArenaSeason::query()->where('status', ArenaSeason::STATUS_SCHEDULED)->exists();
             $abrir = !$hayProgramada && (bool) ($opciones['abrir_siguiente'] ?? $actual->open_next);
             $siguiente = $abrir ? $this->abrirSiguiente($actual, $nombreSiguiente, $opciones) : null;
@@ -207,7 +207,7 @@ class SeasonClosingService
      */
     public function programar(string $nombre, CarbonInterface $inicio, array $opciones = []): array
     {
-        if (!$this->disponible() || !Schema::hasColumn('arena_seasons', 'prizes_on_open')) {
+        if (!$this->disponible() || !\App\Support\Esquema::columna('arena_seasons', 'prizes_on_open')) {
             return ['ok' => false, 'motivo' => 'Las temporadas no estan disponibles en este esquema.'];
         }
 
@@ -254,7 +254,7 @@ class SeasonClosingService
      */
     public function abrirProgramada(): ?ArenaSeason
     {
-        if (!$this->disponible() || !Schema::hasColumn('arena_seasons', 'prizes_on_open')) {
+        if (!$this->disponible() || !\App\Support\Esquema::columna('arena_seasons', 'prizes_on_open')) {
             return null;
         }
 
@@ -303,7 +303,7 @@ class SeasonClosingService
      */
     private function anularCompetitivosEnVuelo(): int
     {
-        if (!Schema::hasTable('matches') || !Schema::hasColumn('matches', 'is_ranked')) {
+        if (!\App\Support\Esquema::tabla('matches') || !\App\Support\Esquema::columna('matches', 'is_ranked')) {
             return 0;
         }
 
@@ -364,7 +364,7 @@ class SeasonClosingService
         // implementacion que un reordenamiento inocente rompe en silencio. Y
         // ojo: en SQLite el candado no se emite -el compilador lo ignora-, asi
         // que nada de esto lo cubren los tests.
-        $tieneCruces = Schema::hasTable('matches')
+        $tieneCruces = \App\Support\Esquema::tabla('matches')
             && DB::table('matches')->where('season_id', $season->id)->lockForUpdate()->exists();
 
         if ($tieneCruces) {

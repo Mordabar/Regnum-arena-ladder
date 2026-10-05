@@ -18,7 +18,7 @@ class HallOfFameController extends Controller
 {
     public function index(SeasonPrizeService $premios)
     {
-        if (!Schema::hasTable('arena_seasons')) {
+        if (!\App\Support\Esquema::tabla('arena_seasons')) {
             return view('hall-of-fame.index', [
                 'seasons' => collect(),
                 'actual' => null,
@@ -60,7 +60,7 @@ class HallOfFameController extends Controller
      */
     private function podioDe(ArenaSeason $season)
     {
-        if (!Schema::hasTable('season_player_stats')) {
+        if (!\App\Support\Esquema::tabla('season_player_stats')) {
             return collect();
         }
 

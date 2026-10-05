@@ -23,7 +23,7 @@ class SeasonScheduleService
     /** La temporada abierta que ya debia haberse cerrado, si hay alguna. */
     public function vencida(): ?ArenaSeason
     {
-        if (!$this->cierre->disponible() || !Schema::hasColumn('arena_seasons', 'auto_close')) {
+        if (!$this->cierre->disponible() || !\App\Support\Esquema::columna('arena_seasons', 'auto_close')) {
             return null;
         }
 

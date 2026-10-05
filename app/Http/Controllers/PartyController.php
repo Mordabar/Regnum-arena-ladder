@@ -133,7 +133,7 @@ class PartyController extends Controller
             ]);
 
             if (!ArenaMode::isEnabled($arenaMode)) {
-                return back()->withErrors(['error' => 'La modalidad ' . $arenaMode . ' no esta activa en este momento.']);
+                return back()->withErrors(['error' => __('La modalidad :modo no esta activa en este momento.', ['modo' => $arenaMode])]);
             }
 
             $kind = Competition::normalize($request->input('kind')) ?? Competition::default();
@@ -151,7 +151,7 @@ class PartyController extends Controller
             // como un equipo valido.
             if (!ArenaMode::supportsPremade($arenaMode)) {
                 return back()->withErrors([
-                    'error' => 'El duelo ' . ArenaMode::label($arenaMode) . ' se juega en solitario: no hay grupo que armar.',
+                    'error' => __('El duelo :modo se juega en solitario: no hay grupo que armar.', ['modo' => ArenaMode::label($arenaMode)]),
                 ]);
             }
 
@@ -160,7 +160,7 @@ class PartyController extends Controller
                 ->values();
 
             if ($selectedIds->count() !== $teamSize || $selectedIds->unique()->count() !== $teamSize) {
-                return back()->withErrors(['error' => 'La party debe tener exactamente ' . $teamSize . ' personajes distintos.']);
+                return back()->withErrors(['error' => __('La party debe tener exactamente :n personajes distintos.', ['n' => $teamSize])]);
             }
 
             $players = Player::query()
@@ -180,7 +180,7 @@ class PartyController extends Controller
             }
 
             if ($players->pluck('user_id')->unique()->count() !== $teamSize) {
-                return back()->withErrors(['error' => 'La party debe tener ' . $teamSize . ' usuarios distintos.']);
+                return back()->withErrors(['error' => __('La party debe tener :n usuarios distintos.', ['n' => $teamSize])]);
             }
 
             $realms = $players->pluck('realm')->unique();
@@ -204,7 +204,7 @@ class PartyController extends Controller
             // Checks (Queues, Lockouts, Limits)
             $partyMatchesToday = $matchmakingService->countPartyMatchesTodayForPlayers($selectedIds->all(), $arenaMode);
             if ($partyMatchesToday >= $matchmakingService->getPremadeDailyLimit()) {
-                return back()->withErrors(['error' => 'Esta party alcanzo su limite diario de ' . $matchmakingService->getPremadeDailyLimit() . ' matches.']);
+                return back()->withErrors(['error' => __('Esta party alcanzo su limite diario de :n matches.', ['n' => $matchmakingService->getPremadeDailyLimit()])]);
             }
 
             $roleInputs = collect($validated['party_conjurer_roles'] ?? [])->values();
@@ -368,7 +368,7 @@ class PartyController extends Controller
         // no puede entrar a la cola.
         if (!ArenaMode::isEnabled($party->arena_mode)) {
             return back()->withErrors([
-                'error' => 'La modalidad ' . ArenaMode::label($party->arena_mode) . ' ya no esta activa.',
+                'error' => __('La modalidad :modo ya no esta activa.', ['modo' => ArenaMode::label($party->arena_mode)]),
             ]);
         }
 
@@ -426,7 +426,7 @@ class PartyController extends Controller
 
         if ($partyMatchesToday >= $matchmakingService->getPremadeDailyLimit()) {
             return back()->withErrors([
-                'error' => 'Esta party alcanzo su limite diario de ' . $matchmakingService->getPremadeDailyLimit() . ' matches.',
+                'error' => __('Esta party alcanzo su limite diario de :n matches.', ['n' => $matchmakingService->getPremadeDailyLimit()]),
             ]);
         }
 

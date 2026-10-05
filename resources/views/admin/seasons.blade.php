@@ -178,7 +178,7 @@
         @endif
 
         {{-- La temporada programada: se abre sola en su fecha, sea cuando sea. --}}
-        @if(\Illuminate\Support\Facades\Schema::hasColumn('arena_seasons', 'prizes_on_open'))
+        @if(\App\Support\Esquema::columna('arena_seasons', 'prizes_on_open'))
             @if($programada)
                 <section class="ap-card ap-rise p-4">
                     <x-admin.section-head title="Temporada programada" icon="calendar" tone="gold"

@@ -19,7 +19,7 @@ class AdminSeasonController extends Controller
 {
     public function index(SeasonPrizeService $premios)
     {
-        $disponible = Schema::hasTable('arena_seasons') && Schema::hasColumn('arena_seasons', 'auto_close');
+        $disponible = \App\Support\Esquema::tabla('arena_seasons') && \App\Support\Esquema::columna('arena_seasons', 'auto_close');
 
         $actual = $disponible ? ArenaSeason::current() : null;
 
@@ -45,7 +45,7 @@ class AdminSeasonController extends Controller
             'disponible' => $disponible,
             'actual' => $actual,
             'progreso' => $actual?->progreso(),
-            'programada' => $disponible && Schema::hasColumn('arena_seasons', 'prizes_on_open') ? ArenaSeason::programada() : null,
+            'programada' => $disponible && \App\Support\Esquema::columna('arena_seasons', 'prizes_on_open') ? ArenaSeason::programada() : null,
             'historial' => $historial,
             'congelados' => $congelados,
             'zona' => ArenaSeason::zone(),

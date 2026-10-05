@@ -43,7 +43,7 @@ class QueueController extends Controller
             ]);
 
             if (!ArenaMode::isEnabled($arenaMode)) {
-                return back()->withErrors(['error' => 'La modalidad ' . $arenaMode . ' no esta activa en este momento.']);
+                return back()->withErrors(['error' => __('La modalidad :modo no esta activa en este momento.', ['modo' => $arenaMode])]);
             }
 
             // Competitivo o amistoso. Sin pedir ninguno entra al competitivo si

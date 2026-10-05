@@ -40,7 +40,7 @@ final class Competition
      */
     public static function rankedOpen(): bool
     {
-        if (!Schema::hasTable('arena_seasons')) {
+        if (!\App\Support\Esquema::tabla('arena_seasons')) {
             return true;
         }
 

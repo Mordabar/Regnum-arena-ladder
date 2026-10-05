@@ -40,6 +40,7 @@ class DiscordBotService
     private function enviarMatchFound(ArenaMatch $match): void
     {
         $allPlayers = $match->getAllPlayers();
+        $this->precargarIdiomas($allPlayers);
         
         foreach ($allPlayers as $playerData) {
             $this->sendMatchNotification($playerData, $match);
@@ -120,7 +121,7 @@ class DiscordBotService
                     ],
                 [
                     'name' => __('Modo'),
-                    'value' => __($match->queue_mode_name),
+                    'value' => $this->nombreDelModo($match),
                     'inline' => true
                 ],
                 $match->isFriendly()
@@ -282,16 +283,72 @@ class DiscordBotService
         ])->connectTimeout(3)->timeout(5);
     }
 
+    /** @var array<string, string> discord_id => idioma, ya leidos */
+    private array $idiomas = [];
+
+    /**
+     * Lee de una vez el idioma de todos los destinatarios de un evento: una
+     * consulta para todos en vez de una por jugador y por mensaje.
+     *
+     * @param  iterable<array{discord_id?: mixed}>  $jugadores
+     */
+    private function precargarIdiomas(iterable $jugadores): void
+    {
+        $ids = collect($jugadores)
+            ->map(fn ($j) => (string) ($j['discord_id'] ?? ''))
+            ->filter()
+            ->reject(fn (string $id) => isset($this->idiomas[$id]))
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return;
+        }
+
+        try {
+            $guardados = \App\Models\User::query()->whereIn('discord_id', $ids->all())->pluck('locale', 'discord_id');
+        } catch (\Throwable) {
+            $guardados = collect();
+        }
+
+        foreach ($ids as $id) {
+            $this->idiomas[$id] = \App\Support\I18n\Idioma::normalizar($guardados[$id] ?? null) ?? \App\Support\I18n\Idioma::FUENTE;
+        }
+    }
+
     /** El idioma de un usuario de Discord; español si no se sabe. */
     private function idiomaDe(string $discordId): string
     {
-        try {
-            $codigo = \App\Models\User::query()->where('discord_id', $discordId)->value('locale');
-        } catch (\Throwable) {
-            $codigo = null;
+        if (!isset($this->idiomas[$discordId])) {
+            $this->precargarIdiomas([['discord_id' => $discordId]]);
         }
 
-        return \App\Support\I18n\Idioma::normalizar($codigo) ?? \App\Support\I18n\Idioma::FUENTE;
+        return $this->idiomas[$discordId] ?? \App\Support\I18n\Idioma::FUENTE;
+    }
+
+    /** Por que se cancelo un cruce, en el idioma activo. */
+    private function motivoDeCancelacion(string $reason): string
+    {
+        return match ($reason) {
+            'timeout' => __('Tiempo agotado para aceptar'),
+            'player_rejected' => __('Un jugador rechazó el match'),
+            'season_closed' => __('La temporada se cerró'),
+            default => __(ucfirst(str_replace('_', ' ', $reason))),
+        };
+    }
+
+    /** "Random 2v2", "Premade 3v3" o "Random vs Premade 2v2", en el idioma activo. */
+    private function nombreDelModo(ArenaMatch $match): string
+    {
+        $modo = $match->arena_mode_label;
+
+        if ($match->team_a_queue_type && $match->team_b_queue_type && $match->team_a_queue_type !== $match->team_b_queue_type) {
+            return __('Random vs Premade :modo', ['modo' => $modo]);
+        }
+
+        $cola = ArenaMatch::QUEUE_MODES[$match->queue_mode] ?? $match->queue_mode;
+
+        return trim(__((string) $cola) . ' ' . $modo);
     }
 
     /** Construye un mensaje en el idioma de quien lo va a leer. */
@@ -364,6 +421,7 @@ class DiscordBotService
         if (!$this->isConfigured()) return;
 
         $allPlayers = $match->getAllPlayers();
+        $this->precargarIdiomas($allPlayers);
 
         $construir = fn () => [
             'embeds' => [
@@ -374,7 +432,7 @@ class DiscordBotService
                     'fields' => [
                         [
                             'name' => __('Razón'),
-                            'value' => $reason === 'timeout' ? __('Tiempo agotado para aceptar') : ucfirst(str_replace('_', ' ', $reason))
+                            'value' => $this->motivoDeCancelacion($reason)
                         ]
                     ]
                 ]
@@ -406,6 +464,7 @@ class DiscordBotService
         if (!$this->isConfigured()) return;
 
         $allPlayers = $match->getAllPlayers();
+        $this->precargarIdiomas($allPlayers);
         
         $construir = fn () => [
             'embeds' => [
@@ -550,7 +609,10 @@ class DiscordBotService
 
     private function broadcastToMatchPlayers(ArenaMatch $match, \Closure $message): void
     {
-        foreach ($match->getAllPlayers() as $playerData) {
+        $jugadores = $match->getAllPlayers();
+        $this->precargarIdiomas($jugadores);
+
+        foreach ($jugadores as $playerData) {
             $discordId = (string) ($playerData['discord_id'] ?? '');
             if ($this->shouldSkipDirectMessage($discordId)) {
                 continue;
