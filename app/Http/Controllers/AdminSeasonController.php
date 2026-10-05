@@ -167,7 +167,7 @@ class AdminSeasonController extends Controller
             $resultado['congelados'],
             $resultado['siguiente']
                 ? 'Ya esta abierta ' . $resultado['siguiente']->name . '.'
-                : 'El ladder queda en pausa: solo se juegan amistosos hasta que abras otra temporada.'
+                : (ArenaSeason::programada() ? 'El ladder queda en pausa hasta que se abra la temporada programada (' . ArenaSeason::programada()->name . ').' : 'El ladder queda en pausa: solo se juegan amistosos hasta que abras otra temporada.')
         );
 
         if (!empty($resultado['reinicio'])) {

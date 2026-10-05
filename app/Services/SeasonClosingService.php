@@ -217,7 +217,8 @@ class SeasonClosingService
 
         // El candado hace que dos envios a la vez no creen dos: bloquear filas
         // que todavia no existen no sirve de nada en MariaDB.
-        return \Illuminate\Support\Facades\Cache::lock('season-schedule', 10)->block(5, fn () => DB::transaction(function () use ($nombre, $inicio, $opciones) {
+        try {
+            return \Illuminate\Support\Facades\Cache::lock('season-schedule', 10)->block(5, fn () => DB::transaction(function () use ($nombre, $inicio, $opciones) {
             if (ArenaSeason::query()->where('status', ArenaSeason::STATUS_SCHEDULED)->lockForUpdate()->exists()) {
                 return ['ok' => false, 'motivo' => 'Ya hay una temporada programada. Cancelala antes de programar otra.'];
             }
@@ -239,6 +240,9 @@ class SeasonClosingService
                 'prizes_on_open' => (bool) ($opciones['premios'] ?? true),
             ])];
         }));
+        } catch (\Illuminate\Contracts\Cache\LockTimeoutException) {
+            return ['ok' => false, 'motivo' => 'Otra programacion se esta guardando. Intentalo de nuevo en unos segundos.'];
+        }
     }
 
     /**
