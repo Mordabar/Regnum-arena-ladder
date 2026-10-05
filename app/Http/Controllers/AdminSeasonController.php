@@ -63,10 +63,10 @@ class AdminSeasonController extends Controller
             'name' => 'required|string|max:120',
             'starts_at' => 'required|date_format:Y-m-d\TH:i,Y-m-d\TH:i:s',
             'ends_at' => 'nullable|date_format:Y-m-d\TH:i,Y-m-d\TH:i:s',
-            'duration_days' => 'nullable|integer|min:1|max:3650',
             'auto_close' => 'nullable|boolean',
             'next_name' => 'nullable|string|max:120',
-            'next_duration_days' => 'nullable|integer|min:1|max:3650',
+            'next_starts_at' => 'nullable|date_format:Y-m-d\TH:i,Y-m-d\TH:i:s',
+            'next_ends_at' => 'nullable|date_format:Y-m-d\TH:i,Y-m-d\TH:i:s',
             'reset_on_close' => 'nullable|boolean',
             'next_prizes_enabled' => 'nullable|boolean',
             'open_next' => 'nullable|boolean',
@@ -78,12 +78,6 @@ class AdminSeasonController extends Controller
 
         $inicio = $this->enZona($datos['starts_at']);
         $fin = filled($datos['ends_at'] ?? null) ? $this->enZona($datos['ends_at']) : null;
-
-        // "Dura N dias" desde el inicio: es la forma rapida de alargar o acortar
-        // sin calcular la fecha. Si vienen las dos, manda la duracion.
-        if (filled($datos['duration_days'] ?? null)) {
-            $fin = $inicio->copy()->addDays((int) $datos['duration_days']);
-        }
 
         $auto = $request->boolean('auto_close');
 
@@ -102,6 +96,13 @@ class AdminSeasonController extends Controller
             throw ValidationException::withMessages(['ends_at' => 'Esa fecha ya paso: con el cierre automatico la temporada se cerraria en el proximo minuto. Pon una fecha futura, o usa "Cerrar la temporada" si es lo que quieres.']);
         }
 
+        $siguienteInicio = filled($datos['next_starts_at'] ?? null) ? $this->enZona($datos['next_starts_at']) : null;
+        $siguienteFin = filled($datos['next_ends_at'] ?? null) ? $this->enZona($datos['next_ends_at']) : null;
+
+        if ($siguienteFin !== null && !$siguienteFin->gt($siguienteInicio ?? ($fin ?? $inicio))) {
+            throw ValidationException::withMessages(['next_ends_at' => 'La fecha de fin de la siguiente tiene que ser posterior a su inicio.']);
+        }
+
         // Una sola sentencia condicionada al estado: si el reloj la cerro un
         // instante antes, no se pisan las fechas de una temporada ya archivada.
         $cambiadas = ArenaSeason::query()
@@ -113,7 +114,10 @@ class AdminSeasonController extends Controller
                 'ends_at' => $fin,
                 'auto_close' => $auto,
                 'next_name' => filled($datos['next_name'] ?? null) ? trim($datos['next_name']) : null,
-                'next_duration_days' => filled($datos['next_duration_days'] ?? null) ? (int) $datos['next_duration_days'] : null,
+                // Las fechas exactas sustituyen a "dura N dias".
+                'next_duration_days' => null,
+                'next_starts_at' => $siguienteInicio,
+                'next_ends_at' => $siguienteFin,
                 'reset_on_close' => $request->boolean('reset_on_close'),
                 'next_prizes_enabled' => $request->boolean('next_prizes_enabled'),
                 'open_next' => $request->boolean('open_next'),
@@ -140,7 +144,8 @@ class AdminSeasonController extends Controller
             'siguiente' => 'nullable|string|max:120',
             'forzar' => 'nullable|boolean',
             'esperada' => 'nullable|integer',
-            'duracion_dias' => 'nullable|integer|min:1|max:3650',
+            'inicio_siguiente' => 'nullable|date_format:Y-m-d\TH:i,Y-m-d\TH:i:s',
+            'fin_siguiente' => 'nullable|date_format:Y-m-d\TH:i,Y-m-d\TH:i:s',
             'resetear' => 'nullable|boolean',
             'premios_siguiente' => 'nullable|boolean',
             'abrir_siguiente' => 'nullable|boolean',
@@ -157,8 +162,12 @@ class AdminSeasonController extends Controller
             $opciones['esperada'] = (int) $validated['esperada'];
         }
 
-        if ($request->has('duracion_dias')) {
-            $opciones['duracion_dias'] = filled($validated['duracion_dias'] ?? null) ? (int) $validated['duracion_dias'] : null;
+        if (filled($validated['inicio_siguiente'] ?? null)) {
+            $opciones['inicio_siguiente'] = $this->enZona($validated['inicio_siguiente']);
+        }
+
+        if (filled($validated['fin_siguiente'] ?? null)) {
+            $opciones['fin_siguiente'] = $this->enZona($validated['fin_siguiente']);
         }
 
         if ($request->has('resetear')) {
@@ -227,10 +236,9 @@ class AdminSeasonController extends Controller
         $datos = $request->validate([
             'name' => 'required|string|max:120',
             'starts_at' => 'required|date_format:Y-m-d\TH:i,Y-m-d\TH:i:s',
-            'duration_days' => 'nullable|integer|min:1|max:3650',
+            'ends_at' => 'nullable|date_format:Y-m-d\TH:i,Y-m-d\TH:i:s',
             'prizes' => 'nullable|boolean',
             'reset_on_close' => 'nullable|boolean',
-            'open_next' => 'nullable|boolean',
         ], [
             'starts_at.required' => 'Pon la fecha y la hora de inicio.',
             'starts_at.date_format' => 'La fecha de inicio no es valida.',
@@ -239,10 +247,9 @@ class AdminSeasonController extends Controller
         $inicio = $this->enZona($datos['starts_at']);
 
         $resultado = $cierre->programar($datos['name'], $inicio, [
-            'dias' => filled($datos['duration_days'] ?? null) ? (int) $datos['duration_days'] : null,
+            'fin' => filled($datos['ends_at'] ?? null) ? $this->enZona($datos['ends_at']) : null,
             'premios' => $request->boolean('prizes'),
             'resetear' => $request->boolean('reset_on_close'),
-            'abrir_siguiente' => $request->boolean('open_next'),
         ]);
 
         if (!$resultado['ok']) {
@@ -263,7 +270,7 @@ class AdminSeasonController extends Controller
         $datos = $request->validate([
             'name' => 'required|string|max:120',
             'starts_at' => 'required|date_format:Y-m-d\TH:i,Y-m-d\TH:i:s',
-            'duration_days' => 'nullable|integer|min:1|max:3650',
+            'ends_at' => 'nullable|date_format:Y-m-d\TH:i,Y-m-d\TH:i:s',
         ], [
             'starts_at.required' => 'Pon la fecha y la hora de inicio.',
             'starts_at.date_format' => 'La fecha de inicio no es valida.',
@@ -272,10 +279,9 @@ class AdminSeasonController extends Controller
         $inicio = $this->enZona($datos['starts_at']);
 
         $resultado = $cierre->reprogramar($season, $datos['name'], $inicio, [
-            'dias' => filled($datos['duration_days'] ?? null) ? (int) $datos['duration_days'] : null,
+            'fin' => filled($datos['ends_at'] ?? null) ? $this->enZona($datos['ends_at']) : null,
             'premios' => $request->boolean('prizes'),
             'resetear' => $request->boolean('reset_on_close'),
-            'abrir_siguiente' => $request->boolean('open_next'),
         ]);
 
         if (!$resultado['ok']) {

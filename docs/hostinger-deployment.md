@@ -250,6 +250,8 @@ Migraciones nuevas, en este orden (`php artisan migrate --force`):
 - `2026_10_07_000002_add_confirmation_note_to_match_reports`: comentario
   opcional al confirmar un reporte.
 - `2026_10_07_000003_add_locale_to_users`: idioma de cada usuario (DM de Discord).
+- `2026_10_07_000004_next_season_dates`: fecha de inicio y de fin de la
+  temporada que sigue a otra (sustituye a "dura N dias").
 
 Que subir ademas del codigo: `lang/*.json` (los cinco catalogos: en, pt, de, fr,
 nl), `public/css/arena.css`, `site.css` y `admin.css`, `public/robots.txt`.
@@ -257,6 +259,11 @@ nl), `public/css/arena.css`, `site.css` y `admin.css`, `public/robots.txt`.
 `.env`: `ARENA_SEASON_TIMEZONE=America/Bogota` y `ARENA_I18N_RECORD=false`
 (en produccion no debe grabar frases). Despues:
 `php artisan config:clear && php artisan route:clear && php artisan view:clear`.
+
+Cada temporada tiene fechas exactas de inicio y fin. La siguiente se programa
+aparte (o se deja en el bloque "Si abre otra, esa..." de la abierta, con su
+inicio y fin); si hay una programada, se abre sola en su fecha. Sin ninguna, el
+ladder queda en pausa con solo amistosos.
 
 La temporada programada se abre en el tick del mantenimiento (cron cada minuto
 o respaldo por HTTP); no hace falta nada mas. El candado de programar usa la

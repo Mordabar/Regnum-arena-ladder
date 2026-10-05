@@ -10,6 +10,7 @@ use App\Services\Matches\MatchLifecycleService;
 use App\Models\SeasonPlayerStat;
 use App\Support\ArenaMode;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -211,6 +212,12 @@ class SeasonClosingService
             return ['ok' => false, 'motivo' => 'Las temporadas no estan disponibles en este esquema.'];
         }
 
+        $fin = $opciones['fin'] ?? null;
+
+        if ($fin !== null && !$fin->gt($inicio)) {
+            return ['ok' => false, 'motivo' => 'La fecha de fin tiene que ser posterior a la de inicio.'];
+        }
+
         if (!$inicio->gt(now())) {
             return ['ok' => false, 'motivo' => 'La fecha de inicio tiene que ser futura. Para abrir una temporada ya, usa "Abrir temporada".'];
         }
@@ -218,13 +225,12 @@ class SeasonClosingService
         // El candado hace que dos envios a la vez no creen dos: bloquear filas
         // que todavia no existen no sirve de nada en MariaDB.
         try {
-            return \Illuminate\Support\Facades\Cache::lock('season-schedule', 10)->block(5, fn () => DB::transaction(function () use ($nombre, $inicio, $opciones) {
+            return \Illuminate\Support\Facades\Cache::lock('season-schedule', 10)->block(5, fn () => DB::transaction(function () use ($nombre, $inicio, $opciones, $fin) {
             if (ArenaSeason::query()->where('status', ArenaSeason::STATUS_SCHEDULED)->lockForUpdate()->exists()) {
                 return ['ok' => false, 'motivo' => 'Ya hay una temporada programada. Cancelala antes de programar otra.'];
             }
 
             $nombre = trim($nombre) !== '' ? trim($nombre) : 'Temporada ' . (ArenaSeason::query()->count() + 1);
-            $dias = isset($opciones['dias']) && (int) $opciones['dias'] > 0 ? (int) $opciones['dias'] : null;
 
             return ['ok' => true, 'season' => ArenaSeason::create([
                 'name' => $nombre,
@@ -232,11 +238,10 @@ class SeasonClosingService
                 'status' => ArenaSeason::STATUS_SCHEDULED,
                 'enabled_modes' => ArenaMode::enabled(),
                 'starts_at' => $inicio,
-                'ends_at' => $dias !== null ? $inicio->copy()->addDays($dias) : null,
-                'auto_close' => $dias !== null,
-                'next_duration_days' => $dias,
+                'ends_at' => $fin,
+                'auto_close' => $fin !== null,
                 'reset_on_close' => (bool) ($opciones['resetear'] ?? false),
-                'open_next' => (bool) ($opciones['abrir_siguiente'] ?? false),
+                'open_next' => false,
                 'prizes_on_open' => (bool) ($opciones['premios'] ?? true),
             ])];
         }));
@@ -255,11 +260,15 @@ class SeasonClosingService
      */
     public function reprogramar(ArenaSeason $season, string $nombre, CarbonInterface $inicio, array $opciones = []): array
     {
+        $fin = $opciones['fin'] ?? null;
+
+        if ($fin !== null && !$fin->gt($inicio)) {
+            return ['ok' => false, 'motivo' => 'La fecha de fin tiene que ser posterior a la de inicio.'];
+        }
+
         if (!$inicio->gt(now())) {
             return ['ok' => false, 'motivo' => 'La fecha de inicio tiene que ser futura. Para abrirla ya, cancela la programacion y usa "Abrir temporada".'];
         }
-
-        $dias = isset($opciones['dias']) && (int) $opciones['dias'] > 0 ? (int) $opciones['dias'] : null;
 
         $cambiadas = ArenaSeason::query()
             ->whereKey($season->getKey())
@@ -268,11 +277,9 @@ class SeasonClosingService
                 'name' => trim($nombre) !== '' ? trim($nombre) : $season->name,
                 'slug' => $this->slugLibre(trim($nombre) !== '' ? trim($nombre) : $season->name, $season->getKey()),
                 'starts_at' => $inicio,
-                'ends_at' => $dias !== null ? $inicio->copy()->addDays($dias) : null,
-                'auto_close' => $dias !== null,
-                'next_duration_days' => $dias,
+                'ends_at' => $fin,
+                'auto_close' => $fin !== null,
                 'reset_on_close' => (bool) ($opciones['resetear'] ?? false),
-                'open_next' => (bool) ($opciones['abrir_siguiente'] ?? false),
                 'prizes_on_open' => (bool) ($opciones['premios'] ?? true),
                 'updated_at' => now(),
             ]);
@@ -313,18 +320,19 @@ class SeasonClosingService
                 return null;
             }
 
-            // La temporada empieza cuando de verdad abre. Si el servidor estuvo
-            // caido o tuvo que esperar a otra, conservar el calendario original
-            // la dejaria con la duracion recortada o ya vencida.
-            $dias = $programada->next_duration_days;
+            // Las fechas son las que puso el admin y mandan: si el servidor
+            // estuvo caido, la temporada abre al volver con el calendario
+            // original. Solo si su fecha de fin tambien paso (nunca se llego a
+            // jugar dentro de ella), abre sin fin: abrirla ya vencida la cerraria
+            // al minuto con el podio vacio.
+            $cambios = ['status' => ArenaSeason::STATUS_ACTIVE, 'enabled_modes' => ArenaMode::enabled()];
 
-            $programada->update([
-                'status' => ArenaSeason::STATUS_ACTIVE,
-                'enabled_modes' => ArenaMode::enabled(),
-                'starts_at' => now(),
-                'ends_at' => $dias ? now()->addDays($dias) : null,
-                'auto_close' => (bool) $dias,
-            ]);
+            if ($programada->ends_at !== null && $programada->ends_at->lte(now())) {
+                $cambios += ['ends_at' => null, 'auto_close' => false];
+                Log::warning('Temporada programada abierta sin fin: su fecha de fin ya habia pasado', ['season' => $programada->name]);
+            }
+
+            $programada->update($cambios);
 
             AppSetting::setValue('season_prizes_enabled', $programada->prizes_on_open ? '1' : '0', 'branding', 'boolean', true);
 
@@ -491,30 +499,51 @@ class SeasonClosingService
             $nombre = $this->nombrePorDefecto($anterior);
         }
 
-        $dias = array_key_exists('duracion_dias', $opciones)
-            ? $opciones['duracion_dias']
-            : $anterior->next_duration_days;
-        $dias = $dias !== null && (int) $dias > 0 ? (int) $dias : null;
+        // Fechas exactas de la siguiente. Sin inicio, abre justo al cerrar esta;
+        // con un inicio futuro queda PROGRAMADA y la abre el reloj en su fecha.
+        $inicio = ($opciones['inicio_siguiente'] ?? $anterior->next_starts_at) ?: null;
+        $fin = ($opciones['fin_siguiente'] ?? $anterior->next_ends_at) ?: null;
+        $futura = $inicio !== null && $inicio->gt(now());
+        $inicio = $futura ? $inicio : now();
 
-        return ArenaSeason::create([
+        // Compatibilidad: una temporada guardada con "dura N dias" y sin fecha de
+        // fin sigue encadenando como antes.
+        $diasHeredados = null;
+
+        if ($fin === null) {
+            $dias = array_key_exists('duracion_dias', $opciones) ? $opciones['duracion_dias'] : $anterior->next_duration_days;
+            $diasHeredados = $dias !== null && (int) $dias > 0 ? (int) $dias : null;
+            $fin = $diasHeredados !== null ? $inicio->copy()->addDays($diasHeredados) : null;
+        }
+
+        if ($fin !== null && !$fin->gt($inicio)) {
+            $fin = null;
+        }
+
+        $premios = (bool) ($opciones['premios_siguiente'] ?? true);
+
+        // Programar una futura necesita la columna nueva; sin migrar, abre ya.
+        if ($futura && !\App\Support\Esquema::columna('arena_seasons', 'prizes_on_open')) {
+            $futura = false;
+            $inicio = now();
+        }
+
+        return ArenaSeason::create(array_filter([
             'name' => $nombre,
             'slug' => $this->slugLibre($nombre),
-            'status' => ArenaSeason::STATUS_ACTIVE,
+            'status' => $futura ? ArenaSeason::STATUS_SCHEDULED : ArenaSeason::STATUS_ACTIVE,
             'enabled_modes' => $anterior->enabledModes() ?: ArenaMode::enabled(),
-            'starts_at' => now(),
-            // Con duracion, la siguiente nace con su calendario y se cierra
-            // sola; sin ella queda abierta hasta que alguien la cierre. El
-            // nombre elegido era para esta vez, pero lo demas se hereda: asi
-            // una liga de temporadas de 60 dias se mantiene sola.
-            'ends_at' => $dias !== null ? now()->addDays($dias) : null,
-            'auto_close' => $dias !== null,
-            'next_duration_days' => $dias,
+            'starts_at' => $inicio,
+            'ends_at' => $fin,
+            'auto_close' => $fin !== null,
+            'next_duration_days' => $diasHeredados,
             'reset_on_close' => (bool) ($opciones['resetear'] ?? $anterior->reset_on_close),
+            'prizes_on_open' => \App\Support\Esquema::columna('arena_seasons', 'prizes_on_open') ? $premios : null,
             // No se hereda: "apagar los premios al cerrar la 0" es una decision
             // para ese cierre. Si el admin los vuelve a encender, el siguiente
             // cierre no debe apagarlos sin que nadie lo pida.
-            'next_prizes_enabled' => (bool) ($opciones['premios_siguiente'] ?? true),
-        ]);
+            'next_prizes_enabled' => $premios,
+        ], fn ($v) => $v !== null));
     }
 
     /** "Season 2" despues de "Season 1", y si no se entiende, por numero. */

@@ -518,7 +518,7 @@ it('cerrar a mano acepta las opciones del formulario', function () {
         'confirmacion' => 'CERRAR',
         'esperada' => $season->id,
         'siguiente' => 'Season 1',
-        'duracion_dias' => '30',
+        'fin_siguiente' => now()->addDays(30)->setTimezone('America/Bogota')->format('Y-m-d\\TH:i'),
         'resetear' => '1',
         'premios_siguiente' => '0',
         'forzar' => '0',

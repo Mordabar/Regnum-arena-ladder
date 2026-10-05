@@ -13,6 +13,11 @@ uses(RefreshDatabase::class);
  * La temporada programada: se abre sola en su fecha, aunque el servidor haya
  * estado caido, y sin pisar a la que este abierta.
  */
+function casi($a, $b): bool
+{
+    return abs($a->diffInSeconds($b, false)) <= 2;
+}
+
 beforeEach(function () {
     ArenaSeason::query()->delete();
     config(['arena.season_timezone' => 'America/Bogota']);
@@ -21,11 +26,11 @@ beforeEach(function () {
 afterEach(fn () => Carbon::setTestNow());
 
 it('programa una temporada futura sin abrirla', function () {
-    $r = app(SeasonClosingService::class)->programar('Season 1', now()->addDays(10), ['dias' => 30, 'premios' => false]);
+    $r = app(SeasonClosingService::class)->programar('Season 1', now()->addDays(10), ['fin' => now()->addDays(40), 'premios' => false]);
 
     expect($r['ok'])->toBeTrue()
         ->and($r['season']->status)->toBe(ArenaSeason::STATUS_SCHEDULED)
-        ->and($r['season']->ends_at->equalTo($r['season']->starts_at->copy()->addDays(30)))->toBeTrue()
+        ->and(casi($r['season']->ends_at, now()->addDays(40)))->toBeTrue()
         ->and($r['season']->auto_close)->toBeTrue()
         ->and(ArenaSeason::current())->toBeNull()
         ->and(ArenaSeason::programada()?->name)->toBe('Season 1');
@@ -40,7 +45,7 @@ it('rechaza una fecha pasada y una segunda programada', function () {
 });
 
 it('se abre sola al llegar la fecha', function () {
-    app(SeasonClosingService::class)->programar('Season 1', now()->addDays(2), ['dias' => 10, 'premios' => false]);
+    app(SeasonClosingService::class)->programar('Season 1', now()->addDays(2), ['fin' => now()->addDays(12), 'premios' => false]);
 
     Carbon::setTestNow(now()->addDays(1));
     expect(app(SeasonScheduleService::class)->aplicar()['abierta'] ?? null)->toBeNull();
@@ -106,12 +111,12 @@ it('el panel programa y cancela', function () {
     $this->withSession($sesion)->post(route('admin.seasons.schedule'), [
         'name' => 'Season 1',
         'starts_at' => now()->addDays(20)->setTimezone('America/Bogota')->format('Y-m-d\\TH:i'),
-        'duration_days' => 45,
+        'ends_at' => now()->addDays(65)->setTimezone('America/Bogota')->format('Y-m-d\\TH:i'),
         'prizes' => '1',
     ])->assertSessionHasNoErrors();
 
     $programada = ArenaSeason::programada();
-    expect($programada?->name)->toBe('Season 1')->and($programada->next_duration_days)->toBe(45);
+    expect($programada?->name)->toBe('Season 1')->and($programada->ends_at)->not->toBeNull();
 
     $this->withSession($sesion)->get(route('admin.seasons'))
         ->assertOk()->assertSee('Temporada programada')->assertSee('Cancelar programación');
@@ -131,7 +136,7 @@ it('al cerrarse una temporada con una programada no se abre otra generica', func
         'name' => 'Season 0', 'slug' => 's0', 'status' => ArenaSeason::STATUS_ACTIVE, 'enabled_modes' => ['1v1'],
         'starts_at' => now()->subDays(20), 'ends_at' => now()->addDay(), 'auto_close' => true, 'open_next' => true,
     ]);
-    app(SeasonClosingService::class)->programar('Season 1', now()->addDays(10), ['dias' => 30]);
+    app(SeasonClosingService::class)->programar('Season 1', now()->addDays(10), ['fin' => now()->addDays(40)]);
 
     Carbon::setTestNow(now()->addDays(2));
     app(SeasonScheduleService::class)->aplicar();
@@ -145,17 +150,29 @@ it('al cerrarse una temporada con una programada no se abre otra generica', func
     expect(ArenaSeason::current()?->name)->toBe('Season 1');
 });
 
-it('una programada que abre tarde conserva su duracion completa', function () {
-    app(SeasonClosingService::class)->programar('Season 1', now()->addDay(), ['dias' => 30]);
+it('una programada que abre tarde conserva sus fechas; si su fin ya paso, abre sin fin', function () {
+    $inicio = now()->addDay();
+    app(SeasonClosingService::class)->programar('Season 1', $inicio, ['fin' => now()->addDays(31)]);
 
-    Carbon::setTestNow(now()->addDays(60));
+    // Cae a mitad de su calendario: abre con las fechas originales.
+    Carbon::setTestNow(now()->addDays(10));
     app(SeasonScheduleService::class)->aplicar();
-
     $actual = ArenaSeason::current();
 
     expect($actual?->name)->toBe('Season 1')
         ->and($actual->vencida())->toBeFalse()
-        ->and($actual->ends_at->equalTo($actual->starts_at->copy()->addDays(30)))->toBeTrue();
+        ->and(casi($actual->ends_at, Carbon::now()->subDays(10)->addDays(31)))->toBeTrue();
+
+    // Si ni siquiera se llego a abrir antes de su fin, no nace ya vencida.
+    ArenaSeason::query()->delete();
+    Carbon::setTestNow();
+    app(SeasonClosingService::class)->programar('Season 2', now()->addDay(), ['fin' => now()->addDays(5)]);
+
+    Carbon::setTestNow(now()->addDays(60));
+    app(SeasonScheduleService::class)->aplicar();
+    $tarde = ArenaSeason::current();
+
+    expect($tarde?->name)->toBe('Season 2')->and($tarde->ends_at)->toBeNull()->and($tarde->auto_close)->toBeFalse();
 });
 
 it('cancelar no borra una temporada que ya se abrio', function () {
@@ -172,19 +189,18 @@ it('cancelar no borra una temporada que ya se abrio', function () {
 });
 
 it('la programada se edita antes de abrir y no despues', function () {
-    $p = app(SeasonClosingService::class)->programar('Season 1', now()->addDays(10), ['dias' => 30])['season'];
+    $p = app(SeasonClosingService::class)->programar('Season 1', now()->addDays(10), ['fin' => now()->addDays(40)])['season'];
     $sesion = sesionDeAdmin();
 
     $nuevoInicio = now()->addDays(20)->setTimezone('America/Bogota')->format('Y-m-d\\TH:i');
 
     $this->withSession($sesion)->put(route('admin.seasons.schedule.update', $p), [
-        'name' => 'Season 1B', 'starts_at' => $nuevoInicio, 'duration_days' => 45, 'prizes' => '0', 'reset_on_close' => '1',
+        'name' => 'Season 1B', 'starts_at' => $nuevoInicio, 'ends_at' => now()->addDays(70)->setTimezone('America/Bogota')->format('Y-m-d\\TH:i'), 'prizes' => '0', 'reset_on_close' => '1',
     ])->assertSessionHasNoErrors();
 
     $p->refresh();
     expect($p->name)->toBe('Season 1B')
-        ->and($p->next_duration_days)->toBe(45)
-        ->and($p->ends_at->equalTo($p->starts_at->copy()->addDays(45)))->toBeTrue()
+        ->and($p->ends_at->greaterThan($p->starts_at))->toBeTrue()
         ->and($p->prizes_on_open)->toBeFalse()
         ->and($p->reset_on_close)->toBeTrue();
 
@@ -205,29 +221,59 @@ it('la programada se edita antes de abrir y no despues', function () {
     expect($p->fresh()->name)->toBe('Season 1B')->and($p->fresh()->status)->toBe(ArenaSeason::STATUS_ACTIVE);
 });
 
-it('la temporada abierta se alarga o se acorta por dias sin romper el calendario', function () {
+it('el cierre abre la siguiente con sus fechas exactas, programada si empieza despues', function () {
+    $s = ArenaSeason::create([
+        'name' => 'Season 0', 'slug' => 's0', 'status' => ArenaSeason::STATUS_ACTIVE, 'enabled_modes' => ['1v1'],
+        'starts_at' => now()->subDays(10), 'ends_at' => now()->addDays(5), 'auto_close' => true, 'open_next' => true,
+        'next_name' => 'Season 1', 'next_starts_at' => now()->addDays(20), 'next_ends_at' => now()->addDays(50),
+    ]);
+
+    Carbon::setTestNow(now()->addDays(6));
+    app(SeasonScheduleService::class)->aplicar();
+
+    $siguiente = ArenaSeason::programada();
+    expect(ArenaSeason::current())->toBeNull()
+        ->and($siguiente?->name)->toBe('Season 1')
+        ->and(casi($siguiente->starts_at, Carbon::now()->subDays(6)->addDays(20)))->toBeTrue();
+
+    // Llegada su fecha, la abre el reloj con su calendario.
+    Carbon::setTestNow(now()->addDays(15));
+    app(SeasonScheduleService::class)->aplicar();
+
+    expect(ArenaSeason::current()?->name)->toBe('Season 1')
+        ->and(ArenaSeason::current()->auto_close)->toBeTrue();
+});
+
+it('sin fecha de inicio la siguiente abre justo al cerrar, con su fin exacto', function () {
+    ArenaSeason::create([
+        'name' => 'Season 0', 'slug' => 's0', 'status' => ArenaSeason::STATUS_ACTIVE, 'enabled_modes' => ['1v1'],
+        'starts_at' => now()->subDays(10), 'ends_at' => now()->addDay(), 'auto_close' => true, 'open_next' => true,
+        'next_name' => 'Season 1', 'next_ends_at' => now()->addDays(90),
+    ]);
+
+    Carbon::setTestNow(now()->addDays(2));
+    app(SeasonScheduleService::class)->aplicar();
+
+    $actual = ArenaSeason::current();
+    expect($actual?->name)->toBe('Season 1')
+        ->and(casi($actual->ends_at, Carbon::now()->subDays(2)->addDays(90)))->toBeTrue();
+});
+
+it('el panel guarda las fechas de la siguiente y rechaza un fin anterior al inicio', function () {
     $s = ArenaSeason::create([
         'name' => 'Season 0', 'slug' => 's0', 'status' => ArenaSeason::STATUS_ACTIVE, 'enabled_modes' => ['1v1'],
         'starts_at' => now()->subDays(10), 'ends_at' => now()->addDays(20), 'auto_close' => true,
     ]);
     $sesion = sesionDeAdmin();
-    $inicio = $s->starts_at->copy()->setTimezone('America/Bogota')->format('Y-m-d\\TH:i');
+    $f = fn ($dias) => now()->addDays($dias)->setTimezone('America/Bogota')->format('Y-m-d\\TH:i');
+    $base = ['name' => 'Season 0', 'starts_at' => $s->starts_at->copy()->setTimezone('America/Bogota')->format('Y-m-d\\TH:i'), 'ends_at' => $f(20), 'auto_close' => '1', 'open_next' => '1', 'next_name' => 'Season 1'];
 
-    $this->withSession($sesion)->post(route('admin.seasons.update', $s), [
-        'name' => 'Season 0', 'starts_at' => $inicio, 'duration_days' => 60, 'auto_close' => '1',
-    ])->assertSessionHasNoErrors();
+    $this->withSession($sesion)->post(route('admin.seasons.update', $s), $base + ['next_starts_at' => $f(40), 'next_ends_at' => $f(100)])
+        ->assertSessionHasNoErrors();
+    expect($s->fresh()->next_starts_at)->not->toBeNull()->and($s->fresh()->next_ends_at)->not->toBeNull();
 
-    $s->refresh();
-    expect(round($s->starts_at->diffInDays($s->ends_at)))->toBe(60.0)
-        ->and($s->vencida())->toBeFalse()
-        ->and($s->progreso()['dias'])->toBeGreaterThanOrEqual(60);
-
-    // Acortarla por debajo de hoy con cierre automatico se rechaza: la cerraria al minuto.
-    $this->withSession($sesion)->post(route('admin.seasons.update', $s), [
-        'name' => 'Season 0', 'starts_at' => $inicio, 'duration_days' => 3, 'auto_close' => '1',
-    ])->assertSessionHasErrors('ends_at');
-
-    expect($s->fresh()->vencida())->toBeFalse();
+    $this->withSession($sesion)->post(route('admin.seasons.update', $s), $base + ['next_starts_at' => $f(40), 'next_ends_at' => $f(30)])
+        ->assertSessionHasErrors('next_ends_at');
 });
 
 it('renombrar una programada actualiza su slug sin chocar con otras', function () {
