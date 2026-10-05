@@ -170,3 +170,62 @@ it('cancelar no borra una temporada que ya se abrio', function () {
 
     expect(ArenaSeason::query()->whereKey($p->id)->value('status'))->toBe(ArenaSeason::STATUS_ACTIVE);
 });
+
+it('la programada se edita antes de abrir y no despues', function () {
+    $p = app(SeasonClosingService::class)->programar('Season 1', now()->addDays(10), ['dias' => 30])['season'];
+    $sesion = sesionDeAdmin();
+
+    $nuevoInicio = now()->addDays(20)->setTimezone('America/Bogota')->format('Y-m-d\\TH:i');
+
+    $this->withSession($sesion)->put(route('admin.seasons.schedule.update', $p), [
+        'name' => 'Season 1B', 'starts_at' => $nuevoInicio, 'duration_days' => 45, 'prizes' => '0', 'reset_on_close' => '1',
+    ])->assertSessionHasNoErrors();
+
+    $p->refresh();
+    expect($p->name)->toBe('Season 1B')
+        ->and($p->next_duration_days)->toBe(45)
+        ->and($p->ends_at->equalTo($p->starts_at->copy()->addDays(45)))->toBeTrue()
+        ->and($p->prizes_on_open)->toBeFalse()
+        ->and($p->reset_on_close)->toBeTrue();
+
+    // Una fecha pasada se rechaza y no cambia nada.
+    $this->withSession($sesion)->put(route('admin.seasons.schedule.update', $p), [
+        'name' => 'X', 'starts_at' => '2020-01-01T00:00',
+    ])->assertSessionHasErrors('error');
+    expect($p->fresh()->name)->toBe('Season 1B');
+
+    // Ya abierta, el formulario de edicion no la toca.
+    Carbon::setTestNow(now()->addDays(30));
+    app(SeasonScheduleService::class)->aplicar();
+
+    $this->withSession($sesion)->put(route('admin.seasons.schedule.update', $p), [
+        'name' => 'Otra', 'starts_at' => now()->addDays(5)->setTimezone('America/Bogota')->format('Y-m-d\\TH:i'),
+    ])->assertSessionHasErrors('error');
+
+    expect($p->fresh()->name)->toBe('Season 1B')->and($p->fresh()->status)->toBe(ArenaSeason::STATUS_ACTIVE);
+});
+
+it('la temporada abierta se alarga o se acorta por dias sin romper el calendario', function () {
+    $s = ArenaSeason::create([
+        'name' => 'Season 0', 'slug' => 's0', 'status' => ArenaSeason::STATUS_ACTIVE, 'enabled_modes' => ['1v1'],
+        'starts_at' => now()->subDays(10), 'ends_at' => now()->addDays(20), 'auto_close' => true,
+    ]);
+    $sesion = sesionDeAdmin();
+    $inicio = $s->starts_at->copy()->setTimezone('America/Bogota')->format('Y-m-d\\TH:i');
+
+    $this->withSession($sesion)->post(route('admin.seasons.update', $s), [
+        'name' => 'Season 0', 'starts_at' => $inicio, 'duration_days' => 60, 'auto_close' => '1',
+    ])->assertSessionHasNoErrors();
+
+    $s->refresh();
+    expect(round($s->starts_at->diffInDays($s->ends_at)))->toBe(60.0)
+        ->and($s->vencida())->toBeFalse()
+        ->and($s->progreso()['dias'])->toBeGreaterThanOrEqual(60);
+
+    // Acortarla por debajo de hoy con cierre automatico se rechaza: la cerraria al minuto.
+    $this->withSession($sesion)->post(route('admin.seasons.update', $s), [
+        'name' => 'Season 0', 'starts_at' => $inicio, 'duration_days' => 3, 'auto_close' => '1',
+    ])->assertSessionHasErrors('ends_at');
+
+    expect($s->fresh()->vencida())->toBeFalse();
+});

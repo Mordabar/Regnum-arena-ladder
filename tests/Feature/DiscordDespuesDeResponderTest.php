@@ -123,3 +123,24 @@ it('cada jugador recibe su mensaje directo en su idioma', function () {
     // El idioma de la peticion no se queda cambiado.
     expect(app()->getLocale())->toBe(config('app.locale'));
 });
+
+it('el idioma de todos los destinatarios se lee con una sola consulta', function () {
+    foreach ([1, 2, 3, 4] as $i) {
+        \App\Models\User::create([
+            'discord_id' => (string) (100000000000000000 + $i), 'discord_username' => 'q' . $i,
+            'name' => 'Q' . $i, 'email' => "q{$i}@example.com", 'locale' => 'fr',
+        ]);
+    }
+
+    $consultas = 0;
+    DB::listen(function ($q) use (&$consultas) {
+        if (str_contains($q->sql, '"locale"') && str_contains($q->sql, '"users"')) {
+            $consultas++;
+        }
+    });
+
+    app(DiscordBotService::class)->notifyMatchFound(cruceConDiscord());
+    app()->terminate();
+
+    expect($consultas)->toBe(1);
+});

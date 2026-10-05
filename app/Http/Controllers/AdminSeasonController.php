@@ -63,6 +63,7 @@ class AdminSeasonController extends Controller
             'name' => 'required|string|max:120',
             'starts_at' => 'required|date_format:Y-m-d\TH:i',
             'ends_at' => 'nullable|date_format:Y-m-d\TH:i',
+            'duration_days' => 'nullable|integer|min:1|max:3650',
             'auto_close' => 'nullable|boolean',
             'next_name' => 'nullable|string|max:120',
             'next_duration_days' => 'nullable|integer|min:1|max:3650',
@@ -77,6 +78,13 @@ class AdminSeasonController extends Controller
 
         $inicio = $this->enZona($datos['starts_at']);
         $fin = filled($datos['ends_at'] ?? null) ? $this->enZona($datos['ends_at']) : null;
+
+        // "Dura N dias" desde el inicio: es la forma rapida de alargar o acortar
+        // sin calcular la fecha. Si vienen las dos, manda la duracion.
+        if (filled($datos['duration_days'] ?? null)) {
+            $fin = $inicio->copy()->addDays((int) $datos['duration_days']);
+        }
+
         $auto = $request->boolean('auto_close');
 
         if ($fin !== null && !$fin->gt($inicio)) {
@@ -233,6 +241,39 @@ class AdminSeasonController extends Controller
 
         return back()->with('success', sprintf(
             '%s programada: se abrirá sola el %s a las %s.',
+            $resultado['season']->name,
+            ArenaSeason::fechaCorta($inicio),
+            $inicio->copy()->setTimezone(ArenaSeason::zone())->format('H:i')
+        ));
+    }
+
+    /** Edita la temporada programada antes de que abra. */
+    public function updateSchedule(Request $request, ArenaSeason $season, SeasonClosingService $cierre)
+    {
+        $datos = $request->validate([
+            'name' => 'required|string|max:120',
+            'starts_at' => 'required|date_format:Y-m-d\TH:i,Y-m-d\TH:i:s',
+            'duration_days' => 'nullable|integer|min:1|max:3650',
+        ], [
+            'starts_at.required' => 'Pon la fecha y la hora de inicio.',
+            'starts_at.date_format' => 'La fecha de inicio no es valida.',
+        ]);
+
+        $inicio = $this->enZona($datos['starts_at']);
+
+        $resultado = $cierre->reprogramar($season, $datos['name'], $inicio, [
+            'dias' => filled($datos['duration_days'] ?? null) ? (int) $datos['duration_days'] : null,
+            'premios' => $request->boolean('prizes'),
+            'resetear' => $request->boolean('reset_on_close'),
+            'abrir_siguiente' => $request->boolean('open_next'),
+        ]);
+
+        if (!$resultado['ok']) {
+            return back()->withErrors(['error' => $resultado['motivo']])->withInput();
+        }
+
+        return back()->with('success', sprintf(
+            '%s actualizada: se abrirá sola el %s a las %s.',
             $resultado['season']->name,
             ArenaSeason::fechaCorta($inicio),
             $inicio->copy()->setTimezone(ArenaSeason::zone())->format('H:i')

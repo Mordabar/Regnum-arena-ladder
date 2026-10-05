@@ -245,6 +245,7 @@ Route::prefix('/' . $arenaAdminPath)->group(function () {
         Route::get('/temporadas', [AdminSeasonController::class, 'index'])->name('seasons');
         Route::post('/temporadas/abrir', [AdminSeasonController::class, 'open'])->name('seasons.open');
         Route::post('/temporadas/programar', [AdminSeasonController::class, 'schedule'])->name('seasons.schedule');
+        Route::put('/temporadas/programada/{season}', [AdminSeasonController::class, 'updateSchedule'])->name('seasons.schedule.update');
         Route::delete('/temporadas/programada/{season}', [AdminSeasonController::class, 'cancelSchedule'])->name('seasons.schedule.cancel');
         Route::post('/temporadas/{season}', [AdminSeasonController::class, 'update'])->whereNumber('season')->name('seasons.update');
 

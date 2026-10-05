@@ -246,6 +246,44 @@ class SeasonClosingService
     }
 
     /**
+     * Cambia una temporada programada ANTES de que abra: nombre, inicio,
+     * duracion y opciones. Una sola sentencia condicionada al estado, para que
+     * si el reloj la abrio un instante antes no se toque una temporada en juego.
+     *
+     * @param  array{dias?: int|null, premios?: bool, resetear?: bool, abrir_siguiente?: bool}  $opciones
+     * @return array{ok: bool, motivo?: string, season?: ArenaSeason}
+     */
+    public function reprogramar(ArenaSeason $season, string $nombre, CarbonInterface $inicio, array $opciones = []): array
+    {
+        if (!$inicio->gt(now())) {
+            return ['ok' => false, 'motivo' => 'La fecha de inicio tiene que ser futura. Para abrirla ya, cancela la programacion y usa "Abrir temporada".'];
+        }
+
+        $dias = isset($opciones['dias']) && (int) $opciones['dias'] > 0 ? (int) $opciones['dias'] : null;
+
+        $cambiadas = ArenaSeason::query()
+            ->whereKey($season->getKey())
+            ->where('status', ArenaSeason::STATUS_SCHEDULED)
+            ->update([
+                'name' => trim($nombre) !== '' ? trim($nombre) : $season->name,
+                'starts_at' => $inicio,
+                'ends_at' => $dias !== null ? $inicio->copy()->addDays($dias) : null,
+                'auto_close' => $dias !== null,
+                'next_duration_days' => $dias,
+                'reset_on_close' => (bool) ($opciones['resetear'] ?? false),
+                'open_next' => (bool) ($opciones['abrir_siguiente'] ?? false),
+                'prizes_on_open' => (bool) ($opciones['premios'] ?? true),
+                'updated_at' => now(),
+            ]);
+
+        if ($cambiadas === 0) {
+            return ['ok' => false, 'motivo' => 'Esa temporada ya no esta programada: puede que acabe de abrirse. Recarga la pagina.'];
+        }
+
+        return ['ok' => true, 'season' => $season->refresh()];
+    }
+
+    /**
      * Abre la temporada programada cuya fecha ya llego.
      *
      * Si el servidor estuvo caido y la fecha ya paso, abre al instante: el
