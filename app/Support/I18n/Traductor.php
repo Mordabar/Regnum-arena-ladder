@@ -288,6 +288,8 @@ class Traductor
         $traduccion = $this->frase($clave);
 
         if ($traduccion === null) {
+            $this->anotar($clave, true);
+
             return null;
         }
 
@@ -466,7 +468,8 @@ class Traductor
                     return $completo;
                 }
 
-                $texto = stripcslashes($interior);
+                // \u00f3 -> ó, y despues el resto de escapes (\n, \', \").
+                $texto = stripcslashes(preg_replace_callback('/\\\\u([0-9a-fA-F]{4})/', fn (array $u) => mb_chr(hexdec($u[1])) ?: $u[0], $interior));
 
                 // HTML que el script arma en el navegador: se traduce como HTML.
                 $traduccion = str_contains($texto, '<') && str_contains($texto, '>')
@@ -515,20 +518,21 @@ class Traductor
      * Anota lo que no esta en el catalogo, para saber que falta traducir.
      * Solo si se activa ARENA_I18N_RECORD: en produccion no escribe nada.
      */
-    private function anotar(string $clave): void
+    private function anotar(string $clave, bool $conMarcas = false): void
     {
-        if (!config('arena.i18n_record') || mb_strlen($clave) > 600) {
+        if (!config('arena.i18n_record') || mb_strlen($clave) > 700) {
             return;
         }
 
         // Lo que no es una frase: sin tres letras seguidas, identificadores,
         // codigos y trozos de codigo. Solo estorbarian en la lista.
-        $sinPlaceholders = preg_replace('/\{\d+\}/', '', $clave);
+        $limpia = preg_replace('/\{\d+\}/', '', $conMarcas ? strip_tags($clave) : $clave);
 
-        if (!preg_match('/\p{L}{3}/u', $sinPlaceholders)
+        if (!preg_match('/\p{L}{3}/u', $limpia)
             || preg_match('/^[0-9a-fA-F]{10,}$/', $clave)
-            || preg_match('/^[A-Za-z0-9_\-\.#:\/\[\]\(\)]+$/', $clave) && !preg_match('/\s/', $clave) && !preg_match('/^[A-ZÁÉÍÓÚ][a-záéíóúñ]+$/u', $clave)
-            || str_contains($clave, '<') || str_contains($clave, '{ ') || str_contains($clave, '=>')) {
+            || preg_match('/^[0-9a-fA-F{}]+$/', $clave)
+            || preg_match('/[\[\];={}<>]/', $limpia) && !$conMarcas
+            || preg_match('/^[A-Za-z0-9_\-\.#:\/\[\]\(\)]+$/', $clave) && !preg_match('/\s/', $clave) && !preg_match('/^[A-ZÁÉÍÓÚ][a-záéíóúñ]+$/u', $clave)) {
             return;
         }
 
