@@ -19,7 +19,7 @@
                 <h1 class="mt-3 text-4xl font-bold text-[color:var(--arena-gold-soft)]">Tus enfrentamientos</h1>
                 <p class="mt-2 text-[color:var(--arena-sand)] arena-body-text">Revisa aceptaciones, reportes, disputas y resultados del ladder.</p>
             </div>
-            <div class="flex gap-3">
+            <div class="flex flex-wrap gap-3">
                 <a href="{{ route('lobby') }}" class="arena-btn px-4 py-2">
                     <x-arena-icon name="swords" class="h-4 w-4" />
                     Buscar combate
