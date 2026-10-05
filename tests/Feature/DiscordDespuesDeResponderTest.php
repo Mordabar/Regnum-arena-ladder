@@ -98,3 +98,28 @@ it('sin bot configurado no programa nada', function () {
 
     Http::assertNothingSent();
 });
+
+it('cada jugador recibe su mensaje directo en su idioma', function () {
+    foreach ([1 => 'de', 2 => 'en', 3 => null] as $i => $locale) {
+        \App\Models\User::create([
+            'discord_id' => (string) (100000000000000000 + $i), 'discord_username' => 'u' . $i,
+            'name' => 'U' . $i, 'email' => "u{$i}@example.com", 'locale' => $locale,
+        ]);
+    }
+
+    app(DiscordBotService::class)->notifyMatchFound(cruceConDiscord());
+    app()->terminate();
+
+    $titulos = collect(Http::recorded())
+        ->map(fn ($par) => $par[0])
+        ->filter(fn ($r) => str_contains($r->url(), '/channels/dm-'))
+        ->mapWithKeys(fn ($r) => [basename(dirname($r->url())) => $r['embeds'][0]['title']]);
+
+    expect($titulos['dm-100000000000000001'])->toBe('🎯 Kampf gefunden!')
+        ->and($titulos['dm-100000000000000002'])->toBe('🎯 Match found!')
+        ->and($titulos['dm-100000000000000003'])->toBe('🎯 ¡Match Encontrado!')
+        ->and($titulos['dm-100000000000000004'])->toBe('🎯 ¡Match Encontrado!');
+
+    // El idioma de la peticion no se queda cambiado.
+    expect(app()->getLocale())->toBe(config('app.locale'));
+});

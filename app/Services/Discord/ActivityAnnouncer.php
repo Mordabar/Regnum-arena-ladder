@@ -104,13 +104,16 @@ class ActivityAnnouncer
 
         $realm = (string) Player::query()->whereKey($queue->player_id)->value('realm');
         $realmName = Player::REALMS[$realm] ?? ucfirst($realm);
-        $others = collect(Player::REALMS)->except($realm)->values()->implode(' y ');
-        $quien = $queue->team_id ? 'Un grupo' : 'Un guerrero';
+        $others = collect(Player::REALMS)->except($realm)->values();
+        $grupo = (bool) $queue->team_id;
 
-        $this->post(
-            ($ranked ? '⚔️ ' . ArenaMode::displayName($mode) : '🤝 Amistoso ' . $mode) . ': hay alguien esperando rival',
-            "{$quien} de **{$realmName}** acaba de entrar en cola. {$others}: es vuestro momento.",
-        );
+        $this->post(fn () => [
+            ($ranked ? '⚔️ ' . __(ArenaMode::displayName($mode)) : __('🤝 Amistoso :modo', ['modo' => $mode])) . ': ' . __('hay alguien esperando rival'),
+            __($grupo ? 'Un grupo de **:reino** acaba de entrar en cola. :otros: es vuestro momento.' : 'Un guerrero de **:reino** acaba de entrar en cola. :otros: es vuestro momento.', [
+                'reino' => __($realmName),
+                'otros' => $others->map(fn ($r) => __($r))->implode(' / '),
+            ]),
+        ]);
     }
 
     /** Cuantos esperan en la modalidad sin contar el grupo de esta fila. */
@@ -156,10 +159,13 @@ class ActivityAnnouncer
         // Sin la zona a proposito: es un mundo abierto, y anunciar en un canal
         // publico donde se esta peleando ahora mismo invitaria a terceros a
         // meterse en el combate.
-        $this->post(
-            ($match->isFriendly() ? '🤝 Arranca un amistoso ' : '🔥 Arranca un ') . ArenaMode::label($match->arena_mode),
-            "**{$a}** contra **{$b}**. La arena está viva: entra y busca el tuyo.",
-        );
+        $amistoso = $match->isFriendly();
+        $modo = ArenaMode::label($match->arena_mode);
+
+        $this->post(fn () => [
+            __($amistoso ? '🤝 Arranca un amistoso :modo' : '🔥 Arranca un :modo', ['modo' => $modo]),
+            __('**:a** contra **:b**. La arena está viva: entra y busca el tuyo.', ['a' => __($a), 'b' => __($b)]),
+        ]);
     }
 
     /**
@@ -194,19 +200,22 @@ class ActivityAnnouncer
         }
 
         $parts = collect($byMode)->filter()->map(fn (int $n, string $m) => $m . ': ' . $n)->implode(' · ');
-        $lines = [];
-        if ($waiting > 0) {
-            $lines[] = "**{$waiting}** " . ($waiting === 1 ? 'guerrero esperando' : 'guerreros esperando') . " rival ({$parts})";
-        }
-        if ($friendlyWaiting > 0) {
-            $partsF = collect($friendlyByMode)->filter()->map(fn (int $n, string $m) => $m . ': ' . $n)->implode(' · ');
-            $lines[] = "🤝 **{$friendlyWaiting}** " . ($friendlyWaiting === 1 ? 'esperando' : 'esperando') . " un amistoso ({$partsF})";
-        }
-        if ($inProgress > 0) {
-            $lines[] = "**{$inProgress}** " . ($inProgress === 1 ? 'combate en marcha' : 'combates en marcha');
-        }
+        $partsF = collect($friendlyByMode)->filter()->map(fn (int $n, string $m) => $m . ': ' . $n)->implode(' · ');
 
-        $this->post('📊 Ahora mismo en la arena', implode("\n", $lines));
+        $this->post(function () use ($waiting, $friendlyWaiting, $inProgress, $parts, $partsF) {
+            $lines = [];
+            if ($waiting > 0) {
+                $lines[] = __($waiting === 1 ? '**:n** guerrero esperando rival (:partes)' : '**:n** guerreros esperando rival (:partes)', ['n' => $waiting, 'partes' => $parts]);
+            }
+            if ($friendlyWaiting > 0) {
+                $lines[] = __('🤝 **:n** esperando un amistoso (:partes)', ['n' => $friendlyWaiting, 'partes' => $partsF]);
+            }
+            if ($inProgress > 0) {
+                $lines[] = __($inProgress === 1 ? '**:n** combate en marcha' : '**:n** combates en marcha', ['n' => $inProgress]);
+            }
+
+            return [__('📊 Ahora mismo en la arena'), implode("\n", $lines)];
+        });
     }
 
     /** Un mensaje de prueba para comprobar que el bot llega al canal. */
@@ -216,7 +225,7 @@ class ActivityAnnouncer
             return false;
         }
 
-        $this->post('✅ Arena Ladder conectado', 'Los anuncios de actividad saldrán en este canal.');
+        $this->post(fn () => [__('✅ Arena Ladder conectado'), __('Los anuncios de actividad saldrán en este canal.')]);
 
         return true;
     }
@@ -245,8 +254,27 @@ class ActivityAnnouncer
         });
     }
 
-    private function post(string $title, string $description): void
+    /**
+     * El canal lo lee gente de todos los idiomas: cada anuncio sale en español
+     * y en inglés, uno debajo del otro. El texto se pide a $texto dos veces,
+     * una por idioma, y devuelve [titulo, descripcion].
+     */
+    private function post(\Closure $texto): void
     {
+        $anterior = app()->getLocale();
+
+        try {
+            app()->setLocale('es');
+            [$tituloEs, $descripcionEs] = $texto();
+            app()->setLocale('en');
+            [$tituloEn, $descripcionEn] = $texto();
+        } finally {
+            app()->setLocale($anterior);
+        }
+
+        $title = $tituloEn !== $tituloEs ? $tituloEs . ' · ' . $tituloEn : $tituloEs;
+        $description = $descripcionEn !== $descripcionEs ? $descripcionEs . "\n\n🇬🇧 " . $descripcionEn : $descripcionEs;
+
         try {
             $this->discord->publicarEnCanal($this->channelId(), [
                 'embeds' => [[

@@ -57,7 +57,7 @@ class DiscordBotService
         }
         
         try {
-            $message = $this->buildMatchMessage($match, $playerData);
+            $message = $this->enIdioma($discordId, fn () => $this->buildMatchMessage($match, $playerData));
 
             // Crear DM channel
             $dmChannel = $this->createDMChannel($discordId);
@@ -103,45 +103,45 @@ class DiscordBotService
         $rivalTeam = $match->getTeamBySide($teamSide === 'team_a' ? 'team_b' : 'team_a');
 
         $embed = [
-            'title' => $match->isFriendly() ? '🤝 ¡Amistoso encontrado!' : '🎯 ¡Match Encontrado!',
-            'description' => "**Codigo:** `{$match->match_code}`\n**Zona:** {$match->zone_name}\n**Reino rival:** {$rivalRealmName}",
+            'title' => $match->isFriendly() ? __('🤝 ¡Amistoso encontrado!') : __('🎯 ¡Match Encontrado!'),
+            'description' => __('**Codigo:** `:codigo`', ['codigo' => $match->match_code]) . "\n" . __('**Zona:** :zona', ['zona' => \Illuminate\Support\Str::replaceFirst('Zona', __('Zona'), (string) $match->zone_name)]) . "\n" . __('**Reino rival:** :reino', ['reino' => __($rivalRealmName)]),
             'color' => 0xFF6B35, // Orange color
             'fields' => [
                 $esDuelo
                     ? [
-                        'name' => 'Tu rival',
+                        'name' => __('Tu rival'),
                         'value' => $this->formatTeamList($rivalTeam, true),
                         'inline' => true,
                     ]
                     : [
-                        'name' => 'Tu equipo',
+                        'name' => __('Tu equipo'),
                         'value' => $this->formatTeamList($ownTeam),
                         'inline' => true,
                     ],
                 [
-                    'name' => 'Modo',
-                    'value' => $match->queue_mode_name,
+                    'name' => __('Modo'),
+                    'value' => __($match->queue_mode_name),
                     'inline' => true
                 ],
                 $match->isFriendly()
                     ? [
-                        'name' => 'Amistoso',
-                        'value' => 'No mueve el ranking ni hace falta reportar. Cuando acabéis, termínalo desde la web.',
+                        'name' => __('Amistoso'),
+                        'value' => __('No mueve el ranking ni hace falta reportar. Cuando acabéis, termínalo desde la web.'),
                         'inline' => false,
                     ]
                     : [
-                        'name' => 'Reporte',
-                        'value' => "Usa `/reportar {$match->report_token}` al terminar.",
+                        'name' => __('Reporte'),
+                        'value' => __('Usa `/reportar :token` al terminar.', ['token' => $match->report_token]),
                         'inline' => false
                     ],
                 [
-                    'name' => 'Aceptar desde la web',
+                    'name' => __('Aceptar desde la web'),
                     'value' => $matchUrl,
                     'inline' => false
                 ]
             ],
             'footer' => [
-                'text' => 'Tienes 5 minutos para aceptar'
+                'text' => __('Tienes 5 minutos para aceptar')
             ],
             'timestamp' => ($match->created_at ?? now())->toISOString()
         ];
@@ -153,14 +153,14 @@ class DiscordBotService
                     [
                         'type' => 2, // Button
                         'style' => 3, // Success (Green)
-                        'label' => 'Aceptar Match',
+                        'label' => __('Aceptar Match'),
                         'emoji' => ['name' => '✅'],
                         'url' => $matchUrl
                     ],
                     [
                         'type' => 2, // Button  
                         'style' => 4, // Danger (Red)
-                        'label' => 'Rechazar',
+                        'label' => __('Rechazar'),
                         'emoji' => ['name' => '❌'],
                         'url' => $matchUrl
                     ]
@@ -177,7 +177,7 @@ class DiscordBotService
                         [
                             'type' => 2,
                             'style' => 5,
-                            'label' => 'Abrir Match',
+                            'label' => __('Abrir Match'),
                             'url' => $matchUrl,
                         ],
                     ],
@@ -205,7 +205,7 @@ class DiscordBotService
 
             $lines[] = $linea;
         }
-        return implode("\n", $lines) ?: "Sin jugadores";
+        return implode("\n", $lines) ?: __('Sin jugadores');
     }
 
     /**
@@ -291,6 +291,31 @@ class DiscordBotService
      * como con el push: `afterCommit` espera a que el cruce este guardado y
      * `terminating` lo manda cuando el jugador ya tiene su respuesta.
      */
+    /** El idioma de un usuario de Discord; español si no se sabe. */
+    private function idiomaDe(string $discordId): string
+    {
+        try {
+            $codigo = \App\Models\User::query()->where('discord_id', $discordId)->value('locale');
+        } catch (\Throwable) {
+            $codigo = null;
+        }
+
+        return \App\Support\I18n\Idioma::normalizar($codigo) ?? \App\Support\I18n\Idioma::FUENTE;
+    }
+
+    /** Construye un mensaje en el idioma de quien lo va a leer. */
+    private function enIdioma(string $discordId, \Closure $construir): mixed
+    {
+        $anterior = app()->getLocale();
+        app()->setLocale($this->idiomaDe($discordId));
+
+        try {
+            return $construir();
+        } finally {
+            app()->setLocale($anterior);
+        }
+    }
+
     private function despues(\Closure $trabajo): void
     {
         if (!$this->isConfigured()) {
@@ -339,28 +364,28 @@ class DiscordBotService
         if (!$this->isConfigured()) return;
 
         $allPlayers = $match->getAllPlayers();
-        
-        $message = [
+
+        $construir = fn () => [
             'embeds' => [
                 [
-                    'title' => '❌ Match Cancelado',
-                    'description' => "El match `{$match->match_code}` ha sido cancelado.",
+                    'title' => __('❌ Match Cancelado'),
+                    'description' => __('El match `:codigo` ha sido cancelado.', ['codigo' => $match->match_code]),
                     'color' => 0xFF0000, // Red
                     'fields' => [
                         [
-                            'name' => 'Razón',
-                            'value' => $reason === 'timeout' ? 'Tiempo agotado para aceptar' : ucfirst(str_replace('_', ' ', $reason))
+                            'name' => __('Razón'),
+                            'value' => $reason === 'timeout' ? __('Tiempo agotado para aceptar') : ucfirst(str_replace('_', ' ', $reason))
                         ]
                     ]
                 ]
             ]
         ];
-        
+
         foreach ($allPlayers as $playerData) {
             try {
                 $dmChannel = $this->createDMChannel($playerData['discord_id']);
                 if ($dmChannel) {
-                    $this->sendMessage($dmChannel['id'], $message);
+                    $this->sendMessage($dmChannel['id'], $this->enIdioma((string) $playerData['discord_id'], $construir));
                 }
             } catch (\Exception $e) {
                 Log::error("Failed to send cancellation notification: " . $e->getMessage());
@@ -382,31 +407,31 @@ class DiscordBotService
 
         $allPlayers = $match->getAllPlayers();
         
-        $message = [
+        $construir = fn () => [
             'embeds' => [
                 [
-                    'title' => '✅ ¡Match Aceptado!',
-                    'description' => "Todos los jugadores han aceptado el match `{$match->match_code}`",
+                    'title' => __('✅ ¡Match Aceptado!'),
+                    'description' => __('Todos los jugadores han aceptado el match `:codigo`', ['codigo' => $match->match_code]),
                     'color' => 0x00FF00, // Green
                     'fields' => [
                         [
-                            'name' => 'Zona de combate',
-                            'value' => $match->zone_name
+                            'name' => __('Zona de combate'),
+                            'value' => \Illuminate\Support\Str::replaceFirst('Zona', __('Zona'), (string) $match->zone_name)
                         ],
                         [
-                            'name' => 'Estado',
-                            'value' => 'El match está listo para comenzar'
+                            'name' => __('Estado'),
+                            'value' => __('El match está listo para comenzar')
                         ]
                     ]
                 ]
             ]
         ];
-        
+
         foreach ($allPlayers as $playerData) {
             try {
                 $dmChannel = $this->createDMChannel($playerData['discord_id']);
                 if ($dmChannel) {
-                    $this->sendMessage($dmChannel['id'], $message);
+                    $this->sendMessage($dmChannel['id'], $this->enIdioma((string) $playerData['discord_id'], $construir));
                 }
             } catch (\Exception $e) {
                 Log::error("Failed to send acceptance notification: " . $e->getMessage());
@@ -429,21 +454,21 @@ class DiscordBotService
             ? null
             : ($report->claimed_winner_team === 'team_a' ? $match->team_a_realm : $match->team_b_realm);
 
-        $message = [
+        $message = fn () => [
             'embeds' => [
                 [
-                    'title' => 'Result report submitted',
-                    'description' => "A result report was submitted for `{$match->match_code}`.",
+                    'title' => __('Result report submitted'),
+                    'description' => __('A result report was submitted for `:codigo`.', ['codigo' => $match->match_code]),
                     'color' => 0x3B82F6,
                     'fields' => [
                         [
-                            'name' => 'Claimed winner',
-                            'value' => $winnerRealm ? (ArenaMatch::REALMS[$winnerRealm] ?? strtoupper((string) $winnerRealm)) : '⚔️ Empate',
+                            'name' => __('Claimed winner'),
+                            'value' => $winnerRealm ? __(ArenaMatch::REALMS[$winnerRealm] ?? strtoupper((string) $winnerRealm)) : __('⚔️ Empate'),
                             'inline' => true,
                         ],
                         [
-                            'name' => 'Status',
-                            'value' => 'Pending rival confirmation',
+                            'name' => __('Status'),
+                            'value' => __('Pending rival confirmation'),
                             'inline' => true,
                         ],
                     ],
@@ -467,21 +492,21 @@ class DiscordBotService
 
         $winnerRealm = ArenaMatch::REALMS[$payload['winner_realm'] ?? ''] ?? strtoupper((string) ($payload['winner_realm'] ?? ''));
 
-        $message = [
+        $message = fn () => [
             'embeds' => [
                 [
-                    'title' => 'Match resolved',
-                    'description' => "The match `{$match->match_code}` was resolved.",
+                    'title' => __('Match resolved'),
+                    'description' => __('The match `:codigo` was resolved.', ['codigo' => $match->match_code]),
                     'color' => 0x22C55E,
                     'fields' => [
                         [
-                            'name' => 'Winner',
-                            'value' => $winnerRealm,
+                            'name' => __('Winner'),
+                            'value' => __($winnerRealm),
                             'inline' => true,
                         ],
                         [
-                            'name' => 'Status',
-                            'value' => $match->status_name,
+                            'name' => __('Status'),
+                            'value' => __($match->status_name),
                             'inline' => true,
                         ],
                     ],
@@ -503,16 +528,16 @@ class DiscordBotService
             return;
         }
 
-        $message = [
+        $message = fn () => [
             'embeds' => [
                 [
-                    'title' => 'Match disputed',
-                    'description' => "The report for `{$match->match_code}` was disputed and now needs admin review.",
+                    'title' => __('Match disputed'),
+                    'description' => __('The report for `:codigo` was disputed and now needs admin review.', ['codigo' => $match->match_code]),
                     'color' => 0xF59E0B,
                     'fields' => [
                         [
-                            'name' => 'Report status',
-                            'value' => $report->status_name,
+                            'name' => __('Report status'),
+                            'value' => __($report->status_name),
                             'inline' => true,
                         ],
                     ],
@@ -523,7 +548,7 @@ class DiscordBotService
         $this->broadcastToMatchPlayers($match, $message);
     }
 
-    private function broadcastToMatchPlayers(ArenaMatch $match, array $message): void
+    private function broadcastToMatchPlayers(ArenaMatch $match, \Closure $message): void
     {
         foreach ($match->getAllPlayers() as $playerData) {
             $discordId = (string) ($playerData['discord_id'] ?? '');
@@ -534,7 +559,7 @@ class DiscordBotService
             try {
                 $dmChannel = $this->createDMChannel($discordId);
                 if ($dmChannel) {
-                    $this->sendMessage($dmChannel['id'], $message);
+                    $this->sendMessage($dmChannel['id'], $this->enIdioma($discordId, $message));
                 }
             } catch (\Throwable $e) {
                 Log::error("Failed to broadcast Discord message to {$discordId}: " . $e->getMessage());

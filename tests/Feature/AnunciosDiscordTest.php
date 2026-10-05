@@ -187,3 +187,25 @@ it('el mantenimiento lanza el pulso aunque no haya cron', function () {
 
     expect(anunciosEnviados())->toHaveCount(1);
 });
+
+it('los anuncios del canal salen en español e ingles', function () {
+    entraEnCola(guerreroAnuncio('Bilingue', 'ignis'));
+    finDePeticion();
+
+    $anuncio = anunciosEnviados()[0];
+
+    expect($anuncio['title'])->toContain('hay alguien esperando rival')->toContain('someone is waiting for an opponent')
+        ->and($anuncio['description'])->toContain('es vuestro momento')->toContain('your moment is now');
+});
+
+it('el usuario guarda su idioma al elegirlo', function () {
+    $user = User::create(['discord_id' => '300000000000000001', 'discord_username' => 'loc', 'name' => 'Loc', 'email' => 'loc@example.com']);
+
+    $this->actingAs($user)->get('/ladder?lang=de');
+
+    expect($user->fresh()->locale)->toBe('de');
+
+    $this->actingAs($user)->get('/ladder');
+
+    expect($user->fresh()->locale)->toBe('de');
+});

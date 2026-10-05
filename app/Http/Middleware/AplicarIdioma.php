@@ -24,6 +24,8 @@ class AplicarIdioma
 
         $response = $next($request);
 
+        $this->recordar($request, $idioma);
+
         // Se guarda lo que eligio con ?lang. El idioma deducido del navegador no
         // se guarda: si cambia el del sistema, el sitio lo sigue.
         if (Idioma::normalizar($request->query('lang')) !== null) {
@@ -36,5 +38,28 @@ class AplicarIdioma
         $response->headers->set('Content-Language', Idioma::htmlLang($idioma));
 
         return $response;
+    }
+
+    /**
+     * El idioma de quien ha entrado, para sus mensajes directos de Discord.
+     *
+     * Se guarda cuando lo elige (?lang) y la primera vez que no hay ninguno;
+     * una sola escritura, solo si cambia.
+     */
+    private function recordar(Request $request, string $idioma): void
+    {
+        try {
+            $usuario = $request->user();
+
+            if (!$usuario || $usuario->locale === $idioma) {
+                return;
+            }
+
+            if ($usuario->locale === null || Idioma::normalizar($request->query('lang')) !== null) {
+                $usuario->forceFill(['locale' => $idioma])->saveQuietly();
+            }
+        } catch (\Throwable) {
+            // Sin la columna (aun sin migrar) la pagina sigue igual.
+        }
     }
 }
