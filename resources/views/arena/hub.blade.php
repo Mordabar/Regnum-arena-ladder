@@ -21,6 +21,12 @@
          son una sola: aqui se elige guerrero Y se entra a combatir. --}}
     @include('arena._console_head')
 
+    {{-- Solo el calendario de la temporada -cuanto lleva y cuando acaba-, sin
+         el podio de premios: aqui se viene a jugar. Si no hay temporada con
+         fecha de fin, no se pinta nada. --}}
+    @php($temporadaDelLobby = \App\Models\ArenaSeason::current())
+    <div class="mb-5"><x-arena-season-premios :season="$temporadaDelLobby" /></div>
+
     @if(!$hasRoster)
         {{-- Sin guerreros no hay nada que ensenar ni que hacer. --}}
         <section class="arena-panel p-8 text-center arena-animate-in arena-stagger-1">

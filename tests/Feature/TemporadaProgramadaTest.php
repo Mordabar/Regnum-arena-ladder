@@ -286,3 +286,24 @@ it('renombrar una programada actualiza su slug sin chocar con otras', function (
         ->and($p->fresh()->name)->toBe('Season 2')
         ->and($p->fresh()->slug)->toBe('season-2-2');
 });
+
+it('el lobby y el salon de la fama llevan el premio y la barra, sin el podio de la portada', function () {
+    ArenaSeason::create([
+        'name' => 'Season 0', 'slug' => 's0', 'status' => ArenaSeason::STATUS_ACTIVE, 'enabled_modes' => ['1v1'],
+        'starts_at' => now()->subDays(10), 'ends_at' => now()->addDays(20), 'auto_close' => true,
+    ]);
+    AppSetting::setValue('season_prizes_enabled', '1', 'branding', 'boolean', true);
+
+    $salon = $this->get(route('hall-of-fame'))->assertOk();
+    $salon->assertSee('Premios de la temporada')->assertSee('arena-season', false);
+    expect($salon->getContent())->not->toContain('arena-podium-stage');
+});
+
+it('la regla de meses de la barra empieza en el mes de inicio', function () {
+    $s = ArenaSeason::create([
+        'name' => 'Season 0', 'slug' => 's0', 'status' => ArenaSeason::STATUS_ACTIVE, 'enabled_modes' => ['1v1'],
+        'starts_at' => now()->setDate(2026, 4, 8)->setTime(12, 0), 'ends_at' => now()->setDate(2026, 11, 29)->setTime(12, 0), 'auto_close' => true,
+    ]);
+
+    expect(collect($s->progreso()['hitos'])->first()['mes'])->toBe('Abr');
+});

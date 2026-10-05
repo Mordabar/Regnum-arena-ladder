@@ -225,7 +225,10 @@ class ArenaSeason extends Model
      */
     private function hitosMensuales(CarbonInterface $inicio, CarbonInterface $fin, int $total): array
     {
-        $hitos = [];
+        // La regla arranca con el mes en que empieza la temporada, a la
+        // izquierda: sin el, una temporada que empieza el 8 de abril mostraba
+        // "mayo" como primer mes. Es el unico sin muesca: la barra ya empieza ahi.
+        $hitos = [['pos' => 0.0, 'mes' => __(self::MESES[$inicio->month - 1]), 'inicio' => true]];
         $mes = $inicio->copy()->startOfMonth()->addMonth();
 
         while ($mes->lt($fin) && count($hitos) < 36) {

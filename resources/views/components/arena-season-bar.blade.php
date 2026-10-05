@@ -28,6 +28,7 @@
              aria-valuetext="{{ $p['estado'] === 'pendiente' ? __('Aún no ha empezado') : __('Día :dia de :dias, :pct por ciento', ['dia' => $p['dia'], 'dias' => $p['dias'], 'pct' => $entero]) }}">
             <span class="arena-season-fill"></span>
             @foreach($p['hitos'] as $hito)
+                @continue(!empty($hito['inicio']))
                 <span class="arena-season-tick @if($hito['pos'] <= $pct) is-passed @endif" style="left: {{ $hito['pos'] }}%" aria-hidden="true"></span>
             @endforeach
             <span class="arena-season-head" aria-hidden="true"></span>
@@ -35,7 +36,7 @@
 
         <div class="arena-season-scale" aria-hidden="true">
             @foreach($p['hitos'] as $hito)
-                <span style="left: {{ $hito['pos'] }}%">{{ $hito['mes'] }}</span>
+                <span @class(['is-inicio' => !empty($hito['inicio'])]) style="left: {{ $hito['pos'] }}%">{{ $hito['mes'] }}</span>
             @endforeach
         </div>
 

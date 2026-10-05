@@ -145,9 +145,11 @@ it('sin fecha de fin, o con una que no cuadra, no hay barra', function () {
 it('marca el primer dia de cada mes dentro de la temporada', function () {
     $hitos = temporada()->progreso()['hitos'];
 
-    // Mayo, junio, julio, agosto, septiembre, octubre y noviembre.
-    expect(collect($hitos)->pluck('mes')->all())->toBe(['May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov'])
-        ->and(collect($hitos)->every(fn ($h) => $h['pos'] > 0 && $h['pos'] < 100))->toBeTrue()
+    // La regla abre con el mes de inicio (abril, sin muesca) y sigue con el primer
+    // dia de mayo, junio, julio, agosto, septiembre, octubre y noviembre.
+    expect(collect($hitos)->pluck('mes')->all())->toBe(['Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov'])
+        ->and($hitos[0]['pos'])->toBe(0.0)
+        ->and(collect($hitos)->skip(1)->every(fn ($h) => $h['pos'] > 0 && $h['pos'] < 100))->toBeTrue()
         ->and(collect($hitos)->pluck('pos')->all())->toBe(collect($hitos)->pluck('pos')->sort()->values()->all());
 });
 

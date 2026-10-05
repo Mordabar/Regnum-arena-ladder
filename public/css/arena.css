@@ -4024,3 +4024,7 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
     .arena-lang-fab .arena-lang-chev { display: none; }
     .arena-lang-fab .arena-flag { width: 30px; height: 30px; }
 }
+
+/* La primera etiqueta de la regla -el mes en que empieza la temporada- va
+   pegada al borde izquierdo, no centrada sobre el: se saldria de la barra. */
+.arena-season-scale span.is-inicio { transform: none; }

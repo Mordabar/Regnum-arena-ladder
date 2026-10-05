@@ -37,14 +37,10 @@
                 <a href="{{ route('ladder.index') }}" class="arena-btn-ghost"><x-arena-icon name="ladder" class="h-4 w-4 shrink-0" />Ver clasificacion</a>
             </div>
 
-            {{-- El calendario, con la misma barra que el podio de la portada. --}}
-            <x-arena-season-bar :season="$actual" />
+            {{-- El premio con protagonismo y el calendario, como en el lobby. --}}
+            <div class="mt-4"><x-arena-season-premios :season="$actual" /></div>
 
             @if($premios->activos())
-            <p class="mt-3 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                <b class="text-[color:var(--arena-gold-soft)]">{{ $premios->total() }} {{ $premios->moneda() }}</b>
-                en juego. {{ $premios->bases() }}
-            </p>
 
             {{-- Quien va ganandola HOY, con las mismas tarjetas que las
                  temporadas cerradas.
