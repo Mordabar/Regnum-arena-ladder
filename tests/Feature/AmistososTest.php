@@ -444,3 +444,72 @@ it('el calendario guarda si al acabar se abre otra temporada', function () {
 
     expect($season->fresh()->open_next)->toBeFalse();
 });
+
+// ------------------------------------------------- hallazgos del arbitro
+
+it('moderacion no puede puntuar ni sancionar un amistoso, solo anularlo', function () {
+    [$match, $a, $b] = duelo(false, 'k');
+    $servicio = app(\App\Services\ArenaMatchResultService::class);
+
+    expect(fn () => $servicio->forceComplete($match, 'team_a'))->toThrow(RuntimeException::class, 'amistoso')
+        ->and(fn () => $servicio->applyAbandonmentWalkover($match, $a->id))->toThrow(RuntimeException::class)
+        ->and(fn () => $servicio->applySupportInfraction($match, $a->id))->toThrow(RuntimeException::class);
+
+    expect(MatchResult::query()->count())->toBe(0)
+        ->and((float) $a->fresh()->pl_points)->toBe(30.0);
+
+    // Ni siquiera uno ya terminado, que no tiene resultados que "corregir".
+    $servicio->finishFriendly($match);
+    expect(fn () => $servicio->forceComplete($match->fresh(), 'team_b'))->toThrow(RuntimeException::class);
+    expect(MatchResult::query()->count())->toBe(0);
+
+    // Anular si se puede.
+    [$otro] = duelo(false, 'l');
+    $servicio->markVoid($otro);
+    expect($otro->fresh()->status)->toBe('void');
+});
+
+it('la pantalla de un amistoso en el panel solo ofrece anular', function () {
+    [$match] = duelo(false, 'm');
+
+    $this->withSession(sesionDeAdmin())->get(route('admin.matches.show', $match))
+        ->assertOk()
+        ->assertDontSee('Cerrar con un resultado')
+        ->assertSee('Anular');
+});
+
+it('cerrar la temporada sin abrir otra anula los competitivos a medias y no toca los amistosos', function () {
+    [$competitivo] = duelo(true, 'n');
+    [$amistoso] = duelo(false, 'o');
+    $pendiente = tap(duelo(true, 'p')[0])->update(['status' => 'pending_acceptance']);
+
+    $resultado = app(SeasonClosingService::class)->cerrar(null, true, ['abrir_siguiente' => false]);
+
+    expect($resultado['anulados'])->toBe(2)
+        ->and($competitivo->fresh()->status)->toBe('void')
+        ->and(ArenaMatch::query()->whereKey($pendiente->id)->exists())->toBeFalse()
+        ->and($amistoso->fresh()->status)->toBe('in_progress');
+});
+
+it('cerrar abriendo la siguiente no toca los combates en curso', function () {
+    [$competitivo] = duelo(true, 'q');
+
+    app(SeasonClosingService::class)->cerrar(null, true);
+
+    expect($competitivo->fresh()->status)->toBe('in_progress');
+});
+
+it('un tipo manipulado en la URL no rompe el lobby', function () {
+    $p = duelista('url', 'ignis');
+
+    $this->actingAs($p->user)->get('/lobby?kind[]=x')->assertOk();
+    $this->actingAs($p->user)->get('/lobby?kind=loquesea')->assertOk();
+});
+
+it('el contador de completados del panel no cuenta amistosos', function () {
+    [$match] = duelo(false, 'r');
+    $match->update(['status' => 'completed']);
+
+    $this->withSession(sesionDeAdmin())->get(route('admin.dashboard'))->assertOk();
+    expect(ArenaMatch::query()->where('status', 'completed')->where('is_ranked', true)->count())->toBe(0);
+});

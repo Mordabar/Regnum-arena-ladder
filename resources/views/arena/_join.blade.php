@@ -99,7 +99,7 @@
         @if($premadeSupported)
             <li><strong class="text-white">Random:</strong> entras con 1 personaje y el sistema completa tu equipo con gente de tu reino.</li>
             <li><strong class="text-white">Premade:</strong> {{ $teamSize }} personajes exactos, todos del mismo reino y de {{ $teamSize }} usuarios distintos. Maximo {{ $premadeDailyLimit }} al dia por equipo.</li>
-            <li><strong class="text-white">Random contra premade:</strong> el equipo random gana mas puntos si vence, y pierde menos si cae.</li>
+            <li><strong class="text-white">Random contra premade:</strong> en competitivo, el equipo random gana mas puntos si vence, y pierde menos si cae.</li>
             <li><strong class="text-white">Conjuradores:</strong> solo puede haber uno de soporte por equipo.</li>
             <li><strong class="text-white">Anonimato:</strong> del rival ves reino y subclase, nunca el nombre, hasta que el enfrentamiento se cierra.</li>
         @else

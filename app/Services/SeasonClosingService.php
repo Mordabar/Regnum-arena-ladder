@@ -6,6 +6,7 @@ use App\Models\AppSetting;
 use Carbon\CarbonInterface;
 use App\Models\ArenaSeason;
 use App\Models\Player;
+use App\Services\Matches\MatchLifecycleService;
 use App\Models\SeasonPlayerStat;
 use App\Support\ArenaMode;
 use Illuminate\Support\Facades\DB;
@@ -147,6 +148,11 @@ class SeasonClosingService
             $resultado['reinicio'] = app(LadderMaintenanceService::class)->reiniciarRanking();
         }
 
+        // Sin temporada siguiente el ladder queda en pausa: los competitivos que
+        // seguian en vuelo ya no pueden puntuar, porque lo harian sobre un
+        // podio congelado (o sobre un ranking que acaba de ponerse a cero).
+        $resultado['anulados'] = $resultado['siguiente'] === null ? $this->anularCompetitivosEnVuelo() : 0;
+
         if (!($opciones['premios_siguiente'] ?? $resultado['season']->next_prizes_enabled)) {
             AppSetting::setValue('season_prizes_enabled', '0', 'branding', 'boolean', true);
         }
@@ -184,6 +190,48 @@ class SeasonClosingService
                 'auto_close' => $fin !== null && $cierreAutomatico,
             ])];
         });
+    }
+
+    /**
+     * Cierra lo competitivo que quedaba a medias: los cruces sin aceptar se
+     * cancelan (y sus colas se liberan) y los combates en curso o en disputa
+     * sin puntuar se anulan, sin sancionar a nadie.
+     *
+     * Los que ya estan puntuados no se tocan: esos pertenecen a la temporada
+     * que acaba de cerrarse.
+     */
+    private function anularCompetitivosEnVuelo(): int
+    {
+        if (!Schema::hasTable('matches') || !Schema::hasColumn('matches', 'is_ranked')) {
+            return 0;
+        }
+
+        $cerrados = 0;
+
+        $enVuelo = \App\Models\ArenaMatch::query()
+            ->where('is_ranked', true)
+            ->whereIn('status', ['pending_acceptance', 'in_progress', 'disputed'])
+            ->whereDoesntHave('results')
+            ->get();
+
+        foreach ($enVuelo as $match) {
+            try {
+                if ($match->status === 'pending_acceptance') {
+                    app(ArenaMatchmakingService::class)->cancelMatch($match, 'season_closed', null, false);
+                } else {
+                    app(MatchLifecycleService::class)->markVoid($match, null, 'La temporada termino: el ladder esta en pausa');
+                }
+
+                $cerrados++;
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('No se pudo cerrar un combate al terminar la temporada', [
+                    'match_id' => $match->id,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $cerrados;
     }
 
     /** Minutos que se considera "recien abierta" a una temporada. */

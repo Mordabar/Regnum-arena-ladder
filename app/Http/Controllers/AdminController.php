@@ -39,7 +39,8 @@ class AdminController extends Controller
             'pending_report_confirmation' => MatchReport::query()->where('status', 'pending_confirmation')->count(),
             'in_progress' => ArenaMatch::query()->where('status', 'in_progress')->count(),
             'disputed' => ArenaMatch::query()->where('status', 'disputed')->count(),
-            'completed' => ArenaMatch::query()->where('status', 'completed')->count(),
+            // Solo los competitivos: un amistoso terminado no es una partida del ladder.
+            'completed' => ArenaMatch::query()->where('status', 'completed')->where('is_ranked', true)->count(),
         ];
 
         $recentMatches = ArenaMatch::query()->latest('created_at')->take(8)->get();
@@ -606,6 +607,9 @@ class AdminController extends Controller
                     'player_id' => $player->id,
                     'queue_type' => 'random',
                     'arena_mode' => $manualMode,
+                    // Con el ladder en pausa solo caben amistosos: una cola
+                    // competitiva se cancelaria en el siguiente tick.
+                    'is_ranked' => \App\Support\Competition::rankedOpen(),
                     'status' => 'waiting',
                     'conjurer_role' => $player->subclass === 'conjurer' ? $validated['conjurer_role'] : null,
                     'estimated_mmr' => $player->mmr ?? 800,

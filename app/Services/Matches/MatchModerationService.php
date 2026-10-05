@@ -29,12 +29,27 @@ class MatchModerationService
     ) {
     }
 
+    /**
+     * Un amistoso no se puntua nunca, ni siquiera desde moderacion: forzarle un
+     * resultado crearia las filas que el ranking lee, y el ladder se movería por
+     * una partida que prometio no tocarlo. Lo unico que se le puede hacer es
+     * anularlo.
+     */
+    private function rechazarAmistoso(ArenaMatch $match): void
+    {
+        if ($match->isFriendly()) {
+            throw new \RuntimeException('Un amistoso no mueve el ranking: no se puede puntuar ni sancionar. Solo se puede anular.');
+        }
+    }
+
     public function forceComplete(
         ArenaMatch $match,
         string $winnerTeam,
         ?User $admin = null,
         ?string $note = null
     ): array {
+        $this->rechazarAmistoso($match);
+
         if ($match->results()->exists()) {
             return $this->correctProcessedMatch($match, $winnerTeam, $admin, $note);
         }
@@ -282,6 +297,8 @@ class MatchModerationService
         ?User $admin = null,
         ?string $note = null
     ): array {
+        $this->rechazarAmistoso($match);
+
         $offendingSide = $match->getTeamSideForPlayer($offendingPlayerId);
         if ($offendingSide === null) {
             throw new \RuntimeException('El jugador sancionado no pertenece al match.');
@@ -315,6 +332,8 @@ class MatchModerationService
         ?User $admin = null,
         ?string $note = null
     ): array {
+        $this->rechazarAmistoso($match);
+
         $offendingSide = $match->getTeamSideForPlayer($offendingPlayerId);
         if ($offendingSide === null) {
             throw new \RuntimeException('El jugador infractor no pertenece al match.');

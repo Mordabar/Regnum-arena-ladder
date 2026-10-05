@@ -105,13 +105,12 @@
                                          Al lado, el tipo de partida: competitivo
                                          (mueve el ranking) o amistoso (no). Si
                                          solo hay uno abierto no se pregunta. --}}
-                                    <div class="arena-console-arenas" role="tablist" aria-label="Modalidad y tipo de partida">
+                                    <nav class="arena-console-arenas" aria-label="Modalidad y tipo de partida">
                                         @if(count($enabledModes) > 1)
                                             <span class="arena-console-arenas-key">Arena</span>
                                             @foreach($enabledModes as $mode)
                                                 <a href="{{ route('lobby', ['mode' => $mode, 'player' => $featured?->id] + $kindQuery) }}"
-                                                   role="tab"
-                                                   aria-selected="{{ $mode === $arenaMode ? 'true' : 'false' }}"
+                                                   aria-current="{{ $mode === $arenaMode ? 'true' : 'false' }}"
                                                    class="arena-console-arena {{ $mode === $arenaMode ? 'is-active' : '' }}">{{ $mode }}</a>
                                             @endforeach
                                         @endif
@@ -120,13 +119,12 @@
                                             @if(count($enabledModes) > 1)<span class="arena-console-arenas-sep" aria-hidden="true"></span>@endif
                                             @foreach(['ranked' => 'Competitivo', 'friendly' => 'Amistoso'] as $tipo => $tipoNombre)
                                                 <a href="{{ route('lobby', ['mode' => $arenaMode, 'player' => $featured?->id, 'kind' => $tipo]) }}"
-                                                   role="tab"
-                                                   aria-selected="{{ $tipo === $kind ? 'true' : 'false' }}"
+                                                   aria-current="{{ $tipo === $kind ? 'true' : 'false' }}"
                                                    title="{{ $tipo === 'ranked' ? 'Mueve el ranking' : 'PvP sin ranking' }}"
                                                    class="arena-console-arena is-kind-{{ $tipo }} {{ $tipo === $kind ? 'is-active' : '' }}">{{ $tipoNombre }}</a>
                                             @endforeach
                                         @endif
-                                    </div>
+                                    </nav>
                                 @endif
 
                                 {{-- Las acciones del guerrero viven con el

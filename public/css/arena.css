@@ -1228,6 +1228,7 @@ h1, h2, h3, h4, h5, h6,
 @media (max-width: 520px) {
     .arena-console-arenas { max-width: calc(100% - 68px); }
     .arena-console-arenas .arena-console-arena { padding: 6px 11px; font-size: 12px; }
+    .arena-console-arenas-sep { display: none; }
 }
 .arena-console-arenas-sep {
     align-self: stretch;

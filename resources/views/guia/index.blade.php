@@ -62,6 +62,8 @@
                     entrar solo -el sistema te arma el equipo- o con los tuyos, en premade.
                     Cuando hay cruce, se asigna una zona de la frontera de vuestros reinos y se
                     marca en el mapa el punto exacto donde quedar.
+                    Además de competitivo puedes jugar <b>amistoso</b>: el mismo PvP sin ranking,
+                    que es lo que queda cuando una temporada termina y el ladder se pausa.
                 </p>
             </article>
 
@@ -71,7 +73,8 @@
                 <p class="mt-2 text-sm text-[color:var(--arena-muted)] arena-body-text">
                     Durante el combate teneis un chat rapido para avisaros -voy de camino,
                     estoy en el punto, me han matado-. Al acabar, uno sube las capturas y dice
-                    quien gano; el otro confirma y el ladder actualiza PL y MMR solo.
+                    quien gano; el otro confirma y el ladder actualiza PL y MMR solo. Un amistoso no se reporta:
+                    se pelea y se termina con un botón, sin tocar el ranking.
                 </p>
             </article>
         </div>

@@ -74,9 +74,14 @@ final class Competition
         ));
     }
 
-    public static function normalize(?string $kind): ?string
+    public static function normalize(mixed $kind): ?string
     {
-        $kind = strtolower(trim((string) $kind));
+        // ?kind[]=x llega como array: no es un tipo, y castearlo a string rompe.
+        if (!is_string($kind)) {
+            return null;
+        }
+
+        $kind = strtolower(trim($kind));
 
         return in_array($kind, [self::RANKED, self::FRIENDLY], true) ? $kind : null;
     }
@@ -88,7 +93,7 @@ final class Competition
     }
 
     /** El tipo pedido si se puede jugar; si no, el que si. */
-    public static function resolve(?string $kind): string
+    public static function resolve(mixed $kind): string
     {
         $kind = self::normalize($kind);
 

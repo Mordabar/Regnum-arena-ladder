@@ -309,10 +309,12 @@ class ArenaMatchController extends Controller
             return back()->withErrors(['error' => 'Este combate es competitivo: se cierra con el reporte del resultado.']);
         }
 
-        $resultService->finishFriendly($match);
+        $cerrado = $resultService->finishFriendly($match);
 
         return redirect()->route('lobby', ['mode' => $match->arena_mode, 'kind' => 'friendly'])
-            ->with('success', 'Amistoso terminado. Cuando quieras, busca otro rival.');
+            ->with('success', $cerrado
+                ? 'Amistoso terminado. Cuando quieras, busca otro rival.'
+                : 'Ese amistoso ya estaba terminado.');
     }
 
     public function report(Request $request, ArenaMatchResultService $resultService)

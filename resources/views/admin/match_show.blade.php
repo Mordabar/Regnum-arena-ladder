@@ -365,10 +365,13 @@
                     @if($report && $report->status === 'pending_confirmation')
                         <option value="confirm_report">Confirmar el reporte por el rival</option>
                     @endif
-                    <option value="force_complete">Cerrar con un resultado</option>
-                    <option value="dispute">Abrir disputa y congelar</option>
-                    <option value="abandonment_walkover">Alguien abandono: derrota y sancion</option>
-                    <option value="support_infraction">Infraccion de soporte</option>
+                    {{-- Un amistoso no se puntua ni se sanciona: solo se anula. --}}
+                    @unless($match->isFriendly())
+                        <option value="force_complete">Cerrar con un resultado</option>
+                        <option value="dispute">Abrir disputa y congelar</option>
+                        <option value="abandonment_walkover">Alguien abandono: derrota y sancion</option>
+                        <option value="support_infraction">Infraccion de soporte</option>
+                    @endunless
                     <option value="void">{{ $yaPuntuado ? 'Anular y devolver los puntos' : 'Anular sin puntos' }}</option>
                     {{-- Interrumpido: alguien ajeno al PvP se metio y el combate
                          no pudo decidirse. Ni abandono -nadie se fue- ni
