@@ -27,6 +27,11 @@ class MatchPenaltyService
         ?User $admin = null,
         ?string $note = null
     ): void {
+        // Sin ranking en juego no hay sancion que aplicar.
+        if ($match?->isFriendly()) {
+            throw new \RuntimeException('Un amistoso no se sanciona: no mueve el ranking.');
+        }
+
         $this->applyPenalty($player, 'abandonment', $match, $admin, $note);
     }
 

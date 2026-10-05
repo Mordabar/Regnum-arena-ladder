@@ -513,3 +513,17 @@ it('el contador de completados del panel no cuenta amistosos', function () {
     $this->withSession(sesionDeAdmin())->get(route('admin.dashboard'))->assertOk();
     expect(ArenaMatch::query()->where('status', 'completed')->where('is_ranked', true)->count())->toBe(0);
 });
+
+it('ni el reporte sintetico del laboratorio ni una confirmacion puntuan un amistoso', function () {
+    [$match, $a, $b] = duelo(false, 's');
+    $servicio = app(\App\Services\ArenaMatchResultService::class);
+
+    expect(fn () => $servicio->submitSyntheticReport($match, $a, 'team_a'))->toThrow(RuntimeException::class);
+    expect(fn () => app(\App\Services\Matches\MatchLifecycleService::class)->finalizeMatch($match, 'team_a', true, []))
+        ->toThrow(RuntimeException::class, 'amistoso');
+    expect(fn () => $servicio->applyAbandonmentPenalty($a, $match))->toThrow(RuntimeException::class);
+
+    expect(MatchResult::query()->count())->toBe(0)
+        ->and((float) $a->fresh()->pl_points)->toBe(30.0)
+        ->and($a->fresh()->queue_locked_until)->toBeNull();
+});

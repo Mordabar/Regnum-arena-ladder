@@ -175,6 +175,10 @@ class MatchReportService
         ?string $note,
         array $evidencePaths
     ): MatchReport {
+        if ($match->isFriendly()) {
+            throw new \RuntimeException('Un amistoso no se reporta: no mueve el ranking.');
+        }
+
         if ($match->status !== 'in_progress') {
             throw new \RuntimeException('Solo puedes crear un reporte sintetico en matches en progreso.');
         }

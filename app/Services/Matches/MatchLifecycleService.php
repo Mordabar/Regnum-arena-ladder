@@ -39,6 +39,13 @@ class MatchLifecycleService
         bool $reportedByAdmin,
         array $resolutionContext
     ): array {
+        // La guarda central: todo lo que puntua pasa por aqui (confirmar, caducar,
+        // forzar, el reporte sintetico del laboratorio). Un amistoso no mueve el
+        // ranking venga de donde venga.
+        if ($match->isFriendly()) {
+            throw new \RuntimeException('Un amistoso no mueve el ranking: no se puede puntuar.');
+        }
+
         if ($match->results()->exists()) {
             throw new \RuntimeException('Este match ya fue procesado.');
         }
