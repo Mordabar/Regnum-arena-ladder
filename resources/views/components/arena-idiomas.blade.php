@@ -63,6 +63,23 @@
             }
         }
 
+        // Flotando sobre el contenido tapa botones y texto: se esconde al bajar
+        // y vuelve al subir, al llegar arriba o con el foco del teclado.
+        var ultimo = window.scrollY, ticking = false;
+        function vigilar() {
+            ticking = false;
+            var y = window.scrollY, abierto = !hoja.hidden;
+            if (!abierto) {
+                if (y > ultimo + 6 && y > 80) { raiz.classList.add('is-oculto'); }
+                else if (y < ultimo - 6 || y <= 80) { raiz.classList.remove('is-oculto'); }
+            }
+            ultimo = y;
+        }
+        window.addEventListener('scroll', function () {
+            if (!ticking) { ticking = true; requestAnimationFrame(vigilar); }
+        }, { passive: true });
+        raiz.addEventListener('focusin', function () { raiz.classList.remove('is-oculto'); });
+
         boton.addEventListener('click', function () { abrir(hoja.hidden); });
 
         document.addEventListener('click', function (e) {

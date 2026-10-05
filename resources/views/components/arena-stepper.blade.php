@@ -8,7 +8,7 @@
 @endphp
 
 @if($totalSteps > 0)
-<nav {{ $attributes->class(['flex items-center gap-0']) }} aria-label="Progreso">
+<nav {{ $attributes->class(['arena-stepper flex items-center gap-0']) }} aria-label="Progreso">
     @foreach($steps as $index => $step)
         @php
             $stepNumber = $index + 1;

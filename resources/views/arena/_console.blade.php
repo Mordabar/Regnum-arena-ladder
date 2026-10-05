@@ -26,7 +26,7 @@
                 {{-- El aviso NO va aqui de fijo. Ocupaba sitio a todas horas
                      para explicar algo que solo importa en el instante en que
                      alguien toca otro guerrero; ahora sale como nubecita
-                     justo ahi, y solo entonces. --}}
+                     justo ahí, y solo entonces. --}}
 
                 <div class="arena-console-slots">
                     @foreach($players as $player)

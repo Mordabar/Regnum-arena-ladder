@@ -521,7 +521,7 @@
                     document.removeEventListener('keydown', pedirUnaVez, true);
 
                     // Con el controlador de avisos, el permiso se pide en SU
-                    // boton y solo ahi. Pedirlo al primer clic en cualquier
+                    // boton y solo ahí. Pedirlo al primer clic en cualquier
                     // parte daba permiso sin suscripcion -el boton seguia en
                     // rojo sin motivo aparente- y un globo que sale de la nada
                     // se deniega, y denegado ya no se puede volver a pedir.
@@ -716,7 +716,7 @@
                 if (document.hidden) {
                     notificarSistema(type, message, options.tag || etiquetaDe(type, eventKey));
                     parpadearTitulo(message);
-                    // Y el aviso interno, largo: sigue ahi cuando se vuelve.
+                    // Y el aviso interno, largo: sigue ahí cuando se vuelve.
                     arenaToast(message, options.toastType || 'info', 20000);
                 } else {
                     arenaToast(message, options.toastType || 'info', options.duration || 5500);

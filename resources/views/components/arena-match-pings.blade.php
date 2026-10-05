@@ -23,7 +23,7 @@
      Se comporta como cualquier chat -burbujas a un lado y a otro, lo ultimo
      abajo, aviso con sonido- pero se escribe con botones: frases cerradas,
      sin texto libre. Un chat abierto entre rivales de tres reinos seria un
-     problema de moderacion desde el primer dia.
+     problema de moderación desde el primer dia.
 
      Siempre abierto y con las frases a la vista. Plegado no servia: se
      usa con prisa, a mitad de un combate, y cualquier paso de mas -abrir la
@@ -56,7 +56,7 @@
                 </li>
             @empty
                 <li class="arena-chat-empty" data-pings-empty>
-                    Todavia no ha dicho nada nadie. Avisa tu primero.
+                    Todavía no ha dicho nada nadie. Avisa tu primero.
                 </li>
             @endforelse
         </ol>

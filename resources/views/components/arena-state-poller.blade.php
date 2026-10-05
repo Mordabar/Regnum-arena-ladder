@@ -317,7 +317,7 @@
 
         // Lo escrito sobrevive al repintado: cada campo de texto o desplegable
         // se busca en el panel nuevo por su formulario y su nombre y, si sigue
-        // ahi, recupera su valor y el foco. Si el campo ya no existe (el rival
+        // ahí, recupera su valor y el foco. Si el campo ya no existe (el rival
         // reporto antes y el formulario propio sobra) no hay nada que guardar.
         const claveCampo = (el) => {
             if (!el.name) { return null; }

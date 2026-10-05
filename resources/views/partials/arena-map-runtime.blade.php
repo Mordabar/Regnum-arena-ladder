@@ -219,7 +219,7 @@
                 // publique zonas el navegador se queda con su copia, y en
                 // cuanto se publica la URL es otra y todos reciben lo nuevo a
                 // la vez. Antes esto era un fichero suelto sin version, y de
-                // ahi venia que dos jugadores del mismo cruce vieran puntos de
+                // ahí venia que dos jugadores del mismo cruce vieran puntos de
                 // encuentro distintos.
                 return traer('script', { src: @json(route('arena.zones.asset', ['v' => app(\App\Services\ArenaZoneService::class)->sello()])) });
             }).then(function () {
@@ -417,7 +417,7 @@
                         // circulo y su cartel; en las demas basta con la marca,
                         // o el mapa entero se llena de carteles.
                         // El calculo es geometrico: da el punto mas interior,
-                        // pero no sabe si ahi hay agua o un risco. Cuando una
+                        // pero no sabe si ahí hay agua o un risco. Cuando una
                         // zona necesite otro sitio, se mueve desde el editor
                         // del panel y queda como "meeting": [y, x].
                         var encuentro = window.ArenaMapPoints.deZona(zone);

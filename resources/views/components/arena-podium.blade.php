@@ -4,7 +4,7 @@
 
      Las figuras SIGUEN estando: quitarlas dejaba la seccion en tres cajitas de
      texto y el sitio pierde justo lo que lo distingue. Lo que cambia es el
-     tamaño -el escenario se queda en un tercio- y el escalonado, que ahi no
+     tamaño -el escenario se queda en un tercio- y el escalonado, que ahí no
      hace falta. --}}
 @props(['podio', 'premios', 'compacto' => false])
 @php

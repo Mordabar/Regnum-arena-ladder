@@ -4053,3 +4053,78 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
 @media (max-width: 400px) {
     .arena-console-arenas-key { display: none; }
 }
+
+
+/* ── Repaso de movil: nada tapa nada ──────────────────────────────── */
+
+/* Saltar al contenido: invisible hasta que el teclado le da el foco. */
+.arena-skip {
+    position: fixed; left: 8px; top: -60px; z-index: 100;
+    padding: 10px 14px; border-radius: 8px;
+    background: var(--arena-gold); color: #1a1208; font-weight: 700;
+}
+.arena-skip:focus { top: 8px; }
+
+/* El selector de idioma se esconde al bajar y vuelve al subir. */
+.arena-lang { transition: transform .25s ease, opacity .25s ease; }
+.arena-lang.is-oculto { transform: translateY(90px); opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .arena-lang { transition: none; } }
+
+/* Encima de la barra de abajo y de los avisos del sistema. */
+.arena-avisos { z-index: 44; }
+
+/* Marca: la campana no la tapa; la marca recorta con puntos suspensivos. */
+@media (max-width: 400px) {
+    .arena-navbar a.min-w-0 { max-width: calc(100vw - 150px); overflow: hidden; }
+    .arena-navbar .arena-brand-type { text-overflow: ellipsis; overflow: hidden; }
+}
+
+/* Etiquetas largas del selector de tipo (Freundschaftskampf...) caben. */
+.arena-console-arena { white-space: normal; overflow-wrap: anywhere; line-height: 1.15; min-height: 44px; }
+.arena-console-arenas { flex-wrap: wrap; }
+
+/* Objetivos tactiles de 44px. */
+@media (max-width: 1023px) {
+    .arena-roster-close { min-width: 44px; min-height: 44px; }
+    .arena-breadcrumbs a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; }
+}
+
+/* Movil apaisado: poca altura, la barra superior deja de ser fija y la de
+   abajo se compacta. */
+@media (max-height: 480px) and (orientation: landscape) {
+    .arena-navbar { position: static !important; }
+    .arena-tabbar { padding-top: 2px; }
+    .arena-tabbar-item { flex-direction: row; justify-content: center; gap: 6px; font-size: 10px; padding: 2px; }
+    body.arena-con-tabbar { padding-bottom: calc(48px + env(safe-area-inset-bottom, 0px)); }
+    .arena-lang-list { display: grid; grid-template-columns: 1fr 1fr; }
+    .arena-lang-sheet { max-height: calc(100dvh - 70px); overflow-y: auto; }
+}
+
+/* Texto del sistema grande: el stepper se desplaza en vez de cortarse. */
+.arena-stepper { overflow-x: auto; scrollbar-width: none; }
+.arena-stepper::-webkit-scrollbar { display: none; }
+
+/* Zona de encuentro en 320px. */
+@media (max-width: 360px) {
+    .arena-duel-zone-btn { font-size: 12px; padding-left: 8px; padding-right: 8px; overflow-wrap: anywhere; }
+}
+
+/* Pista de scroll horizontal en tablas y chips. */
+.arena-scroll-x {
+    overflow-x: auto;
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+            mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+}
+
+/* Los modales por encima del boton de avisos. */
+.arena-lang-sheet { z-index: 49; }
+
+/* Selector de archivos propio (el del navegador habla otro idioma). */
+.arena-file-nativo { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.arena-file { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 44px; }
+.arena-file-btn {
+    min-height: 44px; padding: 0 16px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--arena-line-strong); color: var(--arena-gold-soft);
+    background: rgba(216, 177, 92, 0.1); font-weight: 700; font-size: 13px;
+}
+.arena-file-txt { color: var(--arena-muted); font-size: 13px; min-width: 0; overflow-wrap: anywhere; }

@@ -31,8 +31,8 @@
 <meta name="robots" content="{{ $seoIndexable ? 'index, follow, max-image-preview:large' : 'noindex, follow' }}">
 <link rel="canonical" href="{{ $seoUrl }}">
 @if($seoIndexable)
-@foreach(\App\Support\I18n\Idioma::IDIOMAS as $seoCodigo => $seoDatos)
-<link rel="alternate" hreflang="{{ $seoDatos['html'] }}" href="{{ $seoEn($seoCodigo) }}">
+@foreach(\App\Support\I18n\Idioma::IDIOMAS as $seoCódigo => $seoDatos)
+<link rel="alternate" hreflang="{{ $seoDatos['html'] }}" href="{{ $seoEn($seoCódigo) }}">
 @endforeach
 <link rel="alternate" hreflang="x-default" href="{{ $seoEn(null) }}">
 @endif

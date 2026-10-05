@@ -5,7 +5,7 @@
     es exactamente el caso que hay que poder denunciar, y hasta ahora no habia
     por donde.
 
-    El aviso no castiga a nadie. Manda el enfrentamiento a moderacion y ahi se
+    El aviso no castiga a nadie. Manda el enfrentamiento a moderación y ahí se
     decide, asi que el texto lo dice claro: quien lo pulsa no esta sancionando,
     esta pidiendo que lo miren.
 --}}
@@ -113,7 +113,7 @@
                 <label class="block">
                     <span class="mb-2 block text-sm font-medium arena-body-text">¿Qué pasó?</span>
                     <textarea name="note" rows="3" class="arena-textarea" required minlength="5" maxlength="500"
-                              placeholder="Ej: se desconectó al minuto dos y no volvió">{{ old('note') }}</textarea>
+                              placeholder="{{ __('Ej: se desconectó al minuto dos y no volvió') }}">{{ old('note') }}</textarea>
                 </label>
 
                 <label class="block">

@@ -149,7 +149,7 @@
                 <h3 class="text-lg font-semibold text-white">No estais de acuerdo</h3>
                 <p class="mt-2 text-sm text-[color:var(--arena-muted)] arena-body-text">
                     Si rechazas el reporte del rival, el combate pasa a disputa y lo resuelve
-                    moderacion mirando las capturas de los dos.
+                    moderación mirando las capturas de los dos.
                 </p>
             </article>
 

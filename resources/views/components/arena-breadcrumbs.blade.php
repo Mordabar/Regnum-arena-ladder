@@ -3,7 +3,7 @@
 ])
 
 @if(count($items) > 0)
-<nav {{ $attributes->class(['flex items-center gap-2 text-sm']) }} aria-label="Breadcrumb">
+<nav {{ $attributes->class(['arena-breadcrumbs flex items-center gap-2 text-sm']) }} aria-label="Breadcrumb">
     <a href="{{ route('home') }}" aria-label="Inicio" class="text-[color:var(--arena-muted)] hover:text-[color:var(--arena-gold-soft)] transition-colors">
         <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/></svg>
     </a>

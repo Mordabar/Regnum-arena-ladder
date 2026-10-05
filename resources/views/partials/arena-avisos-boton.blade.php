@@ -40,7 +40,7 @@
         position: fixed;
         right: 16px;
         top: calc(env(safe-area-inset-top, 0px) + 24px);
-        z-index: 60;
+        z-index: 44;
         display: flex;
         align-items: center;
         gap: 8px;
@@ -147,7 +147,10 @@
         font-size: 12px;
         font-weight: 600;
         line-height: 1.2;
-        white-space: nowrap;
+        white-space: normal;
+        max-width: min(260px, calc(100vw - 32px));
+        text-align: center;
+        min-height: 36px;
         color: #ffd2cc;
         cursor: pointer;
         transform-origin: top right;
@@ -229,7 +232,7 @@
 
         var apagado = estado === 'inactivo' || estado === 'no-soportado';
 
-        // En escritorio el flotante no se ve: gastar ahi la pista de la
+        // En escritorio el flotante no se ve: gastar ahí la pista de la
         // visita la dejaria sin enseñar si luego se estrecha la ventana.
         var visible = window.getComputedStyle(caja).display !== 'none';
 

@@ -112,7 +112,7 @@
         @endif
         <li><strong class="text-white">Competitivo y amistoso:</strong> el competitivo mueve el ranking y cuenta para la temporada. El amistoso es PvP sin ranking: se empareja y se juega igual, pero no suma ni resta puntos, no se reporta y no se sanciona. Cuando una temporada acaba, el ladder se pausa y solo quedan los amistosos hasta que se abra otra.</li>
         <li><strong class="text-white">Reporte:</strong> quien reporta sube entre 1 y 3 capturas. El rival confirma o rechaza; si deja pasar el plazo sin decir nada, el reporte se da por bueno.</li>
-        <li><strong class="text-white">Rechazo:</strong> rechazar manda el enfrentamiento a disputa y lo revisa moderacion. Puedes adjuntar tus propias capturas, y con ellas se resuelve mucho antes.</li>
+        <li><strong class="text-white">Rechazo:</strong> rechazar manda el enfrentamiento a disputa y lo revisa moderación. Puedes adjuntar tus propias capturas, y con ellas se resuelve mucho antes.</li>
         <li><strong class="text-white">Sin reporte:</strong> si nadie reporta antes de que se agote el reloj, el enfrentamiento se anula y no reparte puntos.</li>
         <li><strong class="text-white">Abandonos:</strong> rechazar cruces a menudo o abandonar partidas baja tu confianza y bloquea la cola un tiempo.</li>
     </ul>

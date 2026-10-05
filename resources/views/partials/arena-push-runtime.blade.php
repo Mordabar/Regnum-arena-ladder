@@ -11,7 +11,7 @@
          llegaba con la pestaña de lado.
        - Cada interruptor se pintaba con su propia idea del estado: uno verde
          por el ajuste guardado y, 400 ms despues, otro rojo por la
-         suscripcion. De ahi el "se pone verde y luego rojo".
+         suscripcion. De ahí el "se pone verde y luego rojo".
        - Un toque lanzaba dos suscripciones en paralelo.
 
      Ahora todo pasa por aqui: un estado, una forma de cambiarlo y un pintor

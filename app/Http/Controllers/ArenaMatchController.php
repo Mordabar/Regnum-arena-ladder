@@ -398,8 +398,8 @@ class ArenaMatchController extends Controller
             'rejection_files' => 'nullable|array|max:3',
             'rejection_files.*' => 'file|mimes:jpg,jpeg,png,webp,gif,bmp,avif,heic,heif|max:10240',
         ], [
-            'rejection_note.required' => 'Explica por que lo rechazas: sin motivo moderacion no tiene por donde empezar.',
-            'rejection_note.min' => 'Cuenta un poco mas: con dos palabras moderacion no puede decidir nada.',
+            'rejection_note.required' => 'Explica por que lo rechazas: sin motivo moderación no tiene por donde empezar.',
+            'rejection_note.min' => 'Cuenta un poco mas: con dos palabras moderación no puede decidir nada.',
             'rejection_files.max' => 'Solo puedes subir hasta 3 capturas con el rechazo.',
             'rejection_files.*.mimes' => 'Las capturas deben ser JPG, PNG, WEBP, GIF, BMP, AVIF o HEIC.',
             'rejection_files.*.max' => 'Cada captura no puede superar los 10 MB.',
@@ -450,7 +450,7 @@ class ArenaMatchController extends Controller
         }
 
         return redirect()->route('lobby', ['mode' => $report->match->arena_mode])
-            ->with('warning', 'Reporte rechazado. El enfrentamiento pasa a disputa y lo revisa moderacion.');
+            ->with('warning', 'Reporte rechazado. El enfrentamiento pasa a disputa y lo revisa moderación.');
     }
 
     public function evidence(MatchReport $report, string $slot)
@@ -486,7 +486,7 @@ class ArenaMatchController extends Controller
      * Un jugador avisa de que alguien se fue del combate.
      *
      * No sanciona a nadie: manda el enfrentamiento a disputa y lo deja en manos
-     * de moderacion. Se puede señalar a un rival o al propio compañero.
+     * de moderación. Se puede señalar a un rival o al propio compañero.
      */
     public function reportAbandonment(Request $request, ArenaAbandonmentService $abandonmentService)
     {
@@ -506,7 +506,7 @@ class ArenaMatchController extends Controller
         ], [
             'note.required' => 'Explica que paso: sin motivo no hay nada que revisar.',
             'note.min' => 'Escribe algo mas de detalle sobre el abandono.',
-            'files.*.mimes' => 'Las pruebas tienen que ser imagenes JPG, PNG, WEBP, GIF, BMP, AVIF o HEIC.',
+            'files.*.mimes' => 'Las pruebas tienen que ser imágenes JPG, PNG, WEBP, GIF, BMP, AVIF o HEIC.',
             'files.*.max' => 'Cada captura debe pesar menos de 5 MB.',
         ]);
 

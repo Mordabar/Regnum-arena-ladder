@@ -6,7 +6,7 @@
      idempotente: repintar la misma lista dos veces no duplica nada.
 
      Vive en el layout y no junto al panel porque el panel se repinta solo con
-     cada cambio de estado, y un script que solo existiera ahi se perderia en
+     cada cambio de estado, y un script que solo existiera ahí se perderia en
      el primer repintado. --}}
 <script>
 (function () {
@@ -105,7 +105,7 @@
         if (!log) { return; }
 
         if (!pings.length) {
-            log.innerHTML = '<li class="arena-chat-empty">Todavia no ha dicho nada nadie. Avisa tu primero.</li>';
+            log.innerHTML = '<li class="arena-chat-empty">Todavía no ha dicho nada nadie. Avisa tu primero.</li>';
             return;
         }
 
@@ -241,7 +241,7 @@
 
         log._arenaPegado = (log.scrollHeight - log.scrollTop - log.clientHeight) < 24;
 
-        // Volver al fondo es haber leido lo que habia: la chapa se apaga ahi.
+        // Volver al fondo es haber leido lo que habia: la chapa se apaga ahí.
         if (log._arenaPegado) {
             var caja = log.closest('[data-pings]');
 

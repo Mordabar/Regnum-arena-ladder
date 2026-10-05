@@ -497,7 +497,7 @@
 
                 <label class="block">
                     <span class="mb-2 block text-sm font-medium text-[color:var(--arena-text)] arena-body-text">Nota opcional</span>
-                    <textarea name="reporter_note" rows="3" class="arena-textarea" placeholder="Contexto extra para el rival o el admin"></textarea>
+                    <textarea name="reporter_note" rows="3" class="arena-textarea" placeholder="{{ __('Contexto extra para el rival o el admin') }}"></textarea>
                 </label>
 
                 <button type="submit" id="btn-submit-report" class="arena-btn w-full">
@@ -627,7 +627,7 @@
                 {{--
                     El rastro del arbitraje. Estaba todo guardado -quien
                     rechazo, con que motivo, con que capturas, y que dijo
-                    moderacion al resolver- pero no se pintaba en ningun sitio,
+                    moderación al resolver- pero no se pintaba en ningun sitio,
                     asi que ante una queja no habia nada que enseñar y habia que
                     ir a mirarlo a la base de datos. Queda aqui, en el mismo
                     enfrentamiento, para quien lo jugo y para quien lo revisa.
@@ -717,7 +717,7 @@
                             @csrf
                             <input type="hidden" name="report_id" value="{{ $report->id }}">
                             <input type="hidden" name="player_id" value="{{ $viewerPlayer['player_id'] }}">
-                            <textarea name="confirmation_note" rows="2" maxlength="500" class="arena-textarea mb-2 w-full" placeholder="Comentario opcional para el rival" aria-label="Comentario opcional"></textarea>
+                            <textarea name="confirmation_note" rows="2" maxlength="500" class="arena-textarea mb-2 w-full" placeholder="{{ __('Comentario opcional para el rival') }}" aria-label="Comentario opcional"></textarea>
                             <button type="submit" class="arena-btn-safe w-full">
                                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
                                 Confirmar reporte
@@ -737,7 +737,7 @@
                         </p>
                         {{-- Mismo formulario que el del lobby, capturas
                              incluidas: si aqui no se pudieran adjuntar, quien
-                             conteste desde esta pantalla llegaria a moderacion
+                             conteste desde esta pantalla llegaria a moderación
                              sin nada que enseñar. --}}
                         <form method="POST" action="{{ route('matches.report.reject') }}" class="space-y-4"
                               enctype="multipart/form-data">
@@ -745,7 +745,7 @@
                             <input type="hidden" name="report_id" value="{{ $report->id }}">
                             <input type="hidden" name="player_id" value="{{ $viewerPlayer['player_id'] }}">
                             <textarea name="rejection_note" rows="3" class="arena-textarea" required
-                                      placeholder="Explica por qué rechazas el reporte"></textarea>
+                                      placeholder="{{ __('Explica por qué rechazas el reporte') }}"></textarea>
                             <label class="block">
                                 <span class="mb-2 block text-sm font-medium arena-body-text">Tus capturas (opcional, hasta 3)</span>
                                 <input type="file" name="rejection_files[]" accept="image/*" class="arena-field text-sm" multiple>
@@ -867,13 +867,13 @@
     {{--
         Aqui vivia un bloque "Notas del sistema" que volcaba `matches.notes` en
         crudo a cualquier jugador del combate. Esa columna no es informacion
-        para el jugador: es el registro interno de moderacion. Se le anotan las
+        para el jugador: es el registro interno de moderación. Se le anotan las
         sanciones con su letra pequeña -"Abandonment penalty applied a X (12h
         lock, strike 1)"-, los motivos de cancelacion y las notas que escribe
         un admin al resolver.
 
         O sea, cualquiera de los cuatro leia que sancion se le habia puesto a
-        otro y cuanto le duraba, y las notas de moderacion se filtraban enteras,
+        otro y cuanto le duraba, y las notas de moderación se filtraban enteras,
         incluso en un combate en curso. El rastro que SI le concierne al jugador
         ya lo tiene contado en su idioma: el expediente del arbitraje y el
         bloque de avisos de abandono.

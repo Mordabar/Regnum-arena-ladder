@@ -2,7 +2,7 @@
 
      Cuando salta el cruce -y otra vez cuando se confirma y empieza el
      combate- lo unico que hay que hacer ya mismo es mirar DONDE se queda. El
-     nombre de la zona estaba ahi, en dorado y pulsable, pero no se leia como
+     nombre de la zona estaba ahí, en dorado y pulsable, pero no se leia como
      un boton: la gente lo miraba y seguia buscando el mapa en otra parte.
 
      Late hasta que se abre el mapa una vez en ese enfrentamiento. Despues se

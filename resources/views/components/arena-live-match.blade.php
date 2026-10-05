@@ -40,9 +40,9 @@
     $reportOpen = $viewerCanReport;
 
     $claimedWinnerLabel = match ($report?->claimed_winner_team) {
-        'draw' => 'nadie, fue empate',
-        $lineup['own_side'] ?? null => 'tu equipo',
-        default => 'su equipo',
+        'draw' => __('nadie, fue empate'),
+        $lineup['own_side'] ?? null => __('tu equipo'),
+        default => __('su equipo'),
     };
 @endphp
 
@@ -131,7 +131,7 @@
         </button>
 
         <p class="arena-duel-zone-pista">
-            El sitio exacto va marcado en el mapa. Quedad ahi los
+            El sitio exacto va marcado en el mapa. Quedad ahí los
             {{ $teamSize * 2 }} y empezad cuando estéis todos.
         </p>
     </div>
@@ -258,13 +258,13 @@
                     <span class="mb-2 block text-sm font-medium arena-body-text">Capturas del combate terminado</span>
                     <input type="file" name="evidence_files[]" accept="image/*" class="arena-field text-sm" required multiple>
                     <span class="mt-2 block text-xs text-[color:var(--arena-muted)] arena-body-text">
-                        Entre 1 y 3 imagenes. JPG, PNG, WEBP, GIF, BMP, AVIF o HEIC, hasta 10 MB cada una.
+                        Entre 1 y 3 imágenes. JPG, PNG, WEBP, GIF, BMP, AVIF o HEIC, hasta 10 MB cada una.
                     </span>
                 </label>
 
                 <label class="block">
                     <span class="mb-2 block text-sm font-medium arena-body-text">Nota opcional</span>
-                    <textarea name="reporter_note" rows="2" class="arena-textarea" placeholder="Contexto extra para el rival o el admin"></textarea>
+                    <textarea name="reporter_note" rows="2" class="arena-textarea" placeholder="{{ __('Contexto extra para el rival o el admin') }}"></textarea>
                 </label>
 
                 <button type="submit" class="arena-btn w-full" data-report-submit><x-arena-icon name="send" class="h-4 w-4 shrink-0" />Enviar reporte</button>
@@ -290,7 +290,7 @@
                     @csrf
                     <input type="hidden" name="report_id" value="{{ $report->id }}">
                     <input type="hidden" name="player_id" value="{{ $lineup['viewer_player_id'] }}">
-                    <textarea name="confirmation_note" rows="2" maxlength="500" class="arena-textarea mb-2 w-full" placeholder="Comentario opcional para el rival (por ejemplo: buen combate)" aria-label="Comentario opcional"></textarea>
+                    <textarea name="confirmation_note" rows="2" maxlength="500" class="arena-textarea mb-2 w-full" placeholder="{{ __('Comentario opcional para el rival (por ejemplo: buen combate)') }}" aria-label="Comentario opcional"></textarea>
                     <button type="submit" class="arena-btn px-5 py-2.5"><x-arena-icon name="check" class="h-4 w-4 shrink-0" />Confirmar resultado</button>
                 </form>
                 <button type="button" class="arena-btn-danger-ghost px-5 py-2.5" data-reject-toggle><x-arena-icon name="x" class="h-4 w-4 shrink-0" />Rechazar y explicar</button>
@@ -310,7 +310,7 @@
                     || $errors->has('error');
             @endphp
 
-            {{-- El rechazo admite capturas. Sin ellas moderacion tiene la
+            {{-- El rechazo admite capturas. Sin ellas moderación tiene la
                  version del otro con pruebas y la tuya sin ninguna, asi que se
                  pide aunque no se obligue: quien no tomo captura tiene que
                  poder rechazar igual, o se tragaria un resultado falso. --}}
@@ -331,7 +331,7 @@
                 <label class="block">
                     <span class="mb-2 block text-sm font-medium arena-body-text">Por que lo rechazas</span>
                     <textarea name="rejection_note" rows="3" class="arena-textarea" required minlength="5"
-                              placeholder="Cuenta que paso de verdad. Lo lee moderacion, no el rival.">{{ old('rejection_note') }}</textarea>
+                              placeholder="{{ __('Cuenta qué pasó de verdad. Lo lee moderación, no el rival.') }}">{{ old('rejection_note') }}</textarea>
                 </label>
                 <label class="block mt-4">
                     <span class="mb-2 block text-sm font-medium arena-body-text">Tus capturas (opcional, hasta 3)</span>

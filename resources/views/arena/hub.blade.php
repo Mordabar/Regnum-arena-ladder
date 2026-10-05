@@ -55,7 +55,7 @@
                          El reino y la subclase no: son lo que decide contra
                          quien peleas y como, y cambiarlos seria otro personaje
                          con el historial del anterior. --}}
-                    <x-arena-modal :id="'modal-rename-'.$player->id" :title="'Editar a ' . $player->cleanName()">
+                    <x-arena-modal :id="'modal-rename-'.$player->id" :title="__('Editar a :name', ['name' => $player->cleanName()])">
                         <form method="POST" action="{{ route('player.update', $player) }}" class="space-y-4">
                             @csrf
                             @method('PUT')

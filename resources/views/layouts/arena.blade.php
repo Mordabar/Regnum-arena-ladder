@@ -4,7 +4,7 @@
     @auth
     @if(app(\App\Services\WebPushService::class)->configurado())
     <script>
-    /* El push (y las notificaciones del sistema) solo en el movil: ahi el
+    /* El push (y las notificaciones del sistema) solo en el movil: ahí el
        navegador se duerme en cuanto se cambia de app y es la unica forma de
        avisar. En el escritorio basta el sonido con la pestaña en reposo. */
     (function () {
@@ -100,6 +100,7 @@
             };
         })();
     </script>
+    <a href="#contenido" class="arena-skip">{{ __('Saltar al contenido') }}</a>
     {{-- ── NAVBAR ── --}}
     <nav class="arena-navbar sticky top-0 z-40" data-arena-navbar>
         <div class="mx-auto max-w-7xl px-4 py-3">
@@ -267,7 +268,7 @@
     </div>
 
     {{-- ── MAIN CONTENT ── --}}
-    <main class="flex-1 pb-16 pt-4">
+    <main id="contenido" class="flex-1 pb-16 pt-4" tabindex="-1">
         @if(session('success') || session('warning') || session('error') || $errors->any())
             <div class="mx-auto max-w-7xl px-4 pt-6">
                 @if(session('success'))
@@ -478,7 +479,7 @@
            un script que llegara dentro del trozo nuevo no se ejecutaria, y uno
            atado a los nodos viejos se iria con ellos. */
         (function () {
-            /* Subir 3 imagenes tarda. Sin senal el jugador vuelve a pulsar y
+            /* Subir 3 imágenes tarda. Sin senal el jugador vuelve a pulsar y
                manda el reporte dos veces. */
             document.addEventListener('submit', function (event) {
                 var form = event.target.closest('[data-report-form]');
@@ -586,6 +587,30 @@
     </script>
 
 
+    {{-- El selector de archivos del navegador dice "Choose Files" en su idioma, no
+         en el de la pagina: se esconde y se pone un boton propio, traducido. --}}
+    <script>
+        (function () {
+            var T = { boton: @json(__('Elegir archivos')), ninguno: @json(__('Ningún archivo')), varios: @json(__(':n archivos')) };
+            document.querySelectorAll('input[type=file]').forEach(function (inp) {
+                var caja = document.createElement('span');
+                caja.className = 'arena-file';
+                caja.setAttribute('translate', 'no');
+                var b = document.createElement('button');
+                b.type = 'button'; b.className = 'arena-file-btn'; b.textContent = T.boton;
+                var t = document.createElement('span');
+                t.className = 'arena-file-txt'; t.textContent = T.ninguno;
+                caja.appendChild(b); caja.appendChild(t);
+                inp.classList.add('arena-file-nativo');
+                inp.parentNode.insertBefore(caja, inp);
+                b.addEventListener('click', function () { inp.click(); });
+                inp.addEventListener('change', function () {
+                    var n = inp.files ? inp.files.length : 0;
+                    t.textContent = n === 0 ? T.ninguno : (n === 1 ? inp.files[0].name : T.varios.replace(':n', n));
+                });
+            });
+        })();
+    </script>
     @stack('scripts')
 </body>
 </html>

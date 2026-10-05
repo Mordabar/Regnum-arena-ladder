@@ -73,7 +73,7 @@
                     // del rival solo se enseñan con el enfrentamiento cerrado.
                     // Si hay dos rivales de la misma subclase se les numera,
                     // porque "Cazador rival señala a Cazador rival" no dice
-                    // nada, y de ahi sale un strike y un bloqueo.
+                    // nada, y de ahí sale un strike y un bloqueo.
                     $nombre = function (?\App\Models\Player $p, int $id) use ($match, $yo, $showRivalNames) {
                         if ($id === $yo) { return 'tú'; }
                         if (!$p) { return 'un jugador retirado'; }
