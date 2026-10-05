@@ -24,7 +24,8 @@
         ? ($teamQueues[$viewerPlayer['player_id']] ?? null)
         : null;
     $report = $match->report;
-    $canReport = $match->status === 'in_progress' && !$report && $viewerPlayer;
+    $esAmistoso = $match->isFriendly();
+    $canReport = $match->status === 'in_progress' && !$report && $viewerPlayer && !$esAmistoso;
     $canConfirmReport = $report && $report->status === 'pending_confirmation' && $viewerSide !== $report->reporting_team;
     $canRejectReport = $canConfirmReport;
     $reportPendingConfirmation = $report && $report->status === 'pending_confirmation';
@@ -433,6 +434,29 @@
         </section>
     </div>
 
+    {{-- ── AMISTOSO ──
+         Un amistoso no se reporta ni se puntua: no hay formulario, no hay
+         capturas y no hay disputa. Solo se avisa de que ya acabo. --}}
+    @if($esAmistoso)
+        <section id="friendly-panel" class="arena-panel arena-friendly-panel mb-6 p-6 arena-animate-in arena-stagger-3">
+            <p class="arena-kicker">Amistoso</p>
+            <h2 class="mt-1 text-2xl font-semibold text-white">PvP sin ranking</h2>
+            <p class="mt-2 max-w-2xl text-sm text-[color:var(--arena-muted)] arena-body-text">
+                Esta partida no suma ni resta puntos ni se reporta. Pelead, y cuando terminéis
+                pulsad el botón para liberar la cola.
+            </p>
+            @if($viewerPlayer && $match->status === 'in_progress')
+                <form method="POST" action="{{ route('matches.friendly.finish') }}" class="mt-4">
+                    @csrf
+                    <input type="hidden" name="match_id" value="{{ $match->id }}">
+                    <input type="hidden" name="player_id" value="{{ $viewerPlayer['player_id'] }}">
+                    <button type="submit" class="arena-btn"><x-arena-icon name="send" class="h-4 w-4 shrink-0" />Terminar amistoso</button>
+                </form>
+            @elseif($match->status === 'completed')
+                <p class="mt-4 text-sm text-[color:var(--arena-sand)]">Amistoso terminado.</p>
+            @endif
+        </section>
+    @else
     {{-- ── REPORT & EVIDENCE PANEL ── --}}
     <section id="report-panel" class="arena-panel mb-6 p-6 arena-animate-in arena-stagger-3">
         <p class="arena-kicker">{{ $canReport ? 'Reporte' : 'Evidencia' }}</p>
@@ -732,6 +756,7 @@
             </div>
         @endif
     </section>
+    @endif
 
     {{-- El boton de avisar vive fuera del panel de accion a proposito.
          Dentro dependia de $canReport, que exige que NO exista reporte de
@@ -739,7 +764,7 @@
          justo el momento en que la victima necesita avisar- y tampoco salia en
          disputa, que el servicio si acepta. La mitad de los estados validos
          eran inalcanzables desde la interfaz. --}}
-    @if(in_array($match->status, ['in_progress', 'disputed'], true) && $viewerPlayer)
+    @if(!$esAmistoso && in_array($match->status, ['in_progress', 'disputed'], true) && $viewerPlayer)
         @include('matches.partials.abandonment', ['match' => $match, 'viewerPlayer' => $viewerPlayer])
     @endif
 

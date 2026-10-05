@@ -16,6 +16,7 @@
     $activeFilters = collect([
         $status ? \App\Models\ArenaMatch::STATUSES[$status] ?? $status : null,
         $mode,
+        ($kind ?? null) === 'friendly' ? 'Amistoso' : (($kind ?? null) === 'ranked' ? 'Competitivo' : null),
         $search !== '' ? '"' . $search . '"' : null,
     ])->filter();
 @endphp
@@ -44,6 +45,15 @@
             @foreach(array_keys(\App\Support\ArenaMode::MODES) as $key)
                 <option value="{{ $key }}" @selected($mode === $key)>{{ $key }}</option>
             @endforeach
+        </select>
+    </div>
+
+    <div class="ap-field">
+        <label class="ap-label" for="f-kind">Tipo</label>
+        <select name="kind" id="f-kind" class="ap-select">
+            <option value="">Todos</option>
+            <option value="ranked" @selected(($kind ?? null) === 'ranked')>Competitivo</option>
+            <option value="friendly" @selected(($kind ?? null) === 'friendly')>Amistoso</option>
         </select>
     </div>
 
@@ -110,7 +120,7 @@
                             <span style="color: var(--ap-text-subtle)">vs</span>
                             <x-admin.realm :realm="$match->team_b_realm" />
                         </span>
-                        <div class="ap-list-meta">{{ $match->arena_mode ?: '2v2' }}</div>
+                        <div class="ap-list-meta">{{ $match->arena_mode ?: '2v2' }}@if($match->isFriendly()) · Amistoso @endif</div>
                     </td>
                     <td>{{ $match->zone_name }}</td>
                     <td><x-admin.status :value="$match->status" /></td>

@@ -37,6 +37,29 @@
                     @endforeach
                 </div>
 
+                {{-- Tipo de partida. El competitivo no se enciende aqui: esta
+                     abierto mientras haya una temporada en juego (pantalla
+                     Temporadas). El amistoso si, como una modalidad mas. --}}
+                <div class="mt-4 pt-4 border-t border-[color:var(--ap-line)]">
+                    <label class="ap-switch-row">
+                        <span class="min-w-0">
+                            <span class="ap-switch-title">Amistosos</span>
+                            <span class="ap-section-note">PvP sin ranking en las tres modalidades: se empareja y se juega, pero no suma ni resta PL, MMR ni victorias, y no se reporta. Cuando no hay temporada en juego es lo unico que queda.</span>
+                        </span>
+                        <input type="hidden" name="friendly_enabled" value="0">
+                        <input type="checkbox" class="ap-checkbox" name="friendly_enabled" value="1" @checked($settings['friendly_enabled'])>
+                    </label>
+                    <p class="ap-hint mt-2">
+                        Competitivo:
+                        @if($settings['ranked_open'])
+                            <b>abierto</b> (hay una temporada en juego).
+                        @else
+                            <b>en pausa</b> (no hay temporada en juego).
+                        @endif
+                        Se gestiona en <a href="{{ route('admin.seasons') }}" class="underline">Temporadas</a>.
+                    </p>
+                </div>
+
                 @if(!$settings['mode_1v1_enabled'] && !$settings['mode_2v2_enabled'] && !$settings['mode_3v3_enabled'])
                     <div class="ap-flash ap-flash-danger mt-3 mb-0">
                         <x-admin.icon name="alert" class="h-4 w-4 shrink-0" />

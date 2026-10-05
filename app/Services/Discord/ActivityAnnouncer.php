@@ -85,17 +85,20 @@ class ActivityAnnouncer
         }
 
         $mode = ArenaMode::resolve($queue->arena_mode);
+        $ranked = $queue->is_ranked !== false;
 
         // Se anuncia cuando no habia nadie mas esperando: la entrada que abre
         // la cola. Un grupo entra con varias filas a la vez (una por
         // miembro, mismo team_id), asi que se descuenta el grupo entero y no
         // solo esta fila; si no, una party nunca se anunciaba. Cada fila del
         // grupo llega aqui, y el limite de frecuencia deja pasar solo una.
-        if ($this->waitingOutsideGroup($queue, $mode) > 0) {
+        if ($this->waitingOutsideGroup($queue, $mode, $ranked) > 0) {
             return;
         }
 
-        if (!$this->throttle('queue:' . $mode, 'queue_every_minutes')) {
+        // Cada tipo tiene su cola, su aviso y su limite: un amistoso esperando
+        // no tapa al competitivo ni al reves.
+        if (!$this->throttle('queue:' . $mode . ($ranked ? '' : ':amistoso'), 'queue_every_minutes')) {
             return;
         }
 
@@ -105,17 +108,18 @@ class ActivityAnnouncer
         $quien = $queue->team_id ? 'Un grupo' : 'Un guerrero';
 
         $this->post(
-            '⚔️ ' . ArenaMode::displayName($mode) . ': hay alguien esperando rival',
+            ($ranked ? '⚔️ ' . ArenaMode::displayName($mode) : '🤝 Amistoso ' . $mode) . ': hay alguien esperando rival',
             "{$quien} de **{$realmName}** acaba de entrar en cola. {$others}: es vuestro momento.",
         );
     }
 
     /** Cuantos esperan en la modalidad sin contar el grupo de esta fila. */
-    private function waitingOutsideGroup(Queue $queue, string $mode): int
+    private function waitingOutsideGroup(Queue $queue, string $mode, bool $ranked = true): int
     {
         return Queue::query()
             ->where('status', 'waiting')
             ->where('arena_mode', $mode)
+            ->where('is_ranked', $ranked)
             ->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
             ->whereNotIn('player_id', $this->lab->testPlayersQuery()->select('players.id'))
             ->when(
@@ -142,7 +146,7 @@ class ActivityAnnouncer
             return;
         }
 
-        if (!$this->throttle('match', 'match_every_minutes')) {
+        if (!$this->throttle($match->isFriendly() ? 'match:amistoso' : 'match', 'match_every_minutes')) {
             return;
         }
 
@@ -153,7 +157,7 @@ class ActivityAnnouncer
         // publico donde se esta peleando ahora mismo invitaria a terceros a
         // meterse en el combate.
         $this->post(
-            '🔥 Arranca un ' . ArenaMode::label($match->arena_mode),
+            ($match->isFriendly() ? '🤝 Arranca un amistoso ' : '🔥 Arranca un ') . ArenaMode::label($match->arena_mode),
             "**{$a}** contra **{$b}**. La arena está viva: entra y busca el tuyo.",
         );
     }
@@ -171,14 +175,17 @@ class ActivityAnnouncer
         }
 
         $byMode = [];
+        $friendlyByMode = [];
         foreach (ArenaMode::enabled() as $mode) {
             $byMode[$mode] = array_sum($this->waitingByRealm($mode));
+            $friendlyByMode[$mode] = array_sum($this->waitingByRealm($mode, false));
         }
 
         $waiting = array_sum($byMode);
+        $friendlyWaiting = array_sum($friendlyByMode);
         $inProgress = $this->matchesInProgress();
 
-        if ($waiting === 0 && $inProgress === 0) {
+        if ($waiting === 0 && $friendlyWaiting === 0 && $inProgress === 0) {
             return;
         }
 
@@ -190,6 +197,10 @@ class ActivityAnnouncer
         $lines = [];
         if ($waiting > 0) {
             $lines[] = "**{$waiting}** " . ($waiting === 1 ? 'guerrero esperando' : 'guerreros esperando') . " rival ({$parts})";
+        }
+        if ($friendlyWaiting > 0) {
+            $partsF = collect($friendlyByMode)->filter()->map(fn (int $n, string $m) => $m . ': ' . $n)->implode(' · ');
+            $lines[] = "🤝 **{$friendlyWaiting}** " . ($friendlyWaiting === 1 ? 'esperando' : 'esperando') . " un amistoso ({$partsF})";
         }
         if ($inProgress > 0) {
             $lines[] = "**{$inProgress}** " . ($inProgress === 1 ? 'combate en marcha' : 'combates en marcha');
@@ -267,12 +278,13 @@ class ActivityAnnouncer
      *
      * @return array<string, int>
      */
-    private function waitingByRealm(string $mode): array
+    private function waitingByRealm(string $mode, bool $ranked = true): array
     {
         return Queue::query()
             ->join('players', 'players.id', '=', 'queues.player_id')
             ->where('queues.status', 'waiting')
             ->where('queues.arena_mode', $mode)
+            ->where('queues.is_ranked', $ranked)
             ->where(fn ($q) => $q->whereNull('queues.expires_at')->orWhere('queues.expires_at', '>', now()))
             ->whereNotIn('queues.player_id', $this->lab->testPlayersQuery()->select('players.id'))
             ->groupBy('players.realm')

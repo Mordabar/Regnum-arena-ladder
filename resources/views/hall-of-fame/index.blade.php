@@ -14,6 +14,8 @@
 <div class="mx-auto max-w-6xl px-4 py-8">
     <x-arena-breadcrumbs :items="[['label' => 'Salon de la Fama']]" class="mb-6" />
 
+    <x-arena-pause-banner cta="lobby" />
+
     <section class="arena-panel-strong mb-8 p-6 md:p-8 arena-animate-in">
         <p class="arena-kicker">Legado competitivo</p>
         <h1 class="mt-3 text-4xl font-bold text-[color:var(--arena-gold-soft)]">Salon de la Fama</h1>

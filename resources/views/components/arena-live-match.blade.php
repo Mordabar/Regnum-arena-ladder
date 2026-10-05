@@ -29,7 +29,8 @@
     // Que le toca hacer a quien mira: subir el reporte, contestar al del rival,
     // o solo esperar. Todo ocurre en esta misma pantalla.
     $report = $match->report;
-    $viewerCanReport = $lineup && $match->status === 'in_progress' && !$report;
+    $esAmistoso = $match->isFriendly();
+    $viewerCanReport = $lineup && $match->status === 'in_progress' && !$report && !$esAmistoso;
     $viewerCanAnswerReport = $lineup
         && $report
         && $report->status === 'pending_confirmation'
@@ -57,7 +58,7 @@
 
     <header class="arena-duel-panel-head">
         <div class="min-w-0">
-            <p class="arena-kicker">{{ $match->match_code }} · {{ \App\Support\ArenaMode::displayName($match->arena_mode) }}</p>
+            <p class="arena-kicker">{{ $match->match_code }} · {{ \App\Support\ArenaMode::displayName($match->arena_mode) }}@if($esAmistoso) · <span class="arena-kind-tag">Amistoso</span>@endif</p>
             <h2 id="arenaLiveTitle" class="arena-duel-panel-title">
                 @if($reportPending)
                     Esperando confirmación del rival
@@ -209,6 +210,22 @@
         @if($running)
             <x-arena-match-pings :match="$match" :lineup="$lineup" />
         @endif
+        </div>
+    @endif
+
+    @if($lineup && $esAmistoso && $match->status === 'in_progress')
+        {{-- En un amistoso no hay reporte: se pelea y se avisa de que acabo. --}}
+        <div class="arena-friendly-end">
+            <p>
+                <b>Amistoso · sin ranking.</b>
+                No suma ni resta puntos ni hace falta reportar. Cuando acabéis, libera la cola.
+            </p>
+            <form method="POST" action="{{ route('matches.friendly.finish') }}">
+                @csrf
+                <input type="hidden" name="match_id" value="{{ $match->id }}">
+                <input type="hidden" name="player_id" value="{{ $lineup['viewer_player_id'] }}">
+                <button type="submit" class="arena-btn w-full"><x-arena-icon name="send" class="h-4 w-4 shrink-0" />Terminar amistoso</button>
+            </form>
         </div>
     @endif
 

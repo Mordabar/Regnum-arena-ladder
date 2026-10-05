@@ -41,7 +41,7 @@
         <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2">
                 <x-admin.status :value="$match->status" />
-                <x-admin.mode :mode="$match->arena_mode" />
+                <x-admin.mode :mode="$match->arena_mode" :friendly="$match->isFriendly()" />
                 <span class="ap-badge ap-badge-neutral">{{ $match->queue_mode === 'premade' ? 'Premade' : 'Cola aleatoria' }}</span>
             </div>
             <p class="ap-section-note mt-2">

@@ -11,6 +11,10 @@
 <div class="mx-auto max-w-7xl px-4 py-8">
     <x-arena-breadcrumbs :items="[['label' => 'Lobby']]" class="mb-5" />
 
+    {{-- Con el ladder en pausa lo primero que hay que saber es que se juega
+         amistoso. Solo sale entonces. --}}
+    <x-arena-pause-banner />
+
     {{-- ── CABECERA ───────────────────────────────────────────────────────
          El lobby y la arena eran dos paginas que ensenaban lo mismo, y desde
          el lobby "Pelear" te llevaba a otra pantalla en vez de a la cola. Ahora

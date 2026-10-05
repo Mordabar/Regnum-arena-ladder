@@ -103,7 +103,7 @@ class DiscordBotService
         $rivalTeam = $match->getTeamBySide($teamSide === 'team_a' ? 'team_b' : 'team_a');
 
         $embed = [
-            'title' => '🎯 ¡Match Encontrado!',
+            'title' => $match->isFriendly() ? '🤝 ¡Amistoso encontrado!' : '🎯 ¡Match Encontrado!',
             'description' => "**Codigo:** `{$match->match_code}`\n**Zona:** {$match->zone_name}\n**Reino rival:** {$rivalRealmName}",
             'color' => 0xFF6B35, // Orange color
             'fields' => [
@@ -123,11 +123,17 @@ class DiscordBotService
                     'value' => $match->queue_mode_name,
                     'inline' => true
                 ],
-                [
-                    'name' => 'Reporte',
-                    'value' => "Usa `/reportar {$match->report_token}` al terminar.",
-                    'inline' => false
-                ],
+                $match->isFriendly()
+                    ? [
+                        'name' => 'Amistoso',
+                        'value' => 'No mueve el ranking ni hace falta reportar. Cuando acabéis, termínalo desde la web.',
+                        'inline' => false,
+                    ]
+                    : [
+                        'name' => 'Reporte',
+                        'value' => "Usa `/reportar {$match->report_token}` al terminar.",
+                        'inline' => false
+                    ],
                 [
                     'name' => 'Aceptar desde la web',
                     'value' => $matchUrl,

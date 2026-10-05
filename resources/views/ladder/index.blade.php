@@ -8,6 +8,9 @@
     {{-- Breadcrumbs --}}
     <x-arena-breadcrumbs :items="[['label' => 'Ladder']]" class="mb-6" />
 
+    {{-- La tabla es la de la ultima temporada: sin una abierta no se mueve. --}}
+    <x-arena-pause-banner />
+
     {{-- ── HERO ── --}}
     <section class="arena-panel-strong mb-8 p-6 md:p-8 arena-animate-in">
         <div class="flex flex-wrap items-center justify-between gap-4">

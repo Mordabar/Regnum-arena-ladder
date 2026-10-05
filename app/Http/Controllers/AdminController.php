@@ -81,9 +81,21 @@ class AdminController extends Controller
             $mode = null;
         }
 
+        // Competitivo o amistoso: los amistosos no tienen reporte ni puntos y
+        // mezclados con el resto ensucian la lista de moderacion.
+        $kind = $request->string('kind')->value();
+
+        if ($kind === 'friendly') {
+            $query->where('is_ranked', false);
+        } elseif ($kind === 'ranked') {
+            $query->where('is_ranked', true);
+        } else {
+            $kind = null;
+        }
+
         $matches = $query->latest('created_at')->paginate(20)->withQueryString();
 
-        return view('admin.matches', compact('matches', 'status', 'search', 'mode'));
+        return view('admin.matches', compact('matches', 'status', 'search', 'mode', 'kind'));
     }
 
     public function moderationInbox()
@@ -670,6 +682,8 @@ class AdminController extends Controller
             'mode_1v1_enabled' => ArenaMode::isEnabled(ArenaMode::ONE_V_ONE),
             'mode_2v2_enabled' => ArenaMode::isEnabled(ArenaMode::TWO_V_TWO),
             'mode_3v3_enabled' => ArenaMode::isEnabled(ArenaMode::THREE_V_THREE),
+            'friendly_enabled' => \App\Support\Competition::friendlyEnabled(),
+            'ranked_open' => \App\Support\Competition::rankedOpen(),
             'home_tagline' => AppSetting::getValue('home_tagline', 'Conquest PvP 1v1, 2v2 y 3v3 en la Zona de Guerra'),
             'rules_excerpt' => AppSetting::getValue('rules_excerpt', 'Busca contrincante, quedad en el punto marcado, pelead y reporta el resultado. Cada combate te sube en el ladder: se juega por los premios de la temporada y por quedarse en el Salon de la Fama, donde solo aguantan los mejores.'),
             'support_contact' => AppSetting::getValue('support_contact', ''),
@@ -719,6 +733,7 @@ class AdminController extends Controller
             'mode_1v1_enabled' => 'nullable|boolean',
             'mode_2v2_enabled' => 'nullable|boolean',
             'mode_3v3_enabled' => 'nullable|boolean',
+            'friendly_enabled' => 'nullable|boolean',
             'home_tagline' => 'required|string|max:180',
             'rules_excerpt' => 'required|string|max:500',
             'support_contact' => 'nullable|string|max:180',
@@ -758,6 +773,12 @@ class AdminController extends Controller
             ArenaMode::TWO_V_TWO => $request->boolean('mode_2v2_enabled'),
             ArenaMode::THREE_V_THREE => $request->boolean('mode_3v3_enabled'),
         ]);
+
+        // Solo si el formulario lo trae: una pestaña de ajustes abierta desde
+        // antes de existir el interruptor no puede apagar los amistosos.
+        if ($request->has('friendly_enabled')) {
+            AppSetting::setValue(\App\Support\Competition::SETTING_FRIENDLY, $request->boolean('friendly_enabled') ? '1' : '0', 'runtime', 'boolean', true);
+        }
 
         AppSetting::setValue('season_name', $validated['season_name'], 'branding', 'string', true);
         AppSetting::setValue('home_tagline', $validated['home_tagline'], 'branding', 'string', true);

@@ -11,6 +11,7 @@ use App\Services\ArenaMatchmakingService;
 use App\Services\MatchLineupService;
 use App\Services\QueuePulseService;
 use App\Support\ArenaMode;
+use App\Support\Competition;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -102,6 +103,14 @@ class LobbyController extends Controller
 
         $matchmakingService = app(ArenaMatchmakingService::class);
 
+        // Competitivo o amistoso. Lo que se mira es lo pedido en la URL, salvo
+        // que ese tipo este cerrado (el ladder en pausa): entonces el que si
+        // se puede jugar. Con una cola o combate en marcha manda el suyo mas
+        // abajo, porque cambiar de pestaña no cambia lo que ya esta jugando.
+        $kind = Competition::resolve($request->query('kind'));
+        $kindsOpen = Competition::open();
+        $rankedPaused = !Competition::rankedOpen();
+
         $user = Auth::user();
         $players = $user->players()
             ->where('is_active', true)
@@ -123,9 +132,13 @@ class LobbyController extends Controller
             $currentQueue = Queue::query()
                 ->whereIn('status', ['waiting', 'matched', 'accepted'])
                 ->whereIn('player_id', $playerIds)
-                ->select('id', 'player_id', 'queue_type', 'arena_mode', 'joined_at', 'status', 'match_id', 'team_id', 'expires_at')
+                ->select('id', 'player_id', 'queue_type', 'arena_mode', 'is_ranked', 'joined_at', 'status', 'match_id', 'team_id', 'expires_at')
                 ->latest('joined_at')
                 ->first();
+
+            if ($currentQueue) {
+                $kind = Competition::kindOf($currentQueue->is_ranked !== false);
+            }
 
             if ($currentQueue?->match_id) {
                 $currentMatch = ArenaMatch::find($currentQueue->match_id);
@@ -168,7 +181,7 @@ class LobbyController extends Controller
         // para poder decirle que le falta en vez de un numero suelto.
         $pulseRealm = $players->firstWhere('id', $currentQueue?->player_id)?->realm
             ?? $players->first()?->realm;
-        $queuePulse = app(QueuePulseService::class)->forMode($arenaMode, $pulseRealm);
+        $queuePulse = app(QueuePulseService::class)->forMode($arenaMode, $pulseRealm, $kind === Competition::RANKED);
 
         // Alineaciones del enfrentamiento. Se calculan aqui, y no solo para el
         // cruce pendiente, porque el combate entero ocurre en esta pantalla: el
@@ -199,6 +212,10 @@ class LobbyController extends Controller
             ? $players->firstWhere('id', $requestedPlayerId)
             : null;
 
+        // Los enlaces solo llevan ?kind cuando no es el de por defecto: las
+        // direcciones de siempre se quedan como estaban.
+        $kindQuery = $kind === Competition::default() ? [] : ['kind' => $kind];
+
         return $this->deriveHubView(compact(
             'players',
             'premadeDailyLimit',
@@ -207,6 +224,10 @@ class LobbyController extends Controller
             'activeParty',
             'pendingInvites',
             'arenaMode',
+            'kind',
+            'kindsOpen',
+            'rankedPaused',
+            'kindQuery',
             'teamSize',
             'enabledModes',
             'queuePulse',
@@ -237,7 +258,9 @@ class LobbyController extends Controller
 
         $hasRoster = $players->isNotEmpty();
         $hasActiveState = (bool) ($currentQueue || $currentMatch);
-        $modesAreOpen = !empty($data['enabledModes']);
+        // Sin ningun tipo abierto -ladder en pausa y amistosos apagados- no hay
+        // nada que jugar, igual que con todas las modalidades apagadas.
+        $modesAreOpen = !empty($data['enabledModes']) && !empty($data['kindsOpen']);
 
         // Ojo: $canJoinQueue NO depende de $modesAreOpen. El bloque de abajo
         // tambien tiene las invitaciones y el panel de party (con "Abandonar

@@ -81,7 +81,7 @@ class QueueStateController extends Controller
             ->whereIn('status', ['waiting', 'matched', 'accepted'])
             // arena_mode se selecciona para poder contar el pulso de la cola en
             // la modalidad que el jugador esta jugando, no en la de por defecto.
-            ->select('id', 'player_id', 'queue_type', 'status', 'match_id', 'arena_mode')
+            ->select('id', 'player_id', 'queue_type', 'status', 'match_id', 'arena_mode', 'is_ranked')
             ->orderBy('id')
             ->get();
 
@@ -195,7 +195,8 @@ class QueueStateController extends Controller
             'state' => $pollState,
             'queue_pulse' => app(QueuePulseService::class)->forMode(
                 $activeQueues->first()?->arena_mode,
-                $pulseRealm
+                $pulseRealm,
+                $activeQueues->first()?->is_ranked !== false
             ),
             'pings' => $avisos->abierto($currentMatch)
                 ? $avisos->historial($currentMatch, $this->jugadorEnElCruce($currentMatch, $playerIds))

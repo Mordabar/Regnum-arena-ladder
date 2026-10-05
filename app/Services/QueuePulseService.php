@@ -25,7 +25,7 @@ class QueuePulseService
      *     hint: string|null
      * }
      */
-    public function forMode(?string $mode, ?string $viewerRealm = null): array
+    public function forMode(?string $mode, ?string $viewerRealm = null, bool $ranked = true): array
     {
         $mode = ArenaMode::normalize($mode) ?? ArenaMode::FALLBACK;
         $teamSize = ArenaMode::teamSize($mode);
@@ -34,6 +34,9 @@ class QueuePulseService
             ->join('players', 'players.id', '=', 'queues.player_id')
             ->where('queues.status', 'waiting')
             ->where('queues.arena_mode', $mode)
+            // Cada tipo tiene su propia cola: contar la gente de la otra diria
+            // que hay rival cuando no puede haberlo.
+            ->where('queues.is_ranked', $ranked)
             // Una cola caducada sigue en la tabla hasta que pasa el mantenimiento.
             // Contarla mentiria: diria que hay gente esperando que ya no esta.
             ->where(function ($query) {

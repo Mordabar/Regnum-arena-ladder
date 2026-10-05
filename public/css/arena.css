@@ -1222,6 +1222,25 @@ h1, h2, h3, h4, h5, h6,
     transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
 }
 .arena-console-arena:hover { color: var(--arena-sand); }
+/* El separador entre la modalidad y el tipo de partida. */
+.arena-console-arenas { flex-wrap: wrap; }
+.arena-console-arenas { max-width: calc(100% - 28px); }
+@media (max-width: 520px) {
+    .arena-console-arenas { max-width: calc(100% - 68px); }
+    .arena-console-arenas .arena-console-arena { padding: 6px 11px; font-size: 12px; }
+}
+.arena-console-arenas-sep {
+    align-self: stretch;
+    width: 1px;
+    margin: 4px 6px;
+    background: var(--arena-line-strong);
+}
+/* El amistoso, en azul acero: es el otro lado de la moneda, no un aviso. */
+.arena-console-arena.is-kind-friendly.is-active {
+    border-color: rgba(120, 180, 220, 0.55);
+    background: linear-gradient(180deg, rgba(34, 58, 78, 0.9), rgba(13, 24, 34, 0.95));
+    color: #b9dcf5;
+}
 .arena-console-arena.is-active {
     border-color: var(--arena-line-strong);
     background: linear-gradient(180deg, rgba(63, 45, 31, 0.9), rgba(22, 15, 11, 0.95));
@@ -3719,3 +3738,72 @@ h1, h2, h3, h4, h5, h6,
 .arena-wizard-step[data-races-filtered="1"] .arena-choice-realm,
 .arena-wizard-step[data-races-filtered="1"] .arena-choice-hint { display: none; }
 .arena-choice-note { font-size: 11.5px; color: var(--arena-muted); line-height: 1.4; }
+
+
+/* ── Amistosos ─────────────────────────────────────────────────────
+   Azul acero frente al oro del competitivo: el mismo juego, sin ranking. */
+.arena-kind-tag {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(120, 180, 220, 0.5);
+    background: rgba(34, 58, 78, 0.55);
+    color: #b9dcf5;
+    letter-spacing: 0.14em;
+}
+
+.arena-friendly-end {
+    display: grid;
+    gap: 12px;
+    margin-top: 14px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    border: 1px solid rgba(120, 180, 220, 0.35);
+    background:
+        radial-gradient(120% 140% at 0% 0%, rgba(120, 180, 220, 0.12), transparent 60%),
+        rgba(13, 24, 34, 0.55);
+    animation: arena-friendly-in 0.5s cubic-bezier(0.22, 0.8, 0.2, 1) both;
+}
+.arena-friendly-end p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--arena-sand); }
+.arena-friendly-end p b { color: #b9dcf5; }
+.arena-friendly-panel { border-color: rgba(120, 180, 220, 0.35); }
+
+@keyframes arena-friendly-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) { .arena-friendly-end { animation: none; } }
+
+/* El aviso de que el ladder esta en pausa. */
+.arena-pause-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 0 0 clamp(16px, 2.4vw, 24px);
+    padding: 14px 18px;
+    border-radius: 16px;
+    border: 1px solid rgba(120, 180, 220, 0.4);
+    background:
+        radial-gradient(90% 160% at 0% 0%, rgba(120, 180, 220, 0.14), transparent 65%),
+        linear-gradient(180deg, rgba(20, 32, 44, 0.92), rgba(10, 14, 20, 0.95));
+    animation: arena-friendly-in 0.6s cubic-bezier(0.22, 0.8, 0.2, 1) both;
+}
+.arena-pause-banner-icon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    border: 1px solid rgba(120, 180, 220, 0.45);
+    color: #b9dcf5;
+    background: rgba(34, 58, 78, 0.55);
+}
+.arena-pause-banner b { display: block; color: #d8ecfb; font-size: 14px; letter-spacing: 0.04em; }
+.arena-pause-banner span.t { display: block; margin-top: 2px; font-size: 13px; line-height: 1.45; color: var(--arena-sand); }
+.arena-pause-banner a.cta { margin-left: auto; flex: none; }
+@media (max-width: 560px) {
+    .arena-pause-banner { flex-wrap: wrap; }
+    .arena-pause-banner a.cta { margin-left: 0; width: 100%; text-align: center; }
+}
+@media (prefers-reduced-motion: reduce) { .arena-pause-banner { animation: none; } }

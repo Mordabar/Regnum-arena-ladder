@@ -94,7 +94,18 @@
                     <input type="checkbox" class="ap-checkbox" name="auto_close" value="1" @checked(old('auto_close', $actual->auto_close))>
                 </label>
 
-                <p class="ap-label mt-4 mb-2">Al cerrarse, la siguiente temporada...</p>
+                <p class="ap-label mt-4 mb-2">Al cerrarse...</p>
+
+                <label class="ap-switch-row">
+                    <span class="min-w-0">
+                        <span class="ap-switch-title">Abrir la siguiente temporada</span>
+                        <span class="ap-section-note">Apagado, el ladder queda en pausa: ya no hay temporada en juego y solo se juegan amistosos (si estan encendidos) hasta que abras otra desde aqui.</span>
+                    </span>
+                    <input type="hidden" name="open_next" value="0">
+                    <input type="checkbox" class="ap-checkbox" name="open_next" value="1" @checked(old('open_next', $actual->open_next))>
+                </label>
+
+                <p class="ap-label mt-4 mb-2">Si abre otra, esa...</p>
 
                 <div class="grid gap-3 md:grid-cols-2">
                     <div class="ap-field">
@@ -140,7 +151,7 @@
             <form method="POST" action="{{ route('admin.seasons.open') }}" class="ap-card ap-rise p-4">
                 @csrf
                 <x-admin.section-head title="No hay ninguna temporada abierta" icon="calendar" tone="gold"
-                                        note="Abre una para que el ranking tenga calendario y el Salon de la Fama sepa donde acaba lo que se juega ahora." />
+                                        note="El ladder esta en pausa: solo se juegan amistosos. Abre una temporada para reactivar el ranking competitivo." />
                 <div class="ap-field">
                     <label class="ap-label" for="o-name">Nombre</label>
                     <input type="text" id="o-name" name="name" maxlength="120" required placeholder="Season 1" value="{{ old('name') }}" class="ap-input">
@@ -223,6 +234,14 @@
                            value="{{ $actual->next_duration_days }}" placeholder="Sin fecha de fin">
                 </div>
 
+                <label class="ap-switch-row">
+                    <span class="min-w-0">
+                        <span class="ap-switch-title">Abrir la siguiente temporada</span>
+                        <span class="ap-section-note">Apagado: el ladder queda en pausa y solo hay amistosos.</span>
+                    </span>
+                    <input type="hidden" name="abrir_siguiente" value="0">
+                    <input type="checkbox" class="ap-checkbox" name="abrir_siguiente" value="1" @checked($actual->open_next)>
+                </label>
                 <label class="ap-switch-row">
                     <span class="min-w-0"><span class="ap-switch-title">La siguiente reparte premios</span></span>
                     <input type="hidden" name="premios_siguiente" value="0">

@@ -40,7 +40,7 @@
                         @php
                             $isFeatured = $featured && $player->id === $featured->id;
                         @endphp
-                        <a href="{{ route('lobby', ['mode' => $arenaMode, 'player' => $player->id]) }}"
+                        <a href="{{ route('lobby', ['mode' => $arenaMode, 'player' => $player->id] + $kindQuery) }}"
                            class="arena-roster-slot {{ $lockedToPlayer && !$isFeatured ? 'is-locked' : '' }}"
                            data-champion-slot
                            data-player-id="{{ $player->id }}"
@@ -94,21 +94,38 @@
                             height="clamp(300px, 40vh, 440px)">
 
                             <div class="arena-champion-overlay">
-                                @if(count($enabledModes) > 1)
+                                @if(count($enabledModes) > 1 || count($kindsOpen) > 1)
                                     {{-- La modalidad manda sobre todo lo de
                                          abajo, asi que se elige antes de mirar
                                          al guerrero. Va sobre la escena y no en
                                          una barra encima: fuera del cuadro
                                          dibujaba un segundo marco dentro del
-                                         panel, dos bordes para una sola cosa. --}}
-                                    <div class="arena-console-arenas" role="tablist" aria-label="Modalidad de arena">
-                                        <span class="arena-console-arenas-key">Arena</span>
-                                        @foreach($enabledModes as $mode)
-                                            <a href="{{ route('lobby', ['mode' => $mode, 'player' => $featured?->id]) }}"
-                                               role="tab"
-                                               aria-selected="{{ $mode === $arenaMode ? 'true' : 'false' }}"
-                                               class="arena-console-arena {{ $mode === $arenaMode ? 'is-active' : '' }}">{{ $mode }}</a>
-                                        @endforeach
+                                         panel, dos bordes para una sola cosa.
+
+                                         Al lado, el tipo de partida: competitivo
+                                         (mueve el ranking) o amistoso (no). Si
+                                         solo hay uno abierto no se pregunta. --}}
+                                    <div class="arena-console-arenas" role="tablist" aria-label="Modalidad y tipo de partida">
+                                        @if(count($enabledModes) > 1)
+                                            <span class="arena-console-arenas-key">Arena</span>
+                                            @foreach($enabledModes as $mode)
+                                                <a href="{{ route('lobby', ['mode' => $mode, 'player' => $featured?->id] + $kindQuery) }}"
+                                                   role="tab"
+                                                   aria-selected="{{ $mode === $arenaMode ? 'true' : 'false' }}"
+                                                   class="arena-console-arena {{ $mode === $arenaMode ? 'is-active' : '' }}">{{ $mode }}</a>
+                                            @endforeach
+                                        @endif
+
+                                        @if(count($kindsOpen) > 1)
+                                            @if(count($enabledModes) > 1)<span class="arena-console-arenas-sep" aria-hidden="true"></span>@endif
+                                            @foreach(['ranked' => 'Competitivo', 'friendly' => 'Amistoso'] as $tipo => $tipoNombre)
+                                                <a href="{{ route('lobby', ['mode' => $arenaMode, 'player' => $featured?->id, 'kind' => $tipo]) }}"
+                                                   role="tab"
+                                                   aria-selected="{{ $tipo === $kind ? 'true' : 'false' }}"
+                                                   title="{{ $tipo === 'ranked' ? 'Mueve el ranking' : 'PvP sin ranking' }}"
+                                                   class="arena-console-arena is-kind-{{ $tipo }} {{ $tipo === $kind ? 'is-active' : '' }}">{{ $tipoNombre }}</a>
+                                            @endforeach
+                                        @endif
                                     </div>
                                 @endif
 
@@ -242,7 +259,13 @@
 
                             <div class="arena-console-actions">
                                 @if(!$modesAreOpen)
-                                    <p class="arena-console-actions-note">Las colas estan cerradas por el momento.</p>
+                                    <p class="arena-console-actions-note">
+                                        @if(empty($kindsOpen) && !empty($enabledModes))
+                                            El ladder esta en pausa y los amistosos estan apagados: por ahora no hay colas abiertas.
+                                        @else
+                                            Las colas estan cerradas por el momento.
+                                        @endif
+                                    </p>
                                 @elseif($activeParty)
                                     @php
                                         $isLeader = $players->contains(fn ($p) => $p->id === $activeParty->leader_player_id);
@@ -289,13 +312,14 @@
                                         @csrf
                                         <input type="hidden" name="queue_type" value="random">
                                         <input type="hidden" name="arena_mode" value="{{ $arenaMode }}">
+                                        <input type="hidden" name="kind" value="{{ $kind }}">
                                         {{-- El guerrero ya esta elegido arriba: este campo lo sigue. --}}
                                         <input type="hidden" id="playerSelect" name="player_id" data-queue-player-select
                                                data-subclass="{{ $featured?->subclass }}"
                                                value="{{ $featured?->id }}">
                                         <button type="submit" class="arena-console-action is-primary" @disabled($featured?->isQueueLocked())>
                                             <x-admin.icon name="play" class="h-4 w-4" />
-                                            {{ $premadeSupported ? 'Entrar a Random ' . $arenaMode : 'Entrar al duelo ' . $arenaMode }}
+                                            {{ $kind === 'friendly' ? 'Amistoso ' . $arenaMode . ($premadeSupported ? ' · Random' : '') : ($premadeSupported ? 'Entrar a Random ' . $arenaMode : 'Entrar al duelo ' . $arenaMode) }}
                                         </button>
                                     </form>
 

@@ -5,7 +5,7 @@
      falta. --}}
 
 @if($canJoinQueue && $modesAreOpen && $premadeSupported && !$activeParty)
-    <x-arena-modal id="modal-premade" :title="'Invitar aliado ' . $arenaMode">
+    <x-arena-modal id="modal-premade" :title="'Invitar aliado ' . $arenaMode . ($kind === 'friendly' ? ' · Amistoso' : '')">
         <p class="arena-queue-hint mb-4">
             Juegas con el guerrero que tienes elegido. Busca a
             {{ $teamSize - 1 }} aliado(s) de tu reino y les llega la invitacion:
@@ -17,6 +17,7 @@
                 @csrf
                 <input type="hidden" name="queue_type" value="premade">
                 <input type="hidden" name="arena_mode" value="{{ $arenaMode }}">
+                <input type="hidden" name="kind" value="{{ $kind }}">
 
                 {{-- El lider no se elige: es el guerrero que estas
                      viendo. Volver a pedirlo era pedir dos veces lo
@@ -109,6 +110,7 @@
             <li><strong class="text-white">Emparejamiento:</strong> se busca tu mismo tipo -arquero contra arquero, mago contra mago, guerrero contra guerrero-, pero manda el MMR: si encaja mejor un rival de otro tipo, ese sale.</li>
             <li><strong class="text-white">Ranking:</strong> el mismo de siempre. Un duelo suma y resta en la misma tabla que un 2v2 o un 3v3.</li>
         @endif
+        <li><strong class="text-white">Competitivo y amistoso:</strong> el competitivo mueve el ranking y cuenta para la temporada. El amistoso es PvP sin ranking: se empareja y se juega igual, pero no suma ni resta puntos, no se reporta y no se sanciona. Cuando una temporada acaba, el ladder se pausa y solo quedan los amistosos hasta que se abra otra.</li>
         <li><strong class="text-white">Reporte:</strong> quien reporta sube entre 1 y 3 capturas. El rival confirma o rechaza; si deja pasar el plazo sin decir nada, el reporte se da por bueno.</li>
         <li><strong class="text-white">Rechazo:</strong> rechazar manda el enfrentamiento a disputa y lo revisa moderacion. Puedes adjuntar tus propias capturas, y con ellas se resuelve mucho antes.</li>
         <li><strong class="text-white">Sin reporte:</strong> si nadie reporta antes de que se agote el reloj, el enfrentamiento se anula y no reparte puntos.</li>
