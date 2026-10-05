@@ -283,3 +283,10 @@ it('los mensajes del servidor bajo motivo se traducen y los nombres no', functio
         ->and($fuera['players'][0]['character_name'])->toBe('Rival')
         ->and($fuera['players'][0]['rol'])->toBe('Opponent');
 });
+
+it('el placeholder de un textarea se traduce y su contenido no', function () {
+    catalogoDePrueba(['Comentario opcional' => 'Optional comment', 'Hola' => 'Hello']);
+
+    expect(en()->html('<textarea placeholder="Comentario opcional">Hola</textarea>'))
+        ->toBe('<textarea placeholder="Optional comment">Hola</textarea>');
+});

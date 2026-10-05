@@ -186,7 +186,9 @@ class Traductor
                     if (!$cierra && !$autocierra && ($this->esOpaca($nombre) || $this->noTraducir($parte))) {
                         $opaca = ['nombre' => $nombre];
                         $profundidad = 1;
-                        $salida .= $parte;
+                        // El contenido no se toca, pero la etiqueta de un
+                        // textarea si tiene texto para la persona: su placeholder.
+                        $salida .= $nombre === 'textarea' && !$this->noTraducir($parte) ? $this->atributos($parte, $nombre) : $parte;
 
                         continue;
                     }

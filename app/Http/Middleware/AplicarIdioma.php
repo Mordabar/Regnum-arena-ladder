@@ -19,6 +19,14 @@ class AplicarIdioma
 {
     public function handle(Request $request, Closure $next): Response
     {
+        // El panel de administracion es del equipo y se queda en español: ni el
+        // navegador ni la cookie lo cambian, ni siquiera los textos que arma PHP.
+        if ($request->routeIs('admin.*')) {
+            app()->setLocale(Idioma::FUENTE);
+
+            return $next($request);
+        }
+
         $idioma = Idioma::detectar($request);
         app()->setLocale($idioma);
 

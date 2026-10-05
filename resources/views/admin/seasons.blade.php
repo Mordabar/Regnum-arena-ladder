@@ -16,7 +16,7 @@
     </div>
 @else
 <div class="grid gap-5 xl:grid-cols-[1fr_380px] items-start pb-16">
-    <div class="flex flex-col gap-5">
+    <div class="flex flex-col gap-5 min-w-0">
 
         @if($actual)
             {{-- La temporada en marcha, con su barra. --}}
