@@ -349,6 +349,8 @@
             <span class="arena-duel-zone-key">
                 @if($reportPending)
                     El resultado ya viaja al rival
+                @elseif($esAmistoso)
+                    El amistoso se cierra cuando alguien lo termina
                 @else
                     El enfrentamiento se cierra en cuanto reportes
                 @endif

@@ -31,7 +31,7 @@
 
     <header class="arena-duel-panel-head">
         <div class="min-w-0">
-            <p class="arena-kicker">{{ $match->match_code }} · {{ \App\Support\ArenaMode::displayName($match->arena_mode) }}</p>
+            <p class="arena-kicker">{{ $match->match_code }} · {{ \App\Support\ArenaMode::displayName($match->arena_mode) }}@if($match->isFriendly()) · <span class="arena-kind-tag">Amistoso</span>@endif</p>
             <h2 id="arenaDuelTitle" class="arena-duel-panel-title">
                 {{ $waiting ? 'Esperando a los demás' : '¡Combate encontrado!' }}
             </h2>

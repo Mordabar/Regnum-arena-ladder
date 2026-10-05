@@ -64,7 +64,7 @@
                         <div class="flex items-start justify-between gap-4">
                             <div>
                                 <p class="text-xs uppercase tracking-[0.2em] text-[color:var(--arena-muted)] arena-body-text">{{ $match->queue_mode_name }}</p>
-                                <h3 class="mt-1 text-2xl font-semibold text-white">{{ $match->match_code }}</h3>
+                                <h3 class="mt-1 text-2xl font-semibold text-white">{{ $match->match_code }}@if($match->isFriendly()) <span class="arena-kind-tag ml-1 align-middle text-xs uppercase">Amistoso</span>@endif</h3>
                                 <p class="mt-1 text-sm text-[color:var(--arena-text)] arena-body-text inline-flex items-center gap-1">
                                     <svg class="h-3.5 w-3.5 text-[color:var(--arena-gold)] opacity-50" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
                                     {{ $match->zone_name }}
@@ -107,7 +107,7 @@
                                     Aceptar match
                                 @elseif($match->status === 'in_progress')
                                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-                                    Reportar resultado
+                                    {{ $match->isFriendly() ? 'Ir al amistoso' : 'Reportar resultado' }}
                                 @else
                                     Abrir match
                                 @endif
@@ -158,7 +158,7 @@
                                     </div>
                                 @endif
                                 <div>
-                                    <h3 class="text-lg font-semibold text-white arena-body-text">{{ $match->match_code }}</h3>
+                                    <h3 class="text-lg font-semibold text-white arena-body-text">{{ $match->match_code }}@if($match->isFriendly()) <span class="arena-kind-tag ml-1 text-[10px] uppercase">Amistoso</span>@endif</h3>
                                     <p class="text-sm text-[color:var(--arena-muted)] arena-body-text inline-flex items-center gap-1">
                                         <svg class="h-3.5 w-3.5 text-[color:var(--arena-gold)] opacity-40" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
                                         {{ $match->zone_name }}

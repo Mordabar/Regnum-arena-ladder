@@ -3162,6 +3162,7 @@ h1, h2, h3, h4, h5, h6,
 .arena-battle-bubble.is-sitio { border-color: rgba(124, 201, 138, 0.55); }
 .arena-battle-bubble.is-aviso { border-color: rgba(255, 107, 94, 0.55); }
 .arena-battle-bubble.is-prisa { border-color: rgba(255, 190, 92, 0.6); }
+.arena-battle-bubble.is-social { border-color: rgba(120, 180, 220, 0.55); }
 
 /* Y la figura de quien acaba de avisar se marca un momento, para que el
    ojo vaya solo hacia ella en un 3v3. */
@@ -3377,6 +3378,7 @@ h1, h2, h3, h4, h5, h6,
 .arena-chat-quick-btn.is-sitio:hover:not(:disabled) { border-color: rgba(124, 201, 138, 0.6); }
 .arena-chat-quick-btn.is-aviso:hover:not(:disabled) { border-color: rgba(255, 107, 94, 0.6); }
 .arena-chat-quick-btn.is-prisa:hover:not(:disabled) { border-color: rgba(255, 190, 92, 0.6); }
+.arena-chat-quick-btn.is-social:hover:not(:disabled) { border-color: rgba(120, 180, 220, 0.6); }
 
 .arena-chat-status {
     margin: 0;
@@ -3435,8 +3437,14 @@ h1, h2, h3, h4, h5, h6,
        que no valia en escritorio, donde siguen estando todas a la
        vista. */
     .arena-chat-quick {
-        display: flex;
-        flex-wrap: nowrap;
+        /* Dos filas que se arrastran de lado: con diez frases una sola fila
+           era una cinta interminable, y en rejilla de varias filas se comia
+           media pantalla. */
+        display: grid;
+        grid-template-rows: repeat(2, auto);
+        grid-auto-flow: column;
+        grid-auto-columns: max-content;
+        grid-template-columns: none;
         overflow-x: auto;
         scroll-snap-type: x proximity;
         -webkit-overflow-scrolling: touch;
@@ -3458,7 +3466,6 @@ h1, h2, h3, h4, h5, h6,
        toques fallados o en frases mandadas sin querer, y esto se usa
        con prisa a mitad de un combate. */
     .arena-chat-quick-btn {
-        flex: 0 0 auto;
         scroll-snap-align: start;
         min-height: 44px;
         padding: 8px 12px;
@@ -3756,7 +3763,7 @@ h1, h2, h3, h4, h5, h6,
 .arena-friendly-end {
     display: grid;
     gap: 12px;
-    margin-top: 14px;
+    margin: 0 22px 16px;
     padding: 14px 16px;
     border-radius: 14px;
     border: 1px solid rgba(120, 180, 220, 0.35);
@@ -3767,6 +3774,14 @@ h1, h2, h3, h4, h5, h6,
 }
 .arena-friendly-end p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--arena-sand); }
 .arena-friendly-end p b { color: #b9dcf5; }
+/* El boton de terminar es del mismo azul: el dorado es del competitivo. */
+.arena-friendly-end .arena-btn {
+    background: linear-gradient(180deg, rgba(58, 104, 140, 0.95), rgba(26, 52, 76, 0.98));
+    border-color: rgba(120, 180, 220, 0.55);
+    color: #e4f3fd;
+    box-shadow: 0 8px 22px rgba(20, 50, 80, 0.4);
+}
+.arena-friendly-end .arena-btn:hover { filter: brightness(1.12); }
 .arena-friendly-panel { border-color: rgba(120, 180, 220, 0.35); }
 
 @keyframes arena-friendly-in {

@@ -71,7 +71,7 @@
                 <span class="arena-guia-num" aria-hidden="true">3</span>
                 <h3 class="mt-4 text-xl font-semibold text-white">Pelea, reporta y cierra</h3>
                 <p class="mt-2 text-sm text-[color:var(--arena-muted)] arena-body-text">
-                    Durante el combate teneis un chat rapido para avisaros -voy de camino,
+                    Durante el combate teneis un chat rapido para avisaros -voy en camino,
                     estoy en el punto, me han matado-. Al acabar, uno sube las capturas y dice
                     quien gano; el otro confirma y el ladder actualiza PL y MMR solo. Un amistoso no se reporta:
                     se pelea y se termina con un botón, sin tocar el ranking.

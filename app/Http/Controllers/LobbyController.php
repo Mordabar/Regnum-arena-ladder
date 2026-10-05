@@ -14,6 +14,7 @@ use App\Support\ArenaMode;
 use App\Support\Competition;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cookie;
 
 /**
  * El lobby: la pantalla donde se elige guerrero, se entra en cola y se juega el
@@ -95,10 +96,21 @@ class LobbyController extends Controller
         // La modalidad pedida manda, salvo que este apagada: en ese caso se cae
         // a la que si este activa en vez de dejar al jugador en una pantalla
         // muerta. Si no hay ninguna encendida, la vista muestra el estado vacio.
-        $requestedMode = ArenaMode::normalize($request->query('mode'));
-        $arenaMode = ($requestedMode !== null && ArenaMode::isEnabled($requestedMode))
-            ? $requestedMode
-            : ArenaMode::default();
+        //
+        // Lo que no se pide se recuerda: sin ?mode (el enlace "Lobby" del menu,
+        // recargar, volver de otra pagina) se usa la ultima modalidad que
+        // eligio este jugador, no la de por defecto. Antes cada visita sin
+        // query lo devolvia a 2v2 y mas de uno entraba en la cola equivocada.
+        $consultaModo = $request->query('mode');
+        $requestedMode = ArenaMode::normalize(is_string($consultaModo) ? $consultaModo : null);
+        $modoExplicito = $requestedMode !== null && ArenaMode::isEnabled($requestedMode);
+        $modoRecordado = ArenaMode::normalize((string) $request->cookie('arena_modo'));
+
+        $arenaMode = match (true) {
+            $modoExplicito => $requestedMode,
+            $modoRecordado !== null && ArenaMode::isEnabled($modoRecordado) => $modoRecordado,
+            default => ArenaMode::default(),
+        };
         $teamSize = ArenaMode::teamSize($arenaMode);
 
         $matchmakingService = app(ArenaMatchmakingService::class);
@@ -107,7 +119,8 @@ class LobbyController extends Controller
         // que ese tipo este cerrado (el ladder en pausa): entonces el que si
         // se puede jugar. Con una cola o combate en marcha manda el suyo mas
         // abajo, porque cambiar de pestaña no cambia lo que ya esta jugando.
-        $kind = Competition::resolve($request->query('kind'));
+        $tipoExplicito = Competition::normalize($request->query('kind')) !== null;
+        $kind = Competition::resolve($tipoExplicito ? $request->query('kind') : $request->cookie('arena_tipo'));
         $kindsOpen = Competition::open();
         $rankedPaused = !Competition::rankedOpen();
 
@@ -138,6 +151,16 @@ class LobbyController extends Controller
 
             if ($currentQueue) {
                 $kind = Competition::kindOf($currentQueue->is_ranked !== false);
+
+                // Con una cola o un combate en marcha, la pantalla es la de ESA
+                // modalidad: es donde esta el jugador, y mostrarle otra era
+                // justo lo que le hacia buscar partida en la equivocada.
+                $modoDeLaCola = ArenaMode::normalize((string) $currentQueue->arena_mode);
+
+                if (!$modoExplicito && $modoDeLaCola !== null && ArenaMode::isEnabled($modoDeLaCola)) {
+                    $arenaMode = $modoDeLaCola;
+                    $teamSize = ArenaMode::teamSize($arenaMode);
+                }
             }
 
             if ($currentQueue?->match_id) {
@@ -211,6 +234,23 @@ class LobbyController extends Controller
         $requestedPlayer = $requestedPlayerId > 0
             ? $players->firstWhere('id', $requestedPlayerId)
             : null;
+
+        // Se recuerda lo ultimo que eligio, o donde esta jugando, durante un
+        // año. El guerrero va en la cookie que ya usaba el rail (sin cifrar:
+        // la escribe tambien el JavaScript del lobby).
+        if ($modoExplicito || $currentQueue) {
+            Cookie::queue('arena_modo', $arenaMode, 60 * 24 * 365);
+        }
+
+        if ($tipoExplicito || $currentQueue) {
+            Cookie::queue('arena_tipo', $kind, 60 * 24 * 365);
+        }
+
+        if ($currentQueue) {
+            Cookie::queue('arena_guerrero', (string) $currentQueue->player_id, 60 * 24 * 365, null, null, null, false);
+        } elseif ($request->query('player') && $players->firstWhere('id', (int) $request->query('player'))) {
+            Cookie::queue('arena_guerrero', (string) (int) $request->query('player'), 60 * 24 * 365, null, null, null, false);
+        }
 
         // Los enlaces solo llevan ?kind cuando no es el de por defecto: las
         // direcciones de siempre se quedan como estaban.

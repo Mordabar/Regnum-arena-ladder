@@ -527,3 +527,95 @@ it('ni el reporte sintetico del laboratorio ni una confirmacion puntuan un amist
         ->and((float) $a->fresh()->pl_points)->toBe(30.0)
         ->and($a->fresh()->queue_locked_until)->toBeNull();
 });
+
+// ------------------------------------------- 2v2, partys y cruces caidos
+
+it('un 2v2 amistoso se arma con cuatro y nace como amistoso', function () {
+    AppSetting::setValue(ArenaMode::settingKey('2v2'), '1', 'modes', 'boolean', true);
+
+    foreach (['i1', 'i2'] as $s) { encola(duelista($s, 'ignis'), false, '2v2'); }
+    foreach (['a1', 'a2'] as $s) { encola(duelista($s, 'alsius'), false, '2v2'); }
+
+    expect(app(ArenaMatchmakingService::class)->processQueue(false))->toBe(1);
+
+    $match = ArenaMatch::query()->firstOrFail();
+    expect($match->isFriendly())->toBeTrue()
+        ->and($match->arena_mode)->toBe('2v2')
+        ->and($match->player_count)->toBe(4);
+});
+
+it('un competitivo y un amistoso de 2v2 no se completan el equipo entre si', function () {
+    AppSetting::setValue(ArenaMode::settingKey('2v2'), '1', 'modes', 'boolean', true);
+
+    // Dos ignis, uno en cada tipo: no hay equipo completo en ninguno.
+    encola(duelista('x1', 'ignis'), true, '2v2');
+    encola(duelista('x2', 'ignis'), false, '2v2');
+    encola(duelista('x3', 'alsius'), true, '2v2');
+    encola(duelista('x4', 'alsius'), false, '2v2');
+
+    expect(app(ArenaMatchmakingService::class)->processQueue(false))->toBe(0);
+});
+
+it('un cruce amistoso que no aceptan todos vuelve a la cola como amistoso', function () {
+    [$match, $a, $b] = duelo(false, 't');
+    $match->update(['status' => 'pending_acceptance', 'expires_at' => now()->subMinute()]);
+    Queue::query()->where('player_id', $a->id)->update(['status' => 'accepted']);
+    Queue::query()->where('player_id', $b->id)->update(['status' => 'matched']);
+
+    app(ArenaMatchmakingService::class)->expirePendingAcceptanceMatches(false);
+
+    // El cruce se borra y quien si acepto vuelve a esperar, en SU tipo.
+    expect(ArenaMatch::query()->count())->toBe(0);
+    $vueltas = Queue::query()->whereIn('status', ['waiting'])->get();
+    expect($vueltas->every(fn (Queue $q) => $q->is_ranked === false))->toBeTrue();
+});
+
+it('una party amistosa entra a la cola como amistosa y no gasta el cupo diario', function () {
+    AppSetting::setValue(ArenaMode::settingKey('2v2'), '1', 'modes', 'boolean', true);
+    $lider = duelista('pl', 'ignis');
+    $aliado = duelista('pa', 'ignis');
+
+    $this->actingAs($lider->user)->post(route('party.create'), [
+        'arena_mode' => '2v2', 'kind' => 'friendly', 'party_player_ids' => [$lider->id, $aliado->id],
+        'party_conjurer_roles' => [null, null],
+    ])->assertSessionHasNoErrors();
+
+    $party = \App\Models\Party::query()->firstOrFail();
+    expect((bool) $party->is_ranked)->toBeFalse();
+
+    $miembro = \App\Models\PartyMember::query()->where('party_id', $party->id)->where('player_id', $aliado->id)->firstOrFail();
+    $this->actingAs($aliado->user)->post(route('party.accept', [$party, $miembro]));
+
+    $this->actingAs($lider->user)->post(route('party.enqueue', $party->fresh()))->assertSessionHasNoErrors();
+
+    $colas = Queue::query()->where('queue_type', 'premade')->get();
+    expect($colas)->toHaveCount(2)
+        ->and($colas->every(fn (Queue $q) => $q->is_ranked === false))->toBeTrue();
+});
+
+it('una party competitiva no puede buscar partida con el ladder en pausa', function () {
+    AppSetting::setValue(ArenaMode::settingKey('2v2'), '1', 'modes', 'boolean', true);
+    $lider = duelista('qa', 'ignis');
+    $aliado = duelista('qb', 'ignis');
+
+    $this->actingAs($lider->user)->post(route('party.create'), [
+        'arena_mode' => '2v2', 'kind' => 'ranked', 'party_player_ids' => [$lider->id, $aliado->id],
+        'party_conjurer_roles' => [null, null],
+    ]);
+    $party = \App\Models\Party::query()->firstOrFail();
+    $miembro = \App\Models\PartyMember::query()->where('party_id', $party->id)->where('player_id', $aliado->id)->firstOrFail();
+    $this->actingAs($aliado->user)->post(route('party.accept', [$party, $miembro]));
+
+    ArenaSeason::query()->update(['status' => ArenaSeason::STATUS_ARCHIVED]);
+
+    $this->actingAs($lider->user)->post(route('party.enqueue', $party->fresh()))->assertSessionHasErrors('error');
+    expect(Queue::query()->count())->toBe(0);
+});
+
+it('el chat del combate trae las frases nuevas con su redaccion', function () {
+    $textos = collect(\App\Models\MatchPing::CATALOGO)->pluck('texto', null)->all();
+
+    expect($textos)->toContain('Voy en camino', 'Ok', 'Bien jugado', 'Me atacó un tercero', 'Me están atacando')
+        ->and($textos)->not->toContain('Voy de camino')
+        ->and(\App\Models\MatchPing::esUnCodigo('ok'))->toBeTrue();
+});

@@ -114,12 +114,13 @@ it('las frases del chat se arrastran de lado en movil y no en escritorio', funct
     // la mitad de las frases no existian.
     expect(Str::between($css, '.arena-chat-quick {', '}'))->toContain('display: grid');
 
-    // En movil, una sola fila que se empuja: en rejilla ocupaban tres filas
-    // justo debajo del historial, que es la mitad de lo que se ve.
+    // En movil, dos filas que se empujan de lado: con diez frases una sola era
+    // una cinta interminable, y en rejilla ocupaban cuatro filas justo debajo
+    // del historial, que es la mitad de lo que se ve.
     $movil = Str::after($css, '@media (max-width: 720px) {');
 
     expect($movil)->toContain('overflow-x: auto')
-        ->and($movil)->toContain('flex-wrap: nowrap');
+        ->and($movil)->toContain('grid-auto-flow: column');
 });
 
 it('los avisos salen de la pagina cuando la pestaña esta de lado', function () {

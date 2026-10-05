@@ -685,7 +685,7 @@ it('el worker enseña solo lo ultimo que ha pasado', function () {
     $ultimo = collect($avisos)->sortByDesc('en')->first();
 
     expect($ultimo['tag'])->toBe('chat:' . $match->id)
-        ->and($ultimo['cuerpo'])->toBe('Voy de camino');
+        ->and($ultimo['cuerpo'])->toBe('Voy en camino');
 
     expect(File::get(public_path('sw.js')))
         ->toContain("avisos.sort((a, b) => String(b.en || '').localeCompare(String(a.en || '')));")

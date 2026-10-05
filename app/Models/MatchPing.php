@@ -26,16 +26,24 @@ class MatchPing extends Model
      * un boton con prisa lo busca donde lo dejo la ultima vez.
      *
      * Los tonos agrupan: 'camino' es lo que dices mientras te mueves, 'sitio'
-     * al llegar, 'aviso' cuando algo pasa, y 'prisa' para meter presion sin
-     * que suene a insulto.
+     * al llegar, 'aviso' cuando algo pasa, 'social' para contestar y
+     * despedirse, y 'prisa' para meter presion sin que suene a insulto.
      */
     public const CATALOGO = [
-        'voy' => ['texto' => 'Voy de camino', 'icono' => '🏃', 'tono' => 'camino'],
+        'voy' => ['texto' => 'Voy en camino', 'icono' => '🏃', 'tono' => 'camino'],
         'cerca' => ['texto' => 'Estoy cerca', 'icono' => '📍', 'tono' => 'camino'],
         'llegue' => ['texto' => 'Estoy en el punto', 'icono' => '🚩', 'tono' => 'sitio'],
-        'esperame' => ['texto' => 'Esperame, ya voy', 'icono' => '🙏', 'tono' => 'camino'],
-        'muerto' => ['texto' => 'Me han matado', 'icono' => '💀', 'tono' => 'aviso'],
+        'esperame' => ['texto' => 'Espérame, ya voy', 'icono' => '🙏', 'tono' => 'camino'],
         'un_momento' => ['texto' => 'Dame un momento', 'icono' => '⏳', 'tono' => 'aviso'],
+        // Lo que pasa en medio del combate: un tercero que se mete es lo mas
+        // comun en un mundo abierto, y decirlo evita que el rival crea que
+        // se esta escondiendo.
+        'atacan' => ['texto' => 'Me están atacando', 'icono' => '⚔️', 'tono' => 'aviso'],
+        'tercero' => ['texto' => 'Me atacó un tercero', 'icono' => '🗡️', 'tono' => 'aviso'],
+        'muerto' => ['texto' => 'Me han matado', 'icono' => '💀', 'tono' => 'aviso'],
+        // Lo social: contestar sin escribir y despedirse bien.
+        'ok' => ['texto' => 'Ok', 'icono' => '👍', 'tono' => 'social'],
+        'gg' => ['texto' => 'Bien jugado', 'icono' => '🤝', 'tono' => 'social'],
     ];
 
     protected $fillable = [
