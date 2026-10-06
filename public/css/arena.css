@@ -4059,11 +4059,12 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
 
 /* Saltar al contenido: invisible hasta que el teclado le da el foco. */
 .arena-skip {
-    position: fixed; left: 8px; top: -60px; z-index: 100;
+    position: fixed; left: 8px; top: 8px; z-index: 100;
+    clip-path: inset(50%); width: 1px; height: 1px; overflow: hidden; white-space: nowrap;
     padding: 10px 14px; border-radius: 8px;
     background: var(--arena-gold); color: #1a1208; font-weight: 700;
 }
-.arena-skip:focus { top: 8px; }
+.arena-skip:focus { clip-path: none; width: auto; height: auto; overflow: visible; }
 
 /* El selector de idioma se esconde al bajar y vuelve al subir. */
 .arena-lang { transition: transform .25s ease, opacity .25s ease; }
@@ -4075,7 +4076,8 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
 
 /* Marca: la campana no la tapa; la marca recorta con puntos suspensivos. */
 @media (max-width: 400px) {
-    .arena-navbar a.min-w-0 { max-width: calc(100vw - 150px); overflow: hidden; }
+    .arena-navbar a.min-w-0 { max-width: calc(100vw - 150px); }
+    .arena-navbar .arena-brand-text { overflow: hidden; }
     .arena-navbar .arena-brand-type { text-overflow: ellipsis; overflow: hidden; }
 }
 
@@ -4166,4 +4168,21 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
 /* "Vriendschappelijk" en 320px. */
 @media (max-width: 340px) {
     .arena-console-arenas .arena-console-arena { font-size: 11px; padding-left: 4px; padding-right: 4px; letter-spacing: 0; }
+}
+
+
+/* ── Tercera pasada ───────────────────────────────────────────────── */
+
+/* Entre 1024 y 1279 la marca va sin texto: los enlaces la pisaban. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+    .arena-navbar .arena-brand-text { display: none; }
+    .arena-console-arenas .arena-console-arena { padding-left: 8px; padding-right: 8px; font-size: 11px; letter-spacing: 0; }
+}
+
+/* Apaisado: el selector de idioma sube a la cabecera, a la izquierda de la
+   campana, y deja libre la esquina de abajo donde estan los botones. */
+@media (max-height: 480px) and (orientation: landscape) and (max-width: 1023px) {
+    .arena-lang { top: calc(env(safe-area-inset-top, 0px) + 24px); bottom: auto; right: 126px; left: auto; }
+    .arena-lang-sheet { bottom: auto; top: calc(100% + 10px); right: 0; left: auto; max-height: calc(100dvh - 90px); }
+    .arena-lang.is-oculto { transform: translateY(-90px); }
 }
