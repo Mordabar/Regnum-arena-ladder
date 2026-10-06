@@ -240,3 +240,27 @@ it('con rol, el conjurador entra a la cola y el rol queda guardado', function ()
 
     expect(\App\Models\Queue::where('player_id', $player->id)->value('conjurer_role'))->toBe('support');
 });
+
+it('el panel respeta la modalidad y el tipo que pide la direccion, para cambiar sin recargar', function () {
+    $user = fragmentUser('modo');
+    fragmentPlayer($user, 'Cambiante');
+
+    $html = $this->actingAs($user)
+        ->getJson(route('lobby.console', ['mode' => '3v3', 'kind' => 'friendly']))
+        ->assertOk()->json('html');
+
+    // Hay navegacion de modalidad y la pestana activa esta marcada.
+    expect($html)->toContain('arena-console-arena')
+        ->and($html)->toContain('is-active')
+        ->and($html)->toContain('data-champion-id="hub-stage"');
+});
+
+it('el lobby expone el cambio de modalidad en su sitio, con respaldo al enlace de siempre', function () {
+    $user = fragmentUser('exp');
+    fragmentPlayer($user, 'Respaldo');
+
+    $this->actingAs($user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('arenaConsoleGo', false)
+        ->assertSee('class="arena-console-arena', false);
+});

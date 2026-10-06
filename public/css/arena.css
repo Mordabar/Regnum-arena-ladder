@@ -4227,3 +4227,8 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
     .arena-console .arena-champion:not(:has(.arena-console-arenas)) { height: 400px !important; }
     .arena-console .arena-champion:has(.arena-console-arenas) .arena-champion-canvas { top: 104px; height: calc(100% - 104px); }
 }
+
+/* Cambiar de modalidad sin recargar: el boton pulsado late mientras llega. */
+.arena-console-arena.is-cargando { opacity: .7; animation: arenaCambiando .8s ease-in-out infinite; }
+@keyframes arenaCambiando { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .arena-console-arena.is-cargando { animation: none; } }

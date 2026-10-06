@@ -356,14 +356,14 @@
         // El repintado del panel. Antes de tocar el DOM se sueltan los visores
         // 3D que se van: el navegador solo aguanta unos pocos contextos WebGL y
         // dejarlos vivos hacia desaparecer las figuras a los pocos cambios.
-        const refreshConsole = async () => {
+        const refreshConsole = async (search = window.location.search, navegacion = false) => {
             const host = document.querySelector('.arena-console');
             if (!host) { return false; }
 
             // La consulta de la pagina viaja con la peticion: lleva el guerrero
             // elegido y la modalidad, y sin ella el panel repintado volveria al
             // primero de la lista.
-            const params = new URLSearchParams(window.location.search);
+            const params = new URLSearchParams(search);
             params.set('t', String(Date.now()));
 
             const r = await fetch(_refreshUrl + '?' + params.toString(), {
@@ -383,6 +383,27 @@
             if (!fresh) { return false; }
 
             const escrito = recordarCampos(host);
+
+            // Al cambiar de modalidad el guerrero es el mismo: el visor 3D se
+            // queda donde esta, con su contexto WebGL, y solo se le cambia lo
+            // que lleva encima. Asi la figura no parpadea ni se vuelve a cargar.
+            if (navegacion) {
+                fresh.classList.remove('arena-animate-in', 'arena-stagger-1');
+                const escenaVieja = host.querySelector('[data-champion-id=hub-stage]');
+                const escenaNueva = fresh.querySelector('[data-champion-id=hub-stage]');
+                const mismo = ['championRealm', 'championSubclass', 'championRace', 'championGender'];
+                if (escenaVieja && escenaNueva && escenaVieja.dataset.championMounted === '1'
+                    && mismo.every((k) => escenaVieja.dataset[k] === escenaNueva.dataset[k])) {
+                    const capaVieja = escenaVieja.querySelector('.arena-champion-overlay');
+                    const capaNueva = escenaNueva.querySelector('.arena-champion-overlay');
+                    if (capaVieja && capaNueva) {
+                        capaVieja.replaceWith(capaNueva);
+                        escenaVieja.style.height = escenaNueva.style.height;
+                        escenaNueva.replaceWith(escenaVieja);
+                    }
+                }
+            }
+
             host.replaceWith(fresh);
             restaurarCampos(fresh, escrito);
 
@@ -545,6 +566,43 @@
                 scheduleNextPoll();
             }
         };
+
+        // Cambiar de modalidad o de tipo sin recargar: trae el panel de esa
+        // direccion y lo cambia en su sitio, sin mover el scroll. Devuelve
+        // false si no pudo, y quien llama sigue el enlace de toda la vida.
+        window.arenaConsoleGo = async (url) => {
+            if (!_refreshUrl) { return false; }
+
+            for (let i = 0; i < 20 && isRefreshing; i++) {
+                await new Promise((resolve) => window.setTimeout(resolve, 100));
+            }
+            if (isRefreshing) { return false; }
+
+            isRefreshing = true;
+            try {
+                const destino = new URL(url, window.location.origin);
+                const hecho = await refreshConsole(destino.search, true);
+                if (hecho) {
+                    window.history.pushState({ arenaConsole: true }, '', destino.pathname + destino.search);
+                    resetCadence();
+                }
+                return hecho;
+            } catch (_) {
+                return false;
+            } finally {
+                isRefreshing = false;
+            }
+        };
+
+        // Atras y adelante vuelven a la modalidad anterior sin recargar.
+        window.addEventListener('popstate', () => {
+            if (!document.querySelector('.arena-console')) { return; }
+            isRefreshing = true;
+            refreshConsole(window.location.search, true)
+                .then((hecho) => { if (!hecho) { window.location.reload(); } })
+                .catch(() => window.location.reload())
+                .finally(() => { isRefreshing = false; });
+        });
 
         pollNow();
 

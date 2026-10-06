@@ -301,6 +301,33 @@
             });
         })();
 
+        // Modalidad y tipo de partida (1v1, 2v2, competitivo, amistoso): se
+        // cambia en su sitio, sin recargar ni volver al principio de la pagina.
+        // Si no se pudo, el enlace de siempre.
+        document.addEventListener('click', function (event) {
+            var tab = event.target.closest('a.arena-console-arena');
+            if (!tab || typeof window.arenaConsoleGo !== 'function') { return; }
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button > 0) { return; }
+            if (tab.getAttribute('aria-current') === 'true') { event.preventDefault(); return; }
+
+            event.preventDefault();
+            var destino = tab.href;
+            var clave = tab.classList.contains('is-kind-ranked') ? 'ranked'
+                : tab.classList.contains('is-kind-friendly') ? 'friendly' : tab.textContent.trim();
+            tab.classList.add('is-cargando');
+
+            window.arenaConsoleGo(destino).then(function (hecho) {
+                if (!hecho) { window.location.href = destino; return; }
+                // El panel nuevo es otro nodo: el foco vuelve al mismo boton.
+                var igual = Array.prototype.find.call(document.querySelectorAll('a.arena-console-arena'), function (a) {
+                    var k = a.classList.contains('is-kind-ranked') ? 'ranked'
+                        : a.classList.contains('is-kind-friendly') ? 'friendly' : a.textContent.trim();
+                    return k === clave;
+                });
+                if (igual) { try { igual.focus({ preventScroll: true }); } catch (e) {} }
+            });
+        });
+
         // Por delegacion en el documento: asi elegir guerrero sigue funcionando
         // despues de que el sondeo cambie el panel por uno nuevo.
         document.addEventListener('click', function (event) {
