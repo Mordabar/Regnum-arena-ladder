@@ -135,6 +135,10 @@
 @layer components {
     /* ── Superficies ───────────────────────────────────────────────── */
     .ap-card {
+        /* En un grid o un flex, una tarjeta no puede ser mas ancha que su
+           contenido sin cortar: con `min-width:auto` un fila de controles
+           ensanchaba la pagina entera en el movil. */
+        min-width: 0;
         /* Mismo cuerpo que los paneles del arena: degradado tenue y sombra
            blanda en vez de un relleno plano. */
         background: linear-gradient(180deg, rgba(36, 26, 19, 0.72), rgba(20, 15, 11, 0.86));
@@ -1175,4 +1179,11 @@
         white-space: nowrap;
         border: 0;
     }
+}
+
+/* Los grupos de botones del panel se parten en lineas en vez de salirse. */
+@layer components {
+    .ap-actions-group { min-width: 0; }
+    .ap-actions-group form { min-width: 0; max-width: 100%; }
+    .ap-actions-group .ap-select { max-width: 100%; }
 }

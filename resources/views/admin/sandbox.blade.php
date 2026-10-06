@@ -217,9 +217,9 @@
             <div class="ap-actions-group">
                 <p class="ap-actions-title">Probar grupos (party)</p>
                 <div class="flex flex-wrap gap-2">
-                    <form method="POST" action="{{ route('admin.testing.invite-me') }}" class="flex gap-2">
+                    <form method="POST" action="{{ route('admin.testing.invite-me') }}" class="flex flex-wrap gap-2" style="min-width: 0">
                         @csrf
-                        <select name="arena_mode" class="ap-select ap-select-sm" aria-label="Modalidad de la invitacion">
+                        <select name="arena_mode" class="ap-select ap-select-sm" style="min-width: 5rem" aria-label="Modalidad de la invitacion">
                             @foreach($premadeModes as $sandboxMode)
                                 <option value="{{ $sandboxMode }}">{{ $sandboxMode }}</option>
                             @endforeach
