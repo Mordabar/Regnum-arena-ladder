@@ -24,7 +24,6 @@
         <label class="block">
             <span class="mb-2 block text-sm font-medium arena-body-text">Capturas (opcional)</span>
             <input type="file" name="evidence_files[]" accept="image/*" class="arena-field text-sm" multiple>
-            <span class="mt-2 block text-xs text-[color:var(--arena-muted)] arena-body-text">Hasta 3 imágenes. No hacen falta: solo quedan en el historial.</span>
         </label>
 
         <label class="block">

@@ -216,10 +216,7 @@
     @if($lineup && $esAmistoso && $match->status === 'in_progress')
         {{-- En un amistoso no hay reporte: se pelea y se avisa de que acabo. --}}
         <div class="arena-friendly-end">
-            <p>
-                <b>Amistoso · sin ranking.</b>
-                No suma ni resta puntos ni hace falta reportar. Si quieres, apunta el resultado para el historial; cuando acabéis, libera la cola.
-            </p>
+            <p><b>Amistoso · sin ranking.</b></p>
             @include('matches.partials.amistoso-cierre', [
                 'match' => $match,
                 'playerId' => $lineup['viewer_player_id'],
