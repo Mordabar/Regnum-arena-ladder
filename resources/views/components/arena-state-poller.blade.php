@@ -289,7 +289,7 @@
             try { sessionStorage.setItem('arena:live-reload', '1'); } catch (e) {}
 
             window.setTimeout(() => {
-                window.location.reload();
+                (window.arenaRecargar || (() => window.location.reload()))();
             }, _reloadDelayMs);
         };
 
@@ -599,7 +599,7 @@
         // Cambiar de modalidad o de tipo sin recargar: trae el panel de esa
         // direccion y lo cambia en su sitio, sin mover el scroll. Devuelve
         // false si no pudo, y quien llama sigue el enlace de toda la vida.
-        window.arenaConsoleGo = async (url) => {
+        window.arenaConsoleGo = async (url, opciones = {}) => {
             if (!_refreshUrl) { return false; }
 
             const miSeq = ++navSeq;
@@ -613,7 +613,9 @@
                 const hecho = await refreshConsole(destino.search, true, miSeq);
                 if (hecho === 'obsoleto') { return true; }
                 if (hecho) {
-                    window.history.pushState({ arenaConsole: true }, '', ultimaUrl || (destino.pathname + destino.search));
+                    const direccion = ultimaUrl || (destino.pathname + destino.search);
+                    if (opciones.reemplazar) { window.history.replaceState({ arenaConsole: true }, '', direccion); }
+                    else { window.history.pushState({ arenaConsole: true }, '', direccion); }
                     resetCadence();
                     const avisar = document.querySelector('[data-console-status]');
                     if (avisar) {
@@ -632,10 +634,10 @@
         // ventana abierta se hace lo de siempre: recargar.
         window.addEventListener('popstate', () => {
             if (!document.querySelector('.arena-console')) { return; }
-            if (isBusy()) { window.location.reload(); return; }
+            if (isBusy()) { (window.arenaRecargar || (() => window.location.reload()))(); return; }
             const miSeq = ++navSeq;
             refreshConsole(window.location.search, true, miSeq)
-                .then((hecho) => { if (hecho === false) { window.location.reload(); } })
+                .then((hecho) => { if (hecho === false) { (window.arenaRecargar || (() => window.location.reload()))(); } })
                 .catch(() => window.location.reload());
         });
 

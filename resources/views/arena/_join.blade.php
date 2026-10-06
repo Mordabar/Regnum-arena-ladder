@@ -13,7 +13,7 @@
             suyo se ven en el escenario.
         </p>
 
-                <form method="POST" action="{{ route('party.create') }}" class="space-y-4" id="premadeForm">
+                <form method="POST" action="{{ route('party.create') }}" data-sin-recarga class="space-y-4" id="premadeForm">
                 @csrf
                 <input type="hidden" name="queue_type" value="premade">
                 <input type="hidden" name="arena_mode" value="{{ $arenaMode }}">

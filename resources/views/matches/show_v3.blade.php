@@ -538,7 +538,7 @@
 
                         xhr.addEventListener('load', () => {
                             if (xhr.status >= 200 && xhr.status < 300) {
-                                window.location.reload();
+                                (window.arenaRecargar || function () { window.location.reload(); })();
                             } else {
                                 // En caso de error de validación o del server, dejamos que el browser pinte la vista resultante
                                 document.open();

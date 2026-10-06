@@ -88,7 +88,7 @@
             <span class="arena-duel-zone-value">{{ $currentQueue->expires_at?->locale(app()->getLocale())->diffForHumans() ?? 'sin límite' }}</span>
         </div>
         <div class="arena-duel-actions">
-            <form method="POST" action="{{ route('queue.leave') }}">
+            <form method="POST" action="{{ route('queue.leave') }}" data-sin-recarga>
                 @csrf
                 <input type="hidden" name="player_id" value="{{ $currentQueue->player_id }}">
                 <button type="submit" class="arena-btn-danger-ghost px-5 py-2.5"><x-arena-icon name="logout" class="h-4 w-4 shrink-0" />Salir de la cola</button>

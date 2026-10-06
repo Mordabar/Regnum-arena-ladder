@@ -272,7 +272,7 @@
                                     @endphp
 
                                     @if($isLeader && $partyReady && $activePartyModeIsOpen)
-                                        <form method="POST" action="{{ route('party.enqueue', $activeParty) }}">
+                                        <form method="POST" action="{{ route('party.enqueue', $activeParty) }}" data-sin-recarga>
                                             @csrf
                                             <button class="arena-console-action is-primary">
                                                 <x-admin.icon name="users" class="h-4 w-4" />
@@ -299,14 +299,14 @@
                                         </p>
                                     @endif
 
-                                    <form method="POST" action="{{ route('party.leave', $activeParty) }}">
+                                    <form method="POST" action="{{ route('party.leave', $activeParty) }}" data-sin-recarga>
                                         @csrf
                                         <button class="arena-console-action is-danger">
                                             {{ $partyQueued ? 'Cancelar busqueda' : 'Deshacer el grupo' }}
                                         </button>
                                     </form>
                                 @else
-                                    <form method="POST" action="{{ route('queue.join') }}" id="randomQueueForm">
+                                    <form method="POST" action="{{ route('queue.join') }}" data-sin-recarga id="randomQueueForm">
                                         @csrf
                                         <input type="hidden" name="queue_type" value="random">
                                         <input type="hidden" name="arena_mode" value="{{ $arenaMode }}">

@@ -33,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
             // vea el idioma elegido.
             \App\Http\Middleware\AplicarIdioma::class,
             \App\Http\Middleware\TraducirRespuesta::class,
+            \App\Http\Middleware\ResponderSinRecarga::class,
             \App\Http\Middleware\TrackUserActivity::class,
             // La sesion del panel se revalida contra su cuenta en cada
             // peticion: desactivar una cuenta cierra sus sesiones abiertas.

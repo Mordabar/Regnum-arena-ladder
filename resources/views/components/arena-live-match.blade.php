@@ -220,7 +220,7 @@
                 <b>Amistoso · sin ranking.</b>
                 No suma ni resta puntos ni hace falta reportar. Cuando acabéis, libera la cola.
             </p>
-            <form method="POST" action="{{ route('matches.friendly.finish') }}">
+            <form method="POST" action="{{ route('matches.friendly.finish') }}" data-sin-recarga>
                 @csrf
                 <input type="hidden" name="match_id" value="{{ $match->id }}">
                 <input type="hidden" name="player_id" value="{{ $lineup['viewer_player_id'] }}">
@@ -286,7 +286,7 @@
             @endif
 
             <div class="arena-duel-actions">
-                <form method="POST" action="{{ route('matches.report.confirm') }}">
+                <form method="POST" action="{{ route('matches.report.confirm') }}" data-sin-recarga>
                     @csrf
                     <input type="hidden" name="report_id" value="{{ $report->id }}">
                     <input type="hidden" name="player_id" value="{{ $lineup['viewer_player_id'] }}">

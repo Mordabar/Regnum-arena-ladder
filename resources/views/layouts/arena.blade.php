@@ -464,7 +464,7 @@
 
                     if (left === 0 && startedRunning && clock.dataset.clockReload === '1' && !reloaded) {
                         reloaded = true;
-                        window.setTimeout(function () { window.location.reload(); }, 1500);
+                        window.setTimeout(function () { (window.arenaRecargar || function () { window.location.reload(); })(); }, 1500);
                     }
                 });
             }
@@ -576,7 +576,15 @@
                 if (!panel || panel.dataset.duelAnnounced === '1') { return; }
 
                 panel.dataset.duelAnnounced = '1';
-                panel.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                // Solo el cruce encontrado, que corre contra el reloj, lleva la
+                // vista hasta el, y solo si no se ve ya. Estar en cola no
+                // mueve la pagina: quien acaba de pulsar el boton esta mirando
+                // justo ahi, y arrastrarlo era perderle el sitio.
+                var r = panel.getBoundingClientRect();
+                var visible = r.top >= 0 && r.bottom <= window.innerHeight;
+                if (!panel.classList.contains('is-waiting') && !visible) {
+                    panel.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                }
 
                 var accept = panel.querySelector('button[data-duel-accept]');
                 if (accept) {
@@ -611,6 +619,7 @@
             });
         })();
     </script>
+    @include('partials.arena-sin-recarga')
     @stack('scripts')
 </body>
 </html>

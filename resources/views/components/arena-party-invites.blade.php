@@ -36,11 +36,11 @@
                 </p>
 
                 <div class="arena-invite-actions">
-                    <form method="POST" action="{{ route('party.accept', ['party' => $invite->party_id, 'member' => $invite->id]) }}">
+                    <form method="POST" action="{{ route('party.accept', ['party' => $invite->party_id, 'member' => $invite->id]) }}" data-sin-recarga>
                         @csrf
                         <button type="submit" class="arena-btn-safe px-4 py-2 text-sm"><x-arena-icon name="check" class="h-4 w-4 shrink-0" />Aceptar</button>
                     </form>
-                    <form method="POST" action="{{ route('party.reject', ['party' => $invite->party_id, 'member' => $invite->id]) }}">
+                    <form method="POST" action="{{ route('party.reject', ['party' => $invite->party_id, 'member' => $invite->id]) }}" data-sin-recarga>
                         @csrf
                         <button type="submit" class="arena-btn-danger-ghost px-4 py-2 text-sm"><x-arena-icon name="x" class="h-4 w-4 shrink-0" />Rechazar</button>
                     </form>
