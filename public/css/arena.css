@@ -4411,3 +4411,19 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
     :lang(de) .arena-console-stage > .arena-champion:has(.arena-console-arenas) > .arena-champion-canvas,
     :lang(nl) .arena-console-stage > .arena-champion:has(.arena-console-arenas) > .arena-champion-canvas { top: 120px; height: calc(100% - 120px); }
 }
+
+/* La party baja de la fila de modo/tipo: se queda justo debajo del selector
+   (mismo borde que el lienzo del guerrero) y no encima de Competitivo/Amistoso. */
+@media (max-width: 720px) {
+    .arena-console-stage:has(.arena-console-arenas) .arena-console-party { top: 74px; }
+}
+@media (max-width: 520px) {
+    .arena-console-stage:has(.arena-console-arenas) .arena-console-party { top: 82px; }
+}
+@media (max-width: 359px) {
+    .arena-console-stage:has(.arena-console-arenas) .arena-console-party { top: 126px; }
+}
+@media (max-width: 420px) {
+    :lang(de) .arena-console-stage:has(.arena-console-arenas) .arena-console-party,
+    :lang(nl) .arena-console-stage:has(.arena-console-arenas) .arena-console-party { top: 126px; }
+}
