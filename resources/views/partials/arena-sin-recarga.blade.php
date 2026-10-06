@@ -164,7 +164,7 @@
 
             // Con un error y una ventana abierta no se repinta nada: el panel
             // de debajo cambiaria mientras se esta leyendo el motivo.
-            if (huboError && ventana) { libre(); return; }
+            if (huboError) { libre(); return; }
 
             var repintar = document.querySelector('.arena-console') && typeof window.arenaConsoleGo === 'function'
                 ? window.arenaConsoleGo(cuerpo.redirect, { reemplazar: true })

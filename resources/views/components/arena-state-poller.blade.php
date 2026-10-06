@@ -331,6 +331,27 @@
             return form + '|' + el.name;
         };
 
+        // El foco se recuerda por su sitio en el arbol y se devuelve al
+        // elemento equivalente cuando el contenido se repinta.
+        const rutaFocoDe = (host) => {
+            const activo = document.activeElement;
+            if (!activo || !host.contains(activo) || activo === host) { return null; }
+            const ruta = [];
+            for (let n = activo; n && n !== host; n = n.parentElement) {
+                ruta.unshift(Array.prototype.indexOf.call(n.parentElement.children, n));
+            }
+            return ruta;
+        };
+
+        const devolverFoco = (host, ruta) => {
+            if (!ruta) { return; }
+            let n = host;
+            for (const i of ruta) { n = n && n.children[i]; }
+            if (n && typeof n.focus === 'function' && document.activeElement !== n) {
+                try { n.focus({ preventScroll: true }); } catch (e) {}
+            }
+        };
+
         const recordarCampos = (root) => {
             const campos = [];
             const activo = document.activeElement;
@@ -418,6 +439,7 @@
             if (!fresh) { return false; }
 
             const escrito = recordarCampos(host);
+            const rutaFoco = rutaFocoDe(host);
 
             // Al cambiar de modalidad el guerrero es el mismo: el visor 3D se
             // queda donde esta, con su contexto WebGL, y solo se le cambia lo
@@ -441,6 +463,7 @@
 
             host.replaceWith(fresh);
             restaurarCampos(fresh, escrito);
+            devolverFoco(fresh, rutaFoco);
 
             // La cabecera dice en que punto esta el jugador. Sin cambiarla, el
             // panel ensena el lobby y el titulo sigue diciendo "buscando".
@@ -532,29 +555,13 @@
                 }
             });
 
-            // El foco no se pierde: se recuerda por su sitio en el arbol y se
-            // devuelve al elemento equivalente.
-            const rutaFoco = (() => {
-                const activo = document.activeElement;
-                if (!activo || !host.contains(activo) || activo === host) { return null; }
-                const ruta = [];
-                for (let n = activo; n && n !== host; n = n.parentElement) {
-                    ruta.unshift(Array.prototype.indexOf.call(n.parentElement.children, n));
-                }
-                return ruta;
-            })();
+            const rutaFoco = rutaFocoDe(host);
 
             const escrito = recordarCampos(host);
             host.innerHTML = fresh.innerHTML;
             restaurarCampos(host, escrito);
 
-            if (rutaFoco) {
-                let n = host;
-                for (const i of rutaFoco) { n = n && n.children[i]; }
-                if (n && typeof n.focus === 'function' && document.activeElement !== n) {
-                    try { n.focus({ preventScroll: true }); } catch (e) {}
-                }
-            }
+            devolverFoco(host, rutaFoco);
 
             // Las ventanas de la pagina viven fuera del contenido.
             const nuevas = Array.from(doc.body.children).filter((n) => n.id && n.id.indexOf('modal-') === 0);
