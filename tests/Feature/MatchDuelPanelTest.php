@@ -93,7 +93,7 @@ it('el aviso de cruce sale sobre la cola, sin abrir otra pagina', function () {
         ->assertSee('data-duel-panel', false)
         ->assertSee('¡Combate encontrado!')
         ->assertSee('ARENA-4242')
-        ->assertSee('Zona 1 - Frozen Bridge');
+        ->assertSee('Zona 1 - Imperia (Impe)');
 });
 
 it('el aviso respeta el anonimato del rival', function () {
