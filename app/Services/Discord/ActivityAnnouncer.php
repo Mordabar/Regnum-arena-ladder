@@ -272,27 +272,24 @@ class ActivityAnnouncer
             app()->setLocale($anterior);
         }
 
-        // El emoji del titulo no se repite en la mitad inglesa.
-        $emoji = preg_match('/^[^\p{L}\p{N}]+/u', $tituloEs, $m) ? $m[0] : '';
-        if ($emoji !== '' && str_starts_with($tituloEn, $emoji)) {
-            $tituloEn = substr($tituloEn, strlen($emoji));
-        }
+        $pie = ['text' => 'Regnum Arena Ladder · regnumarenaladder.top'];
+        $embed = fn (string $titulo, string $descripcion, array $extra = []) => [
+            'title' => $titulo,
+            'description' => $descripcion,
+            'color' => self::COLOR,
+            'url' => url('/lobby'),
+        ] + $extra;
 
-        $title = $tituloEn !== $tituloEs ? $tituloEs . ' · ' . $tituloEn : $tituloEs;
-        $description = $descripcionEn !== $descripcionEs
-            ? "🇪🇸 " . $descripcionEs . "\n\n🇬🇧 " . $descripcionEn
-            : $descripcionEs;
+        // Dos tarjetas en el mismo mensaje: primero todo en español, debajo todo en ingles.
+        $embeds = ($tituloEn !== $tituloEs || $descripcionEn !== $descripcionEs)
+            ? [
+                $embed('🇪🇸 ' . $tituloEs, $descripcionEs),
+                $embed('🇬🇧 ' . $tituloEn, $descripcionEn, ['footer' => $pie]),
+            ]
+            : [$embed($tituloEs, $descripcionEs, ['footer' => $pie])];
 
         try {
-            $this->discord->publicarEnCanal($this->channelId(), [
-                'embeds' => [[
-                    'title' => $title,
-                    'description' => $description,
-                    'color' => self::COLOR,
-                    'url' => url('/lobby'),
-                    'footer' => ['text' => 'Regnum Arena Ladder · regnumarenaladder.top'],
-                ]],
-            ]);
+            $this->discord->publicarEnCanal($this->channelId(), ['embeds' => $embeds]);
         } catch (\Throwable $e) {
             Log::warning('No se pudo programar un anuncio de Discord', ['error' => $e->getMessage()]);
         }
