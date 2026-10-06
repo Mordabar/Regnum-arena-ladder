@@ -224,7 +224,7 @@
                                 <option value="{{ $sandboxMode }}">{{ $sandboxMode }}</option>
                             @endforeach
                         </select>
-                        <select name="kind" class="ap-select ap-select-sm" aria-label="Tipo de partida de la invitacion">
+                        <select name="kind" class="ap-select ap-select-sm" style="min-width: 7.75rem" aria-label="Tipo de partida de la invitacion">
                             @foreach($sandboxKinds as $sandboxKind)
                                 <option value="{{ $sandboxKind }}">{{ $sandboxKind === 'ranked' ? 'Competitivo' : 'Amistoso' }}</option>
                             @endforeach
@@ -435,7 +435,7 @@
                                         @endforeach
                                     </select>
                                     @if(count($sandboxKinds) > 1)
-                                        <select name="kind" class="ap-select ap-select-sm" aria-label="Tipo de partida">
+                                        <select name="kind" class="ap-select ap-select-sm" style="min-width: 7.75rem" aria-label="Tipo de partida">
                                             @foreach($sandboxKinds as $sandboxKind)
                                                 <option value="{{ $sandboxKind }}">{{ $sandboxKind === 'ranked' ? 'Competitivo' : 'Amistoso' }}</option>
                                             @endforeach
