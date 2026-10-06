@@ -15,10 +15,10 @@
 <link rel="stylesheet" href="{{ asset('vendor/leaflet/leaflet.css') }}"/>
 <style>
     /* Popups */
-    .leaflet-popup-content-wrapper { background-color: var(--arena-panel); border: 1px solid rgba(216, 177, 92, 0.3); color: #fff; border-radius: 8px; }
-    .leaflet-popup-tip { background-color: var(--arena-panel); border: 1px solid rgba(216, 177, 92, 0.3); }
+    .leaflet-popup-content-wrapper { background-color: var(--ap-surface-raised, #1f1712); border: 1px solid rgba(216, 177, 92, 0.3); color: #fff; border-radius: 8px; }
+    .leaflet-popup-tip { background-color: var(--ap-surface-raised, #1f1712); border: 1px solid rgba(216, 177, 92, 0.3); }
     
-    .zone-title { font-family: 'Cinzel', serif; color: var(--arena-gold); margin: 0 0 5px 0; }
+    .zone-title { font-family: 'Cinzel', serif; color: var(--ap-accent, #d8b15c); margin: 0 0 5px 0; }
     .zone-badge { display: inline-block; background-color: rgba(239, 68, 68, 0.15); color: #fca5a5; padding: 2px 8px; border-radius: 99px; font-size: 10px; margin-bottom: 5px;}
 
     /* Etiquetas de Texto Permanentes en Zonas (Estilo Gold Arena) */
@@ -27,7 +27,7 @@
         border: 1px solid rgba(216, 177, 92, 0.5); 
         border-radius: 4px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.9); 
-        color: var(--arena-gold); 
+        color: var(--ap-accent, #d8b15c); 
         font-family: 'Cinzel', serif; 
         font-weight: 700; 
         text-align: center; 
