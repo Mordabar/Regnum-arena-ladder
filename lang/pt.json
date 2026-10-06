@@ -968,5 +968,8 @@
  "🤝 **:n** esperando un amistoso (:partes)": "🤝 **:n** esperando um amistoso (:partes)",
  "🤝 Amistoso :modo": "🤝 Amistoso :modo",
  "🤝 Arranca un amistoso :modo": "🤝 Começa um amistoso :modo",
- "🤝 ¡Amistoso encontrado!": "🤝 Amistoso encontrado!"
+ "🤝 ¡Amistoso encontrado!": "🤝 Amistoso encontrado!",
+ "⚔️ Competitivo :modo": "⚔️ Competitivo :modo",
+ "🔥 Arranca un competitivo :modo": "🔥 Começa um competitivo :modo",
+ "⚔️ **:n** esperando un competitivo (:partes)": "⚔️ **:n** esperando uma partida competitiva (:partes)"
 }

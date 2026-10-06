@@ -198,9 +198,9 @@ it('los anuncios del canal salen en español e ingles', function () {
     $embeds = $mensaje['embeds'];
 
     expect($embeds)->toHaveCount(2)
-        ->and($embeds[0]['title'])->toContain('🇪🇸')->toContain('hay alguien esperando rival')->not->toContain('waiting')
+        ->and($embeds[0]['title'])->toContain('🇪🇸')->toContain('Competitivo')->toContain('hay alguien esperando rival')->not->toContain('waiting')
         ->and($embeds[0]['description'])->toContain('es vuestro momento')->not->toContain('your moment')
-        ->and($embeds[1]['title'])->toContain('🇬🇧')->toContain('someone is waiting for an opponent')->not->toContain('esperando')
+        ->and($embeds[1]['title'])->toContain('🇬🇧')->toContain('Competitive')->toContain('someone is waiting for an opponent')->not->toContain('esperando')
         ->and($embeds[1]['description'])->toContain('your moment is now')->not->toContain('vuestro');
 });
 

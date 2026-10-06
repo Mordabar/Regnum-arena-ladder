@@ -968,5 +968,8 @@
  "🤝 **:n** esperando un amistoso (:partes)": "🤝 **:n** warten auf einen Freundschaftskampf (:partes)",
  "🤝 Amistoso :modo": "🤝 Freundschaftskampf :modo",
  "🤝 Arranca un amistoso :modo": "🤝 Ein Freundschaftskampf :modo beginnt",
- "🤝 ¡Amistoso encontrado!": "🤝 Freundschaftskampf gefunden!"
+ "🤝 ¡Amistoso encontrado!": "🤝 Freundschaftskampf gefunden!",
+ "⚔️ Competitivo :modo": "⚔️ Wettkampf :modo",
+ "🔥 Arranca un competitivo :modo": "🔥 Ein Wettkampf :modo beginnt",
+ "⚔️ **:n** esperando un competitivo (:partes)": "⚔️ **:n** wartet auf einen Wettkampf (:partes)"
 }

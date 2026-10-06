@@ -968,5 +968,8 @@
  "🤝 **:n** esperando un amistoso (:partes)": "🤝 **:n** wachten op een vriendschappelijk gevecht (:partes)",
  "🤝 Amistoso :modo": "🤝 Vriendschappelijk :modo",
  "🤝 Arranca un amistoso :modo": "🤝 Een vriendschappelijk :modo begint",
- "🤝 ¡Amistoso encontrado!": "🤝 Vriendschappelijk gevecht gevonden!"
+ "🤝 ¡Amistoso encontrado!": "🤝 Vriendschappelijk gevecht gevonden!",
+ "⚔️ Competitivo :modo": "⚔️ Competitief :modo",
+ "🔥 Arranca un competitivo :modo": "🔥 Een competitieve :modo begint",
+ "⚔️ **:n** esperando un competitivo (:partes)": "⚔️ **:n** wacht op een competitieve match (:partes)"
 }

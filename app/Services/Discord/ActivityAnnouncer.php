@@ -108,7 +108,7 @@ class ActivityAnnouncer
         $grupo = (bool) $queue->team_id;
 
         $this->post(fn () => [
-            ($ranked ? '⚔️ ' . __(ArenaMode::displayName($mode)) : __('🤝 Amistoso :modo', ['modo' => $mode])) . ': ' . __('hay alguien esperando rival'),
+            __($ranked ? '⚔️ Competitivo :modo' : '🤝 Amistoso :modo', ['modo' => $mode]) . ': ' . __('hay alguien esperando rival'),
             __($grupo ? 'Un grupo de **:reino** acaba de entrar en cola. :otros: es vuestro momento.' : 'Un guerrero de **:reino** acaba de entrar en cola. :otros: es vuestro momento.', [
                 'reino' => __($realmName),
                 'otros' => $others->map(fn ($r) => __($r))->implode(' / '),
@@ -163,7 +163,7 @@ class ActivityAnnouncer
         $modo = ArenaMode::label($match->arena_mode);
 
         $this->post(fn () => [
-            __($amistoso ? '🤝 Arranca un amistoso :modo' : '🔥 Arranca un :modo', ['modo' => $modo]),
+            __($amistoso ? '🤝 Arranca un amistoso :modo' : '🔥 Arranca un competitivo :modo', ['modo' => $modo]),
             __('**:a** contra **:b**. La arena está viva: entra y busca el tuyo.', ['a' => __($a), 'b' => __($b)]),
         ]);
     }
@@ -205,7 +205,7 @@ class ActivityAnnouncer
         $this->post(function () use ($waiting, $friendlyWaiting, $inProgress, $parts, $partsF) {
             $lines = [];
             if ($waiting > 0) {
-                $lines[] = __($waiting === 1 ? '**:n** guerrero esperando rival (:partes)' : '**:n** guerreros esperando rival (:partes)', ['n' => $waiting, 'partes' => $parts]);
+                $lines[] = __('⚔️ **:n** esperando un competitivo (:partes)', ['n' => $waiting, 'partes' => $parts]);
             }
             if ($friendlyWaiting > 0) {
                 $lines[] = __('🤝 **:n** esperando un amistoso (:partes)', ['n' => $friendlyWaiting, 'partes' => $partsF]);
