@@ -123,11 +123,13 @@ class TestingLabController extends Controller
             return back()->withErrors(['error' => 'La modalidad ' . $sandboxMode . ' no esta activa: la cola no se procesaria.']);
         }
 
+        $sandboxKind = \App\Support\Competition::resolve($request->input('kind'));
+
         Queue::create([
             'player_id' => $player->id,
             'queue_type' => 'random',
             'arena_mode' => $sandboxMode,
-            'is_ranked' => \App\Support\Competition::rankedOpen(),
+            'is_ranked' => $sandboxKind === \App\Support\Competition::RANKED,
             'status' => 'waiting',
             'conjurer_role' => $this->assignSandboxConjurerRole($player, $sandboxMode),
             'estimated_mmr' => $player->mmr ?? 800,
@@ -146,9 +148,13 @@ class TestingLabController extends Controller
             'realm' => 'required|in:ignis,syrtis,alsius',
             'count' => 'required|integer|min:1|max:60',
             'arena_mode' => 'nullable|in:' . implode(',', ArenaMode::all()),
+            'kind' => 'nullable|in:' . \App\Support\Competition::RANKED . ',' . \App\Support\Competition::FRIENDLY,
         ]);
 
         $arenaMode = ArenaMode::resolve($validated['arena_mode'] ?? null);
+        // Competitivo o amistoso: los bots entran con el tipo que se elija, que
+        // es lo que permite ensayar los amistosos sin cuentas de verdad.
+        $kind = \App\Support\Competition::resolve($validated['kind'] ?? null);
 
         if (!ArenaMode::isEnabled($arenaMode)) {
             return back()->withErrors(['error' => 'La modalidad ' . $arenaMode . ' no esta activa: los bots quedarian esperando sin emparejar.']);
@@ -181,7 +187,7 @@ class TestingLabController extends Controller
                 'player_id' => $player->id,
                 'queue_type' => 'random',
                 'arena_mode' => $arenaMode,
-                'is_ranked' => \App\Support\Competition::rankedOpen(),
+                'is_ranked' => $kind === \App\Support\Competition::RANKED,
                 'status' => 'waiting',
                 'conjurer_role' => $this->assignSandboxConjurerRole($player, $arenaMode),
                 'estimated_mmr' => $player->mmr ?? 800,
@@ -194,7 +200,7 @@ class TestingLabController extends Controller
         // lo que permite meter unos cuantos y mirar como los reparte de una
         // pasada. Barrer aqui ademas mentiria con la espera en cero.
 
-        return back()->with('success', 'Se encolaron ' . $players->count() . ' bots de ' . ucfirst($validated['realm']) . ' en ' . $arenaMode . '. Se quedan esperando: pulsa "Procesar cola" cuando tengas dentro a todos los que quieras ver repartidos.');
+        return back()->with('success', 'Se encolaron ' . $players->count() . ' bots de ' . ucfirst($validated['realm']) . ' en ' . $arenaMode . ' (' . \App\Support\Competition::label($kind === \App\Support\Competition::RANKED) . '). Se quedan esperando: pulsa "Procesar cola" cuando tengas dentro a todos los que quieras ver repartidos.');
     }
 
     public function sandboxProcess(ArenaMatchmakingService $matchmakingService)
@@ -352,6 +358,7 @@ class TestingLabController extends Controller
         }
 
         $requiredBots = ArenaMode::teamSize($arenaMode) - 1;
+        $partyKind = \App\Support\Competition::resolve($request->input('kind'));
 
         $bots = Player::query()
             ->whereIn('id', $botPlayerIds)
@@ -377,6 +384,7 @@ class TestingLabController extends Controller
             'status' => 'forming',
             'realm' => $botLeader->realm,
             'arena_mode' => $arenaMode,
+            'is_ranked' => $partyKind === \App\Support\Competition::RANKED,
         ]);
 
         // Con 2 bots (3v3) los roles se sortean por separado y podrian salir dos
@@ -459,6 +467,10 @@ class TestingLabController extends Controller
 
         if ($match->status !== 'in_progress') {
             return back()->withErrors(['error' => 'Solo se puede reportar un enfrentamiento en juego.']);
+        }
+
+        if ($match->isFriendly()) {
+            return back()->withErrors(['error' => 'Un amistoso no se reporta: se termina con el boton "Terminar amistoso" del lobby, o con "Cerrar las de solo bots" si no hay nadie real.']);
         }
 
         if ($match->report) {
@@ -855,6 +867,13 @@ class TestingLabController extends Controller
         }
 
         if ($match->results()->exists()) {
+            return;
+        }
+
+        // Un amistoso no se reporta ni se puntua: se termina y listo.
+        if ($match->isFriendly()) {
+            $resultService->finishFriendly($match);
+
             return;
         }
 

@@ -20,6 +20,8 @@
     $botCanAnswerMatchIds = $sandbox['botCanAnswerMatchIds'];
     $recentMatches = $sandbox['recentMatches'];
     $enabledModes = \App\Support\ArenaMode::enabled();
+    // Competitivo y/o amistoso, segun lo que este abierto ahora mismo.
+    $sandboxKinds = \App\Support\Competition::open();
 
     // Se arma el texto en PHP en vez de con directivas Blade sueltas: una
     // directiva pegada a una palabra (rival@if) no se compila y deja un @else
@@ -145,7 +147,7 @@
                 </div>
             </div>
         </div>
-        <form method="POST" action="{{ route('admin.testing.enqueue-realm') }}" class="grid gap-3 sm:grid-cols-4">
+        <form method="POST" action="{{ route('admin.testing.enqueue-realm') }}" class="grid gap-3 sm:grid-cols-5">
             @csrf
             <div class="ap-field">
                 <label class="ap-label" for="eq-realm">Reino</label>
@@ -164,6 +166,14 @@
                 <select name="arena_mode" id="eq-mode" class="ap-select">
                     @foreach($enabledModes as $sandboxMode)
                         <option value="{{ $sandboxMode }}">{{ $sandboxMode }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="ap-field">
+                <label class="ap-label" for="eq-kind">Tipo</label>
+                <select name="kind" id="eq-kind" class="ap-select">
+                    @foreach($sandboxKinds as $sandboxKind)
+                        <option value="{{ $sandboxKind }}">{{ $sandboxKind === 'ranked' ? 'Competitivo' : 'Amistoso' }}</option>
                     @endforeach
                 </select>
             </div>
@@ -212,6 +222,11 @@
                         <select name="arena_mode" class="ap-select ap-select-sm" aria-label="Modalidad de la invitacion">
                             @foreach($premadeModes as $sandboxMode)
                                 <option value="{{ $sandboxMode }}">{{ $sandboxMode }}</option>
+                            @endforeach
+                        </select>
+                        <select name="kind" class="ap-select ap-select-sm" aria-label="Tipo de partida de la invitacion">
+                            @foreach($sandboxKinds as $sandboxKind)
+                                <option value="{{ $sandboxKind }}">{{ $sandboxKind === 'ranked' ? 'Competitivo' : 'Amistoso' }}</option>
                             @endforeach
                         </select>
                         <button type="submit" class="ap-btn ap-btn-sm" @disabled(empty($premadeModes))>Que un bot me invite</button>
@@ -419,6 +434,13 @@
                                             <option value="{{ $sandboxMode }}">{{ $sandboxMode }}</option>
                                         @endforeach
                                     </select>
+                                    @if(count($sandboxKinds) > 1)
+                                        <select name="kind" class="ap-select ap-select-sm" aria-label="Tipo de partida">
+                                            @foreach($sandboxKinds as $sandboxKind)
+                                                <option value="{{ $sandboxKind }}">{{ $sandboxKind === 'ranked' ? 'Competitivo' : 'Amistoso' }}</option>
+                                            @endforeach
+                                        </select>
+                                    @endif
                                 @endif
                                 <button type="submit" class="ap-btn ap-btn-sm">{{ $isQueued ? 'Sacar' : 'Encolar' }}</button>
                             </form>
