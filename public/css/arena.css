@@ -4186,3 +4186,8 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
     .arena-lang-sheet { bottom: auto; top: calc(100% + 10px); right: 0; left: auto; max-height: calc(100dvh - 90px); }
     .arena-lang.is-oculto { transform: translateY(-90px); }
 }
+
+/* Botones con area de toque de 44px en movil. */
+@media (max-width: 1023px) {
+    .arena-btn-ghost, .arena-btn-primary { min-height: 44px; }
+}
