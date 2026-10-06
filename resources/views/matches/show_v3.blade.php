@@ -263,8 +263,17 @@
             <div class="flex items-start gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-950/20 px-5 py-4 text-emerald-100">
                 <svg class="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
                 <div>
+                    @if($esAmistoso)
+                        {{-- Sin ranking de por medio: lo que cuenta es lo que se apunto, si se apunto algo. --}}
+                        <p class="font-semibold">Amistoso terminado
+                        @if($report && $report->claimed_winner_team)
+                            — {{ $report->claimed_winner_team === 'draw' ? 'Resultado: Empate' : 'Ganador: ' . (\App\Models\ArenaMatch::REALMS[$report->claimed_winner_team === 'team_a' ? $match->team_a_realm : $match->team_b_realm] ?? '') }}
+                        @endif
+                        </p>
+                    @else
                     <p class="font-semibold">Match resuelto — {{ $match->winner_realm ? 'Ganador: ' . (\App\Models\ArenaMatch::REALMS[$match->winner_realm] ?? strtoupper((string) $match->winner_realm)) : 'Resultado: Empate' }}</p>
                     <p class="mt-1 text-sm text-emerald-200/70 arena-body-text">El ladder ya fue actualizado con los resultados de este encuentro.</p>
+                    @endif
                 </div>
             </div>
         </section>

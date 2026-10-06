@@ -4254,3 +4254,17 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
 .arena-friendly-result > summary::-webkit-details-marker { display: none; }
 .arena-friendly-result[open] { padding-bottom: 14px; display: grid; gap: 12px; }
 .arena-friendly-result[open] > summary { margin-bottom: 2px; }
+
+/* El bloque de resultado de un amistoso se lee como boton: flecha y 44px. */
+.arena-friendly-result > summary { gap: 8px; }
+.arena-friendly-result > summary::before {
+    content: '';
+    flex: none;
+    width: 8px; height: 8px;
+    border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform .2s ease;
+}
+.arena-friendly-result[open] > summary::before { transform: rotate(45deg); }
+.arena-friendly-result .arena-field { min-height: 44px; }
+@media (max-width: 360px) { .arena-friendly-end, .arena-friendly-panel { padding-left: 12px; padding-right: 12px; } }

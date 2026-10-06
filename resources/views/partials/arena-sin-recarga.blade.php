@@ -57,6 +57,8 @@
         var form = event.target;
         if (!form || form.tagName !== 'FORM' || (form.method || '').toLowerCase() !== 'post') { return; }
         if (event.defaultPrevented) { return; }
+        // Cerrar sesion lleva a otra pagina: no hay sitio que conservar.
+        if (/\/logout\/?$/.test(form.getAttribute('action') || '')) { return; }
 
         if (!form.hasAttribute('data-sin-recarga') || !puedeSinRecarga()) {
             // Se envia entero: al volver, a donde estabas.
@@ -77,6 +79,11 @@
         return enLobby || enPagina;
     }
 
+    var textos = {
+        reintenta: @json(__('Sin conexión. Inténtalo otra vez.')),
+        caducado: @json(__('Esta página ha caducado. Recargando…')),
+    };
+
     function avisar(texto, tipo) {
         if (typeof window.arenaToast === 'function') { window.arenaToast(texto, tipo || 'info', 4500); }
     }
@@ -93,12 +100,8 @@
             botones.forEach(function (b) { b.disabled = false; b.removeAttribute('aria-busy'); });
         };
 
-        // Si algo no sale, se envia de la forma de siempre.
-        var respaldo = function () {
-            libre();
-            guardarLugar();
-            form.submit();
-        };
+        // El sondeo no avisa de lo que el propio jugador acaba de hacer.
+        window.arenaAccionPropia = Date.now();
 
         var corte = new AbortController();
         var plazo = window.setTimeout(function () { corte.abort(); }, 20000);
@@ -112,7 +115,7 @@
             credentials: 'same-origin',
             redirect: 'follow',
             headers: {
-                'Accept': 'application/json',
+                'Accept': 'text/html',
                 'X-Requested-With': 'XMLHttpRequest',
                 'X-Arena-Sin-Recarga': '1',
                 'X-Arena-Aqui': location.pathname,
@@ -121,10 +124,29 @@
         }).then(function (r) {
             window.clearTimeout(plazo);
             var tipo = r.headers.get('content-type') || '';
-            if (!r.ok || tipo.indexOf('json') === -1) { return null; }
-            return r.json();
+            if (r.ok && tipo.indexOf('json') !== -1) { return r.json(); }
+
+            // La pagina caduco (sesion o token) o el recurso ya no existe: se
+            // recarga en el mismo sitio, que es lo unico que lo arregla. Reenviar
+            // el formulario daria el mismo error otra vez.
+            if (r.status === 419 || r.status === 404 || r.status === 401) {
+                return { caducado: true };
+            }
+            return { fallo: true };
         }).then(function (cuerpo) {
-            if (!cuerpo || !cuerpo.redirect) { respaldo(); return; }
+            if (cuerpo && cuerpo.caducado) {
+                avisar(textos.caducado, 'info');
+                libre();
+                window.setTimeout(function () { window.arenaRecargar(); }, 900);
+                return { manejado: true };
+            }
+            // Cualquier otra respuesta que no sea la esperada: se avisa y se
+            // deja todo como esta. Reenviar entero subia los archivos otra vez.
+            if (cuerpo && cuerpo.fallo) { avisar(textos.reintenta, 'error'); libre(); return { manejado: true }; }
+            return cuerpo;
+        }).then(function (cuerpo) {
+            if (cuerpo && cuerpo.manejado) { return; }
+            if (!cuerpo || !cuerpo.redirect) { avisar(textos.reintenta, 'error'); libre(); return; }
 
             // A otra pagina: se va. El aviso sigue en la sesion y lo pinta ella.
             if (!cuerpo.misma_ruta) { window.location.href = cuerpo.redirect; return; }
@@ -155,7 +177,10 @@
             });
         }).catch(function () {
             window.clearTimeout(plazo);
-            respaldo();
+            // Sin red o sin respuesta no se envia de nuevo: la accion pudo llegar
+            // a hacerse, y repetirla seria peor que pedir otro intento.
+            avisar(textos.reintenta, 'error');
+            libre();
         });
     }
 })();

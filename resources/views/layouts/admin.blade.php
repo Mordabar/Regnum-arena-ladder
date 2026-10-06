@@ -237,5 +237,6 @@
         });
     })();
 </script>
+@include('partials.arena-sin-recarga')
 </body>
 </html>

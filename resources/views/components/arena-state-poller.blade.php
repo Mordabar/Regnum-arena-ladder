@@ -261,6 +261,12 @@
         };
 
         const emitAlerts = (events) => {
+            // Lo que el propio jugador acaba de hacer no se le avisa: lo ve en
+            // el aviso de la accion. Solo se callan los genericos; un cruce o
+            // una invitacion siguen sonando.
+            if (Date.now() - (window.arenaAccionPropia || 0) < 8000) {
+                events = events.filter((e) => e.type !== 'generic' && e.type !== 'report_confirmed');
+            }
             if (!events.length || !window.ArenaSoundAlerts || typeof window.ArenaSoundAlerts.notify !== 'function') {
                 return;
             }
@@ -513,9 +519,42 @@
                 n.classList.remove('arena-animate-in', 'arena-stagger-1', 'arena-stagger-2', 'arena-stagger-3', 'arena-stagger-4');
             });
 
+            // Las figuras 3D de la alineacion son las mismas durante todo el
+            // combate: se quedan los visores que ya estan montados en vez de
+            // recargar los modelos y crear contextos WebGL nuevos.
+            const mismas = ['championRealm', 'championSubclass', 'championRace', 'championGender'];
+            fresh.querySelectorAll('[data-champion-viewer][data-champion-id]').forEach((nuevo) => {
+                const viejo = Array.from(host.querySelectorAll('[data-champion-viewer][data-champion-id]'))
+                    .find((v) => v.dataset.championId === nuevo.dataset.championId);
+                if (viejo && viejo.dataset.championMounted === '1'
+                    && mismas.every((k) => viejo.dataset[k] === nuevo.dataset[k])) {
+                    nuevo.replaceWith(viejo);
+                }
+            });
+
+            // El foco no se pierde: se recuerda por su sitio en el arbol y se
+            // devuelve al elemento equivalente.
+            const rutaFoco = (() => {
+                const activo = document.activeElement;
+                if (!activo || !host.contains(activo) || activo === host) { return null; }
+                const ruta = [];
+                for (let n = activo; n && n !== host; n = n.parentElement) {
+                    ruta.unshift(Array.prototype.indexOf.call(n.parentElement.children, n));
+                }
+                return ruta;
+            })();
+
             const escrito = recordarCampos(host);
             host.innerHTML = fresh.innerHTML;
             restaurarCampos(host, escrito);
+
+            if (rutaFoco) {
+                let n = host;
+                for (const i of rutaFoco) { n = n && n.children[i]; }
+                if (n && typeof n.focus === 'function' && document.activeElement !== n) {
+                    try { n.focus({ preventScroll: true }); } catch (e) {}
+                }
+            }
 
             // Las ventanas de la pagina viven fuera del contenido.
             const nuevas = Array.from(doc.body.children).filter((n) => n.id && n.id.indexOf('modal-') === 0);
