@@ -138,6 +138,25 @@ it('el pulso del cron solo sale con actividad y como mucho una vez por periodo',
         ->and($anuncios[0]['description'])->toContain('2v2: 1');
 });
 
+it('el resumen no sale pegado al anuncio de la cola: espera a que el canal este callado', function () {
+    $anunciador = app(ActivityAnnouncer::class);
+
+    entraEnCola(guerreroAnuncio('Pegado', 'ignis'), '2v2');
+    finDePeticion();
+    expect(anunciosEnviados())->toHaveCount(1);
+
+    // El tick del cron justo despues: no hay segundo anuncio.
+    $anunciador->pulse();
+    finDePeticion();
+    expect(anunciosEnviados())->toHaveCount(1);
+
+    // Pasado el rato de silencio, el resumen sale (no gasto su turno antes).
+    \Illuminate\Support\Facades\Cache::forget('discord:anuncio:reciente');
+    $anunciador->pulse();
+    finDePeticion();
+    expect(anunciosEnviados())->toHaveCount(2);
+});
+
 it('el interruptor del panel los apaga', function () {
     AppSetting::setValue(ActivityAnnouncer::SETTING_ENABLED, '0', 'runtime', 'boolean', false);
 

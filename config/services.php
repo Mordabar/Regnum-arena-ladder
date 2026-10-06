@@ -21,6 +21,9 @@ return [
             'match_every_minutes' => (int) env('DISCORD_ANNOUNCE_MATCH_MINUTES', 10),
             // El resumen de actividad del cron.
             'pulse_every_minutes' => (int) env('DISCORD_ANNOUNCE_PULSE_MINUTES', 60),
+            // El resumen espera a que el canal lleve este rato sin otro anuncio:
+            // si no, sale pegado al de "hay alguien esperando" diciendo lo mismo.
+            'pulse_quiet_minutes' => (int) env('DISCORD_ANNOUNCE_PULSE_QUIET_MINUTES', 10),
         ],
     ],
 

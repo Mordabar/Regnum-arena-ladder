@@ -180,6 +180,12 @@ class ActivityAnnouncer
             return;
         }
 
+        // Pegado a otro anuncio no sale: se queda esperando al siguiente tick,
+        // sin gastar su turno, y sale cuando el canal lleve un rato callado.
+        if (Cache::has('discord:anuncio:reciente')) {
+            return;
+        }
+
         $byMode = [];
         $friendlyByMode = [];
         foreach (ArenaMode::enabled() as $mode) {
@@ -288,6 +294,9 @@ class ActivityAnnouncer
                 $embed('🇬🇧 ' . $tituloEn, $descripcionEn, ['footer' => $pie]),
             ]
             : [$embed($tituloEs, $descripcionEs, ['url' => url('/lobby'), 'footer' => $pie])];
+
+        $callado = max(1, (int) config('services.discord.announcements.pulse_quiet_minutes', 10));
+        Cache::put('discord:anuncio:reciente', true, now()->addMinutes($callado));
 
         try {
             $this->discord->publicarEnCanal($this->channelId(), ['embeds' => $embeds]);
