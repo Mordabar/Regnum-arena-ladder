@@ -3,6 +3,19 @@
      El mapa puede llegar con el panel repintado, asi que ni los estilos ni el
      cargador pueden depender de que el componente estuviera en la pagina al
      cargarla. --}}
+@php
+    // Los nombres de fabrica de las zonas en el idioma activo, por clave de zona.
+    // Las zonas llegan en un fichero JS que se cachea un año y no puede variar
+    // con el idioma: la traduccion va aparte, y solo para la zona que aun
+    // conserva su nombre de fabrica (si el admin le puso otro, se ve ese).
+    // Por clave y no por texto: el traductor tambien traduce las cadenas del
+    // script, y un texto usado como clave dejaria de coincidir.
+    $nombresDeZona = app(\App\Services\ArenaZoneService::class)->todas()
+        ->filter(fn ($z) => isset(\App\Models\ArenaMatch::ZONES[$z->key])
+            && $z->name === 'Zona ' . $z->number . ' - ' . \App\Models\ArenaMatch::ZONES[$z->key]['name'])
+        ->mapWithKeys(fn ($z) => [$z->key => __('Zona') . ' ' . $z->number . ' - ' . __(\App\Models\ArenaMatch::ZONES[$z->key]['name'])]);
+@endphp
+<script>window.ARENA_ZONE_NAMES = @json($nombresDeZona);</script>
 <style>
         /* ── Mapa de zonas ─────────────────────────────────────────────────
            Vivian con el componente. Ahora estan aqui porque el mapa puede
@@ -353,6 +366,7 @@
                     window.ARENA_ZONES_CONFIG.forEach(zone => {
                         if (!zone.coords || zone.coords.length < 3) return;
 
+                        const nombreZona = (window.ARENA_ZONE_NAMES && window.ARENA_ZONE_NAMES[zone.key]) || zone.name;
                         const isHighlighted = highlightKey && zone.key === highlightKey;
                         const isOther = highlightKey && zone.key !== highlightKey;
 
@@ -397,7 +411,7 @@
                            encuentro. Se queda el del punto, que es el dato que
                            hace falta. */
                         if (!isHighlighted) {
-                            polygon.bindTooltip(zone.name.split(' - ')[0].toUpperCase(), {
+                            polygon.bindTooltip(nombreZona.split(' - ')[0].toUpperCase(), {
                                 permanent: true,
                                 direction: 'center',
                                 className: 'arena-map-label',
@@ -408,7 +422,7 @@
                         if (!isOther) {
                             polygon.bindPopup(`
                                 <div class="arena-map-zone-badge">Zona PvP</div>
-                                <h4 class="arena-map-zone-title">${zone.name}</h4>
+                                <h4 class="arena-map-zone-title">${nombreZona}</h4>
                                 <p class="arena-map-zone-note">El circulo rojo marca el punto de encuentro.</p>
                             `);
                         }
