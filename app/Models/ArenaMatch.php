@@ -359,6 +359,22 @@ class ArenaMatch extends Model
         return $metadata['number'] ?? null;
     }
 
+    /**
+     * El nombre de la zona en el idioma activo, para los textos que se arman en
+     * el servidor (avisos, mensajes de Discord). "Zona" y las palabras comunes
+     * se traducen; los nombres propios (Evendim, Menirah...) se quedan.
+     */
+    public function getZoneNameTranslatedAttribute(): string
+    {
+        $metadata = self::zoneMetadata($this->zone);
+
+        if ($metadata === null) {
+            return (string) $this->zone_name;
+        }
+
+        return __('Zona') . ' ' . $metadata['number'] . ' - ' . __($metadata['name']);
+    }
+
     public function getZoneNameAttribute()
     {
         $rawZone = trim((string) $this->zone);

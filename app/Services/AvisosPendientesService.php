@@ -264,7 +264,7 @@ class AvisosPendientesService
             $avisos[] = [
                 'tag' => 'combate:' . $match->id,
                 'titulo' => '¡A pelear!',
-                'cuerpo' => __('Quedad en :zona.', ['zona' => \Illuminate\Support\Str::replaceFirst('Zona', __('Zona'), (string) $match->zone_name)]),
+                'cuerpo' => __('Quedad en :zona.', ['zona' => $match->zone_name_translated]),
                 'url' => $lobby,
                 'en' => $this->cuando($match->started_at ?? $match->accepted_at ?? $match->updated_at),
             ];

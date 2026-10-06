@@ -105,7 +105,7 @@ class DiscordBotService
 
         $embed = [
             'title' => $match->isFriendly() ? __('🤝 ¡Amistoso encontrado!') : __('🎯 ¡Match Encontrado!'),
-            'description' => __('**Código:** `:codigo`', ['codigo' => $match->match_code]) . "\n" . __('**Zona:** :zona', ['zona' => \Illuminate\Support\Str::replaceFirst('Zona', __('Zona'), (string) $match->zone_name)]) . "\n" . __('**Reino rival:** :reino', ['reino' => __($rivalRealmName)]),
+            'description' => __('**Código:** `:codigo`', ['codigo' => $match->match_code]) . "\n" . __('**Zona:** :zona', ['zona' => $match->zone_name_translated]) . "\n" . __('**Reino rival:** :reino', ['reino' => __($rivalRealmName)]),
             'color' => 0xFF6B35, // Orange color
             'fields' => [
                 $esDuelo
@@ -474,7 +474,7 @@ class DiscordBotService
                     'fields' => [
                         [
                             'name' => __('Zona de combate'),
-                            'value' => \Illuminate\Support\Str::replaceFirst('Zona', __('Zona'), (string) $match->zone_name)
+                            'value' => $match->zone_name_translated
                         ],
                         [
                             'name' => __('Estado'),
