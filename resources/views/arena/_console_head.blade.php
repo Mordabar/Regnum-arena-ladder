@@ -17,7 +17,7 @@
                         </span>
                     @endif
                 </div>
-                <h1 class="arena-console-title mt-2 text-3xl font-bold text-[color:var(--arena-gold-soft)] md:text-4xl">
+                <h1 data-anuncio class="arena-console-title mt-2 text-3xl font-bold text-[color:var(--arena-gold-soft)] md:text-4xl">
                     @if($matchIsPendingAcceptance)
                         Cruce encontrado
                     @elseif($currentMatch)
@@ -28,7 +28,7 @@
                         <span class="arena-hide-mobile">Bienvenido, </span>{{ auth()->user()->discord_username }}
                     @endif
                 </h1>
-                <p class="arena-console-lede mt-2 max-w-2xl text-[color:var(--arena-sand)] arena-body-text">
+                <p data-anuncio class="arena-console-lede mt-2 max-w-2xl text-[color:var(--arena-sand)] arena-body-text">
                     @if($matchIsPendingAcceptance)
                         Confirma abajo antes de que se agote el reloj. Si alguien no acepta, el cruce se cancela.
                     @elseif($currentMatch)

@@ -352,6 +352,25 @@
             }
         };
 
+        // Cuando la pantalla cambia sola, a un lector de pantalla no le llega
+        // nada: el cambio es silencioso. Lo que lleva `data-anuncio` -el titulo
+        // y la explicacion del lobby, el estado del combate- se dice en la zona
+        // de aviso, y solo si cambio.
+        const leerAnuncio = () => Array.from(document.querySelectorAll('[data-anuncio]'))
+            .map((n) => n.textContent.replace(/\s+/g, ' ').trim())
+            .filter(Boolean)
+            .join(' — ');
+        let ultimoAnuncio = null;
+        const anunciarEstado = () => {
+            const texto = leerAnuncio();
+            if (ultimoAnuncio === null) { ultimoAnuncio = texto; return; }
+            if (!texto || texto === ultimoAnuncio) { return; }
+            ultimoAnuncio = texto;
+            const zona = document.querySelector('[data-estado-anuncio]');
+            if (zona) { zona.textContent = texto; }
+        };
+        window.setTimeout(anunciarEstado, 0);
+
         const recordarCampos = (root) => {
             const campos = [];
             const activo = document.activeElement;
@@ -487,6 +506,7 @@
 
             document.dispatchEvent(new CustomEvent('arena:dom-updated', { detail: { root: document } }));
             if (window.ArenaBoot) { window.ArenaBoot.run(document); }
+            anunciarEstado();
 
             return true;
         };
@@ -585,6 +605,8 @@
 
             document.dispatchEvent(new CustomEvent('arena:dom-updated', { detail: { root: document } }));
             if (window.ArenaBoot) { window.ArenaBoot.run(document); }
+
+            anunciarEstado();
 
             // Si ningun arranque la uso, la marca no puede quedarse: la proxima
             // carga a mano echaria al jugador al lobby sin motivo.

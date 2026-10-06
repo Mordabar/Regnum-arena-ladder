@@ -56,5 +56,12 @@ return [
         'accused_player_id' => 'gemeldeter Spieler',
         'files' => 'Screenshots',
         'rejection_evidence_files' => 'Screenshots zur Ablehnung',
+        'party_player_ids.*' => 'Gruppencharakter',
+        'party_conjurer_roles' => 'Beschwörerrollen',
+        'party_conjurer_roles.*' => 'Beschwörerrolle',
+        'evidence_files.*' => 'Screenshot',
+        'files.*' => 'Screenshot',
+        'rejection_files' => 'Screenshots zur Ablehnung',
+        'rejection_files.*' => 'Screenshot zur Ablehnung',
     ],
 ];

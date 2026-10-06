@@ -3,9 +3,11 @@
 namespace App\Http\Middleware;
 
 use Closure;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Contracts\Support\MessageBag;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\ViewErrorBag;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -26,9 +28,55 @@ class ResponderSinRecarga
 
     public function handle(Request $request, Closure $next): Response
     {
-        $response = $next($request);
+        if (!$request->headers->has('X-Arena-Sin-Recarga')) {
+            return $next($request);
+        }
 
-        if (!$request->headers->has('X-Arena-Sin-Recarga') || !$response instanceof RedirectResponse) {
+        // Un envio cuyo resultado no se llego a ver -la respuesta tardo mas de
+        // la cuenta o la red se cayo- se puede repetir con la misma clave: si el
+        // servidor ya lo hizo, contesta lo mismo en vez de volver a hacerlo.
+        $clave = (string) $request->headers->get('X-Arena-Idempotencia', '');
+        $usuario = $request->user()?->getAuthIdentifier();
+
+        if ($usuario === null || !preg_match('/^[A-Za-z0-9-]{8,64}$/', $clave)) {
+            return $this->convertir($request, $next($request));
+        }
+
+        $llave = 'sin-recarga:' . $usuario . ':' . $clave;
+
+        if (is_array($hecho = Cache::get($llave))) {
+            return response()->json($hecho);
+        }
+
+        $cerrojo = Cache::lock($llave . ':en-curso', 90);
+
+        try {
+            // Si el primero sigue trabajando, se espera su resultado.
+            $cerrojo->block(30);
+        } catch (LockTimeoutException) {
+            return response()->json(['ocupado' => true], 409);
+        }
+
+        try {
+            if (is_array($hecho = Cache::get($llave))) {
+                return response()->json($hecho);
+            }
+
+            $respuesta = $this->convertir($request, $next($request));
+
+            if ($respuesta->getStatusCode() === 200 && $respuesta instanceof \Illuminate\Http\JsonResponse) {
+                Cache::put($llave, $respuesta->getData(true), 120);
+            }
+
+            return $respuesta;
+        } finally {
+            $cerrojo->release();
+        }
+    }
+
+    private function convertir(Request $request, Response $response): Response
+    {
+        if (!$response instanceof RedirectResponse) {
             return $response;
         }
 

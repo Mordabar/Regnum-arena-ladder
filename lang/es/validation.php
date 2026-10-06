@@ -56,5 +56,12 @@ return [
         'accused_player_id' => 'jugador señalado',
         'files' => 'capturas',
         'rejection_evidence_files' => 'capturas del rechazo',
+        'party_player_ids.*' => 'personaje de la party',
+        'party_conjurer_roles' => 'roles de conjurador',
+        'party_conjurer_roles.*' => 'rol de conjurador',
+        'evidence_files.*' => 'captura',
+        'files.*' => 'captura',
+        'rejection_files' => 'capturas del rechazo',
+        'rejection_files.*' => 'captura del rechazo',
     ],
 ];

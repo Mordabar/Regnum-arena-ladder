@@ -103,6 +103,16 @@
         // El sondeo no avisa de lo que el propio jugador acaba de hacer.
         window.arenaAccionPropia = Date.now();
 
+        // Una clave por envio cuyo resultado se desconoce: si la respuesta no
+        // llega y el jugador lo intenta otra vez, el servidor reconoce que es el
+        // mismo envio y no repite la accion. En cuanto llega una respuesta, la
+        // clave se descarta y el siguiente envio es uno nuevo.
+        if (!form.dataset.idem) {
+            form.dataset.idem = (window.crypto && crypto.randomUUID)
+                ? crypto.randomUUID()
+                : String(Date.now()) + '-' + Math.random().toString(16).slice(2, 12);
+        }
+
         var corte = new AbortController();
         var plazo = window.setTimeout(function () { corte.abort(); }, 20000);
 
@@ -119,11 +129,15 @@
                 'X-Requested-With': 'XMLHttpRequest',
                 'X-Arena-Sin-Recarga': '1',
                 'X-Arena-Aqui': location.pathname,
+                'X-Arena-Idempotencia': form.dataset.idem,
             },
             signal: corte.signal,
         }).then(function (r) {
             window.clearTimeout(plazo);
             var tipo = r.headers.get('content-type') || '';
+            // Con la respuesta en la mano el envio ya no es dudoso, salvo si el
+            // servidor sigue con el primero (409): ahi se conserva la clave.
+            if (r.status !== 409) { delete form.dataset.idem; }
             if (r.ok && tipo.indexOf('json') !== -1) { return r.json(); }
 
             // La pagina caduco (sesion o token) o el recurso ya no existe: se

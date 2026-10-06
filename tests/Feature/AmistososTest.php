@@ -281,6 +281,22 @@ it('las capturas de un amistoso son opcionales pero, si se adjuntan, quedan en e
     expect($match->fresh()->report->evidencePaths())->toHaveCount(1);
 });
 
+it('terminar sin rellenar nada avisa solo de que acabo, y rellenando algo dice que quedo en el historial', function () {
+    [$match, $a] = duelo(false, 'm1');
+    $vacio = $this->actingAs($a->user)->post(route('matches.friendly.finish'), [
+        'match_id' => $match->id, 'player_id' => $a->id,
+        'claimed_winner_team' => '', 'reporter_note' => '   ',
+    ]);
+    expect(session('success'))->toBe('Amistoso terminado. Cuando quieras, busca otro rival.');
+
+    [$match2, $b] = duelo(false, 'm2');
+    $lado = $match2->getTeamSideForPlayer($b->id, (string) $b->user->discord_id);
+    $this->actingAs($b->user)->post(route('matches.friendly.finish'), [
+        'match_id' => $match2->id, 'player_id' => $b->id, 'claimed_winner_team' => $lado,
+    ]);
+    expect(session('success'))->toContain('historial');
+});
+
 it('un amistoso terminado sin decir nada no deja ningun apunte', function () {
     [$match, $a] = duelo(false, 's');
 

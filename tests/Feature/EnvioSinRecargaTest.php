@@ -6,6 +6,18 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
+beforeEach(function () {
+    // Una temporada en juego y el duelo abierto: lo mismo que pide el lobby.
+    \App\Models\ArenaSeason::query()->update(['status' => \App\Models\ArenaSeason::STATUS_ARCHIVED]);
+    \App\Models\ArenaSeason::create([
+        'name' => 'En juego', 'slug' => 'en-juego-' . uniqid(), 'status' => \App\Models\ArenaSeason::STATUS_ACTIVE,
+        'enabled_modes' => ['1v1'], 'starts_at' => now()->subWeek(),
+    ]);
+    foreach (\App\Support\ArenaMode::all() as $modo) {
+        \App\Models\AppSetting::setValue(\App\Support\ArenaMode::settingKey($modo), $modo === '1v1' ? '1' : '0', 'modes', 'boolean', true);
+    }
+});
+
 function sinRecargaJugador(string $s): Player
 {
     $user = User::create([
@@ -101,4 +113,63 @@ it('los scripts de la pagina del combate se registran para volver a pasar tras u
     // reporte dejaria de funcionar tras el primer cambio de estado.
     expect($fuente)->not->toContain("document.addEventListener('DOMContentLoaded'")
         ->and($fuente)->toContain('window.ArenaBoot.register');
+});
+
+it('un envio repetido con la misma clave no repite la accion: contesta lo mismo', function () {
+    $jugador = sinRecargaJugador('idem');
+
+    $cabeceras = [
+        'X-Arena-Sin-Recarga' => '1',
+        'X-Arena-Aqui' => '/lobby',
+        'X-Arena-Idempotencia' => 'clave-de-prueba-0001',
+    ];
+    $datos = ['player_id' => $jugador->id, 'arena_mode' => '1v1', 'kind' => 'friendly', 'queue_type' => 'random'];
+
+    $primera = $this->actingAs($jugador->user)->from(route('lobby'))->withHeaders($cabeceras)
+        ->post(route('queue.join'), $datos)->assertOk();
+
+    // La respuesta se perdio por el camino y el jugador lo intenta otra vez.
+    $segunda = $this->actingAs($jugador->user)->from(route('lobby'))->withHeaders($cabeceras)
+        ->post(route('queue.join'), $datos)->assertOk();
+
+    expect($segunda->json())->toBe($primera->json())
+        ->and(\App\Models\Queue::query()->where('player_id', $jugador->id)->count())->toBe(1);
+});
+
+it('sin clave repetida, dos envios son dos acciones distintas', function () {
+    $jugador = sinRecargaJugador('sinidem');
+    $datos = ['player_id' => $jugador->id, 'arena_mode' => '1v1', 'kind' => 'friendly', 'queue_type' => 'random'];
+
+    $a = $this->actingAs($jugador->user)->from(route('lobby'))
+        ->withHeaders(['X-Arena-Sin-Recarga' => '1', 'X-Arena-Aqui' => '/lobby', 'X-Arena-Idempotencia' => 'clave-uno-0000001'])
+        ->post(route('queue.join'), $datos)->json('avisos.0.tipo');
+    $b = $this->actingAs($jugador->user)->from(route('lobby'))
+        ->withHeaders(['X-Arena-Sin-Recarga' => '1', 'X-Arena-Aqui' => '/lobby', 'X-Arena-Idempotencia' => 'clave-dos-0000002'])
+        ->post(route('queue.join'), $datos)->json('avisos.0.tipo');
+
+    // El segundo ya estaba en cola: es un error de verdad, no una repeticion.
+    expect($a)->toBe('success')->and($b)->toBe('error');
+});
+
+it('los errores de la party hablan de personajes y no de nombres de campo', function () {
+    $jugador = sinRecargaJugador('val');
+
+    $respuesta = $this->actingAs($jugador->user)->from(route('lobby'))
+        ->withHeaders(['X-Arena-Sin-Recarga' => '1', 'X-Arena-Aqui' => '/lobby'])
+        ->post(route('party.create'), ['party_player_ids' => [$jugador->id, ''], 'arena_mode' => '2v2'])
+        ->assertOk();
+
+    $texto = implode(' ', array_column($respuesta->json('avisos'), 'texto'));
+
+    expect($texto)->not->toContain('party_player_ids');
+});
+
+it('el lobby tiene donde anunciar el cambio de estado a un lector de pantalla', function () {
+    $jugador = sinRecargaJugador('aria');
+
+    $this->actingAs($jugador->user)->get(route('lobby'))
+        ->assertOk()
+        ->assertSee('data-estado-anuncio', false)
+        ->assertSee('role="status"', false)
+        ->assertSee('data-anuncio', false);
 });

@@ -101,6 +101,8 @@
         })();
     </script>
     <a href="#contenido" class="arena-skip">{{ __('Saltar al contenido') }}</a>
+    {{-- Donde se anuncia a un lector de pantalla que el estado cambio en su sitio. --}}
+    <div class="sr-only" role="status" aria-live="polite" aria-atomic="true" data-estado-anuncio></div>
     {{-- ── NAVBAR ── --}}
     <nav class="arena-navbar sticky top-0 z-40" data-arena-navbar>
         <div class="mx-auto max-w-7xl px-4 py-3">

@@ -56,5 +56,12 @@ return [
         'accused_player_id' => 'reported player',
         'files' => 'screenshots',
         'rejection_evidence_files' => 'rejection screenshots',
+        'party_player_ids.*' => 'party character',
+        'party_conjurer_roles' => 'summoner roles',
+        'party_conjurer_roles.*' => 'summoner role',
+        'evidence_files.*' => 'screenshot',
+        'files.*' => 'screenshot',
+        'rejection_files' => 'rejection screenshots',
+        'rejection_files.*' => 'rejection screenshot',
     ],
 ];

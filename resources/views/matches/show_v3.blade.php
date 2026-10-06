@@ -103,7 +103,7 @@
             <div class="max-w-3xl">
                 <div class="flex flex-wrap items-center gap-3">
                     <p class="arena-kicker">{{ $match->queue_mode_name }}@if($match->isFriendly()) · <span class="arena-kind-tag">Amistoso</span>@endif</p>
-                    <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold {{ $statusClass }}">{{ $match->status_name }}</span>
+                    <span data-anuncio class="rounded-full px-2.5 py-0.5 text-xs font-semibold {{ $statusClass }}">{{ $match->status_name }}</span>
                 </div>
                 <h1 class="mt-3 text-4xl font-bold text-white md:text-5xl">{{ $match->match_code }}</h1>
                 <div class="mt-3 flex flex-wrap items-center gap-3">

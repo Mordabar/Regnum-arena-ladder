@@ -56,5 +56,12 @@ return [
         'accused_player_id' => 'gemelde speler',
         'files' => 'screenshots',
         'rejection_evidence_files' => 'screenshots van de weigering',
+        'party_player_ids.*' => 'groepskarakter',
+        'party_conjurer_roles' => 'oproeperrollen',
+        'party_conjurer_roles.*' => 'oproeperrol',
+        'evidence_files.*' => 'screenshot',
+        'files.*' => 'screenshot',
+        'rejection_files' => 'screenshots van de afwijzing',
+        'rejection_files.*' => 'screenshot van de afwijzing',
     ],
 ];
