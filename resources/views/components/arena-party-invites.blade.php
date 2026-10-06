@@ -17,7 +17,7 @@
             <header>
                 <span class="arena-invite-kicker">
                     <x-admin.icon name="inbox" class="h-3.5 w-3.5" />
-                    Invitacion a party {{ \App\Support\ArenaMode::label($invite->party->arena_mode) }}
+                    {{ __('Invitacion a party :modo · :tipo', ['modo' => \App\Support\ArenaMode::label($invite->party->arena_mode), 'tipo' => __(\App\Support\Competition::label((bool) $invite->party->is_ranked))]) }}
                 </span>
                 {{-- Plegar, no descartar. La aspa de antes borraba la tarjeta y
                      dejaba la invitacion viva en el servidor: el jugador se
@@ -32,7 +32,7 @@
                 <p class="arena-invite-body">
                     <b>@if($invite->party->leader?->character_name)<span translate="no">{{ $invite->party->leader->character_name }}</span>@else Un jugador @endif</b>
                     invita a tu <b><span translate="no">{{ $invite->player->character_name }}</span></b>
-                    a jugar {{ \App\Support\ArenaMode::label($invite->party->arena_mode) }}.
+                    {{ __('a jugar :modo :tipo.', ['modo' => \App\Support\ArenaMode::label($invite->party->arena_mode), 'tipo' => mb_strtolower(__(\App\Support\Competition::label((bool) $invite->party->is_ranked)))]) }}
                 </p>
 
                 <div class="arena-invite-actions">

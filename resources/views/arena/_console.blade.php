@@ -111,7 +111,8 @@
                                             @foreach($enabledModes as $mode)
                                                 <a href="{{ route('lobby', ['mode' => $mode, 'player' => $featured?->id, 'kind' => $kind]) }}"
                                                    aria-current="{{ $mode === $arenaMode ? 'true' : 'false' }}"
-                                                   class="arena-console-arena {{ $mode === $arenaMode ? 'is-active' : '' }}">{{ $mode }}</a>
+                                                   @if($activeParty && $mode !== $arenaMode) aria-disabled="true" data-party-lock="{{ ArenaMode::label($activePartyMode) }} · {{ \App\Support\Competition::label((bool) $activeParty->is_ranked) }}" @endif
+                                                   class="arena-console-arena {{ $mode === $arenaMode ? 'is-active' : '' }} {{ $activeParty && $mode !== $arenaMode ? 'is-bloqueado' : '' }}">{{ $mode }}</a>
                                             @endforeach
                                         @endif
 
@@ -121,7 +122,8 @@
                                                 <a href="{{ route('lobby', ['mode' => $arenaMode, 'player' => $featured?->id, 'kind' => $tipo]) }}"
                                                    aria-current="{{ $tipo === $kind ? 'true' : 'false' }}"
                                                    title="{{ $tipo === 'ranked' ? 'Mueve el ranking' : 'PvP sin ranking' }}"
-                                                   class="arena-console-arena is-kind-{{ $tipo }} {{ $tipo === $kind ? 'is-active' : '' }}">{{ $tipoNombre }}</a>
+                                                   @if($activeParty && $tipo !== $kind) aria-disabled="true" data-party-lock="{{ ArenaMode::label($activePartyMode) }} · {{ \App\Support\Competition::label((bool) $activeParty->is_ranked) }}" @endif
+                                                   class="arena-console-arena is-kind-{{ $tipo }} {{ $tipo === $kind ? 'is-active' : '' }} {{ $activeParty && $tipo !== $kind ? 'is-bloqueado' : '' }}">{{ $tipoNombre }}</a>
                                             @endforeach
                                         @endif
                                     </nav>
@@ -139,7 +141,7 @@
                                 @if($activeParty)
                                     <div class="arena-console-party">
                                         <span class="arena-console-party-key">
-                                            Party {{ ArenaMode::label($activePartyMode) }}
+                                            {{ __('Party :modo · :tipo', ['modo' => ArenaMode::label($activePartyMode), 'tipo' => __(\App\Support\Competition::label((bool) $activeParty->is_ranked))]) }}
                                         </span>
                                         <div class="arena-console-party-slots">
                                             @foreach($activeParty->members as $member)
@@ -276,7 +278,7 @@
                                             @csrf
                                             <button class="arena-console-action is-primary">
                                                 <x-admin.icon name="users" class="h-4 w-4" />
-                                                Entrar con el grupo {{ ArenaMode::label($activePartyMode) }}
+                                                {{ __('Entrar con el grupo :modo · :tipo', ['modo' => ArenaMode::label($activePartyMode), 'tipo' => __(\App\Support\Competition::label((bool) $activeParty->is_ranked))]) }}
                                             </button>
                                         </form>
                                     @else

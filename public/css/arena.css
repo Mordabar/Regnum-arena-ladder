@@ -4389,3 +4389,25 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
     :root { --preview-height: min(78vh, 300px); }
     .arena-champion[data-champion-id="create-preview"] { max-width: 380px; margin-inline: auto; }
 }
+
+/* Opciones que la party tiene fijas: se ven apagadas y no se pueden elegir. */
+.arena-console-arena.is-bloqueado { opacity: .38; cursor: not-allowed; }
+.arena-console-arena.is-bloqueado:hover { color: var(--arena-muted); border-color: transparent; background: none; }
+
+/* Movil: la palabra "Arena" vuelve, como rotulo encima del selector, para que se
+   entienda que ahi se elige el modo y el tipo de partida. */
+@media (max-width: 520px) {
+    .arena-console .arena-console-arenas { flex-wrap: wrap; row-gap: 3px; }
+    .arena-console .arena-console-arenas-key {
+        display: block; flex: 0 0 100%;
+        padding: 1px 4px 0; font-size: 9.5px; letter-spacing: 0.22em; line-height: 1.2;
+    }
+    .arena-console-stage > .arena-champion:has(.arena-console-arenas) > .arena-champion-canvas { top: 76px; height: calc(100% - 76px); }
+}
+@media (max-width: 359px) {
+    .arena-console-stage > .arena-champion:has(.arena-console-arenas) > .arena-champion-canvas { top: 112px; height: calc(100% - 112px); }
+}
+@media (max-width: 420px) {
+    :lang(de) .arena-console-stage > .arena-champion:has(.arena-console-arenas) > .arena-champion-canvas,
+    :lang(nl) .arena-console-stage > .arena-champion:has(.arena-console-arenas) > .arena-champion-canvas { top: 112px; height: calc(100% - 112px); }
+}

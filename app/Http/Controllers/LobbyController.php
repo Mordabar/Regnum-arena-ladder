@@ -196,6 +196,21 @@ class LobbyController extends Controller
                 }
             }
 
+            // Con una party armada, la pantalla es la de SU modalidad y SU tipo
+            // de partida, los pida quien los pida. La party se creo para uno
+            // concreto y es el lider quien la mete en cola con ese: dejar que
+            // un miembro mirara -o creyera elegir- otro era engañoso.
+            if ($activeParty && !$currentQueue) {
+                $modoDeLaParty = ArenaMode::normalize((string) $activeParty->arena_mode);
+
+                if ($modoDeLaParty !== null) {
+                    $arenaMode = $modoDeLaParty;
+                    $teamSize = ArenaMode::teamSize($arenaMode);
+                }
+
+                $kind = Competition::kindOf((bool) $activeParty->is_ranked);
+            }
+
             $pendingInvites = PartyMember::query()
                 ->with('party.leader.user', 'player')
                 ->whereIn('player_id', $playerIds)

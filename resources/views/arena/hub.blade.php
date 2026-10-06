@@ -312,6 +312,15 @@
             if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button > 0) { return; }
             if (tab.getAttribute('aria-current') === 'true') { event.preventDefault(); return; }
 
+            // Con una party armada la modalidad y el tipo son los suyos.
+            if (tab.getAttribute('aria-disabled') === 'true') {
+                event.preventDefault();
+                if (typeof window.arenaToast === 'function') {
+                    window.arenaToast(@json(__('Tu party juega :modo. Sal de la party para cambiar de modalidad o de tipo.', ['modo' => '__MODO__'])).replace('__MODO__', tab.dataset.partyLock || ''), 'info', 4500);
+                }
+                return;
+            }
+
             event.preventDefault();
             // Un segundo clic mientras llega el primero no abre otra entrada.
             if (tab.classList.contains('is-cargando')) { return; }
