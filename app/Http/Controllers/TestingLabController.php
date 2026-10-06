@@ -420,6 +420,8 @@ class TestingLabController extends Controller
             'conjurer_role' => 'offensive',
         ]);
 
+        // Como una invitacion de verdad: llega aunque la app este cerrada.
+        app(\App\Services\WebPushService::class)->avisarAJugadores([$userPlayer->id]);
 
         return back()->with('success', "¡El bot {$botLeader->character_name} te ha enviado una invitación a Party!");
     }

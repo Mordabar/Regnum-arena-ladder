@@ -723,3 +723,23 @@ it('el chat del combate trae las frases nuevas con su redaccion', function () {
         ->and($textos)->not->toContain('Voy de camino')
         ->and(\App\Models\MatchPing::esUnCodigo('ok'))->toBeTrue();
 });
+
+it('invitar a una party avisa por push al invitado, no al lider', function () {
+    AppSetting::setValue(ArenaMode::settingKey('2v2'), '1', 'modes', 'boolean', true);
+    $lider = duelista('pushl', 'ignis');
+    $aliado = duelista('pusha', 'ignis');
+
+    $avisados = null;
+    $falso = Mockery::mock(\App\Services\WebPushService::class);
+    $falso->shouldReceive('avisarAJugadores')->andReturnUsing(function ($ids) use (&$avisados) {
+        $avisados = collect($ids)->map(fn ($i) => (int) $i)->values()->all();
+    });
+    app()->instance(\App\Services\WebPushService::class, $falso);
+
+    $this->actingAs($lider->user)->post(route('party.create'), [
+        'arena_mode' => '2v2', 'kind' => 'friendly', 'party_player_ids' => [$lider->id, $aliado->id],
+        'party_conjurer_roles' => [null, null],
+    ])->assertSessionHasNoErrors();
+
+    expect($avisados)->toBe([$aliado->id]);
+});
