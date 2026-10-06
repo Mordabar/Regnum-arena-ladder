@@ -325,7 +325,7 @@
                 if (hecho === 'red') {
                     // Sin conexion no se abandona el lobby: se avisa y se queda.
                     if (typeof window.arenaToast === 'function') {
-                        window.arenaToast(@json(__('Sin conexion. Intentalo otra vez.')), 'info', 3500);
+                        window.arenaToast(@json(__('Sin conexión. Inténtalo otra vez.')), 'info', 3500);
                     }
                     return;
                 }
@@ -360,7 +360,10 @@
             // La URL acompana a lo que se ve, para que recargar no devuelva
             // al primer guerrero de la lista.
             if (window.history && window.history.replaceState) {
-                window.history.replaceState({}, '', slot.getAttribute('href'));
+                var enlace = new URL(slot.getAttribute('href'), window.location.origin);
+                var idioma = new URLSearchParams(window.location.search).get('lang');
+                if (idioma && !enlace.searchParams.has('lang')) { enlace.searchParams.set('lang', idioma); }
+                window.history.replaceState({}, '', enlace.pathname + enlace.search);
             }
 
             // Y se recuerda: volver al lobby otro dia enseña el mismo guerrero.

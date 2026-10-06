@@ -314,7 +314,7 @@
             sonarEnvio();
             pintar(res.data.pings, { conBocadillos: true });
         }).catch(function () {
-            avisar(caja, 'Sin conexion. Intentalo otra vez.', true);
+            avisar(caja, 'Sin conexión. Inténtalo otra vez.', true);
         }).finally(function () {
             // Un respiro corto: evita la doble pulsacion sin que parezca que se
             // ha quedado colgado.
