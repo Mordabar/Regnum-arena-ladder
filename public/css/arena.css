@@ -4333,7 +4333,7 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
     /* El escenario: lo justo para la figura, sin tapar nada. */
     .arena-console-stage > .arena-champion { height: clamp(310px, 48vh, 380px) !important; }
     .arena-console-stage > .arena-champion:not(:has(.arena-console-arenas)) { height: clamp(280px, 44vh, 340px) !important; }
-    .arena-console-stage > .arena-champion:has(.arena-console-arenas) .arena-champion-canvas { top: 56px; height: calc(100% - 56px); }
+    .arena-console-stage > .arena-champion:has(.arena-console-arenas) > .arena-champion-canvas { top: 56px; height: calc(100% - 56px); }
 }
 
 /* Pantallas muy estrechas, o idiomas de palabras largas (aleman, neerlandes):
@@ -4344,7 +4344,7 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
     .arena-console .arena-console-arenas .arena-console-arena:not([class*="is-kind"]) { flex: 1 1 0; }
     .arena-console .arena-console-arenas-sep { flex: 0 0 100%; width: 100%; height: 1px; margin: 1px 0; }
     .arena-console .arena-console-arenas .arena-console-arena[class*="is-kind"] { font-size: 11.5px; overflow-wrap: normal; hyphens: manual; }
-    .arena-console-stage > .arena-champion:has(.arena-console-arenas) .arena-champion-canvas { top: 92px; height: calc(100% - 92px); }
+    .arena-console-stage > .arena-champion:has(.arena-console-arenas) > .arena-champion-canvas { top: 92px; height: calc(100% - 92px); }
 }
 @media (max-width: 420px) {
     :lang(de) .arena-console .arena-console-arenas, :lang(nl) .arena-console .arena-console-arenas { flex-wrap: wrap; row-gap: 4px; }
@@ -4353,8 +4353,8 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
     :lang(de) .arena-console .arena-console-arenas-sep, :lang(nl) .arena-console .arena-console-arenas-sep { flex: 0 0 100%; width: 100%; height: 1px; margin: 1px 0; }
     :lang(de) .arena-console .arena-console-arenas .arena-console-arena[class*="is-kind"],
     :lang(nl) .arena-console .arena-console-arenas .arena-console-arena[class*="is-kind"] { overflow-wrap: normal; hyphens: manual; }
-    :lang(de) .arena-console-stage > .arena-champion:has(.arena-console-arenas) .arena-champion-canvas,
-    :lang(nl) .arena-console-stage > .arena-champion:has(.arena-console-arenas) .arena-champion-canvas { top: 92px; height: calc(100% - 92px); }
+    :lang(de) .arena-console-stage > .arena-champion:has(.arena-console-arenas) > .arena-champion-canvas,
+    :lang(nl) .arena-console-stage > .arena-champion:has(.arena-console-arenas) > .arena-champion-canvas { top: 92px; height: calc(100% - 92px); }
 }
 
 /* ── Ultimos detalles menores ─────────────────────────────────────── */

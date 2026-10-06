@@ -323,7 +323,7 @@ class TestingLabController extends Controller
             return back()->withErrors(['error' => 'No hay bots suficientes en el sandbox. Genera bots primero.']);
         }
 
-        $userPlayer = Auth::user()->players()->where('is_active', true)->first();
+        $userPlayer = Auth::user()?->players()->where('is_active', true)->first();
         if (!$userPlayer) {
             return back()->withErrors(['error' => 'No tienes ningun personaje activo real para ser invitado.']);
         }

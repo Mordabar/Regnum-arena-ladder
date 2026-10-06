@@ -147,7 +147,7 @@
                 </div>
             </div>
         </div>
-        <form method="POST" action="{{ route('admin.testing.enqueue-realm') }}" class="grid gap-3 sm:grid-cols-5">
+        <form method="POST" action="{{ route('admin.testing.enqueue-realm') }}" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             @csrf
             <div class="ap-field">
                 <label class="ap-label" for="eq-realm">Reino</label>
