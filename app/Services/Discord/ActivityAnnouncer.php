@@ -272,8 +272,16 @@ class ActivityAnnouncer
             app()->setLocale($anterior);
         }
 
+        // El emoji del titulo no se repite en la mitad inglesa.
+        $emoji = preg_match('/^[^\p{L}\p{N}]+/u', $tituloEs, $m) ? $m[0] : '';
+        if ($emoji !== '' && str_starts_with($tituloEn, $emoji)) {
+            $tituloEn = substr($tituloEn, strlen($emoji));
+        }
+
         $title = $tituloEn !== $tituloEs ? $tituloEs . ' · ' . $tituloEn : $tituloEs;
-        $description = $descripcionEn !== $descripcionEs ? $descripcionEs . "\n\n🇬🇧 " . $descripcionEn : $descripcionEs;
+        $description = $descripcionEn !== $descripcionEs
+            ? "🇪🇸 " . $descripcionEs . "\n\n🇬🇧 " . $descripcionEn
+            : $descripcionEs;
 
         try {
             $this->discord->publicarEnCanal($this->channelId(), [
