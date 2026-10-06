@@ -173,3 +173,20 @@ it('el lobby tiene donde anunciar el cambio de estado a un lector de pantalla', 
         ->assertSee('role="status"', false)
         ->assertSee('data-anuncio', false);
 });
+
+it('la misma clave con datos distintos es otro envio y se hace lo nuevo', function () {
+    $jugador = sinRecargaJugador('huella');
+    $cabeceras = ['X-Arena-Sin-Recarga' => '1', 'X-Arena-Aqui' => '/lobby', 'X-Arena-Idempotencia' => 'clave-huella-0001'];
+
+    // Primer envio con un dato que falla; el jugador lo corrige y reintenta
+    // con la clave que conservo: tiene que hacerse lo corregido.
+    $malo = $this->actingAs($jugador->user)->from(route('lobby'))->withHeaders($cabeceras)
+        ->post(route('queue.join'), ['player_id' => $jugador->id, 'arena_mode' => '3v3', 'kind' => 'friendly', 'queue_type' => 'random'])
+        ->json('avisos.0.tipo');
+
+    $bueno = $this->actingAs($jugador->user)->from(route('lobby'))->withHeaders($cabeceras)
+        ->post(route('queue.join'), ['player_id' => $jugador->id, 'arena_mode' => '1v1', 'kind' => 'friendly', 'queue_type' => 'random'])
+        ->json('avisos.0.tipo');
+
+    expect($malo)->toBe('error')->and($bueno)->toBe('success');
+});

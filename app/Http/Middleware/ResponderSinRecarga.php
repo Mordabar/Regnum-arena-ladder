@@ -42,13 +42,24 @@ class ResponderSinRecarga
             return $this->convertir($request, $next($request));
         }
 
-        $llave = 'sin-recarga:' . $usuario . ':' . $clave;
+        // La clave va unida a lo que se envia: si el jugador cambia los datos
+        // antes de reintentar, ya no es el mismo envio y se hace lo nuevo.
+        $huella = hash('sha256', $request->method() . '|' . $request->path() . '|' . json_encode($request->except(['_token'])) . '|' . json_encode(
+            collect($request->allFiles())->flatten()->map(fn ($f) => $f->getClientOriginalName() . ':' . $f->getSize())->all()
+        ));
+        $llave = 'sin-recarga:' . $usuario . ':' . $clave . ':' . substr($huella, 0, 16);
 
         if (is_array($hecho = Cache::get($llave))) {
             return response()->json($hecho);
         }
 
-        $cerrojo = Cache::lock($llave . ':en-curso', 90);
+        // Una cache sin cerrojos (algunos drivers) no frena el envio: se hace
+        // sin la espera, que solo es una proteccion extra.
+        try {
+            $cerrojo = Cache::lock($llave . ':en-curso', 90);
+        } catch (\Throwable) {
+            return $this->convertir($request, $next($request));
+        }
 
         try {
             // Si el primero sigue trabajando, se espera su resultado.

@@ -266,7 +266,7 @@
                     @if($esAmistoso)
                         {{-- Sin ranking de por medio: lo que cuenta es lo que se apunto, si se apunto algo. --}}
                         <p class="font-semibold">Amistoso terminado
-                        @if($report && $report->claimed_winner_team)
+                        @if($report && $report->claimed_winner_team && !$report->sinGanador())
                             — {{ $report->claimed_winner_team === 'draw' ? 'Resultado: Empate' : 'Ganador: ' . (\App\Models\ArenaMatch::REALMS[$report->claimed_winner_team === 'team_a' ? $match->team_a_realm : $match->team_b_realm] ?? '') }}
                         @endif
                         </p>

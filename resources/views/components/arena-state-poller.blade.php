@@ -366,6 +366,9 @@
             if (ultimoAnuncio === null) { ultimoAnuncio = texto; return; }
             if (!texto || texto === ultimoAnuncio) { return; }
             ultimoAnuncio = texto;
+            // Lo que el jugador acaba de hacer ya lo dice el aviso de la accion:
+            // repetirlo en la zona de estado seria hablar dos veces.
+            if (Date.now() - (window.arenaAccionPropia || 0) < 8000) { return; }
             const zona = document.querySelector('[data-estado-anuncio]');
             if (zona) { zona.textContent = texto; }
         };

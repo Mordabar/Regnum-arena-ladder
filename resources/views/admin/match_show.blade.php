@@ -198,7 +198,9 @@
                 <div class="ap-kv">
                     <span class="ap-kv-key">Ganador que reclama</span>
                     <span class="ap-kv-value">
-                        @if($claimed === 'draw')
+                        @if($report->sinGanador())
+                            Sin indicar
+                        @elseif($claimed === 'draw')
                             Empate
                         @elseif($claimed === 'team_a')
                             Equipo A · {{ $realmName($match->team_a_realm) }}

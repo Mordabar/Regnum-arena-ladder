@@ -281,6 +281,21 @@ it('las capturas de un amistoso son opcionales pero, si se adjuntan, quedan en e
     expect($match->fresh()->report->evidencePaths())->toHaveCount(1);
 });
 
+it('un comentario sin ganador no se guarda como un empate', function () {
+    [$match, $a] = duelo(false, 'sg');
+
+    $this->actingAs($a->user)->post(route('matches.friendly.finish'), [
+        'match_id' => $match->id, 'player_id' => $a->id,
+        'claimed_winner_team' => '', 'reporter_note' => 'hola',
+    ])->assertSessionHasNoErrors();
+
+    $informe = $match->fresh()->report;
+
+    expect($informe)->not->toBeNull()
+        ->and($informe->sinGanador())->toBeTrue()
+        ->and($informe->claimed_winner_realm)->toBeNull();
+});
+
 it('terminar sin rellenar nada avisa solo de que acabo, y rellenando algo dice que quedo en el historial', function () {
     [$match, $a] = duelo(false, 'm1');
     $vacio = $this->actingAs($a->user)->post(route('matches.friendly.finish'), [

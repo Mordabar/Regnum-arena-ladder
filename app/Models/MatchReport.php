@@ -87,6 +87,16 @@ class MatchReport extends Model
         return self::STATUSES[$this->status] ?? $this->status;
     }
 
+    /**
+     * Un amistoso cerrado con comentario o capturas pero sin decir quien gano.
+     * La columna del ganador no admite vacio, asi que lleva un valor de relleno
+     * y esta marca: quien lea el apunte no debe tomarlo por un empate.
+     */
+    public function sinGanador(): bool
+    {
+        return (bool) data_get($this->resolution_payload, 'sin_ganador', false);
+    }
+
     public function evidencePaths(): array
     {
         $evidencePaths = collect($this->evidence_paths ?? [])

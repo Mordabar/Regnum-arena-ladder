@@ -180,7 +180,8 @@ class MatchReportService
             return null;
         }
 
-        $claimed = in_array($claimedWinnerTeam, ['team_a', 'team_b', 'draw'], true) ? $claimedWinnerTeam : 'draw';
+        $conGanador = in_array($claimedWinnerTeam, ['team_a', 'team_b', 'draw'], true);
+        $claimed = $conGanador ? $claimedWinnerTeam : 'draw';
 
         $paths = [];
         try {
@@ -193,7 +194,7 @@ class MatchReportService
                 'reported_by_player_id' => $reporter->id,
                 'reporting_team' => $reportingTeam,
                 'claimed_winner_team' => $claimed,
-                'claimed_winner_realm' => $claimed === 'draw' ? null : ($claimed === 'team_a' ? $match->team_a_realm : $match->team_b_realm),
+                'claimed_winner_realm' => $claimed === 'draw' || !$conGanador ? null : ($claimed === 'team_a' ? $match->team_a_realm : $match->team_b_realm),
                 // Ya esta cerrado y no hay nada que confirmar: queda como historia.
                 'status' => 'confirmed',
                 'encounter_screenshot_path' => $paths[0] ?? '',
@@ -201,6 +202,7 @@ class MatchReportService
                 'evidence_paths' => $paths,
                 'reporter_note' => $note !== '' ? $note : null,
                 'confirmed_at' => now(),
+                'resolution_payload' => $conGanador ? null : ['sin_ganador' => true],
             ]);
         } catch (\Throwable $e) {
             $this->deleteEvidencePaths($paths);
