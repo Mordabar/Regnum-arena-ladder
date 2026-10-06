@@ -740,7 +740,11 @@ window.ArenaChampion = (function () {
 
     function resize() {
       if (!renderer) { return; }
-      var r = host.getBoundingClientRect();
+      // Se mide el lienzo, no el hueco: la hoja de estilos puede recortar el
+      // lienzo dentro del hueco (el escenario del lobby deja sitio arriba al
+      // selector) y, con otra medida, la figura salia aplastada.
+      var r = canvas.getBoundingClientRect();
+      if (!r.width || !r.height) { r = host.getBoundingClientRect(); }
       var w = Math.max(1, r.width), h = Math.max(1, r.height);
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
