@@ -29,16 +29,24 @@
             </header>
 
             <div data-invite-detail>
+                @php
+                    $invLider = $invite->party->leader?->character_name
+                        ? '<b><span translate="no">' . e($invite->party->leader->character_name) . '</span></b>'
+                        : '<b>' . e(__('Un jugador')) . '</b>';
+                    $invPersonaje = '<b><span translate="no">' . e($invite->player->character_name) . '</span></b>';
+                    $invModo = \App\Support\ArenaMode::label($invite->party->arena_mode);
+                    // En aleman los sustantivos van con mayuscula; en el resto, en minuscula.
+                    $invTipo = __(\App\Support\Competition::label((bool) $invite->party->is_ranked));
+                    if (app()->getLocale() !== 'de') { $invTipo = mb_strtolower($invTipo); }
+                @endphp
                 <p class="arena-invite-body">
-                    <b>@if($invite->party->leader?->character_name)<span translate="no">{{ $invite->party->leader->character_name }}</span>@else Un jugador @endif</b>
-                    invita a tu <b><span translate="no">{{ $invite->player->character_name }}</span></b>
-                    {{ __('a jugar :modo :tipo.', ['modo' => \App\Support\ArenaMode::label($invite->party->arena_mode), 'tipo' => mb_strtolower(__(\App\Support\Competition::label((bool) $invite->party->is_ranked)))]) }}
+                    {!! __(':lider invita a tu :personaje a jugar :modo :tipo.', ['lider' => $invLider, 'personaje' => $invPersonaje, 'modo' => e($invModo), 'tipo' => e($invTipo)]) !!}
                 </p>
 
                 <div class="arena-invite-actions">
                     <form method="POST" action="{{ route('party.accept', ['party' => $invite->party_id, 'member' => $invite->id]) }}" data-sin-recarga>
                         @csrf
-                        <button type="submit" class="arena-btn-safe px-4 py-2 text-sm"><x-arena-icon name="check" class="h-4 w-4 shrink-0" />Aceptar</button>
+                        <button type="submit" class="arena-btn-safe px-4 py-2 text-sm"><x-arena-icon name="check" class="h-4 w-4 shrink-0" />{{ __('Aceptar') }}</button>
                     </form>
                     <form method="POST" action="{{ route('party.reject', ['party' => $invite->party_id, 'member' => $invite->id]) }}" data-sin-recarga>
                         @csrf
@@ -50,7 +58,7 @@
             {{-- Lo que queda a la vista cuando esta plegada: sigue diciendo que
                  hay algo pendiente, y se vuelve a abrir pulsandola. --}}
             <button type="button" class="arena-invite-folded" data-invite-unfold hidden>
-                Tienes una invitacion sin contestar. Abrir
+                {{ __('Tienes una invitacion sin contestar: :modo · :tipo. Abrir', ['modo' => $invModo, 'tipo' => $invTipo]) }}
             </button>
         </article>
     @endforeach

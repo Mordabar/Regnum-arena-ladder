@@ -223,6 +223,19 @@ class QueueController extends Controller
             throw new \RuntimeException('Este personaje esta deshabilitado: recuperalo desde el lobby para volver a usarlo.');
         }
 
+        // Con una party armada la busqueda la hace el lider, con la modalidad y
+        // el tipo de la party. Entrar en solitario desde otra pestaña dejaba al
+        // miembro en dos colas distintas y bloqueaba al grupo entero.
+        $enParty = \App\Models\PartyMember::query()
+            ->whereIn('player_id', Player::query()->where('user_id', Auth::id())->pluck('id'))
+            ->where('is_accepted_invite', true)
+            ->whereHas('party', fn ($q) => $q->whereIn('status', \App\Models\Party::ACTIVE_STATUSES))
+            ->exists();
+
+        if ($enParty) {
+            throw new \RuntimeException(__('Estas en una party: la busqueda la hace el lider. Sal de la party para buscar en solitario.'));
+        }
+
         if ($player->isQueueLocked()) {
             $motivo = $player->queue_lock_reason_name ? ' (' . __($player->queue_lock_reason_name) . ')' : '';
             throw new \RuntimeException(

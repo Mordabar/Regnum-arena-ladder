@@ -671,6 +671,32 @@ it('una party amistosa entra a la cola como amistosa y no gasta el cupo diario',
         ->and($colas->every(fn (Queue $q) => $q->is_ranked === false))->toBeTrue();
 });
 
+it('un miembro de una party no puede buscar en solitario con otra modalidad o tipo', function () {
+    AppSetting::setValue(ArenaMode::settingKey('2v2'), '1', 'modes', 'boolean', true);
+    $lider = duelista('ml', 'ignis');
+    $aliado = duelista('ma', 'ignis');
+
+    $this->actingAs($lider->user)->post(route('party.create'), [
+        'arena_mode' => '2v2', 'kind' => 'friendly', 'party_player_ids' => [$lider->id, $aliado->id],
+        'party_conjurer_roles' => [null, null],
+    ])->assertSessionHasNoErrors();
+
+    $party = \App\Models\Party::query()->firstOrFail();
+    $miembro = \App\Models\PartyMember::query()->where('party_id', $party->id)->where('player_id', $aliado->id)->firstOrFail();
+    $this->actingAs($aliado->user)->post(route('party.accept', [$party, $miembro]));
+
+    // Desde otra pestaña o una peticion directa: la party manda.
+    $this->actingAs($aliado->user)->post(route('queue.join'), [
+        'player_id' => $aliado->id, 'queue_type' => 'random', 'arena_mode' => '1v1', 'kind' => 'ranked',
+    ])->assertSessionHasErrors('error');
+
+    expect(Queue::query()->where('player_id', $aliado->id)->count())->toBe(0);
+
+    // Y el lider sigue pudiendo meter a la party con su modalidad y su tipo.
+    $this->actingAs($lider->user)->post(route('party.enqueue', $party->fresh()))->assertSessionHasNoErrors();
+    expect(Queue::query()->where('queue_type', 'premade')->count())->toBe(2);
+});
+
 it('una party competitiva no puede buscar partida con el ladder en pausa', function () {
     AppSetting::setValue(ArenaMode::settingKey('2v2'), '1', 'modes', 'boolean', true);
     $lider = duelista('qa', 'ignis');

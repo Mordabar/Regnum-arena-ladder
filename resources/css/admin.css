@@ -1187,3 +1187,33 @@
     .ap-actions-group form { min-width: 0; max-width: 100%; }
     .ap-actions-group .ap-select { max-width: 100%; }
 }
+
+/* Avisos y botones pensados para el dedo y para una pagina larga. */
+@layer components {
+    /* El resultado de una accion se ve siempre, aunque el boton estuviera al
+       final de una pagina larga: flota arriba y se va solo. */
+    .ap-flash {
+        position: fixed;
+        z-index: 90;
+        top: 12px;
+        left: 12px;
+        right: 12px;
+        max-width: 680px;
+        margin: 0 auto;
+        cursor: pointer;
+        box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+        background-color: var(--ap-surface);
+        transition: opacity .3s ease, transform .3s ease;
+    }
+    .ap-flash-ok { background-image: linear-gradient(var(--ap-ok-dim), var(--ap-ok-dim)); }
+    .ap-flash-danger { background-image: linear-gradient(var(--ap-danger-dim), var(--ap-danger-dim)); }
+    .ap-flash.is-saliendo { opacity: 0; transform: translateY(-8px); pointer-events: none; }
+}
+
+@media (max-width: 1023px) {
+    @layer components {
+        .ap-btn-sm { height: 40px; padding: 0 12px; }
+        .ap-select-sm { height: 40px; }
+        .ap-icon-btn { width: 40px; height: 40px; }
+    }
+}

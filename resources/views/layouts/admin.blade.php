@@ -238,5 +238,18 @@
     })();
 </script>
 @include('partials.arena-sin-recarga')
+<script>
+    /* Los avisos flotan arriba y se van solos; tocarlos los cierra. */
+    (function () {
+        document.querySelectorAll('.ap-flash').forEach(function (aviso) {
+            var cerrar = function () {
+                aviso.classList.add('is-saliendo');
+                window.setTimeout(function () { aviso.remove(); }, 350);
+            };
+            aviso.addEventListener('click', cerrar);
+            window.setTimeout(cerrar, aviso.classList.contains('ap-flash-danger') ? 12000 : 7000);
+        });
+    })();
+</script>
 </body>
 </html>
