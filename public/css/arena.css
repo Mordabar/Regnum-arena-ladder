@@ -4280,3 +4280,82 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
                 mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 26px), transparent 100%);
     }
 }
+
+/* ── Pulido de pantalla (movil y escritorio) ──────────────────────── */
+
+/* Responder a un reporte: los botones no se estiran a la altura del cuadro de
+   texto. El comentario va a la izquierda y "Rechazar" se alinea abajo, al
+   lado de "Confirmar", con su tamaño de siempre. */
+.arena-report-inline .arena-duel-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 12px;
+}
+.arena-report-inline .arena-duel-actions .arena-btn-danger-ghost { align-self: end; white-space: nowrap; }
+@media (max-width: 640px) {
+    .arena-report-inline .arena-duel-actions { grid-template-columns: 1fr; }
+    .arena-report-inline .arena-duel-actions .arena-btn-danger-ghost { width: 100%; justify-content: center; }
+}
+
+/* Selector de idioma: en movil vuelve a ser "ES ▾", mas facil de reconocer
+   que una bandera sola. Se sigue escondiendo al bajar. */
+@media (max-width: 1023px) {
+    .arena-lang-fab {
+        width: auto; height: auto; min-height: 40px;
+        padding: 5px 10px 5px 7px; gap: 7px;
+        border-radius: 999px; opacity: 0.95; justify-content: flex-start;
+    }
+    .arena-lang-fab .arena-lang-code { display: inline; }
+    .arena-lang-fab .arena-lang-chev { display: block; width: 13px; height: 13px; }
+    .arena-lang-fab .arena-flag { width: 24px; height: 24px; }
+}
+
+/* Selector de modalidad y tipo en movil: una fila compacta con el separador
+   de siempre entre "que modalidad" y "que tipo de partida". */
+@media (max-width: 520px) {
+    .arena-console .arena-console-arenas {
+        top: 10px; left: 10px; right: 10px;
+        width: auto; max-width: none;
+        flex-wrap: nowrap; justify-content: center; gap: 4px; padding: 4px;
+    }
+    .arena-console .arena-console-arenas-key { display: none; }
+    .arena-console .arena-console-arenas .arena-console-arena {
+        min-width: 0; min-height: 34px; padding: 5px 4px;
+        font-size: 12px; line-height: 1.1; text-align: center;
+        display: inline-flex; align-items: center; justify-content: center;
+    }
+    /* Las modalidades son cortas; los tipos se reparten el resto. */
+    .arena-console .arena-console-arenas .arena-console-arena:not([class*="is-kind"]) { flex: 0 0 38px; }
+    .arena-console .arena-console-arenas .arena-console-arena[class*="is-kind"] { flex: 1 1 0; font-size: 11.5px; overflow-wrap: anywhere; hyphens: auto; }
+    .arena-console .arena-console-arenas-sep {
+        display: block; flex: 0 0 1px; width: 1px; height: 20px;
+        align-self: center; margin: 0 3px; background: var(--arena-line-strong);
+    }
+
+    /* El escenario: lo justo para la figura, sin tapar nada. */
+    .arena-console .arena-champion { height: clamp(310px, 48vh, 380px) !important; }
+    .arena-console .arena-champion:not(:has(.arena-console-arenas)) { height: clamp(280px, 44vh, 340px) !important; }
+    .arena-console .arena-champion:has(.arena-console-arenas) .arena-champion-canvas { top: 56px; height: calc(100% - 56px); }
+}
+
+/* Pantallas muy estrechas, o idiomas de palabras largas (aleman, neerlandes):
+   la modalidad y el tipo de partida van en dos filas, con una linea fina entre
+   ambas. Asi ninguna palabra se parte a mitad. */
+@media (max-width: 359px) {
+    .arena-console .arena-console-arenas { flex-wrap: wrap; row-gap: 4px; }
+    .arena-console .arena-console-arenas .arena-console-arena:not([class*="is-kind"]) { flex: 1 1 0; }
+    .arena-console .arena-console-arenas-sep { flex: 0 0 100%; width: 100%; height: 1px; margin: 1px 0; }
+    .arena-console .arena-console-arenas .arena-console-arena[class*="is-kind"] { font-size: 11.5px; overflow-wrap: normal; hyphens: manual; }
+    .arena-console .arena-champion:has(.arena-console-arenas) .arena-champion-canvas { top: 92px; height: calc(100% - 92px); }
+}
+@media (max-width: 420px) {
+    :lang(de) .arena-console .arena-console-arenas, :lang(nl) .arena-console .arena-console-arenas { flex-wrap: wrap; row-gap: 4px; }
+    :lang(de) .arena-console .arena-console-arenas .arena-console-arena:not([class*="is-kind"]),
+    :lang(nl) .arena-console .arena-console-arenas .arena-console-arena:not([class*="is-kind"]) { flex: 1 1 0; }
+    :lang(de) .arena-console .arena-console-arenas-sep, :lang(nl) .arena-console .arena-console-arenas-sep { flex: 0 0 100%; width: 100%; height: 1px; margin: 1px 0; }
+    :lang(de) .arena-console .arena-console-arenas .arena-console-arena[class*="is-kind"],
+    :lang(nl) .arena-console .arena-console-arenas .arena-console-arena[class*="is-kind"] { overflow-wrap: normal; hyphens: manual; }
+    :lang(de) .arena-console .arena-champion:has(.arena-console-arenas) .arena-champion-canvas,
+    :lang(nl) .arena-console .arena-champion:has(.arena-console-arenas) .arena-champion-canvas { top: 92px; height: calc(100% - 92px); }
+}
