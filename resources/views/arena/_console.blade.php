@@ -127,33 +127,6 @@
                                     </nav>
                                 @endif
 
-                                {{-- Las acciones del guerrero viven con el
-                                     guerrero, no en una tarjeta aparte. --}}
-                                <div class="arena-console-tools">
-                                    @foreach($players as $player)
-                                        <div data-champion-panel data-player-id="{{ $player->id }}"
-                                             class="arena-console-tools-set"
-                                             @if(!$featured || $player->id !== $featured->id) hidden @endif>
-                                            @if($player->is_active && !$hasActiveState)
-                                                <button type="button" class="arena-console-tool" data-modal-open="modal-rename-{{ $player->id }}"
-                                                        aria-label="{{ __('Editar a :name', ['name' => $player->cleanName()]) }}" title="Editar guerrero">
-                                                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                                                    <span>Editar</span>
-                                                </button>
-                                                @if($players->count() > 1)
-                                                    <button type="button" class="arena-console-tool is-danger" data-modal-open="modal-delete-{{ $player->id }}"
-                                                            aria-label="{{ __('Eliminar a :name', ['name' => $player->cleanName()]) }}" title="Eliminar guerrero">
-                                                        <x-admin.icon name="trash" class="h-4 w-4" />
-                                                        <span>Eliminar</span>
-                                                    </button>
-                                                @endif
-                                            @elseif(!$player->is_active)
-                                                <span class="arena-console-tool is-muted">Deshabilitado por un administrador</span>
-                                            @endif
-                                        </div>
-                                    @endforeach
-                                </div>
-
                                 <div class="arena-champion-stats-inside arena-stats-row">
                                     <div class="arena-stat-pill"><span>PL</span><b data-champion-pl>{{ number_format((float) $featured->pl_points, 1) }}</b></div>
                                     <div class="arena-stat-pill"><span>MMR</span><b data-champion-mmr>{{ $featured->mmr }}</b></div>
@@ -204,6 +177,33 @@
                                     <div class="flex flex-wrap items-center gap-3">
                                         <h2 class="arena-champion-name" data-champion-name>{{ $featured->cleanName() }}</h2>
                                         <span class="arena-champion-status" data-champion-status @if($featured->is_active) hidden @endif>{{ $featured->statusLabel() }}</span>
+
+                                {{-- Las acciones del guerrero, junto a su nombre: ahi no
+                                     tapan ni la barra de modalidad ni la figura. --}}
+                                <div class="arena-console-tools">
+                                    @foreach($players as $player)
+                                        <div data-champion-panel data-player-id="{{ $player->id }}"
+                                             class="arena-console-tools-set"
+                                             @if(!$featured || $player->id !== $featured->id) hidden @endif>
+                                            @if($player->is_active && !$hasActiveState)
+                                                <button type="button" class="arena-console-tool" data-modal-open="modal-rename-{{ $player->id }}"
+                                                        aria-label="{{ __('Editar a :name', ['name' => $player->cleanName()]) }}" title="Editar guerrero">
+                                                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                                                    <span>Editar</span>
+                                                </button>
+                                                @if($players->count() > 1)
+                                                    <button type="button" class="arena-console-tool is-danger" data-modal-open="modal-delete-{{ $player->id }}"
+                                                            aria-label="{{ __('Eliminar a :name', ['name' => $player->cleanName()]) }}" title="Eliminar guerrero">
+                                                        <x-admin.icon name="trash" class="h-4 w-4" />
+                                                        <span>Eliminar</span>
+                                                    </button>
+                                                @endif
+                                            @elseif(!$player->is_active)
+                                                <span class="arena-console-tool is-muted">Deshabilitado por un administrador</span>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </div>
                                     </div>
                                     <p class="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[color:var(--arena-muted)] arena-body-text">
                                         <span class="arena-champion-realm" data-champion-realm-name>{{ PlayerModel::REALMS[$featured->realm] ?? $featured->realm }}</span>

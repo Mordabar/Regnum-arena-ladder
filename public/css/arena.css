@@ -4191,3 +4191,39 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
 @media (max-width: 1023px) {
     .arena-btn-ghost, .arena-btn-primary { min-height: 44px; }
 }
+
+
+/* ── Acciones del guerrero junto a su nombre ──────────────────────────
+   Antes flotaban sobre la figura: en escritorio casi tocaban la barra de
+   modalidad y en movil tapaban el modelo. Ahora van en la fila del nombre,
+   dos botones de icono de 40px que no tapan nada. */
+.arena-console-ident .arena-console-tools {
+    position: static;
+    top: auto; left: auto; right: auto;
+    display: inline-flex;
+    gap: 8px;
+}
+.arena-console-ident .arena-console-tools-set { flex-direction: row; gap: 8px; }
+.arena-console-ident .arena-console-tool {
+    width: 40px; height: 40px; padding: 0; justify-content: center;
+    border-radius: 12px;
+}
+.arena-console-ident .arena-console-tool span { display: none; }
+.arena-console-ident .arena-console-tool.is-muted {
+    width: auto; height: auto; padding: 6px 10px; font-size: 12px;
+}
+.arena-console-ident .arena-console-tool.is-muted span { display: inline; }
+@media (max-width: 520px) {
+    .arena-console-ident .arena-console-tools-set { flex-direction: row; gap: 6px; }
+    /* Ya no reserva hueco a la derecha: el selector vuelve a ocupar todo el ancho. */
+    .arena-console-arenas { width: auto; max-width: calc(100% - 20px); }
+}
+
+/* Movil: el selector de modo y tipo ocupa dos filas arriba del escenario y
+   tapaba la cabeza de la figura. El escenario crece lo que mide el selector
+   y la figura se dibuja debajo, no detras. */
+@media (max-width: 520px) {
+    .arena-console .arena-champion { height: 480px !important; }
+    .arena-console .arena-champion:not(:has(.arena-console-arenas)) { height: 400px !important; }
+    .arena-console .arena-champion:has(.arena-console-arenas) .arena-champion-canvas { top: 104px; height: calc(100% - 104px); }
+}
