@@ -277,16 +277,17 @@ class ActivityAnnouncer
             'title' => $titulo,
             'description' => $descripcion,
             'color' => self::COLOR,
-            'url' => url('/lobby'),
         ] + $extra;
 
         // Dos tarjetas en el mismo mensaje: primero todo en español, debajo todo en ingles.
+        // El enlace va solo en la primera: Discord junta en una las tarjetas que
+        // comparten URL (es como agrupa las galerias) y la segunda desaparecia.
         $embeds = ($tituloEn !== $tituloEs || $descripcionEn !== $descripcionEs)
             ? [
-                $embed('🇪🇸 ' . $tituloEs, $descripcionEs),
+                $embed('🇪🇸 ' . $tituloEs, $descripcionEs, ['url' => url('/lobby')]),
                 $embed('🇬🇧 ' . $tituloEn, $descripcionEn, ['footer' => $pie]),
             ]
-            : [$embed($tituloEs, $descripcionEs, ['footer' => $pie])];
+            : [$embed($tituloEs, $descripcionEs, ['url' => url('/lobby'), 'footer' => $pie])];
 
         try {
             $this->discord->publicarEnCanal($this->channelId(), ['embeds' => $embeds]);

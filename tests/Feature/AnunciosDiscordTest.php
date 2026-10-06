@@ -197,7 +197,9 @@ it('los anuncios del canal salen en español e ingles', function () {
         ->first(fn (PeticionHttp $r) => str_contains($r->url(), '/channels/555000000000000001/messages'));
     $embeds = $mensaje['embeds'];
 
+    // Discord junta las tarjetas que comparten URL: la segunda no puede llevar la misma.
     expect($embeds)->toHaveCount(2)
+        ->and(collect($embeds)->pluck('url')->filter()->duplicates())->toBeEmpty()
         ->and($embeds[0]['title'])->toContain('🇪🇸')->toContain('Competitivo')->toContain('hay alguien esperando rival')->not->toContain('waiting')
         ->and($embeds[0]['description'])->toContain('es vuestro momento')->not->toContain('your moment')
         ->and($embeds[1]['title'])->toContain('🇬🇧')->toContain('Competitive')->toContain('someone is waiting for an opponent')->not->toContain('esperando')
