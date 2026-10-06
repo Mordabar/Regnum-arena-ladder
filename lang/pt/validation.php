@@ -72,5 +72,7 @@ return [
         'password' => 'senha',
         'endpoint' => 'assinatura',
         'viejo' => 'assinatura anterior',
+        'code' => 'código',
+        'from' => 'origem',
     ],
 ];

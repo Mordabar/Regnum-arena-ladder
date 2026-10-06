@@ -368,11 +368,14 @@
             ultimoAnuncio = texto;
             // Lo que el jugador acaba de hacer ya lo dice el aviso de la accion:
             // repetirlo en la zona de estado seria hablar dos veces.
-            if (Date.now() - (window.arenaAccionPropia || 0) < 8000) { return; }
+            if (window.arenaAccionEnCurso) { return; }
             const zona = document.querySelector('[data-estado-anuncio]');
             if (zona) { zona.textContent = texto; }
         };
         window.setTimeout(anunciarEstado, 0);
+        // Al terminar una accion propia el estado resultante se da por dicho: lo
+        // que cambie despues -un cruce que llega a los pocos segundos- si se anuncia.
+        window.arenaFijarAnuncio = () => { ultimoAnuncio = leerAnuncio(); };
 
         const recordarCampos = (root) => {
             const campos = [];

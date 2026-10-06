@@ -72,5 +72,7 @@ return [
         'password' => 'contraseña',
         'endpoint' => 'suscripción',
         'viejo' => 'suscripción anterior',
+        'code' => 'código',
+        'from' => 'origen',
     ],
 ];

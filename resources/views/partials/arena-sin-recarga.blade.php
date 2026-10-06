@@ -96,12 +96,15 @@
         botones.forEach(function (b) { b.disabled = true; b.setAttribute('aria-busy', 'true'); });
 
         var libre = function () {
+            window.arenaAccionEnCurso = false;
+            if (typeof window.arenaFijarAnuncio === 'function') { window.arenaFijarAnuncio(); }
             delete form.dataset.enviando;
             botones.forEach(function (b) { b.disabled = false; b.removeAttribute('aria-busy'); });
         };
 
         // El sondeo no avisa de lo que el propio jugador acaba de hacer.
         window.arenaAccionPropia = Date.now();
+        window.arenaAccionEnCurso = true;
 
         // Una clave por envio cuyo resultado se desconoce: si la respuesta no
         // llega y el jugador lo intenta otra vez, el servidor reconoce que es el

@@ -72,5 +72,7 @@ return [
         'password' => 'mot de passe',
         'endpoint' => 'abonnement',
         'viejo' => 'abonnement précédent',
+        'code' => 'code',
+        'from' => 'origine',
     ],
 ];
