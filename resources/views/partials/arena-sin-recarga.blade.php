@@ -70,7 +70,11 @@
 
     // Solo donde hay un panel que repintar en su sitio.
     function puedeSinRecarga() {
-        return !!document.querySelector('.arena-console') && typeof window.arenaConsoleGo === 'function' && 'fetch' in window;
+        if (!('fetch' in window)) { return false; }
+        // En el lobby se repinta el panel; en la pagina de un combate, la pagina.
+        var enLobby = !!document.querySelector('.arena-console') && typeof window.arenaConsoleGo === 'function';
+        var enPagina = !!document.getElementById('contenido') && typeof window.arenaRefrescarPagina === 'function';
+        return enLobby || enPagina;
     }
 
     function avisar(texto, tipo) {
@@ -140,7 +144,11 @@
             // de debajo cambiaria mientras se esta leyendo el motivo.
             if (huboError && ventana) { libre(); return; }
 
-            return window.arenaConsoleGo(cuerpo.redirect, { reemplazar: true }).then(function (hecho) {
+            var repintar = document.querySelector('.arena-console') && typeof window.arenaConsoleGo === 'function'
+                ? window.arenaConsoleGo(cuerpo.redirect, { reemplazar: true })
+                : window.arenaRefrescarPagina();
+
+            return repintar.then(function (hecho) {
                 if (hecho === true || hecho === 'obsoleto') { libre(); return; }
                 // No se pudo repintar el panel: se recarga, pero en el mismo sitio.
                 window.arenaRecargar();

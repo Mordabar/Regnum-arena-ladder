@@ -83,3 +83,22 @@ it('las acciones del lobby se envian sin recargar y la pagina guarda el sitio', 
         ->assertSee('arenaGuardarLugar', false)
         ->assertSee('arenaRecargar', false);
 });
+
+it('la pagina del combate se repinta en su sitio: el sondeo ya no recarga entera', function () {
+    // El poller sin panel de lobby recargaba la pagina completa en cada cambio
+    // de estado. Ahora pide la pagina y cambia el contenido.
+    $fuente = file_get_contents(resource_path('views/components/arena-state-poller.blade.php'));
+
+    expect($fuente)->toContain('const refreshPage')
+        ->and($fuente)->toContain('window.arenaRefrescarPagina')
+        ->and($fuente)->toContain("getElementById('contenido')");
+});
+
+it('los scripts de la pagina del combate se registran para volver a pasar tras un repintado', function () {
+    $fuente = file_get_contents(resource_path('views/matches/show_v3.blade.php'));
+
+    // Si volvieran a escucharse con DOMContentLoaded, el formulario del
+    // reporte dejaria de funcionar tras el primer cambio de estado.
+    expect($fuente)->not->toContain("document.addEventListener('DOMContentLoaded'")
+        ->and($fuente)->toContain('window.ArenaBoot.register');
+});

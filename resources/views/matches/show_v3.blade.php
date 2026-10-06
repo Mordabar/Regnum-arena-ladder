@@ -182,12 +182,14 @@
                                 span.innerText = `${m}:${s}`;
                             }
                         }
-                        setInterval(updateMatchAcceptanceTimer, 1000);
-                        updateMatchAcceptanceTimer();
+                        // Un solo reloj aunque la pagina se repinte: el contador se busca
+                        // por id en cada tick, asi que sobrevive al cambio de contenido.
+                        if (!window.arenaMatchTimer) { window.arenaMatchTimer = setInterval(updateMatchAcceptanceTimer, 1000); }
+                        window.ArenaBoot.register(updateMatchAcceptanceTimer);
                     </script>
                 </div>
                 <div class="flex flex-wrap gap-3">
-                    <form method="POST" action="{{ route('matches.accept') }}">
+                    <form method="POST" action="{{ route('matches.accept') }}" data-sin-recarga>
                         @csrf
                         <input type="hidden" name="match_id" value="{{ $match->id }}">
                         <input type="hidden" name="player_id" value="{{ $viewerPlayer['player_id'] }}">
@@ -206,7 +208,7 @@
                 Si rechazas, el match se cancela y los demás jugadores vuelven a la cola. Rechazos frecuentes pueden generar sanciones.
             </p>
             <div class="mt-5 flex gap-3">
-                <form method="POST" action="{{ route('matches.reject') }}">
+                <form method="POST" action="{{ route('matches.reject') }}" data-sin-recarga>
                     @csrf
                     <input type="hidden" name="match_id" value="{{ $match->id }}">
                     <input type="hidden" name="player_id" value="{{ $viewerPlayer['player_id'] }}">
@@ -301,7 +303,13 @@
                 echar a quien viene a leer que paso es justo lo que sobra.
             --}}
             <script data-auto-lobby-redirect>
-                (function () {
+                // Se registra en vez de correr suelto: el contenido se repinta en
+                // su sitio y esta marca llega con el repintado, no con la carga.
+                window.ArenaBoot.register(function () {
+                    var marca = document.querySelector('script[data-auto-lobby-redirect]');
+                    if (!marca || marca.dataset.hecho === '1') { return; }
+                    marca.dataset.hecho = '1';
+
                     var enVivo = false;
                     try {
                         enVivo = sessionStorage.getItem('arena:live-reload') === '1';
@@ -317,7 +325,7 @@
                     setTimeout(function () {
                         window.location.href = '{{ route('lobby') }}';
                     }, 3500);
-                })();
+                });
             </script>
         </section>
     @elseif($reportPendingConfirmation && $viewerSide === $report->reporting_team)
@@ -446,7 +454,7 @@
                 pulsad el botón para liberar la cola.
             </p>
             @if($viewerPlayer && $match->status === 'in_progress')
-                <form method="POST" action="{{ route('matches.friendly.finish') }}" class="mt-4">
+                <form method="POST" action="{{ route('matches.friendly.finish') }}" data-sin-recarga class="mt-4">
                     @csrf
                     <input type="hidden" name="match_id" value="{{ $match->id }}">
                     <input type="hidden" name="player_id" value="{{ $viewerPlayer['player_id'] }}">
@@ -507,14 +515,15 @@
             </form>
 
             <script>
-                document.addEventListener('DOMContentLoaded', () => {
+                window.ArenaBoot.register(() => {
                     const form = document.getElementById('report-form');
                     const overlay = document.getElementById('upload-progress-overlay');
                     const bar = document.getElementById('upload-progress-bar');
                     const text = document.getElementById('upload-progress-text');
                     const btn = document.getElementById('btn-submit-report');
 
-                    if (!form) return;
+                    if (!form || form.dataset.listo === '1') return;
+                    form.dataset.listo = '1';
 
                     form.addEventListener('submit', (e) => {
                         e.preventDefault();
@@ -538,7 +547,12 @@
 
                         xhr.addEventListener('load', () => {
                             if (xhr.status >= 200 && xhr.status < 300) {
-                                (window.arenaRecargar || function () { window.location.reload(); })();
+                                // La pagina cambia en su sitio; si no puede, se recarga
+                                // en el mismo punto.
+                                var recargar = function () { (window.arenaRecargar || function () { window.location.reload(); })(); };
+                                if (typeof window.arenaRefrescarPagina === 'function') {
+                                    window.arenaRefrescarPagina().then(function (hecho) { if (!hecho) { recargar(); } });
+                                } else { recargar(); }
                             } else {
                                 // En caso de error de validación o del server, dejamos que el browser pinte la vista resultante
                                 document.open();
@@ -713,7 +727,7 @@
 
                 @if($canConfirmReport)
                     <div class="grid gap-4 sm:grid-cols-2">
-                        <form method="POST" action="{{ route('matches.report.confirm') }}">
+                        <form method="POST" action="{{ route('matches.report.confirm') }}" data-sin-recarga>
                             @csrf
                             <input type="hidden" name="report_id" value="{{ $report->id }}">
                             <input type="hidden" name="player_id" value="{{ $viewerPlayer['player_id'] }}">
@@ -739,7 +753,7 @@
                              incluidas: si aqui no se pudieran adjuntar, quien
                              conteste desde esta pantalla llegaria a moderación
                              sin nada que enseñar. --}}
-                        <form method="POST" action="{{ route('matches.report.reject') }}" class="space-y-4"
+                        <form method="POST" action="{{ route('matches.report.reject') }}" data-sin-recarga class="space-y-4"
                               enctype="multipart/form-data">
                             @csrf
                             <input type="hidden" name="report_id" value="{{ $report->id }}">

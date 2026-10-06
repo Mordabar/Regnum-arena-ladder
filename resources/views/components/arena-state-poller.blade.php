@@ -71,7 +71,7 @@
         // escribiendo". Tener el foco en un campo no basta (ver isBusy).
         let lastTypedAt = 0;
         document.addEventListener('input', (e) => {
-            if (e.target && e.target.closest && e.target.closest('.arena-console')) { lastTypedAt = Date.now(); }
+            if (e.target && e.target.closest && e.target.closest('.arena-console, #contenido')) { lastTypedAt = Date.now(); }
         }, true);
 
         function readStoredState() {
@@ -462,6 +462,91 @@
             return true;
         };
 
+        // La pagina del combate no tiene panel que pedir aparte: se pide la
+        // pagina misma y se cambia el contenido en su sitio. Mantiene el scroll,
+        // lo que se estaba escribiendo y el mapa de la zona, y vuelve a pasar
+        // por los arranques registrados (mapa, chat, figuras 3D) igual que el
+        // panel del lobby. Devuelve false si no pudo y se recarga, como siempre.
+        const refreshPage = async () => {
+            const host = document.getElementById('contenido');
+            if (!host) { return false; }
+
+            const corte = new AbortController();
+            const temporizador = window.setTimeout(() => corte.abort(), 10000);
+            let r;
+            try {
+                r = await fetch(window.location.href, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'text/html' },
+                    cache: 'no-store',
+                    credentials: 'same-origin',
+                    signal: corte.signal,
+                });
+            } finally {
+                window.clearTimeout(temporizador);
+            }
+
+            // Una redireccion a otra pagina (el combate ya no es visible para
+            // este jugador, sesion caducada...) no se pinta aqui: se navega.
+            if (!r.ok || new URL(r.url).pathname !== window.location.pathname) { return false; }
+
+            const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+            const fresh = doc.getElementById('contenido');
+            if (!fresh) { return false; }
+
+            // Lo que "se cayo delante del jugador" lo cuenta el aviso de vuelta
+            // al lobby; se deja la marca como antes de recargar.
+            try { sessionStorage.setItem('arena:live-reload', '1'); } catch (e) {}
+
+            // El mapa de la zona no cambia durante el combate y cuesta montarlo:
+            // si es el mismo, se queda el que ya esta funcionando.
+            const mapaViejo = host.querySelector('#modal-zone-map');
+            const mapaNuevo = fresh.querySelector('#modal-zone-map');
+            let mapaQueSeQueda = null;
+            if (mapaViejo && mapaNuevo) {
+                const firma = (n) => (n.querySelector('h3') ? n.querySelector('h3').textContent.trim() : '')
+                    + JSON.stringify(Object.assign({}, (n.querySelector('[data-arena-map]') || { dataset: {} }).dataset));
+                if (firma(mapaViejo) === firma(mapaNuevo)) { mapaQueSeQueda = mapaViejo; mapaNuevo.replaceWith(mapaViejo); }
+            }
+
+            // Sin animacion de entrada: no es una pagina nueva, es la misma.
+            fresh.querySelectorAll('.arena-animate-in').forEach((n) => {
+                n.classList.remove('arena-animate-in', 'arena-stagger-1', 'arena-stagger-2', 'arena-stagger-3', 'arena-stagger-4');
+            });
+
+            const escrito = recordarCampos(host);
+            host.innerHTML = fresh.innerHTML;
+            restaurarCampos(host, escrito);
+
+            // Las ventanas de la pagina viven fuera del contenido.
+            const nuevas = Array.from(doc.body.children).filter((n) => n.id && n.id.indexOf('modal-') === 0);
+            const ids = new Set(nuevas.map((n) => n.id));
+            Array.from(document.body.children).forEach((n) => {
+                if (n.id && n.id.indexOf('modal-') === 0 && !ids.has(n.id) && !n.hasAttribute('data-console-modals')) { n.remove(); }
+            });
+            const hueco = document.querySelector('[data-console-modals]');
+            nuevas.forEach((n) => {
+                const importado = document.importNode(n, true);
+                const actual = document.getElementById(n.id);
+                if (actual && actual.parentNode === document.body) { actual.replaceWith(importado); }
+                else if (hueco) { hueco.parentNode.insertBefore(importado, hueco); }
+            });
+
+            if (typeof window.arenaDisposeOrphanChampions === 'function') {
+                window.arenaDisposeOrphanChampions();
+            }
+
+            if (doc.title) { document.title = doc.title; }
+
+            document.dispatchEvent(new CustomEvent('arena:dom-updated', { detail: { root: document } }));
+            if (window.ArenaBoot) { window.ArenaBoot.run(document); }
+
+            // Si ningun arranque la uso, la marca no puede quedarse: la proxima
+            // carga a mano echaria al jugador al lobby sin motivo.
+            try { sessionStorage.removeItem('arena:live-reload'); } catch (e) {}
+
+            return true;
+        };
+
         // Bajo una ventana abierta el repintado la haria desaparecer a media
         // lectura, y debajo de alguien que esta tecleando le moveria el campo
         // entre dos teclas. En esos casos se deja para la siguiente vuelta: el
@@ -478,6 +563,12 @@
                 return true;
             }
 
+            // Unas capturas elegidas en un campo de archivo no sobreviven a un
+            // repintado: no se toca la pagina hasta que se envien o se quiten.
+            const conArchivos = Array.from(document.querySelectorAll('input[type=file]'))
+                .some((i) => i.files && i.files.length > 0);
+            if (conArchivos) { return true; }
+
             return Date.now() - lastTypedAt < _typingGraceMs;
         };
 
@@ -490,6 +581,18 @@
             // Sin direccion del panel no hay nada que cambiar en su sitio: se
             // recarga, que es lo que se hacia siempre.
             if (!_refreshUrl) {
+                isRefreshing = true;
+                try {
+                    if (await refreshPage()) {
+                        lastHash = hash;
+                        return;
+                    }
+                } catch (_) {
+                    // Cualquier fallo cae en la recarga de siempre.
+                } finally {
+                    isRefreshing = false;
+                }
+
                 lastHash = hash;
                 queueReload();
                 return;
@@ -593,6 +696,24 @@
             } finally {
                 isPolling = false;
                 scheduleNextPoll();
+            }
+        };
+
+        // Repintar la pagina o el panel donde se esta, a peticion (despues de
+        // enviar un formulario). Devuelve true si se pudo.
+        window.arenaRefrescarPagina = async () => {
+            for (let i = 0; i < 20 && isRefreshing; i++) {
+                await new Promise((resolve) => window.setTimeout(resolve, 100));
+            }
+            if (isRefreshing) { return false; }
+
+            isRefreshing = true;
+            try {
+                return !!(_refreshUrl ? await refreshConsole() : await refreshPage());
+            } catch (_) {
+                return false;
+            } finally {
+                isRefreshing = false;
             }
         };
 
