@@ -268,3 +268,31 @@ ladder queda en pausa con solo amistosos.
 La temporada programada se abre en el tick del mantenimiento (cron cada minuto
 o respaldo por HTTP); no hace falta nada mas. El candado de programar usa la
 cache `file`, valido para un solo servidor como Hostinger compartido.
+
+## Como subir una version sin dejar el sitio a medias
+
+Subir archivos por FTP o por el gestor no es instantaneo: durante unos
+segundos conviven archivos nuevos y viejos. Si `bootstrap/app.php` llega antes
+que una clase que ahora nombra (pasó con `ResponderSinRecarga`), cada peticion
+en ese intervalo da error 500. El orden evita eso:
+
+1. **Poner el sitio en mantenimiento**: `php artisan down --retry=30`
+2. **Subir todo**: `app/`, `resources/`, `public/`, `lang/`, `routes/`,
+   `database/`, `config/` y por ultimo `bootstrap/app.php`. Mejor aun, subirlo
+   en un solo `.zip` y descomprimirlo encima: es una sola operacion.
+   Nunca se sube ni se sobrescribe: `.env`, `storage/` ni `vendor/`
+   (salvo que `composer.json` haya cambiado).
+3. **Comprobar que no falta nada**: `git status` si el servidor es un clon, o
+   comparar la lista de archivos del commit con `ls`.
+4. **Preparar**:
+   ```bash
+   composer dump-autoload -o
+   php artisan migrate --force
+   php artisan view:clear && php artisan config:clear && php artisan route:clear
+   ```
+5. **Quitar el mantenimiento**: `php artisan up`
+6. **Comprobar**: abrir `/lobby` y mirar `tail -n 20 storage/logs/laravel-AAAA-MM-DD.log`:
+   no debe haber lineas nuevas de error.
+
+Si el servidor tiene git (`git pull` en la carpeta del sitio), es lo mas
+seguro: trae todo de una vez y `git status` dice si falta algo.
