@@ -356,9 +356,15 @@
         // El repintado del panel. Antes de tocar el DOM se sueltan los visores
         // 3D que se van: el navegador solo aguanta unos pocos contextos WebGL y
         // dejarlos vivos hacia desaparecer las figuras a los pocos cambios.
-        const refreshConsole = async (search = window.location.search, navegacion = false) => {
-            const host = document.querySelector('.arena-console');
-            if (!host) { return false; }
+        // Cada cambio de modalidad lleva un numero: si mientras esperaba llego
+        // otro, el viejo se descarta. Asi atras/adelante en cadena no deja el
+        // panel de un destino y la direccion de otro.
+        let navSeq = 0;
+        let ultimaUrl = null;
+
+        const refreshConsole = async (search = window.location.search, navegacion = false, miSeq = 0) => {
+            if (!document.querySelector('.arena-console')) { return false; }
+            const seqInicio = navSeq;
 
             // La consulta de la pagina viaja con la peticion: lleva el guerrero
             // elegido y la modalidad, y sin ella el panel repintado volveria al
@@ -366,15 +372,38 @@
             const params = new URLSearchParams(search);
             params.set('t', String(Date.now()));
 
-            const r = await fetch(_refreshUrl + '?' + params.toString(), {
-                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                cache: 'no-store',
-            });
+            // Una peticion que no contesta no puede dejar el panel congelado y
+            // el sondeo sin repintar: a los 8 segundos se corta.
+            const corte = new AbortController();
+            const temporizador = window.setTimeout(() => corte.abort(), 8000);
+            let r;
+            try {
+                r = await fetch(_refreshUrl + '?' + params.toString(), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    cache: 'no-store',
+                    signal: corte.signal,
+                });
+            } finally {
+                window.clearTimeout(temporizador);
+            }
 
             if (!r.ok) { return false; }
 
             const payload = await r.json();
             if (payload.reload || !payload.html) { return false; }
+
+            // Llego otro cambio mientras tanto: este ya no vale.
+            if (navegacion && miSeq !== navSeq) { return 'obsoleto'; }
+            if (!navegacion && navSeq !== seqInicio) { return true; }
+
+            const host = document.querySelector('.arena-console');
+            if (!host) { return false; }
+            if (payload.url) {
+                const normal = new URL(payload.url, window.location.origin);
+                const lang = new URLSearchParams(search).get('lang');
+                if (lang) { normal.searchParams.set('lang', lang); }
+                ultimaUrl = normal.pathname + normal.search;
+            }
 
             const holder = document.createElement('div');
             holder.innerHTML = (payload.head ?? '') + payload.html + (payload.invites ?? '');
@@ -573,35 +602,41 @@
         window.arenaConsoleGo = async (url) => {
             if (!_refreshUrl) { return false; }
 
-            for (let i = 0; i < 20 && isRefreshing; i++) {
-                await new Promise((resolve) => window.setTimeout(resolve, 100));
-            }
-            if (isRefreshing) { return false; }
-
-            isRefreshing = true;
+            const miSeq = ++navSeq;
+            ultimaUrl = null;
             try {
                 const destino = new URL(url, window.location.origin);
-                const hecho = await refreshConsole(destino.search, true);
+                // El idioma viaja con el enlace: la direccion se puede compartir.
+                const lang = new URLSearchParams(window.location.search).get('lang');
+                if (lang && !destino.searchParams.has('lang')) { destino.searchParams.set('lang', lang); }
+
+                const hecho = await refreshConsole(destino.search, true, miSeq);
+                if (hecho === 'obsoleto') { return true; }
                 if (hecho) {
-                    window.history.pushState({ arenaConsole: true }, '', destino.pathname + destino.search);
+                    window.history.pushState({ arenaConsole: true }, '', ultimaUrl || (destino.pathname + destino.search));
                     resetCadence();
+                    const avisar = document.querySelector('[data-console-status]');
+                    if (avisar) {
+                        avisar.textContent = Array.from(document.querySelectorAll('a.arena-console-arena[aria-current="true"]'))
+                            .map((a) => a.textContent.trim()).join(' · ');
+                    }
                 }
                 return hecho;
             } catch (_) {
-                return false;
-            } finally {
-                isRefreshing = false;
+                // Sin red o sin respuesta: nada se mueve y el lobby sigue donde estaba.
+                return 'red';
             }
         };
 
-        // Atras y adelante vuelven a la modalidad anterior sin recargar.
+        // Atras y adelante vuelven a la modalidad anterior sin recargar. Con una
+        // ventana abierta se hace lo de siempre: recargar.
         window.addEventListener('popstate', () => {
             if (!document.querySelector('.arena-console')) { return; }
-            isRefreshing = true;
-            refreshConsole(window.location.search, true)
-                .then((hecho) => { if (!hecho) { window.location.reload(); } })
-                .catch(() => window.location.reload())
-                .finally(() => { isRefreshing = false; });
+            if (isBusy()) { window.location.reload(); return; }
+            const miSeq = ++navSeq;
+            refreshConsole(window.location.search, true, miSeq)
+                .then((hecho) => { if (hecho === false) { window.location.reload(); } })
+                .catch(() => window.location.reload());
         });
 
         pollNow();

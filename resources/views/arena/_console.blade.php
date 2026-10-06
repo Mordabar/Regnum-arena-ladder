@@ -109,7 +109,7 @@
                                         @if(count($enabledModes) > 1)
                                             <span class="arena-console-arenas-key">Arena</span>
                                             @foreach($enabledModes as $mode)
-                                                <a href="{{ route('lobby', ['mode' => $mode, 'player' => $featured?->id] + $kindQuery) }}"
+                                                <a href="{{ route('lobby', ['mode' => $mode, 'player' => $featured?->id, 'kind' => $kind]) }}"
                                                    aria-current="{{ $mode === $arenaMode ? 'true' : 'false' }}"
                                                    class="arena-console-arena {{ $mode === $arenaMode ? 'is-active' : '' }}">{{ $mode }}</a>
                                             @endforeach

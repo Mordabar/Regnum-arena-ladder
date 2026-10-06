@@ -15,6 +15,8 @@
          amistoso. Solo sale entonces. --}}
     <x-arena-pause-banner />
 
+    <div class="sr-only" role="status" aria-live="polite" data-console-status></div>
+
     {{-- ── CABECERA ───────────────────────────────────────────────────────
          El lobby y la arena eran dos paginas que ensenaban lo mismo, y desde
          el lobby "Pelear" te llevaba a otra pantalla en vez de a la cola. Ahora
@@ -311,12 +313,22 @@
             if (tab.getAttribute('aria-current') === 'true') { event.preventDefault(); return; }
 
             event.preventDefault();
+            // Un segundo clic mientras llega el primero no abre otra entrada.
+            if (tab.classList.contains('is-cargando')) { return; }
             var destino = tab.href;
             var clave = tab.classList.contains('is-kind-ranked') ? 'ranked'
                 : tab.classList.contains('is-kind-friendly') ? 'friendly' : tab.textContent.trim();
             tab.classList.add('is-cargando');
 
             window.arenaConsoleGo(destino).then(function (hecho) {
+                tab.classList.remove('is-cargando');
+                if (hecho === 'red') {
+                    // Sin conexion no se abandona el lobby: se avisa y se queda.
+                    if (typeof window.arenaToast === 'function') {
+                        window.arenaToast(@json(__('Sin conexion. Intentalo otra vez.')), 'info', 3500);
+                    }
+                    return;
+                }
                 if (!hecho) { window.location.href = destino; return; }
                 // El panel nuevo es otro nodo: el foco vuelve al mismo boton.
                 var igual = Array.prototype.find.call(document.querySelectorAll('a.arena-console-arena'), function (a) {

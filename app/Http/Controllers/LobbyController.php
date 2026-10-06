@@ -83,6 +83,13 @@ class LobbyController extends Controller
             'invites' => $invites,
             'modals' => $modals,
             'title' => $state['pageTitle'] . ' — Regnum Arena Ladder',
+            // La direccion que de verdad corresponde a lo que se pinta: si el
+            // modo pedido ya no esta abierto, el panel enseno otro.
+            'url' => route('lobby', array_filter([
+                'mode' => $state['arenaMode'],
+                'player' => $state['featured']?->id,
+                'kind' => $state['kind'],
+            ], fn ($v) => $v !== null)),
         ]);
     }
 
