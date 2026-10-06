@@ -400,3 +400,18 @@ it('keeps queue type multipliers neutral for random mirrors and premade mirrors'
     expect($premadeWinner->scoring_context['queue_type_multiplier_pl'])->toEqual(1.0);
     expect($premadeWinner->scoring_context['queue_type_multiplier_mmr'])->toEqual(1.0);
 });
+
+it('emparejar con una party en la cola no revienta: el tick y el emparejador siguen funcionando', function () {
+    // Regresion: buildPremadeTeams usaba $ranked dentro de un closure sin
+    // `use`, y en cuanto habia una party esperando, processQueue lanzaba
+    // "Undefined variable $ranked" y paraba el emparejamiento de TODOS.
+    $leader = makePremadeFlowPlayer('rev-leader', 'ignis', 'knight', 1010);
+    $teammate = makePremadeFlowPlayer('rev-mate', 'ignis', 'hunter', 1000);
+    $party = createReadyPremadeParty($leader, $teammate);
+
+    $this->actingAs($leader->user)->from(route('lobby'))->post(route('party.enqueue', $party))->assertRedirect(route('lobby'));
+
+    app(\App\Services\ArenaMatchmakingService::class)->processQueue(true, true);
+
+    expect(Queue::query()->where('queue_type', 'premade')->count())->toBe(2);
+});

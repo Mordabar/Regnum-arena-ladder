@@ -729,7 +729,7 @@ class ArenaMatchmakingService
             // La clave incluye la modalidad para que un mismo team_id no pueda
             // arrastrar entradas de 2v2 y 3v3 al mismo equipo.
             ->groupBy(fn (Queue $queue) => $queue->arena_mode . '|' . $queue->team_id)
-            ->map(function (Collection $teamEntries, string $groupKey) {
+            ->map(function (Collection $teamEntries, string $groupKey) use ($ranked) {
                 $arenaMode = ArenaMode::resolve($teamEntries->first()->arena_mode);
                 $teamSize = ArenaMode::teamSize($arenaMode);
                 $teamId = str_contains($groupKey, '|') ? explode('|', $groupKey, 2)[1] : $groupKey;
