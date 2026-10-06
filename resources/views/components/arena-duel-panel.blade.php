@@ -125,7 +125,7 @@
                 <a href="{{ route('matches.show', $match) }}" class="arena-btn-secondary px-5 py-2.5"><x-arena-icon name="eye" class="h-4 w-4 shrink-0" />Ver el enfrentamiento</a>
             @else
                 {{-- Formularios de verdad: funcionan aunque no haya JavaScript. --}}
-                <form method="POST" action="{{ route('matches.accept') }}">
+                <form method="POST" action="{{ route('matches.accept') }}" data-sin-recarga>
                     @csrf
                     <input type="hidden" name="match_id" value="{{ $match->id }}">
                     <input type="hidden" name="player_id" value="{{ $lineup['viewer_player_id'] }}">
@@ -135,7 +135,7 @@
                         Aceptar combate
                     </button>
                 </form>
-                <form method="POST" action="{{ route('matches.reject') }}"
+                <form method="POST" action="{{ route('matches.reject') }}" data-sin-recarga
                       onsubmit="return confirm('Si rechazas, el combate se cancela y los demás vuelven a la cola. Rechazar a menudo puede acarrear sanciones. ¿Seguro?')">
                     @csrf
                     <input type="hidden" name="match_id" value="{{ $match->id }}">

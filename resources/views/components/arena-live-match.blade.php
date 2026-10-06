@@ -314,7 +314,7 @@
                  version del otro con pruebas y la tuya sin ninguna, asi que se
                  pide aunque no se obligue: quien no tomo captura tiene que
                  poder rechazar igual, o se tragaria un resultado falso. --}}
-            <form method="POST" action="{{ route('matches.report.reject') }}" class="arena-report-reject"
+            <form method="POST" action="{{ route('matches.report.reject') }}" class="arena-report-reject" data-sin-recarga
                   data-reject-form enctype="multipart/form-data" @if(! $rechazoFallido) hidden @endif>
                 @csrf
                 <input type="hidden" name="report_id" value="{{ $report->id }}">

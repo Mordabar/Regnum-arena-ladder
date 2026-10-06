@@ -127,11 +127,18 @@
 
             (cuerpo.avisos || []).forEach(function (a) { avisar(a.texto, a.tipo); });
 
-            // Una ventana (invitar a premade, reglas...) se cierra al terminar.
+            // Una ventana (invitar a premade, reglas...) se cierra al terminar,
+            // pero solo si salio bien: con un error se queda abierta para
+            // corregirlo sin volver a escribir nada.
+            var huboError = (cuerpo.avisos || []).some(function (a) { return a.tipo === 'error'; });
             var ventana = form.closest('[role=dialog]');
-            if (ventana && window.arenaModal && typeof window.arenaModal.close === 'function') {
+            if (ventana && !huboError && window.arenaModal && typeof window.arenaModal.close === 'function') {
                 window.arenaModal.close(ventana.id);
             }
+
+            // Con un error y una ventana abierta no se repinta nada: el panel
+            // de debajo cambiaria mientras se esta leyendo el motivo.
+            if (huboError && ventana) { libre(); return; }
 
             return window.arenaConsoleGo(cuerpo.redirect, { reemplazar: true }).then(function (hecho) {
                 if (hecho === true || hecho === 'obsoleto') { libre(); return; }
