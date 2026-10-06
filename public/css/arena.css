@@ -4142,3 +4142,28 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
     -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
             mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
 }
+
+/* ── Segunda pasada del arbitro ───────────────────────────────────── */
+
+/* Marca de la barra: una sola linea, sin subtitulo cuando falta sitio. */
+.arena-navbar .arena-brand-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 1180px) { .arena-navbar .arena-brand-sub { display: none; } }
+@media (max-width: 400px) {
+    .arena-navbar .arena-brand-name { font-size: 14px; }
+}
+@media (max-width: 260px) { .arena-navbar .arena-brand-text { display: none; } }
+
+/* La pista de avisos: nunca en apaisado de poca altura. */
+@media (max-height: 480px) and (orientation: landscape) { .arena-avisos-pista { display: none !important; } }
+
+/* El selector de idioma, a la derecha: a la izquierda tapaba "Crear guerrero"
+   y el titulo del lobby en escritorio y en apaisado. */
+@media (min-width: 1024px), (max-height: 480px) and (orientation: landscape) {
+    .arena-lang { left: auto; right: 14px; }
+    .arena-lang-sheet { left: auto; right: 0; }
+}
+
+/* "Vriendschappelijk" en 320px. */
+@media (max-width: 340px) {
+    .arena-console-arenas .arena-console-arena { font-size: 11px; padding-left: 4px; padding-right: 4px; letter-spacing: 0; }
+}

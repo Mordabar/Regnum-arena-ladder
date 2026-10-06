@@ -34,11 +34,11 @@
         >
     </span>
 
-    <span class="min-w-0 leading-none">
-        <span class="block font-['Cinzel'] uppercase text-[color:var(--arena-gold-soft)] {{ $titleClass }}">
+    <span class="arena-brand-text min-w-0 leading-none">
+        <span class="arena-brand-name block font-['Cinzel'] uppercase text-[color:var(--arena-gold-soft)] {{ $titleClass }}">
             Regnum Arena Ladder
         </span>
-        <span class="mt-1 block font-['Spectral'] uppercase text-[color:var(--arena-ember)] {{ $subtitleClass }}">
+        <span class="arena-brand-sub mt-1 block font-['Spectral'] uppercase text-[color:var(--arena-ember)] {{ $subtitleClass }}">
             Conquest PvP
         </span>
     </span>

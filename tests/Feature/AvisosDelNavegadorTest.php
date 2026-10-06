@@ -576,7 +576,7 @@ it('la pista respira en pequeño y se va a los diez segundos', function () {
 
     // Crece un 4,5 % y vuelve: se nota sin tapar pantalla.
     expect($js)->toContain('50% { transform: scale(1.045); }')
-        ->and($js)->toContain('max-width: min(260px, calc(100vw - 32px));')
+        ->and($js)->toContain('max-width: calc(100vw - 32px);')
         ->and($js)->toContain('var PISTA_MS = 10000;')
         // Una vez por visita, no una en la vida: quien no activo la primera
         // vez sigue necesitando el recordatorio.

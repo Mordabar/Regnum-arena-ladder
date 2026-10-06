@@ -147,8 +147,9 @@
         font-size: 12px;
         font-weight: 600;
         line-height: 1.2;
-        white-space: normal;
-        max-width: min(260px, calc(100vw - 32px));
+        white-space: nowrap;
+        width: max-content;
+        max-width: calc(100vw - 32px);
         text-align: center;
         min-height: 36px;
         color: #ffd2cc;
