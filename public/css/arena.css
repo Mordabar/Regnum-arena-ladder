@@ -4139,11 +4139,6 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
     .arena-navbar > div { padding-top: 8px; padding-bottom: 8px; }
 }
 
-/* Los chips del chat se desplazan de lado: el borde difuminado lo avisa. */
-.arena-chat-quick {
-    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
-            mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
-}
 
 /* ── Segunda pasada del arbitro ───────────────────────────────────── */
 
@@ -4268,3 +4263,20 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
 .arena-friendly-result[open] > summary::before { transform: rotate(45deg); }
 .arena-friendly-result .arena-field { min-height: 44px; }
 @media (max-width: 360px) { .arena-friendly-end, .arena-friendly-panel { padding-left: 12px; padding-right: 12px; } }
+
+/* Chips del chat en movil: la fila se arrastra de lado, y donde se corta no
+   puede ser el contorno del panel. Se mete hacia dentro, con aire a los dos
+   lados, y se desvanece en ambos extremos: asi se entiende que continua y el
+   borde de verdad queda a la vista, separado. */
+@media (max-width: 720px) {
+    .arena-chat-quick {
+        width: auto;
+        max-width: none;
+        margin: 6px 14px 8px;
+        padding: 9px 6px;
+        border-top: 0;
+        scroll-padding-inline: 6px;
+        -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 26px), transparent 100%);
+                mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 26px), transparent 100%);
+    }
+}
