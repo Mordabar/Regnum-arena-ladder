@@ -219,5 +219,5 @@ it('renders numbered zone labels from the canonical zone key', function () {
 
     expect($match->zone_key)->toBe('crimson_canyon');
     expect($match->zone_number)->toBe(6);
-    expect($match->zone_name)->toBe('Zona 6 - Cañón de Daen Rha (Daen)');
+    expect($match->zone_name)->toBe('Zona 6 - Crimson Canyon');
 });

@@ -13,20 +13,20 @@ class ArenaMatch extends Model
     protected $table = 'matches';
 
     const ZONES = [
-        'frozen_bridge' => ['number' => 1, 'name' => 'Imperia (Impe)'],
-        'emerald_pass' => ['number' => 2, 'name' => 'Menirah'],
-        'red_cliff_pass' => ['number' => 3, 'name' => 'Llanura de Medenet'],
-        'black_fort_shore' => ['number' => 4, 'name' => 'Shaanarid (Shana)'],
-        'merchant_coast' => ['number' => 5, 'name' => 'Pantano'],
-        'crimson_canyon' => ['number' => 6, 'name' => 'Cañón de Daen Rha (Daen)'],
-        'central_ruins' => ['number' => 7, 'name' => 'Campa sin Orcos'],
-        'etreng_outskirts' => ['number' => 8, 'name' => 'Jabe'],
-        'obsidian_watch' => ['number' => 9, 'name' => 'Eferias (Efe)'],
-        'green_camp' => ['number' => 10, 'name' => 'Campa Orco'],
-        'jagaros_crossroads' => ['number' => 11, 'name' => 'Algaros (Alga)'],
-        'bridge_watch' => ['number' => 12, 'name' => 'Trelleborg (Trelle)'],
-        'aggersborg_bay' => ['number' => 13, 'name' => 'Puente de Pinos Este (PP)'],
-        'herth_gulf' => ['number' => 14, 'name' => 'Golpe de Thorkul (Pozo)'],
+        'frozen_bridge' => ['number' => 1, 'name' => 'Frozen Bridge'],
+        'emerald_pass' => ['number' => 2, 'name' => 'Emerald Pass'],
+        'red_cliff_pass' => ['number' => 3, 'name' => 'Red Cliff Pass'],
+        'black_fort_shore' => ['number' => 4, 'name' => 'Black Fort Shore'],
+        'merchant_coast' => ['number' => 5, 'name' => 'Merchant Coast'],
+        'crimson_canyon' => ['number' => 6, 'name' => 'Crimson Canyon'],
+        'central_ruins' => ['number' => 7, 'name' => 'Central Ruins'],
+        'etreng_outskirts' => ['number' => 8, 'name' => 'Etreng Outskirts'],
+        'obsidian_watch' => ['number' => 9, 'name' => 'Obsidian Watch'],
+        'green_camp' => ['number' => 10, 'name' => 'Green Camp'],
+        'jagaros_crossroads' => ['number' => 11, 'name' => 'Jagaros Crossroads'],
+        'bridge_watch' => ['number' => 12, 'name' => 'Bridge Watch'],
+        'aggersborg_bay' => ['number' => 13, 'name' => 'Aggersborg Bay'],
+        'herth_gulf' => ['number' => 14, 'name' => 'Herth Gulf'],
     ];
 
     /**
