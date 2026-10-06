@@ -104,6 +104,7 @@
         </header>
 
         <main class="ap-main" id="ap-main" tabindex="-1">
+            <div class="ap-flashes">
             @if(session('success'))
                 <div class="ap-flash ap-flash-ok ap-rise" role="status">
                     <x-admin.icon name="check" class="h-4 w-4 shrink-0" />
@@ -131,6 +132,7 @@
                     </div>
                 </div>
             @endif
+            </div>
 
             @yield('content')
         </main>

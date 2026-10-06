@@ -1192,7 +1192,7 @@
 @layer components {
     /* El resultado de una accion se ve siempre, aunque el boton estuviera al
        final de una pagina larga: flota arriba y se va solo. */
-    .ap-flash {
+    .ap-flashes {
         position: fixed;
         z-index: 90;
         top: 12px;
@@ -1200,6 +1200,14 @@
         right: 12px;
         max-width: 680px;
         margin: 0 auto;
+        display: grid;
+        gap: 8px;
+        pointer-events: none;
+    }
+    .ap-flashes:empty { display: none; }
+    .ap-flash {
+        pointer-events: auto;
+        margin: 0;
         cursor: pointer;
         box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
         background-color: var(--ap-surface);
