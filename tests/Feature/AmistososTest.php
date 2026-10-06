@@ -243,6 +243,53 @@ it('terminar un amistoso lo cierra sin repartir ni un punto', function () {
         ->and(Queue::query()->whereIn('status', ['matched', 'accepted'])->count())->toBe(0);
 });
 
+it('un amistoso se puede terminar apuntando el resultado, con o sin capturas, y no puntua', function () {
+    \Illuminate\Support\Facades\Storage::fake(\App\Models\MatchReport::EVIDENCE_DISK);
+    [$match, $a] = duelo(false, 'r');
+    $lado = $match->getTeamSideForPlayer($a->id, (string) $a->user->discord_id);
+
+    // Solo el ganador, sin una sola captura: vale, no hay nada que puntuar.
+    $this->actingAs($a->user)->post(route('matches.friendly.finish'), [
+        'match_id' => $match->id,
+        'player_id' => $a->id,
+        'claimed_winner_team' => $lado,
+        'reporter_note' => 'buen combate',
+    ])->assertSessionHasNoErrors();
+
+    $informe = $match->fresh()->report;
+
+    expect($match->fresh()->status)->toBe('completed')
+        ->and($informe)->not->toBeNull()
+        ->and($informe->claimed_winner_team)->toBe($lado)
+        ->and($informe->status)->toBe('confirmed')
+        ->and($informe->evidencePaths())->toBe([])
+        ->and($informe->reporter_note)->toBe('buen combate')
+        ->and(MatchResult::query()->count())->toBe(0);
+});
+
+it('las capturas de un amistoso son opcionales pero, si se adjuntan, quedan en el historial', function () {
+    \Illuminate\Support\Facades\Storage::fake(\App\Models\MatchReport::EVIDENCE_DISK);
+    [$match, $a] = duelo(false, 'u');
+
+    $this->actingAs($a->user)->post(route('matches.friendly.finish'), [
+        'match_id' => $match->id,
+        'player_id' => $a->id,
+        'claimed_winner_team' => 'draw',
+        'evidence_files' => [\Illuminate\Http\UploadedFile::fake()->image('final.png')],
+    ])->assertSessionHasNoErrors();
+
+    expect($match->fresh()->report->evidencePaths())->toHaveCount(1);
+});
+
+it('un amistoso terminado sin decir nada no deja ningun apunte', function () {
+    [$match, $a] = duelo(false, 's');
+
+    $this->actingAs($a->user)->post(route('matches.friendly.finish'), ['match_id' => $match->id, 'player_id' => $a->id, 'claimed_winner_team' => ''])
+        ->assertSessionHasNoErrors();
+
+    expect($match->fresh()->report)->toBeNull();
+});
+
 it('pulsar dos veces o desde los dos lados no rompe nada', function () {
     [$match, $a, $b] = duelo(false);
 

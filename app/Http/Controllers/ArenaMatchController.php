@@ -293,9 +293,19 @@ class ArenaMatchController extends Controller
             return redirect()->route('auth.discord');
         }
 
+        // El resultado es opcional: un amistoso no puntua, y lo que se apunte
+        // va solo al historial.
         $request->validate([
             'match_id' => 'required|exists:matches,id',
             'player_id' => 'required|exists:players,id',
+            'claimed_winner_team' => 'nullable|in:team_a,team_b,draw',
+            'evidence_files' => 'nullable|array|max:3',
+            'evidence_files.*' => 'file|mimes:jpg,jpeg,png,webp,gif,bmp,avif,heic,heif|max:10240',
+            'reporter_note' => 'nullable|string|max:500',
+        ], [
+            'evidence_files.max' => 'Solo puedes subir hasta 3 capturas.',
+            'evidence_files.*.mimes' => 'Las capturas deben ser JPG, PNG, WEBP, GIF, BMP, AVIF o HEIC.',
+            'evidence_files.*.max' => 'Cada captura no puede superar los 10 MB.',
         ]);
 
         $match = ArenaMatch::findOrFail($request->match_id);
@@ -311,9 +321,28 @@ class ArenaMatchController extends Controller
 
         $cerrado = $resultService->finishFriendly($match);
 
+        // El apunte del historial va aparte: si falla, el amistoso ya esta
+        // terminado y la cola libre, que es lo que importa.
+        $apuntado = false;
+        if ($cerrado) {
+            try {
+                $apuntado = $resultService->recordFriendlyResult(
+                    $match->fresh(),
+                    $player,
+                    $request->input('claimed_winner_team') ?: null,
+                    $request->file('evidence_files', []) ?? [],
+                    $request->input('reporter_note'),
+                ) !== null;
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
         return redirect()->route('lobby', ['mode' => $match->arena_mode, 'kind' => 'friendly'])
             ->with('success', $cerrado
-                ? 'Amistoso terminado. Cuando quieras, busca otro rival.'
+                ? ($apuntado
+                    ? 'Amistoso terminado y resultado guardado en el historial. Cuando quieras, busca otro rival.'
+                    : 'Amistoso terminado. Cuando quieras, busca otro rival.')
                 : 'Ese amistoso ya estaba terminado.');
     }
 

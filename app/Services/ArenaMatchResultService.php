@@ -30,6 +30,11 @@ class ArenaMatchResultService
     ) {
     }
 
+    public function recordFriendlyResult(ArenaMatch $match, Player $reporter, ?string $claimedWinnerTeam, array $evidenceFiles = [], ?string $note = null): ?MatchReport
+    {
+        return $this->reports->recordFriendlyResult($match, $reporter, $claimedWinnerTeam, $evidenceFiles, $note);
+    }
+
     public function submitReport(ArenaMatch $match, Player $reporter, array $payload): MatchReport
     {
         return $this->reports->submitReport($match, $reporter, $payload);

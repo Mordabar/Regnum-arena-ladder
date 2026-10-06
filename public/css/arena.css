@@ -4232,3 +4232,25 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
 .arena-console-arena.is-cargando { opacity: .7; animation: arenaCambiando .8s ease-in-out infinite; }
 @keyframes arenaCambiando { 50% { opacity: .45; } }
 @media (prefers-reduced-motion: reduce) { .arena-console-arena.is-cargando { animation: none; } }
+
+/* Terminar un amistoso: el resultado es opcional y va plegado. */
+.arena-friendly-form { display: grid; gap: 12px; }
+.arena-friendly-result {
+    border: 1px solid var(--arena-line);
+    border-radius: 12px;
+    background: rgba(8, 5, 4, 0.45);
+    padding: 0 14px;
+}
+.arena-friendly-result > summary {
+    cursor: pointer;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--arena-gold-soft);
+    list-style: none;
+}
+.arena-friendly-result > summary::-webkit-details-marker { display: none; }
+.arena-friendly-result[open] { padding-bottom: 14px; display: grid; gap: 12px; }
+.arena-friendly-result[open] > summary { margin-bottom: 2px; }

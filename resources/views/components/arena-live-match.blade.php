@@ -218,14 +218,17 @@
         <div class="arena-friendly-end">
             <p>
                 <b>Amistoso · sin ranking.</b>
-                No suma ni resta puntos ni hace falta reportar. Cuando acabéis, libera la cola.
+                No suma ni resta puntos ni hace falta reportar. Si quieres, apunta el resultado para el historial; cuando acabéis, libera la cola.
             </p>
-            <form method="POST" action="{{ route('matches.friendly.finish') }}" data-sin-recarga>
-                @csrf
-                <input type="hidden" name="match_id" value="{{ $match->id }}">
-                <input type="hidden" name="player_id" value="{{ $lineup['viewer_player_id'] }}">
-                <button type="submit" class="arena-btn w-full"><x-arena-icon name="send" class="h-4 w-4 shrink-0" />Terminar amistoso</button>
-            </form>
+            @include('matches.partials.amistoso-cierre', [
+                'match' => $match,
+                'playerId' => $lineup['viewer_player_id'],
+                'ownSide' => $lineup['own_side'],
+                'rivalSide' => $lineup['rival_side'],
+                'ownRealm' => $lineup['own_realm'],
+                'rivalRealm' => $lineup['rival_realm'],
+                'esDuelo' => $esDuelo,
+            ])
         </div>
     @endif
 

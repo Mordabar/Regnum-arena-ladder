@@ -151,6 +151,64 @@ class MatchReportService
         return $report;
     }
 
+    /**
+     * Apunta en el historial como acabo un amistoso. No es un reporte que haya
+     * que confirmar ni puntua nada: quien termino el combate dice quien gano y,
+     * si quiere, adjunta capturas y un comentario. Todo opcional.
+     */
+    public function recordFriendlyResult(
+        ArenaMatch $match,
+        Player $reporter,
+        ?string $claimedWinnerTeam,
+        array $evidenceFiles = [],
+        ?string $note = null
+    ): ?MatchReport {
+        if (!$match->isFriendly() || $match->status !== 'completed' || $match->report()->exists()) {
+            return null;
+        }
+
+        $note = $note !== null ? trim($note) : null;
+        $files = collect($evidenceFiles)->filter(fn ($file) => $file instanceof UploadedFile)->values();
+
+        // Sin ganador, sin capturas y sin comentario no hay nada que apuntar.
+        if (!in_array($claimedWinnerTeam, ['team_a', 'team_b', 'draw'], true) && $files->isEmpty() && ($note === null || $note === '')) {
+            return null;
+        }
+
+        $reportingTeam = $match->getTeamSideForPlayer($reporter->id, (string) $reporter->user?->discord_id);
+        if ($reportingTeam === null) {
+            return null;
+        }
+
+        $claimed = in_array($claimedWinnerTeam, ['team_a', 'team_b', 'draw'], true) ? $claimedWinnerTeam : 'draw';
+
+        $paths = [];
+        try {
+            foreach ($files as $index => $file) {
+                $paths[] = $this->storeScreenshot($match, $file, 'evidence-' . ($index + 1));
+            }
+
+            return MatchReport::create([
+                'match_id' => $match->id,
+                'reported_by_player_id' => $reporter->id,
+                'reporting_team' => $reportingTeam,
+                'claimed_winner_team' => $claimed,
+                'claimed_winner_realm' => $claimed === 'draw' ? null : ($claimed === 'team_a' ? $match->team_a_realm : $match->team_b_realm),
+                // Ya esta cerrado y no hay nada que confirmar: queda como historia.
+                'status' => 'confirmed',
+                'encounter_screenshot_path' => $paths[0] ?? '',
+                'final_screenshot_path' => $paths[0] ?? '',
+                'evidence_paths' => $paths,
+                'reporter_note' => $note !== '' ? $note : null,
+                'confirmed_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            $this->deleteEvidencePaths($paths);
+
+            throw $e;
+        }
+    }
+
     public function submitSyntheticReport(
         ArenaMatch $match,
         Player $reporter,

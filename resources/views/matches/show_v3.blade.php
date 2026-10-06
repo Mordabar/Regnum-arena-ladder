@@ -454,12 +454,17 @@
                 pulsad el botón para liberar la cola.
             </p>
             @if($viewerPlayer && $match->status === 'in_progress')
-                <form method="POST" action="{{ route('matches.friendly.finish') }}" data-sin-recarga class="mt-4">
-                    @csrf
-                    <input type="hidden" name="match_id" value="{{ $match->id }}">
-                    <input type="hidden" name="player_id" value="{{ $viewerPlayer['player_id'] }}">
-                    <button type="submit" class="arena-btn"><x-arena-icon name="send" class="h-4 w-4 shrink-0" />Terminar amistoso</button>
-                </form>
+                <div class="mt-4">
+                    @include('matches.partials.amistoso-cierre', [
+                        'match' => $match,
+                        'playerId' => $viewerPlayer['player_id'],
+                        'ownSide' => $ownSide,
+                        'rivalSide' => $rivalSide,
+                        'ownRealm' => $ownRealm,
+                        'rivalRealm' => $rivalRealm,
+                        'esDuelo' => $esDuelo,
+                    ])
+                </div>
             @elseif($match->status === 'completed')
                 <p class="mt-4 text-sm text-[color:var(--arena-sand)]">Amistoso terminado.</p>
             @endif
