@@ -792,7 +792,7 @@ h1, h2, h3, h4, h5, h6,
 .arena-champion-realm {
     text-transform: uppercase;
     letter-spacing: 0.14em;
-    font-size: 11.5px;
+    font-size: 0.72rem;
     font-weight: 600;
     color: var(--arena-fire);
 }
@@ -4355,4 +4355,26 @@ body > footer, footer.relative.mt-auto { padding-bottom: 64px; }
     :lang(nl) .arena-console .arena-console-arenas .arena-console-arena[class*="is-kind"] { overflow-wrap: normal; hyphens: manual; }
     :lang(de) .arena-console-stage > .arena-champion:has(.arena-console-arenas) .arena-champion-canvas,
     :lang(nl) .arena-console-stage > .arena-champion:has(.arena-console-arenas) .arena-champion-canvas { top: 92px; height: calc(100% - 92px); }
+}
+
+/* ── Ultimos detalles menores ─────────────────────────────────────── */
+
+/* La pista de avisos en movil no tapa el principio de la pagina: sale abajo a
+   la derecha, encima de la barra, donde estorba menos y no pisa el selector de
+   modo ni la marca. */
+@media (max-width: 1023px) {
+    .arena-avisos .arena-avisos-pista {
+        position: fixed;
+        top: auto; left: auto;
+        right: 12px;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 78px);
+        transform-origin: bottom right;
+    }
+}
+
+/* Movil apaisado: la vista previa de crear guerrero no se estira a 800px de
+   ancho por 240 de alto; se queda en un cuadro razonable, centrado. */
+@media (max-height: 480px) and (orientation: landscape) {
+    :root { --preview-height: min(78vh, 300px); }
+    .arena-champion[data-champion-id="create-preview"] { max-width: 380px; margin-inline: auto; }
 }
